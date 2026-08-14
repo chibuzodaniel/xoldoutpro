@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type WalletData = {
   availableKobo: number;
@@ -39,7 +40,7 @@ export default function WalletPage() {
     return (
       <div className="px-4 py-6">
         <h1 className="font-serif text-2xl mb-6">Wallet</h1>
-        <p className="text-sm text-ink-3">Loading…</p>
+        <LoadingSpinner full size="md" />
       </div>
     );
   }

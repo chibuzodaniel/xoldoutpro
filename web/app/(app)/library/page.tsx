@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { usePlayer } from "@/components/player/PlayerProvider";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import {
   downloadTrackForOffline,
   isDownloaded,
@@ -100,7 +101,7 @@ export default function LibraryPage() {
       {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
       {entitlements === null ? (
-        <p className="text-sm text-ink-3">Loading…</p>
+        <LoadingSpinner full size="md" />
       ) : entitlements.length === 0 ? (
         <p className="text-sm text-ink-3">Everything you buy shows up here, playable offline. Nothing yet.</p>
       ) : (

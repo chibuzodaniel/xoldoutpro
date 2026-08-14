@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type CatalogProduct = {
   id: string;
@@ -53,7 +54,7 @@ export default function CatalogPage() {
       {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
       {products === null ? (
-        <p className="text-sm text-ink-3">Loading…</p>
+        <LoadingSpinner full size="md" />
       ) : products.length === 0 ? (
         <p className="text-sm text-ink-3">Nothing published yet.</p>
       ) : (

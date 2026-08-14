@@ -7,6 +7,7 @@ import { BottomNav } from "@/components/nav/BottomNav";
 import { PlayerProvider } from "@/components/player/PlayerProvider";
 import { MiniPlayer } from "@/components/player/MiniPlayer";
 import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 export default function AppShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   }, [loading, firebaseUser, needsOnboarding, router]);
 
   if (loading || !firebaseUser || !appUser) {
-    return <div className="flex flex-1 items-center justify-center text-ink-3 text-sm">Loading…</div>;
+    return <LoadingSpinner full size="lg" />;
   }
 
   return (
