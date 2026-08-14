@@ -11,6 +11,12 @@ Every assumption made building XOLDOUT, what was chosen, and why. One entry per 
 - **Auth**: Firebase Auth — email/password and Google sign-in. Session verified server-side via Firebase Admin `verifyIdToken`; the Postgres `User` row is mirrored on first sign-in via `firebaseUid`, created by `POST /api/auth/sync`.
 - **Stack/hosting**: Next.js (App Router) + Postgres (Prisma) + Cloudflare R2, Vercel/Railway-class hosting.
 
+## Migration history is out of sync with the schema (2026-08-14)
+
+- `npx prisma dev`'s shadow database (used to diff migrations before writing a new one) is persistently broken — every `migrate dev` attempt after the initial one fails with `type "LedgerKind" already exists`, even immediately after a clean `db push`. Unlike the connection-pool crashes elsewhere in this file, this one isn't intermittent — it reproduces every time.
+- **The `User.socialLinks`/`User.pushEnabled` columns (added for the Settings redesign) were applied via `npx prisma db push`, not `migrate dev`** — so there is no corresponding file in `prisma/migrations/`. `prisma/schema.prisma` is the accurate source of truth for the current schema; the migrations folder is one change behind it.
+- **Before deploying anywhere with `prisma migrate deploy`** (which only replays files in `prisma/migrations/`, never the schema directly), someone needs to either: (a) run `prisma migrate dev` once against a real, non-`prisma-dev` Postgres to generate a baseline migration matching current `schema.prisma`, or (b) hand-write the missing migration SQL (`ALTER TABLE "User" ADD COLUMN "socialLinks" JSONB NOT NULL DEFAULT '[]', ADD COLUMN "pushEnabled" BOOLEAN NOT NULL DEFAULT false;`) and mark it applied with `prisma migrate resolve --applied`. Do this before the next `migrate dev` call, not after — otherwise the drift compounds.
+
 ## Naming override (2026-08-14)
 
 - **The MVP tab labeled "Fanbase" in the PRD is called "Socials" in the app** (`/socials`, was `/fanbase`), per explicit user instruction. Note this collides with the PRD's own Phase 3 vocabulary, where "Socials" names a *different*, not-yet-built feature (a public algorithmic feed, distinct from the private following-based announcements this tab actually shows — PRD §5/§11). If/when Phase 3 Socials gets built, the naming will need to be reconciled — either this tab gets renamed again or the P3 feature gets a different name.

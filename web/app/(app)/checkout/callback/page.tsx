@@ -58,7 +58,7 @@ export default function CheckoutCallbackPage() {
         <>
           <h1 className="font-serif text-2xl text-red-soft">Payment didn&apos;t go through</h1>
           <button
-            onClick={() => router.push(productId ? `/r/${productId}` : "/home")}
+            onClick={() => router.push(productId ? `/r/${productId}` : "/discover")}
             className="rounded-lg border border-line px-5 py-3 text-sm font-semibold"
           >
             Try again

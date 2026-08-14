@@ -2,7 +2,7 @@
   "name": "XOLDOUT",
   "short_name": "XOLDOUT",
   "description": "Where music actually sells out",
-  "start_url": "/home",
+  "start_url": "/discover",
   "display": "standalone",
   "background_color": "#0a0a0b",
   "theme_color": "#0a0a0b",

@@ -68,7 +68,7 @@ export default function OnboardingPage() {
       }
 
       await refreshAppUser();
-      router.push("/home");
+      router.push("/discover");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

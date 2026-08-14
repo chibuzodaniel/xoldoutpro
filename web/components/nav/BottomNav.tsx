@@ -3,12 +3,41 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const ITEMS: { href: string; label: string; isFab: boolean }[] = [
-  { href: "/home", label: "Home", isFab: false },
-  { href: "/socials", label: "Socials", isFab: false },
-  { href: "/publish", label: "", isFab: true },
-  { href: "/library", label: "Library", isFab: false },
-  { href: "/profile", label: "Profile", isFab: false },
+const ICONS: Record<string, React.ReactNode> = {
+  discover: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M15.5 8.5l-2 5-5 2 2-5 5-2z" strokeLinejoin="round" />
+    </svg>
+  ),
+  socials: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="9" cy="8" r="3.2" />
+      <path d="M3 19c0-3.3 2.7-5 6-5s6 1.7 6 5" />
+      <path d="M17 8.5a3 3 0 010 5" strokeLinecap="round" />
+    </svg>
+  ),
+  library: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4 6h9M4 11h9M4 16h5" strokeLinecap="round" />
+      <circle cx="18" cy="15.5" r="2.6" />
+      <path d="M20.6 15.5V7" strokeLinecap="round" />
+    </svg>
+  ),
+  profile: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M4.5 20a7.5 7.5 0 0115 0" strokeLinecap="round" />
+    </svg>
+  ),
+};
+
+const ITEMS: { href: string; label: string; icon: keyof typeof ICONS; isFab: boolean }[] = [
+  { href: "/discover", label: "Discover", icon: "discover", isFab: false },
+  { href: "/socials", label: "Socials", icon: "socials", isFab: false },
+  { href: "/publish", label: "", icon: "discover", isFab: true },
+  { href: "/library", label: "Library", icon: "library", isFab: false },
+  { href: "/profile", label: "Profile", icon: "profile", isFab: false },
 ];
 
 export function BottomNav() {
@@ -21,10 +50,12 @@ export function BottomNav() {
           <Link
             key={item.href}
             href={item.href}
-            className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white text-2xl leading-none shadow-lg shadow-red/30"
+            className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
             aria-label="Publish"
           >
-            +
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
+              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+            </svg>
           </Link>
         ) : (
           <Link
@@ -34,6 +65,7 @@ export function BottomNav() {
               pathname?.startsWith(item.href) ? "text-white" : "text-ink-3"
             }`}
           >
+            <span className="h-[19px] w-[19px]">{ICONS[item.icon]}</span>
             {item.label}
           </Link>
         ),

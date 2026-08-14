@@ -2,11 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { signOut } from "firebase/auth";
+import { useAuth, type SocialLink } from "@/components/auth/AuthProvider";
+import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
+import { enablePush, disablePush } from "@/lib/push";
 
-const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
+const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -16,13 +19,57 @@ export default function EditProfilePage() {
   const [displayName, setDisplayName] = useState(appUser?.displayName ?? "");
   const [bio, setBio] = useState(appUser?.bio ?? "");
   const [tags, setTags] = useState<string[]>(appUser?.tags ?? []);
+  const [tagInput, setTagInput] = useState("");
+  const [socialLinks, setSocialLinks] = useState<SocialLink[]>(appUser?.socialLinks ?? []);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [pushEnabled, setPushEnabled] = useState(appUser?.pushEnabled ?? false);
+  const [pushBusy, setPushBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  function toggleTag(tag: string) {
-    setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
+  function addTag() {
+    const t = tagInput.trim();
+    if (!t || tags.includes(t) || tags.length >= 8) return;
+    setTags((cur) => [...cur, t]);
+    setTagInput("");
+  }
+
+  function removeTag(tag: string) {
+    setTags((cur) => cur.filter((t) => t !== tag));
+  }
+
+  function addSocialLink() {
+    if (socialLinks.length >= 6) return;
+    setSocialLinks((cur) => [...cur, { platform: "Instagram", url: "" }]);
+  }
+
+  function updateSocialLink(index: number, patch: Partial<SocialLink>) {
+    setSocialLinks((cur) => cur.map((l, i) => (i === index ? { ...l, ...patch } : l)));
+  }
+
+  function removeSocialLink(index: number) {
+    setSocialLinks((cur) => cur.filter((_, i) => i !== index));
+  }
+
+  async function handleTogglePush() {
+    setPushBusy(true);
+    setError(null);
+    try {
+      if (pushEnabled) {
+        await disablePush();
+        setPushEnabled(false);
+      } else {
+        const result = await enablePush();
+        if (!result.ok) {
+          setError(result.error);
+        } else {
+          setPushEnabled(true);
+        }
+      }
+    } finally {
+      setPushBusy(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -30,13 +77,14 @@ export default function EditProfilePage() {
     setError(null);
     setBusy(true);
     try {
+      const cleanLinks = socialLinks.filter((l) => l.url.trim().length > 0);
       const patchRes = await apiFetch("/api/me", {
         method: "PATCH",
-        body: JSON.stringify({ handle, displayName, bio, tags }),
+        body: JSON.stringify({ handle, displayName, bio, tags, socialLinks: cleanLinks }),
       });
       if (!patchRes.ok) {
         const data = await patchRes.json().catch(() => ({}));
-        throw new Error(data.error ?? "Could not save profile");
+        throw new Error(typeof data.error === "string" ? data.error : "Could not save profile");
       }
       if (avatarFile) {
         const key = await uploadImage(avatarFile, "avatar");
@@ -55,54 +103,73 @@ export default function EditProfilePage() {
     }
   }
 
+  async function handleLogout() {
+    if (firebaseAuth) await signOut(firebaseAuth);
+    router.push("/login");
+  }
+
   if (!appUser) return null;
 
   return (
-    <div className="px-4 py-6 max-w-sm mx-auto">
-      <h1 className="font-serif text-2xl mb-6">Edit profile</h1>
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Cover photo</label>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
-            className="text-xs text-ink-2"
-          />
+    <div className="pb-10">
+      <div className="flex items-center gap-3 px-4 h-12 border-b border-line-soft mb-6">
+        <button onClick={() => router.back()} className="text-xl text-ink-2" aria-label="Back">
+          ‹
+        </button>
+        <h1 className="font-serif text-xl">Settings</h1>
+      </div>
+
+      <form onSubmit={handleSubmit} className="px-4 flex flex-col gap-8 max-w-sm mx-auto">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Photos</h2>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Cover photo</label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+              className="text-xs text-ink-2"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Avatar</label>
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
+              className="text-xs text-ink-2"
+            />
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Avatar</label>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
-            className="text-xs text-ink-2"
-          />
+
+        <div className="flex flex-col gap-4">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Profile</h2>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Handle</label>
+            <input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value.toLowerCase())}
+              required
+              minLength={3}
+              maxLength={24}
+              pattern="[a-z0-9_]+"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Display name</label>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+              maxLength={60}
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            />
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Handle</label>
-          <input
-            value={handle}
-            onChange={(e) => setHandle(e.target.value.toLowerCase())}
-            required
-            minLength={3}
-            maxLength={24}
-            pattern="[a-z0-9_]+"
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Display name</label>
-          <input
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            required
-            maxLength={60}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Bio</label>
+
+        <div className="flex flex-col gap-2">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Bio</h2>
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
@@ -111,32 +178,125 @@ export default function EditProfilePage() {
             className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red resize-none"
           />
         </div>
+
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Tags</label>
-          <div className="flex flex-wrap gap-2">
-            {SUGGESTED_TAGS.map((tag) => (
-              <button
-                type="button"
-                key={tag}
-                onClick={() => toggleTag(tag)}
-                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                  tags.includes(tag) ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
-                }`}
-              >
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Tags</h2>
+          <div className="flex flex-wrap gap-2 mb-1">
+            {tags.map((tag) => (
+              <span key={tag} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs">
                 {tag}
-              </button>
+                <button type="button" onClick={() => removeTag(tag)} className="text-ink-3" aria-label={`Remove ${tag}`}>
+                  ×
+                </button>
+              </span>
             ))}
           </div>
+          <div className="flex gap-2">
+            <input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addTag();
+                }
+              }}
+              placeholder="Add a tag (e.g. Producer)"
+              maxLength={24}
+              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-red"
+            />
+            <button
+              type="button"
+              onClick={addTag}
+              className="rounded-lg border border-line px-4 text-sm font-semibold"
+            >
+              Add
+            </button>
+          </div>
         </div>
+
+        <div className="flex flex-col gap-2">
+          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Social accounts</h2>
+          <div className="flex flex-col gap-2">
+            {socialLinks.map((link, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <select
+                  value={link.platform}
+                  onChange={(e) => updateSocialLink(i, { platform: e.target.value as SocialLink["platform"] })}
+                  className="rounded-lg border border-line bg-surface px-2 py-2 text-xs outline-none"
+                >
+                  {PLATFORMS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={link.url}
+                  onChange={(e) => updateSocialLink(i, { url: e.target.value })}
+                  placeholder="https://..."
+                  className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-xs outline-none focus:border-red"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeSocialLink(i)}
+                  className="text-ink-3 shrink-0"
+                  aria-label="Remove social account"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+          {socialLinks.length < 6 && (
+            <button type="button" onClick={addSocialLink} className="text-left text-xs font-semibold text-red-soft">
+              + Add social account
+            </button>
+          )}
+        </div>
+
         {error && <p className="text-sm text-red-soft">{error}</p>}
+
         <button
           type="submit"
           disabled={busy}
-          className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          className="rounded-lg bg-red px-4 py-3.5 text-sm font-semibold text-white disabled:opacity-50"
         >
-          Save
+          {busy ? "Saving…" : "Save Changes"}
         </button>
       </form>
+
+      <div className="px-4 max-w-sm mx-auto mt-8">
+        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
+          <div>
+            <p className="text-sm font-semibold mb-0.5">Get notified in the background</p>
+            <p className="text-xs text-ink-3">New releases, purchases, and follows — even when the app isn&apos;t open.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleTogglePush}
+            disabled={pushBusy}
+            aria-pressed={pushEnabled}
+            className={`relative h-6 w-11 rounded-full shrink-0 transition-colors disabled:opacity-50 ${
+              pushEnabled ? "bg-red" : "bg-surface-2 border border-line"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                pushEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        <button
+          onClick={handleLogout}
+          className="w-full rounded-lg border border-line px-4 py-3.5 text-sm font-semibold text-red-soft"
+        >
+          Log Out
+        </button>
+      </div>
     </div>
   );
 }

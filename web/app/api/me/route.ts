@@ -17,6 +17,11 @@ export async function GET(req: NextRequest) {
 // The set is open (any string up to 24 chars), the four below are just the suggested chips.
 export const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"] as const;
 
+const socialLinkSchema = z.object({
+  platform: z.enum(["Instagram", "X", "TikTok", "YouTube", "Website"]),
+  url: z.string().url().max(300),
+});
+
 const patchSchema = z.object({
   handle: z
     .string()
@@ -27,6 +32,9 @@ const patchSchema = z.object({
   displayName: z.string().min(1).max(60).optional(),
   bio: z.string().max(280).optional(),
   tags: z.array(z.string().min(1).max(24)).max(8).optional(),
+  socialLinks: z.array(socialLinkSchema).max(6).optional(),
+  pushEnabled: z.boolean().optional(),
+  fcmTokens: z.array(z.string()).optional(),
 });
 
 export async function PATCH(req: NextRequest) {

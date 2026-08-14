@@ -20,7 +20,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
-      router.push("/home");
+      router.push("/discover");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Log in failed");
     } finally {
@@ -34,7 +34,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signInWithPopup(firebaseAuth, googleProvider);
-      router.push("/home");
+      router.push("/discover");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {

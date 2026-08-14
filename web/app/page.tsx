@@ -10,7 +10,7 @@ export default function RootPage() {
 
   useEffect(() => {
     if (loading) return;
-    router.replace(firebaseUser ? "/home" : "/login");
+    router.replace(firebaseUser ? "/discover" : "/login");
   }, [loading, firebaseUser, router]);
 
   return null;

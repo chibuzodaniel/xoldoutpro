@@ -29,6 +29,8 @@ model User {
   avatarUrl   String?
   coverUrl    String?
   tags        String[] @default([])
+  socialLinks Json     @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
+  pushEnabled Boolean  @default(false)
   fcmTokens   String[] @default([]) // Firebase Cloud Messaging push tokens
   createdAt   DateTime @default(now())
 

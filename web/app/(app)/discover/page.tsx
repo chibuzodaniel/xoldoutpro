@@ -1,0 +1,159 @@
+import Link from "next/link";
+import { db } from "@/lib/db";
+import { ProductCard } from "@/components/product/ProductCard";
+import { AppHeader } from "@/components/nav/AppHeader";
+import { CategoryTabs } from "@/components/nav/CategoryTabs";
+
+// Stock counts and follower counts change on every purchase/follow — never
+// prerender this statically at build time.
+export const dynamic = "force-dynamic";
+
+const cardInclude = {
+  creator: { select: { handle: true, displayName: true } },
+  release: { select: { artworkLadder: true, releaseType: true } },
+  stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
+} as const;
+
+function formatNaira(kobo: number) {
+  if (kobo === 0) return "Free";
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
+
+const AVATAR_GRADIENTS = [
+  "from-[#6b0f1c] to-[#26070d]",
+  "from-[#5e0d19] to-[#26070d]",
+  "from-[#7d1424] to-[#2a0810]",
+  "from-[#4a0c15] to-[#1a0509]",
+];
+
+export default async function DiscoverPage() {
+  const [newReleases, sellingOutNow, creators] = await Promise.all([
+    db.product.findMany({
+      where: { type: "RELEASE", status: "PUBLISHED" },
+      include: cardInclude,
+      orderBy: { publishedAt: "desc" },
+      take: 12,
+    }),
+    db.product.findMany({
+      where: {
+        type: "RELEASE",
+        status: "PUBLISHED",
+        stockPolicy: { cap: { not: null }, soldOutAt: null },
+      },
+      include: cardInclude,
+      orderBy: { stockPolicy: { sold: "desc" } },
+      take: 12,
+    }),
+    db.user.findMany({
+      orderBy: { followers: { _count: "desc" } },
+      take: 8,
+      select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },
+    }),
+  ]);
+
+  const hero = newReleases[0];
+  const heroArt = hero ? ((hero.release?.artworkLadder as Record<string, string> | undefined)?.["1024"]) : null;
+  const heroSoldOut = Boolean(hero?.stockPolicy?.soldOutAt);
+  const heroCap = hero?.stockPolicy?.cap ?? null;
+  const heroSold = hero?.stockPolicy?.sold ?? 0;
+  const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
+
+  return (
+    <div className="pb-8">
+      <AppHeader />
+      <CategoryTabs active="All" />
+
+      {hero && (
+        <Link href={`/r/${hero.id}`} className="block relative mx-4 mb-6 rounded-xl overflow-hidden aspect-[4/5]">
+          <div className="absolute inset-0 bg-surface-2">
+            {heroArt && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={heroArt} alt={hero.title} className="h-full w-full object-cover" />
+            )}
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-black/40" />
+
+          <span className="absolute left-3 top-3 rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-white">
+            {(hero.release?.releaseType ?? "single").toLowerCase()}
+          </span>
+          <span className="absolute left-3 top-10 rounded-full bg-red px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-white">
+            New Release
+          </span>
+
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="h-14 w-14 rounded-full bg-black/45 backdrop-blur-sm border border-white/25 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white translate-x-[1px]">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+            </span>
+          </div>
+
+          <div className="absolute left-4 right-4 bottom-4">
+            <p className="text-[11px] text-white/60 uppercase tracking-wide mb-1">{hero.creator.displayName}</p>
+            <h2 className="font-serif text-2xl text-white leading-tight mb-2">{hero.title}</h2>
+            <div className="flex items-center justify-between">
+              {heroRemaining !== null ? (
+                <span className="text-xs font-semibold text-red-soft">
+                  {heroSoldOut ? "Sold out" : `${heroRemaining} of ${heroCap} left`}
+                </span>
+              ) : (
+                <span className="text-xs text-white/60">{heroSold} sold</span>
+              )}
+              <span className="font-serif text-lg text-white">{formatNaira(hero.priceKobo)}</span>
+            </div>
+          </div>
+        </Link>
+      )}
+
+      {sellingOutNow.length > 0 && (
+        <section className="px-4 mb-7">
+          <h3 className="text-[11px] font-bold uppercase tracking-wide text-red-soft mb-3">Selling Out Now</h3>
+          <div className="grid grid-cols-3 gap-3">
+            {sellingOutNow.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="px-4 mb-7">
+        <h3 className="font-serif text-lg mb-3">Recommended For You</h3>
+        {newReleases.length === 0 ? (
+          <p className="text-sm text-ink-3">Nothing published yet.</p>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {newReleases.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {creators.length > 0 && (
+        <section className="px-4">
+          <h3 className="font-serif text-lg mb-3">Featured Creators</h3>
+          <div className="flex gap-4 overflow-x-auto pb-1">
+            {creators.map((c, i) => (
+              <Link key={c.id} href={`/u/${c.handle}`} className="flex flex-col items-center gap-1.5 w-16 shrink-0">
+                <div
+                  className={`h-14 w-14 rounded-full overflow-hidden flex items-center justify-center border border-white/10 bg-gradient-to-br ${
+                    AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length]
+                  }`}
+                >
+                  {c.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={c.avatarUrl} alt={c.displayName} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="font-serif text-base text-white">{c.displayName.slice(0, 1).toUpperCase()}</span>
+                  )}
+                </div>
+                <span className="text-[10.5px] font-medium text-ink-2 line-clamp-1 text-center">{c.displayName}</span>
+                <span className="text-[9px] text-ink-3">{c._count.followers}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
