@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { PurchaseAndPlayer } from "@/components/product/PurchaseAndPlayer";
 
 export const dynamic = "force-dynamic";
 
@@ -56,23 +57,13 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
 
         {product.description && <p className="text-sm text-ink-2 mb-5">{product.description}</p>}
 
-        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-          {product.release.tracks.map((track, i) => (
-            <div key={track.id} className="flex items-center justify-between py-3">
-              <span className="text-sm">
-                <span className="text-ink-3 mr-2">{i + 1}.</span>
-                {track.title}
-              </span>
-              <span className="text-xs text-ink-3">
-                {Math.floor(track.durationSec / 60)}:{String(Math.floor(track.durationSec % 60)).padStart(2, "0")}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <p className="text-[11px] text-ink-3 mt-6">
-          Buying and playback ship in the next milestone — this page is catalog/browse only for now.
-        </p>
+        <PurchaseAndPlayer
+          productId={product.id}
+          artistName={product.creator.displayName}
+          artworkUrl={artwork ?? null}
+          priceKobo={product.priceKobo}
+          isSoldOut={isSoldOut}
+        />
       </div>
     </div>
   );

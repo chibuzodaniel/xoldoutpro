@@ -26,13 +26,14 @@ export default function OnboardingPage() {
   }, [loading, firebaseUser, router]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of the form once appUser loads async, not per-render derived state
+    /* eslint-disable react-hooks/set-state-in-effect -- one-time hydration of the form once appUser loads async, not per-render derived state */
     if (appUser) {
       setHandle(appUser.handle);
       setDisplayName(appUser.displayName);
       setBio(appUser.bio ?? "");
       setTags(appUser.tags ?? []);
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [appUser]);
 
   function toggleTag(tag: string) {

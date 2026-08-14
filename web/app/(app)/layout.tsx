@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { BottomNav } from "@/components/nav/BottomNav";
+import { PlayerProvider } from "@/components/player/PlayerProvider";
+import { MiniPlayer } from "@/components/player/MiniPlayer";
+import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
 
 export default function AppShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -23,9 +26,13 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
   }
 
   return (
-    <div className="flex flex-1 flex-col min-h-screen">
-      <div className="flex-1 overflow-y-auto pb-2">{children}</div>
-      <BottomNav />
-    </div>
+    <PlayerProvider>
+      <div className="flex flex-1 flex-col min-h-screen">
+        <div className="flex-1 overflow-y-auto pb-2">{children}</div>
+        <MiniPlayer />
+        <BottomNav />
+      </div>
+      <ExpandedPlayer />
+    </PlayerProvider>
   );
 }
