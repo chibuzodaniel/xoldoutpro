@@ -1,0 +1,10 @@
+# Safety net for credential files dropped at the repo root (e.g. a
+# downloaded Firebase service-account JSON) — web/.gitignore already
+# covers .env* inside web/, this catches anything landing up here instead.
+*firebase-adminsdk*.json
+*service-account*.json
+*serviceAccountKey*.json
+.env*
+!.env.local.example
+*.pem
+*.key
