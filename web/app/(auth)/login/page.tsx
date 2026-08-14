@@ -45,8 +45,9 @@ export default function LoginPage() {
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
-        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-4">Welcome back</p>
-        <h1 className="font-serif text-4xl mb-8">XOLDOUT</h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/xoldout-logo.jpeg" alt="XOLDOUT" className="h-10 w-auto mb-8 rounded" />
+        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Welcome back</p>
 
         <form onSubmit={handleEmailLogin} className="flex flex-col gap-3">
           <input

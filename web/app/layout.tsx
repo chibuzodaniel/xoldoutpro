@@ -6,6 +6,11 @@ export const metadata: Metadata = {
   title: "XOLDOUT — Where music actually sells out",
   description: "A direct-to-fan music marketplace. Fans buy, fans own, creators get paid.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/xoldout-icon.jpeg",
+    shortcut: "/xoldout-icon.jpeg",
+    apple: "/xoldout-icon.jpeg",
+  },
 };
 
 export const viewport: Viewport = {
