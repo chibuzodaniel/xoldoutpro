@@ -11,6 +11,10 @@ Every assumption made building XOLDOUT, what was chosen, and why. One entry per 
 - **Auth**: Firebase Auth — email/password and Google sign-in. Session verified server-side via Firebase Admin `verifyIdToken`; the Postgres `User` row is mirrored on first sign-in via `firebaseUid`, created by `POST /api/auth/sync`.
 - **Stack/hosting**: Next.js (App Router) + Postgres (Prisma) + Cloudflare R2, Vercel/Railway-class hosting.
 
+## Naming override (2026-08-14)
+
+- **The MVP tab labeled "Fanbase" in the PRD is called "Socials" in the app** (`/socials`, was `/fanbase`), per explicit user instruction. Note this collides with the PRD's own Phase 3 vocabulary, where "Socials" names a *different*, not-yet-built feature (a public algorithmic feed, distinct from the private following-based announcements this tab actually shows — PRD §5/§11). If/when Phase 3 Socials gets built, the naming will need to be reconciled — either this tab gets renamed again or the P3 feature gets a different name.
+
 ## Mid-build change (2026-08-14)
 
 - **Firebase scope narrowed to Auth + push (FCM) only.** Originally proposed Auth.js with Credentials+Google; user redirected mid-build to Firebase Auth specifically, plus Firebase Cloud Messaging for push notifications. Postgres/Prisma remained the system of record for everything else (money, stock, entitlements) — nothing in the approved architecture/schema plan changed except the auth provider. `User.fcmTokens` added to receive push later; no push-sending code exists yet (nothing in Milestone 1/2 requires it — revisit when Fanbase announcements or purchase confirmations are built).
