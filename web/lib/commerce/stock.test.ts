@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "./stock";
 
@@ -7,6 +7,16 @@ import { reserveStock, confirmStock, releaseReservation } from "./stock";
 // DATABASE_URL) — this is the hardest correctness problem in the PRD
 // (§16): two buyers racing for the last copy must never both succeed.
 // Written before wiring checkout/webhook to it, per the PRD's own instruction.
+//
+// This runs against the same database the dev server uses, so it has to
+// clean up after itself — an earlier version of this file didn't, and left
+// PUBLISHED "Race Test Release" rows with no backing Release record sitting
+// in the real Home feed. Status is DRAFT (never surfaced on Home/browse
+// regardless) as a second line of defense, and every created row is tracked
+// and deleted in afterEach.
+
+const createdProductIds: string[] = [];
+const createdUserIds: string[] = [];
 
 async function makeCappedProduct(cap: number | null) {
   const creator = await db.user.create({
@@ -17,6 +27,8 @@ async function makeCappedProduct(cap: number | null) {
       displayName: "Race Test Creator",
     },
   });
+  createdUserIds.push(creator.id);
+
   const product = await db.product.create({
     data: {
       creatorId: creator.id,
@@ -24,12 +36,22 @@ async function makeCappedProduct(cap: number | null) {
       title: "Race Test Release",
       description: "",
       priceKobo: 100,
-      status: "PUBLISHED",
+      status: "DRAFT",
       stockPolicy: { create: { cap } },
     },
   });
+  createdProductIds.push(product.id);
+
   return product.id;
 }
+
+afterEach(async () => {
+  await db.stockPolicy.deleteMany({ where: { productId: { in: createdProductIds } } });
+  await db.product.deleteMany({ where: { id: { in: createdProductIds } } });
+  await db.user.deleteMany({ where: { id: { in: createdUserIds } } });
+  createdProductIds.length = 0;
+  createdUserIds.length = 0;
+});
 
 describe("stock reservation race", () => {
   it("never lets more concurrent reservations succeed than the cap allows", async () => {
