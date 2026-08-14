@@ -7,8 +7,11 @@ export const metadata: Metadata = {
   description: "A direct-to-fan music marketplace. Fans buy, fans own, creators get paid.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/xoldout-icon.jpeg",
-    shortcut: "/xoldout-icon.jpeg",
+    icon: "/xoldout-icon-transparent.png",
+    shortcut: "/xoldout-icon-transparent.png",
+    // Apple touch icons don't composite transparency well on the iOS home
+    // screen (older iOS versions render alpha as solid black) — the
+    // original opaque icon already matches the dark theme as a filled tile.
     apple: "/xoldout-icon.jpeg",
   },
 };
