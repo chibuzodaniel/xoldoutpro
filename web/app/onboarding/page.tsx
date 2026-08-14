@@ -1,0 +1,170 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { apiFetch } from "@/lib/api";
+import { uploadImage } from "@/lib/uploadImage";
+
+const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
+
+export default function OnboardingPage() {
+  const router = useRouter();
+  const { firebaseUser, appUser, loading, refreshAppUser } = useAuth();
+
+  const [handle, setHandle] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [bio, setBio] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!loading && !firebaseUser) router.replace("/login");
+  }, [loading, firebaseUser, router]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of the form once appUser loads async, not per-render derived state
+    if (appUser) {
+      setHandle(appUser.handle);
+      setDisplayName(appUser.displayName);
+      setBio(appUser.bio ?? "");
+      setTags(appUser.tags ?? []);
+    }
+  }, [appUser]);
+
+  function toggleTag(tag: string) {
+    setTags((cur) => (cur.includes(tag) ? cur.filter((t) => t !== tag) : [...cur, tag]));
+  }
+
+  function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarFile(file);
+    setAvatarPreview(URL.createObjectURL(file));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const patchRes = await apiFetch("/api/me", {
+        method: "PATCH",
+        body: JSON.stringify({ handle, displayName, bio, tags }),
+      });
+      if (!patchRes.ok) {
+        const data = await patchRes.json().catch(() => ({}));
+        throw new Error(data.error ?? "Could not save profile");
+      }
+
+      if (avatarFile) {
+        const key = await uploadImage(avatarFile, "avatar");
+        const finalizeRes = await apiFetch("/api/me/avatar", { method: "POST", body: JSON.stringify({ key }) });
+        if (!finalizeRes.ok) throw new Error("Could not process avatar");
+      }
+
+      await refreshAppUser();
+      router.push("/home");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading || !firebaseUser) return null;
+
+  return (
+    <main className="flex flex-1 flex-col items-center px-6 py-16">
+      <div className="w-full max-w-sm">
+        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-4">Set up your profile</p>
+        <h1 className="font-serif text-3xl mb-8">You&apos;re in.</h1>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <label className="flex flex-col items-center gap-2 cursor-pointer">
+            <div className="h-20 w-20 rounded-full bg-surface-2 border border-line overflow-hidden flex items-center justify-center">
+              {avatarPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
+              ) : (
+                <span className="font-serif text-xl text-ink-3">
+                  {(displayName || "?").slice(0, 1).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <span className="text-xs text-ink-3">Add a photo</span>
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onAvatarChange} />
+          </label>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Handle</label>
+            <input
+              value={handle}
+              onChange={(e) => setHandle(e.target.value.toLowerCase())}
+              required
+              minLength={3}
+              maxLength={24}
+              pattern="[a-z0-9_]+"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Display name</label>
+            <input
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              required
+              maxLength={60}
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">Bio</label>
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={280}
+              rows={3}
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red resize-none"
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="text-[11px] uppercase tracking-widest text-ink-3">
+              Tags — describe yourself, doesn&apos;t restrict what you can do
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {SUGGESTED_TAGS.map((tag) => (
+                <button
+                  type="button"
+                  key={tag}
+                  onClick={() => toggleTag(tag)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                    tags.includes(tag) ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+                  }`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {error && <p className="text-sm text-red-soft">{error}</p>}
+
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            Continue
+          </button>
+        </form>
+      </div>
+    </main>
+  );
+}

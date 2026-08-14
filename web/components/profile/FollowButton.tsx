@@ -1,0 +1,45 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { apiFetch } from "@/lib/api";
+
+export function FollowButton({ targetUserId }: { targetUserId: string }) {
+  const { appUser } = useAuth();
+  const [following, setFollowing] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!appUser || appUser.id === targetUserId) return;
+    apiFetch(`/api/follow?targetUserId=${targetUserId}`)
+      .then((res) => (res.ok ? res.json() : { following: false }))
+      .then((data) => setFollowing(Boolean(data.following)));
+  }, [appUser, targetUserId]);
+
+  if (!appUser || appUser.id === targetUserId) return null;
+
+  async function toggle() {
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/follow${following ? `?targetUserId=${targetUserId}` : ""}`, {
+        method: following ? "DELETE" : "POST",
+        body: following ? undefined : JSON.stringify({ targetUserId }),
+      });
+      if (res.ok) setFollowing(!following);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={busy || following === null}
+      className={`rounded-lg border px-4 py-1.5 text-xs font-semibold ${
+        following ? "border-line text-ink-2" : "border-red bg-red text-white"
+      }`}
+    >
+      {following ? "Following" : "Follow"}
+    </button>
+  );
+}

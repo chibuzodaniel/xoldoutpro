@@ -1,0 +1,351 @@
+// XOLDOUT — Prisma schema
+// Source of truth for scope/invariants: xoldout-prd.md (repo root)
+// Non-negotiable invariants (PRD §15):
+//   - money is a ledger (WalletLedgerEntry), never a mutable balance column
+//   - Product is polymorphic from day one, even though only Release exists in the MVP
+//   - Entitlement is the source of truth for access, never Order
+//   - StockPolicy is separate from Product and carries the sold-out timestamp
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Accounts ────────────────────────────────────────────────────────────
+// Auth (password/Google) is handled by Firebase Auth. This row is created
+// on first sign-in and mirrors the Firebase UID; no password is stored here.
+
+model User {
+  id          String   @id @default(cuid())
+  firebaseUid String   @unique
+  email       String   @unique
+  handle      String   @unique
+  displayName String
+  bio         String?
+  avatarUrl   String?
+  coverUrl    String?
+  tags        String[] @default([])
+  fcmTokens   String[] @default([]) // Firebase Cloud Messaging push tokens
+  createdAt   DateTime @default(now())
+
+  payoutAccounts PayoutAccount[]
+  ledgerEntries  WalletLedgerEntry[]
+  payouts        Payout[]
+  products       Product[]
+  entitlements   Entitlement[]
+  orders         Order[]
+  reports        Report[]           @relation("ReportsFiled")
+
+  following Follow[] @relation("Following")
+  followers Follow[] @relation("Followers")
+}
+
+model PayoutAccount {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  bankCode      String
+  bankName      String
+  accountNumber String
+  accountName   String // returned by Flutterwave account-resolve, must match at add-time
+  isDefault     Boolean   @default(false)
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  payouts Payout[]
+
+  @@index([userId])
+}
+
+model Follow {
+  followerId String
+  followedId String
+  createdAt  DateTime @default(now())
+
+  follower User @relation("Following", fields: [followerId], references: [id])
+  followed User @relation("Followers", fields: [followedId], references: [id])
+
+  @@id([followerId, followedId])
+  @@index([followedId])
+}
+
+// ─── Money: ledger, not a balance column ───────────────────────────────
+// Available balance  = SUM(amountKobo) WHERE userId = ? AND status = AVAILABLE
+// Pending balance    = SUM(amountKobo) WHERE userId = ? AND status = PENDING
+// Every credit/debit/fee/refund/payout is its own immutable row.
+
+enum LedgerKind {
+  SALE_CREDIT
+  COMMISSION_FEE
+  REFUND_DEBIT
+  PAYOUT_DEBIT
+}
+
+enum LedgerStatus {
+  PENDING
+  AVAILABLE
+}
+
+model WalletLedgerEntry {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id])
+  amountKobo Int // signed: credits positive, debits negative
+  kind       LedgerKind
+  status     LedgerStatus
+  orderId    String?
+  order      Order?       @relation(fields: [orderId], references: [id])
+  payoutId   String?
+  payout     Payout?      @relation(fields: [payoutId], references: [id])
+  createdAt  DateTime     @default(now())
+  availableAt DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
+
+  @@index([userId, status])
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  PAID
+  FAILED
+}
+
+model Payout {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id])
+  amountKobo      Int
+  feeKobo         Int // always 0 for now: platform absorbs the withdrawal fee (DECISIONS.md)
+  netKobo         Int
+  status          PayoutStatus  @default(PENDING)
+  payoutAccountId String
+  payoutAccount   PayoutAccount @relation(fields: [payoutAccountId], references: [id])
+  processorRef    String?       @unique
+  createdAt       DateTime      @default(now())
+
+  ledgerEntries WalletLedgerEntry[]
+
+  @@index([userId])
+}
+
+// ─── Products (polymorphic) ────────────────────────────────────────────
+// Only RELEASE has an implemented subtype in the MVP. BEAT/EVENT/MERCH
+// exist as enum members so the publish sheet and schema don't need a
+// migration when Phase 2/3 land (PRD §15 requirement).
+
+enum ProductType {
+  RELEASE
+  BEAT
+  EVENT
+  MERCH
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  DELETED
+}
+
+model Product {
+  id          String        @id @default(cuid())
+  creatorId   String
+  creator     User          @relation(fields: [creatorId], references: [id])
+  type        ProductType
+  title       String
+  description String
+  priceKobo   Int // 0 = free; free is first-class, not a discount
+  status      ProductStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  publishedAt DateTime?
+  deletedAt   DateTime?
+
+  release      Release?
+  stockPolicy  StockPolicy?
+  entitlements Entitlement[]
+  orderItems   OrderItem[]
+  reports      Report[]      @relation("ReportsOnProduct")
+
+  @@index([creatorId])
+  @@index([status, type])
+}
+
+enum ReleaseType {
+  SINGLE
+  EP
+  ALBUM
+}
+
+model Release {
+  productId     String      @id
+  product       Product     @relation(fields: [productId], references: [id])
+  releaseType   ReleaseType
+  artworkLadder Json // { "64":url, "256":url, "1024":url }
+
+  tracks Track[]
+}
+
+model Track {
+  id               String   @id @default(cuid())
+  releaseId        String
+  release          Release  @relation(fields: [releaseId], references: [productId])
+  order            Int
+  title            String
+  description      String?
+  audioMasterUrl   String // original upload, retained for download entitlement
+  audioStreamUrl   String? // transcoded streaming rendition; null until worker finishes
+  waveformPeaksUrl String? // server-generated peak JSON; null until worker finishes
+  previewStartSec  Float
+  previewEndSec    Float
+  durationSec      Float
+  lyricsText       String?
+
+  @@index([releaseId, order])
+}
+
+// StockPolicy is intentionally separate from Product: cap/sold/reserved
+// mutate on every purchase attempt, Product does not. soldOutAt is what
+// makes "time to sell out" reportable (PRD §13).
+model StockPolicy {
+  productId  String    @id
+  product    Product   @relation(fields: [productId], references: [id])
+  cap        Int? // null = unlimited
+  sold       Int       @default(0)
+  reserved   Int       @default(0) // in-flight (payment-initiated, not yet confirmed) holds
+  soldOutAt  DateTime?
+}
+
+// Entitlement is the durable fact of access — never derived from Order,
+// which can be refunded/split/gifted later without touching this table
+// except via explicit revocation.
+model Entitlement {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  productId  String
+  product    Product   @relation(fields: [productId], references: [id])
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id])
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime? // set only by a refund
+
+  @@unique([userId, productId])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  REFUNDED
+  FAILED
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  buyerId   String
+  buyer     User        @relation(fields: [buyerId], references: [id])
+  status    OrderStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  items         OrderItem[]
+  payment       Payment?
+  entitlements  Entitlement[]
+  ledgerEntries WalletLedgerEntry[]
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id])
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  priceKobo Int // snapshot at purchase time, independent of later price edits
+}
+
+enum PaymentStatus {
+  INITIATED
+  SUCCESSFUL
+  FAILED
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  orderId           String        @unique
+  order             Order         @relation(fields: [orderId], references: [id])
+  processor         String        @default("flutterwave")
+  processorRef      String        @unique // tx_ref; webhook idempotency key
+  status            PaymentStatus @default(INITIATED)
+  amountKobo        Int
+  webhookReceivedAt DateTime?
+  rawPayload        Json?
+  createdAt         DateTime      @default(now())
+}
+
+// ─── Trust & safety ─────────────────────────────────────────────────────
+
+enum ReportTargetType {
+  PRODUCT
+  POST
+  COMMENT
+  PROFILE
+}
+
+enum ReportReason {
+  INAPPROPRIATE_CONTENT
+  COPYRIGHT_CLAIM
+  BUG
+  FEATURE_REQUEST
+}
+
+enum ReportStatus {
+  OPEN
+  IN_REVIEW
+  RESOLVED
+}
+
+model Report {
+  id         String           @id @default(cuid())
+  reporterId String
+  reporter   User             @relation("ReportsFiled", fields: [reporterId], references: [id])
+  targetType ReportTargetType
+  productId  String? // set when targetType = PRODUCT; other target types added as those surfaces ship
+  product    Product?         @relation("ReportsOnProduct", fields: [productId], references: [id])
+  reason     ReportReason
+  status     ReportStatus     @default(OPEN)
+  slaDueAt   DateTime?
+  createdAt  DateTime         @default(now())
+
+  @@index([status])
+}
+
+// ─── Background work queue ──────────────────────────────────────────────
+// Polled by the worker service. No Redis needed at this scale.
+
+enum JobType {
+  TRANSCODE
+  WAVEFORM
+  STOCK_SWEEP
+  SETTLEMENT_SWEEP
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+model Job {
+  id        String    @id @default(cuid())
+  type      JobType
+  payload   Json
+  status    JobStatus @default(QUEUED)
+  attempts  Int       @default(0)
+  lastError String?
+  runAt     DateTime  @default(now())
+  createdAt DateTime  @default(now())
+
+  @@index([status, runAt])
+}
