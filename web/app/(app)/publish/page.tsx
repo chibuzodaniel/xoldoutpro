@@ -2,9 +2,9 @@ import Link from "next/link";
 
 const OPTIONS = [
   { title: "Upload Music", subtitle: "Single, EP, or album, free or paid", href: "/publish/music", enabled: true },
-  { title: "Upload Beat", subtitle: "Beats, sample packs, drum kits, presets", enabled: false },
-  { title: "Create Event", subtitle: "Concerts, listening parties, workshops", enabled: false },
-  { title: "Add Merchandise", subtitle: "Apparel, posters, digital or physical goods", enabled: false },
+  { title: "Upload Beat", subtitle: "Beats, sample packs, drum kits, presets", href: "/publish/beat", enabled: true },
+  { title: "Create Event", subtitle: "Concerts, listening parties, workshops", href: "/publish/event", enabled: true },
+  { title: "Add Merchandise", subtitle: "Apparel, posters, digital or physical goods", href: "/publish/merch", enabled: true },
 ] as const;
 
 export default function PublishSheetPage() {

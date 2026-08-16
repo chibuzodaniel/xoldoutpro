@@ -93,7 +93,7 @@ export default function PayoutAccountsPage() {
           value={bankCode}
           onChange={(e) => setBankCode(e.target.value)}
           required
-          className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+          className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
         >
           <option value="">Select bank</option>
           {banks.map((b) => (
@@ -110,7 +110,7 @@ export default function PayoutAccountsPage() {
           minLength={10}
           maxLength={10}
           inputMode="numeric"
-          className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+          className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
         />
         {error && <p className="text-sm text-red-soft">{error}</p>}
         <button

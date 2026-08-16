@@ -6,9 +6,12 @@ export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
 
-    const [fans, musicReleases, salesAgg] = await Promise.all([
+    const [fans, musicReleases, beats, merch, events, salesAgg] = await Promise.all([
       db.follow.count({ where: { followedId: user.id } }),
       db.product.count({ where: { creatorId: user.id, type: "RELEASE", status: { not: "DELETED" } } }),
+      db.product.count({ where: { creatorId: user.id, type: "BEAT", status: { not: "DELETED" } } }),
+      db.product.count({ where: { creatorId: user.id, type: "MERCH", status: { not: "DELETED" } } }),
+      db.event.count({ where: { creatorId: user.id, status: { not: "DELETED" } } }),
       db.stockPolicy.aggregate({
         where: { product: { creatorId: user.id } },
         _sum: { sold: true },
@@ -18,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       fans,
       sales: salesAgg._sum.sold ?? 0,
-      catalog: { music: musicReleases, beats: 0, events: 0, merch: 0 },
+      catalog: { music: musicReleases, beats, events, merch },
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

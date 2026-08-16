@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { ProductCard } from "@/components/product/ProductCard";
+import { EventCard } from "@/components/product/EventCard";
 import { AppHeader } from "@/components/nav/AppHeader";
-import { CategoryTabs } from "@/components/nav/CategoryTabs";
+import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 
 // Stock counts and follower counts change on every purchase/follow — never
 // prerender this statically at build time.
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 const cardInclude = {
   creator: { select: { handle: true, displayName: true } },
   release: { select: { artworkLadder: true, releaseType: true } },
+  beat: { select: { coverImageLadder: true } },
+  merchItem: { select: { imageLadder: true } },
   stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
 } as const;
 
@@ -26,8 +29,82 @@ const AVATAR_GRADIENTS = [
   "from-[#4a0c15] to-[#1a0509]",
 ];
 
-export default async function DiscoverPage() {
-  const [newReleases, sellingOutNow, creators] = await Promise.all([
+const VALID_TYPES = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
+const SECTION_TITLE: Record<(typeof VALID_TYPES)[number], string> = {
+  RELEASE: "Music",
+  BEAT: "Beats",
+  EVENT: "Events",
+  MERCH: "Merchandise",
+};
+
+export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
+  const { type } = await searchParams;
+  const activeType = (VALID_TYPES as readonly string[]).includes(type ?? "") ? (type as CategoryType) : null;
+
+  if (activeType === "EVENT") {
+    const events = await db.event.findMany({
+      where: { status: "PUBLISHED" },
+      include: { tiers: { select: { product: { select: { priceKobo: true, stockPolicy: true } } } } },
+      orderBy: { startsAt: "asc" },
+      take: 60,
+    });
+    return (
+      <div className="pb-8">
+        <AppHeader />
+        <CategoryTabs active={activeType} />
+        <section className="px-4">
+          <h3 className="font-serif text-lg mb-3">{SECTION_TITLE.EVENT}</h3>
+          {events.length === 0 ? (
+            <p className="text-sm text-ink-3">Nothing published yet.</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {events.map((ev) => (
+                <EventCard
+                  key={ev.id}
+                  event={{
+                    id: ev.id,
+                    title: ev.title,
+                    coverImageLadder: ev.coverImageLadder,
+                    startsAt: ev.startsAt,
+                    tiers: ev.tiers.map((t) => ({ priceKobo: t.product.priceKobo, stockPolicy: t.product.stockPolicy })),
+                  }}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  if (activeType) {
+    const products = await db.product.findMany({
+      where: { type: activeType, status: "PUBLISHED" },
+      include: cardInclude,
+      orderBy: { publishedAt: "desc" },
+      take: 60,
+    });
+    return (
+      <div className="pb-8">
+        <AppHeader />
+        <CategoryTabs active={activeType} />
+        <section className="px-4">
+          <h3 className="font-serif text-lg mb-3">{SECTION_TITLE[activeType]}</h3>
+          {products.length === 0 ? (
+            <p className="text-sm text-ink-3">Nothing published yet.</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-3">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
+
+  const [newReleases, sellingOutNow, topBeats, upcomingEvents, merchItems, creators] = await Promise.all([
     db.product.findMany({
       where: { type: "RELEASE", status: "PUBLISHED" },
       include: cardInclude,
@@ -43,6 +120,24 @@ export default async function DiscoverPage() {
       include: cardInclude,
       orderBy: { stockPolicy: { sold: "desc" } },
       take: 12,
+    }),
+    db.product.findMany({
+      where: { type: "BEAT", status: "PUBLISHED" },
+      include: cardInclude,
+      orderBy: { publishedAt: "desc" },
+      take: 6,
+    }),
+    db.event.findMany({
+      where: { status: "PUBLISHED", startsAt: { gte: new Date() } },
+      include: { tiers: { select: { product: { select: { priceKobo: true, stockPolicy: true } } } } },
+      orderBy: { startsAt: "asc" },
+      take: 6,
+    }),
+    db.product.findMany({
+      where: { type: "MERCH", status: "PUBLISHED" },
+      include: cardInclude,
+      orderBy: { publishedAt: "desc" },
+      take: 6,
     }),
     db.user.findMany({
       orderBy: { followers: { _count: "desc" } },
@@ -61,7 +156,7 @@ export default async function DiscoverPage() {
   return (
     <div className="pb-8">
       <AppHeader />
-      <CategoryTabs active="All" />
+      <CategoryTabs active={null} />
 
       {hero && (
         <Link href={`/r/${hero.id}`} className="block relative mx-4 mb-6 rounded-xl overflow-hidden aspect-[4/5]">
@@ -128,6 +223,63 @@ export default async function DiscoverPage() {
           </div>
         )}
       </section>
+
+      {topBeats.length > 0 && (
+        <section className="px-4 mb-7">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-serif text-lg">Beat Store</h3>
+            <Link href="/discover?type=BEAT" className="text-xs text-red-soft font-semibold">
+              Browse ›
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {topBeats.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {upcomingEvents.length > 0 && (
+        <section className="px-4 mb-7">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-serif text-lg">Events</h3>
+            <Link href="/discover?type=EVENT" className="text-xs text-red-soft font-semibold">
+              See all ›
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {upcomingEvents.map((ev) => (
+              <EventCard
+                key={ev.id}
+                event={{
+                  id: ev.id,
+                  title: ev.title,
+                  coverImageLadder: ev.coverImageLadder,
+                  startsAt: ev.startsAt,
+                  tiers: ev.tiers.map((t) => ({ priceKobo: t.product.priceKobo, stockPolicy: t.product.stockPolicy })),
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {merchItems.length > 0 && (
+        <section className="px-4 mb-7">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-serif text-lg">Merchandise</h3>
+            <Link href="/discover?type=MERCH" className="text-xs text-red-soft font-semibold">
+              Shop all ›
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            {merchItems.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {creators.length > 0 && (
         <section className="px-4">

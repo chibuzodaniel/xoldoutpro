@@ -15,6 +15,8 @@ export default function CheckoutCallbackPage() {
   const orderId = searchParams.get("tx_ref");
   const [status, setStatus] = useState<OrderStatus | "LOADING">("LOADING");
   const [productId, setProductId] = useState<string | null>(null);
+  const [productType, setProductType] = useState<string | null>(null);
+  const [eventId, setEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!orderId) return;
@@ -24,7 +26,10 @@ export default function CheckoutCallbackPage() {
       const res = await apiFetch(`/api/orders/${orderId}`);
       if (!res.ok || cancelled) return;
       const { order } = await res.json();
-      setProductId(order.items[0]?.product?.id ?? null);
+      const item = order.items[0];
+      setProductId(item?.product?.id ?? null);
+      setProductType(item?.product?.type ?? null);
+      setEventId(item?.product?.ticketTier?.eventId ?? null);
       if (order.status === "PAID" || order.status === "FAILED") {
         setStatus(order.status);
         return;
@@ -38,6 +43,16 @@ export default function CheckoutCallbackPage() {
     };
   }, [orderId]);
 
+  // Each sellable type gets its own detail route. Event is keyed by
+  // Event.id, not the purchased tier's Product.id, so it needs its own field.
+  function productHref() {
+    if (productType === "EVENT") return eventId ? `/e/${eventId}` : null;
+    if (!productId) return null;
+    if (productType === "BEAT") return `/b/${productId}`;
+    if (productType === "MERCH") return `/m/${productId}`;
+    return `/r/${productId}`;
+  }
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-24 text-center gap-4">
       {status === "LOADING" || status === "PENDING" ? (
@@ -48,7 +63,7 @@ export default function CheckoutCallbackPage() {
         <>
           <h1 className="font-serif text-2xl">It&apos;s yours.</h1>
           <button
-            onClick={() => router.push(productId ? `/r/${productId}` : "/library")}
+            onClick={() => router.push(productHref() ?? "/library")}
             className="rounded-lg bg-red px-5 py-3 text-sm font-semibold text-white"
           >
             Go to release
@@ -58,7 +73,7 @@ export default function CheckoutCallbackPage() {
         <>
           <h1 className="font-serif text-2xl text-red-soft">Payment didn&apos;t go through</h1>
           <button
-            onClick={() => router.push(productId ? `/r/${productId}` : "/discover")}
+            onClick={() => router.push(productHref() ?? "/discover")}
             className="rounded-lg border border-line px-5 py-3 text-sm font-semibold"
           >
             Try again

@@ -1,0 +1,46 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getOptionalUser } from "@/lib/auth/session";
+import { db } from "@/lib/db";
+import { presignDownload } from "@/lib/storage/r2";
+
+// Mirrors app/api/tracks/[id]/audio-url, with one Beat-specific difference
+// (DECISIONS.md, single flat license): an entitled buyer gets the real
+// master file, not just an unrestricted stream of the same preview
+// rendition — a beat purchase is a license to the actual file, not just
+// unlocked in-app playback. Signed-out visitors can preview too (entitled
+// forced false, so they only ever get the trimmed stream, never the master).
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await getOptionalUser(req);
+    const { id } = await params;
+
+    const product = await db.product.findUnique({ where: { id }, include: { beat: true } });
+    if (!product || !product.beat || !product.beat.audioStreamUrl) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    let entitled = false;
+    if (user) {
+      const entitlement = await db.entitlement.findUnique({
+        where: { userId_productId: { userId: user.id, productId: id } },
+      });
+      entitled = Boolean((entitlement && !entitlement.revokedAt) || product.creatorId === user.id);
+    }
+
+    if (entitled) {
+      const url = await presignDownload(product.beat.audioMasterUrl, 300);
+      return NextResponse.json({ url, entitled: true, previewStartSec: null, previewEndSec: null });
+    }
+
+    const url = await presignDownload(product.beat.audioStreamUrl, 300);
+    return NextResponse.json({
+      url,
+      entitled: false,
+      previewStartSec: product.beat.previewStartSec,
+      previewEndSec: product.beat.previewEndSec,
+    });
+  } catch (err) {
+    console.error(err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}

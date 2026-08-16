@@ -62,7 +62,12 @@ export async function POST(req: NextRequest) {
 
   await db.$transaction(async (tx) => {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
-    await tx.entitlement.create({ data: { userId: payment.order.buyerId, productId, orderId: payment.orderId } });
+    const entitlement = await tx.entitlement.create({
+      data: { userId: payment.order.buyerId, productId, orderId: payment.orderId },
+    });
+    if (product.type === "EVENT") {
+      await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+    }
     await confirmStock(productId, tx);
     await recordSale(tx, { sellerId: product.creatorId, orderId: payment.orderId, grossKobo: payment.amountKobo });
   });

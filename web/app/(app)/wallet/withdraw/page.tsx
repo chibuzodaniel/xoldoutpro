@@ -93,7 +93,7 @@ export default function WithdrawPage() {
             step="0.01"
             value={amountNaira}
             onChange={(e) => setAmountNaira(e.target.value)}
-            className="flex-1 rounded-lg border border-line bg-surface px-4 py-3 text-lg outline-none focus:border-red"
+            className="flex-1 rounded-lg border border-line bg-surface px-4 py-3 text-lg outline-none transition-colors duration-150 focus:border-red"
           />
         </div>
         <div className="flex gap-2">
@@ -114,7 +114,7 @@ export default function WithdrawPage() {
           <select
             value={payoutAccountId}
             onChange={(e) => setPayoutAccountId(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           >
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>

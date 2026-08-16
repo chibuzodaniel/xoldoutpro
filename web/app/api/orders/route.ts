@@ -5,20 +5,58 @@ import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { initializePayment } from "@/lib/flutterwave";
 
-const bodySchema = z.object({ productId: z.string().min(1) });
+const shippingSchema = z.object({
+  recipientName: z.string().min(1).max(120),
+  phone: z.string().min(1).max(30),
+  addressLine1: z.string().min(1).max(200),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().min(1).max(100),
+  state: z.string().min(1).max(100),
+  country: z.string().min(1).max(60).default("Nigeria"),
+});
+
+const bodySchema = z.object({ productId: z.string().min(1), shipping: shippingSchema.optional() });
 
 export async function POST(req: NextRequest) {
   try {
     const { user: buyer } = await requireUser(req);
-    const { productId } = bodySchema.parse(await req.json());
+    const { productId, shipping } = bodySchema.parse(await req.json());
 
-    const product = await db.product.findUnique({ where: { id: productId }, include: { release: true } });
-    if (!product || product.type !== "RELEASE" || product.status !== "PUBLISHED" || !product.release) {
+    // Sellable types are added here as each one's purchase flow ships
+    // (Beat/Merch now; Event has its own tier-as-Product purchase path).
+    const product = await db.product.findUnique({
+      where: { id: productId },
+      include: { release: true, beat: true, merchItem: true, ticketTier: true },
+    });
+    const hasSubtype =
+      product?.type === "RELEASE"
+        ? Boolean(product.release)
+        : product?.type === "BEAT"
+          ? Boolean(product.beat)
+          : product?.type === "MERCH"
+            ? Boolean(product.merchItem)
+            : product?.type === "EVENT"
+              ? Boolean(product.ticketTier)
+              : false;
+    if (!product || product.status !== "PUBLISHED" || !hasSubtype) {
       return NextResponse.json({ error: "Not available" }, { status: 404 });
     }
     if (product.creatorId === buyer.id) {
-      return NextResponse.json({ error: "You can't buy your own release" }, { status: 400 });
+      return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
     }
+    // Creator-shipped fulfilment (DECISIONS.md): the platform only collects
+    // the address here, at checkout time — it's stored on the Order
+    // immediately (not deferred to the payment webhook) the same way
+    // OrderItem already is, since it doesn't depend on payment succeeding.
+    if (product.type === "MERCH" && !shipping) {
+      return NextResponse.json({ error: "Shipping address is required" }, { status: 400 });
+    }
+
+    // Shipping fee is charged on top of the listing price; snapshotted onto
+    // MerchOrderFulfillment so a later fee edit never changes what a past
+    // buyer paid (same pattern as OrderItem.priceKobo snapshotting price).
+    const shippingFeeKobo = product.type === "MERCH" ? (product.merchItem?.shippingFeeKobo ?? 0) : 0;
+    const amountKobo = product.priceKobo + shippingFeeKobo;
 
     const existing = await db.entitlement.findUnique({
       where: { userId_productId: { userId: buyer.id, productId } },
@@ -34,7 +72,9 @@ export async function POST(req: NextRequest) {
 
     // Free releases are a sale at ₦0 (PRD §7.1/§8): no payment processor
     // involved, entitlement granted immediately, still counted as a unit sold.
-    if (product.priceKobo === 0) {
+    // A free Merch listing with a nonzero shipping fee is NOT a ₦0 order —
+    // it still owes the fee, so it falls through to the paid path below.
+    if (amountKobo === 0) {
       try {
         const order = await db.$transaction(async (tx) => {
           const created = await tx.order.create({
@@ -42,9 +82,13 @@ export async function POST(req: NextRequest) {
               buyerId: buyer.id,
               status: "PAID",
               items: { create: { productId, priceKobo: 0 } },
-              entitlements: { create: { userId: buyer.id, productId } },
+              merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
             },
           });
+          const entitlement = await tx.entitlement.create({ data: { userId: buyer.id, productId, orderId: created.id } });
+          if (product.type === "EVENT") {
+            await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+          }
           await confirmStock(productId, tx);
           return created;
         });
@@ -57,15 +101,20 @@ export async function POST(req: NextRequest) {
 
     try {
       const order = await db.order.create({
-        data: { buyerId: buyer.id, status: "PENDING", items: { create: { productId, priceKobo: product.priceKobo } } },
+        data: {
+          buyerId: buyer.id,
+          status: "PENDING",
+          items: { create: { productId, priceKobo: product.priceKobo } },
+          merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
+        },
       });
       await db.payment.create({
-        data: { orderId: order.id, processorRef: order.id, amountKobo: product.priceKobo, status: "INITIATED" },
+        data: { orderId: order.id, processorRef: order.id, amountKobo, status: "INITIATED" },
       });
 
       const checkoutUrl = await initializePayment({
         txRef: order.id,
-        amountKobo: product.priceKobo,
+        amountKobo,
         customerEmail: buyer.email,
         redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
         title: product.title,

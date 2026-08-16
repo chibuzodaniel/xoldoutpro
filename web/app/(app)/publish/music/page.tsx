@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { uploadAndIngestAudio } from "@/lib/uploadAudio";
 import { TrackUploader, type TrackDraft, effectivePreviewLength } from "@/components/upload/TrackUploader";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 function newTrack(): TrackDraft {
   return {
@@ -35,6 +36,7 @@ export default function UploadMusicPage() {
   const [artworkPreview, setArtworkPreview] = useState<string | null>(null);
   const [artworkLadder, setArtworkLadder] = useState<Record<string, string> | null>(null);
   const [artworkUploading, setArtworkUploading] = useState(false);
+  const [artworkCropFile, setArtworkCropFile] = useState<File | null>(null);
 
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
   const [error, setError] = useState<string | null>(null);
@@ -154,8 +156,8 @@ export default function UploadMusicPage() {
               type="button"
               key={type}
               onClick={() => setReleaseTypeChecked(type)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                releaseType === type ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                releaseType === type ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
               }`}
             >
               {type === "SINGLE" ? "Single" : type === "EP" ? "EP" : "Album"}
@@ -178,11 +180,26 @@ export default function UploadMusicPage() {
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
-                if (file) handleArtworkSelected(file);
+                if (file) setArtworkCropFile(file);
+                e.target.value = "";
               }}
             />
           </label>
           {artworkUploading && <p className="text-xs text-ink-3">Processing artwork…</p>}
+
+          {artworkCropFile && (
+            <ImageCropModal
+              file={artworkCropFile}
+              aspect={1}
+              outputWidth={1024}
+              outputHeight={1024}
+              onCancel={() => setArtworkCropFile(null)}
+              onConfirm={(cropped) => {
+                setArtworkCropFile(null);
+                handleArtworkSelected(cropped);
+              }}
+            />
+          )}
         </div>
 
         <div className="flex flex-col gap-1">
@@ -192,7 +209,7 @@ export default function UploadMusicPage() {
             onChange={(e) => setTitle(e.target.value)}
             required
             maxLength={200}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
         </div>
 
@@ -203,7 +220,7 @@ export default function UploadMusicPage() {
             onChange={(e) => setDescription(e.target.value)}
             maxLength={2000}
             rows={3}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red resize-none"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red resize-none"
           />
         </div>
 
@@ -213,8 +230,8 @@ export default function UploadMusicPage() {
             <button
               type="button"
               onClick={() => setIsFree((v) => !v)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                isFree ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                isFree ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
               }`}
             >
               Free
@@ -228,7 +245,7 @@ export default function UploadMusicPage() {
                   step="1"
                   value={priceNaira}
                   onChange={(e) => setPriceNaira(e.target.value)}
-                  className="w-28 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-red"
+                  className="w-28 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
                 />
               </div>
             )}
@@ -241,8 +258,8 @@ export default function UploadMusicPage() {
             <button
               type="button"
               onClick={() => setHasCap((v) => !v)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                hasCap ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                hasCap ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
               }`}
             >
               {hasCap ? "Capped" : "Unlimited"}
@@ -255,7 +272,7 @@ export default function UploadMusicPage() {
                 placeholder="e.g. 500"
                 value={capValue}
                 onChange={(e) => setCapValue(e.target.value)}
-                className="w-28 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-red"
+                className="w-28 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
               />
             )}
           </div>

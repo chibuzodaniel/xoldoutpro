@@ -1,30 +1,33 @@
+import Link from "next/link";
+
 const TABS = [
-  { label: "All", enabled: true },
-  { label: "Music", enabled: true },
-  { label: "Beats", enabled: false },
-  { label: "Events", enabled: false },
-  { label: "Merch", enabled: false },
+  { label: "All", type: null },
+  { label: "Music", type: "RELEASE" },
+  { label: "Beats", type: "BEAT" },
+  { label: "Events", type: "EVENT" },
+  { label: "Merch", type: "MERCH" },
 ] as const;
 
-// Beats/Events/Merch aren't built yet (Phase 2/3) — shown dimmed and
-// non-interactive, same "visible but not yet enabled" treatment as the
-// publish sheet, rather than hidden entirely.
-export function CategoryTabs({ active }: { active: "All" | "Music" }) {
+export type CategoryType = (typeof TABS)[number]["type"];
+
+export function CategoryTabs({ active }: { active: CategoryType }) {
   return (
     <div className="flex items-center gap-5 px-4 border-b border-line-soft mb-4 overflow-x-auto">
       {TABS.map((tab) => (
-        <span
+        <Link
           key={tab.label}
-          className={`pb-2.5 text-[13px] font-semibold whitespace-nowrap ${
-            !tab.enabled
-              ? "text-ink-3/50"
-              : tab.label === active
-                ? "text-white border-b-2 border-red"
-                : "text-ink-3"
+          href={tab.type ? `/discover?type=${tab.type}` : "/discover"}
+          className={`relative pb-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
+            tab.type === active
+              ? "text-white border-red"
+              : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
           }`}
         >
           {tab.label}
-        </span>
+          {tab.type === active && (
+            <span className="absolute -bottom-[2px] left-0 right-0 h-[2px] rounded-full bg-red shadow-[0_0_6px_0_rgba(225,29,46,0.65)]" />
+          )}
+        </Link>
       ))}
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
+import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 
 type Stats = { fans: number; sales: number; catalog: { music: number; beats: number; events: number; merch: number } };
 
@@ -65,13 +66,29 @@ export default function ProfilePage() {
 
   return (
     <div className="pb-8">
-      <div
-        className="h-28 bg-surface-2 bg-cover bg-center"
-        style={appUser.coverUrl ? { backgroundImage: `url(${appUser.coverUrl})` } : undefined}
-      />
+      <ClickablePhoto
+        targetUserId={appUser.id}
+        kind="cover"
+        photoUrl={appUser.coverUrl}
+        alt="Cover photo"
+        label="Cover photo"
+        className="block w-full"
+      >
+        <div
+          className="h-28 bg-surface-2 bg-cover bg-center"
+          style={appUser.coverUrl ? { backgroundImage: `url(${appUser.coverUrl})` } : undefined}
+        />
+      </ClickablePhoto>
       <div className="px-4 -mt-9">
         <div className="flex items-end justify-between mb-3">
-          <Link href="/profile/edit" className="relative">
+          <ClickablePhoto
+            targetUserId={appUser.id}
+            kind="avatar"
+            photoUrl={appUser.avatarUrl}
+            alt={appUser.displayName}
+            label="Profile photo"
+            className="relative block"
+          >
             <div className="h-[72px] w-[72px] rounded-full border-2 border-bg bg-surface-2 overflow-hidden flex items-center justify-center">
               {appUser.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -85,7 +102,7 @@ export default function ProfilePage() {
                 <path d="M12 5v14M5 12h14" strokeLinecap="round" />
               </svg>
             </span>
-          </Link>
+          </ClickablePhoto>
 
           <div className="flex items-center gap-2">
             <Link
@@ -151,7 +168,17 @@ export default function ProfilePage() {
           {CATALOG_ROWS.map((row) => (
             <Link
               key={row.key}
-              href={row.key === "music" ? "/profile/catalog" : "/publish"}
+              href={
+                row.key === "music"
+                  ? "/profile/catalog"
+                  : row.key === "beats"
+                    ? "/profile/catalog/beats"
+                    : row.key === "merch"
+                      ? "/profile/catalog/merch"
+                      : row.key === "events"
+                        ? "/profile/catalog/events"
+                        : "/publish"
+              }
               className="flex items-center gap-3 py-3 text-sm"
             >
               <span className="h-4 w-4 text-ink-2 shrink-0">{row.icon}</span>

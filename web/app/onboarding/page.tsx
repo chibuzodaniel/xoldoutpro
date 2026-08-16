@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
 
@@ -18,6 +19,7 @@ export default function OnboardingPage() {
   const [tags, setTags] = useState<string[]>([]);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,9 +44,8 @@ export default function OnboardingPage() {
 
   function onAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setAvatarFile(file);
-    setAvatarPreview(URL.createObjectURL(file));
+    if (file) setCropFile(file);
+    e.target.value = "";
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -100,6 +101,22 @@ export default function OnboardingPage() {
             <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onAvatarChange} />
           </label>
 
+          {cropFile && (
+            <ImageCropModal
+              file={cropFile}
+              aspect={1}
+              cropShape="round"
+              outputWidth={512}
+              outputHeight={512}
+              onCancel={() => setCropFile(null)}
+              onConfirm={(cropped) => {
+                setAvatarFile(cropped);
+                setAvatarPreview(URL.createObjectURL(cropped));
+                setCropFile(null);
+              }}
+            />
+          )}
+
           <div className="flex flex-col gap-1">
             <label className="text-[11px] uppercase tracking-widest text-ink-3">Handle</label>
             <input
@@ -109,7 +126,7 @@ export default function OnboardingPage() {
               minLength={3}
               maxLength={24}
               pattern="[a-z0-9_]+"
-              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
             />
           </div>
 
@@ -120,7 +137,7 @@ export default function OnboardingPage() {
               onChange={(e) => setDisplayName(e.target.value)}
               required
               maxLength={60}
-              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
             />
           </div>
 
@@ -131,7 +148,7 @@ export default function OnboardingPage() {
               onChange={(e) => setBio(e.target.value)}
               maxLength={280}
               rows={3}
-              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red resize-none"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red resize-none"
             />
           </div>
 
@@ -145,8 +162,10 @@ export default function OnboardingPage() {
                   type="button"
                   key={tag}
                   onClick={() => toggleTag(tag)}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-                    tags.includes(tag) ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                    tags.includes(tag)
+                      ? "border-red text-red-soft bg-red/10"
+                      : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
                   }`}
                 >
                   {tag}

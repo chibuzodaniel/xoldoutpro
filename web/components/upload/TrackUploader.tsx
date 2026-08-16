@@ -79,7 +79,7 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
             onChange={(e) => onChange({ title: e.target.value })}
             placeholder="Track title"
             required
-            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-red"
+            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
 
           <div className="flex items-center gap-2">
@@ -88,8 +88,10 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
                 type="button"
                 key={String(opt)}
                 onClick={() => onChange({ previewLength: opt as 30 | 50 | "custom" })}
-                className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                  track.previewLength === opt ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-150 ${
+                  track.previewLength === opt
+                    ? "border-red text-red-soft bg-red/10"
+                    : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
                 }`}
               >
                 {opt === "custom" ? "Custom" : `${opt}s`}
@@ -129,7 +131,7 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
             onChange={(e) => onChange({ lyricsText: e.target.value })}
             placeholder="Lyrics (optional)"
             rows={2}
-            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs outline-none focus:border-red resize-none"
+            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs outline-none transition-colors duration-150 focus:border-red resize-none"
           />
         </div>
       )}

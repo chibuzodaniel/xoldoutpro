@@ -40,10 +40,12 @@ model User {
   products       Product[]
   entitlements   Entitlement[]
   orders         Order[]
-  reports        Report[]           @relation("ReportsFiled")
+  reports        Report[]            @relation("ReportsFiled")
 
   following Follow[] @relation("Following")
   followers Follow[] @relation("Followers")
+
+  events Event[]
 }
 
 model PayoutAccount {
@@ -93,17 +95,17 @@ enum LedgerStatus {
 }
 
 model WalletLedgerEntry {
-  id         String       @id @default(cuid())
-  userId     String
-  user       User         @relation(fields: [userId], references: [id])
-  amountKobo Int // signed: credits positive, debits negative
-  kind       LedgerKind
-  status     LedgerStatus
-  orderId    String?
-  order      Order?       @relation(fields: [orderId], references: [id])
-  payoutId   String?
-  payout     Payout?      @relation(fields: [payoutId], references: [id])
-  createdAt  DateTime     @default(now())
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id])
+  amountKobo  Int // signed: credits positive, debits negative
+  kind        LedgerKind
+  status      LedgerStatus
+  orderId     String?
+  order       Order?       @relation(fields: [orderId], references: [id])
+  payoutId    String?
+  payout      Payout?      @relation(fields: [payoutId], references: [id])
+  createdAt   DateTime     @default(now())
   availableAt DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
 
   @@index([userId, status])
@@ -166,6 +168,9 @@ model Product {
   deletedAt   DateTime?
 
   release      Release?
+  beat         Beat?
+  ticketTier   TicketTier?
+  merchItem    MerchItem?
   stockPolicy  StockPolicy?
   entitlements Entitlement[]
   orderItems   OrderItem[]
@@ -191,9 +196,9 @@ model Release {
 }
 
 model Track {
-  id               String   @id @default(cuid())
+  id               String  @id @default(cuid())
   releaseId        String
-  release          Release  @relation(fields: [releaseId], references: [productId])
+  release          Release @relation(fields: [releaseId], references: [productId])
   order            Int
   title            String
   description      String?
@@ -208,33 +213,136 @@ model Track {
   @@index([releaseId, order])
 }
 
+// A beat purchase grants a single flat license (buyout-style — full
+// commercial rights forever, DECISIONS.md); no lease/exclusive tiers.
+// Reuses the same audio pipeline as Track: audioStreamUrl is the pre-purchase
+// preview rendition, audioMasterUrl is what presignDownload serves after buy.
+model Beat {
+  productId        String   @id
+  product          Product  @relation(fields: [productId], references: [id])
+  coverImageLadder Json
+  audioMasterUrl   String
+  audioStreamUrl   String?
+  waveformPeaksUrl String?
+  previewStartSec  Float
+  previewEndSec    Float
+  durationSec      Float
+  bpm              Int?
+  musicalKey       String?
+  tags             String[] @default([])
+}
+
 // StockPolicy is intentionally separate from Product: cap/sold/reserved
 // mutate on every purchase attempt, Product does not. soldOutAt is what
 // makes "time to sell out" reportable (PRD §13).
 model StockPolicy {
-  productId  String    @id
-  product    Product   @relation(fields: [productId], references: [id])
-  cap        Int? // null = unlimited
-  sold       Int       @default(0)
-  reserved   Int       @default(0) // in-flight (payment-initiated, not yet confirmed) holds
-  soldOutAt  DateTime?
+  productId String    @id
+  product   Product   @relation(fields: [productId], references: [id])
+  cap       Int? // null = unlimited
+  sold      Int       @default(0)
+  reserved  Int       @default(0) // in-flight (payment-initiated, not yet confirmed) holds
+  soldOutAt DateTime?
 }
 
 // Entitlement is the durable fact of access — never derived from Order,
 // which can be refunded/split/gifted later without touching this table
 // except via explicit revocation.
 model Entitlement {
-  id         String    @id @default(cuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id])
-  productId  String
-  product    Product   @relation(fields: [productId], references: [id])
-  orderId    String
-  order      Order     @relation(fields: [orderId], references: [id])
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime? // set only by a refund
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  orderId   String
+  order     Order     @relation(fields: [orderId], references: [id])
+  createdAt DateTime  @default(now())
+  revokedAt DateTime? // set only by a refund
+
+  checkIn TicketCheckIn?
 
   @@unique([userId, productId])
+}
+
+// An Event is a parent listing (venue, date, cover image) grouping one or
+// more TicketTiers. Deliberate deviation from the PRD's diagram (Event as a
+// direct Product subtype): each *tier* is its own Product, so ticket sales
+// reuse StockPolicy/Entitlement/reserveStock/recordSale exactly as-is instead
+// of inventing a second stock/entitlement mechanism (DECISIONS.md).
+model Event {
+  id               String        @id @default(cuid())
+  creatorId        String
+  creator          User          @relation(fields: [creatorId], references: [id])
+  title            String
+  description      String
+  coverImageLadder Json
+  venue            String?
+  isVirtual        Boolean       @default(false)
+  startsAt         DateTime
+  endsAt           DateTime?
+  status           ProductStatus @default(DRAFT)
+  createdAt        DateTime      @default(now())
+  publishedAt      DateTime?
+  deletedAt        DateTime?
+
+  tiers TicketTier[]
+
+  @@index([creatorId])
+}
+
+model TicketTier {
+  productId String  @id
+  product   Product @relation(fields: [productId], references: [id])
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id])
+  name      String // "Early Bird", "Regular", "VIP"
+  order     Int
+
+  @@index([eventId])
+}
+
+// One per Entitlement on an EVENT-type product. code is shown as a QR in the
+// buyer's Library; checkedInAt is set once by the creator's scan endpoint.
+model TicketCheckIn {
+  entitlementId String      @id
+  entitlement   Entitlement @relation(fields: [entitlementId], references: [id])
+  code          String      @unique @default(cuid())
+  checkedInAt   DateTime?
+  checkedInBy   String? // creatorId/staff userId who scanned
+}
+
+// Single-Product merch listing, no size/color variants in v1 (matches the
+// reference screenshots; deliberate simplification — see DECISIONS.md).
+model MerchItem {
+  productId        String   @id
+  product          Product  @relation(fields: [productId], references: [id])
+  imageLadder      Json
+  galleryImageUrls String[] @default([])
+  shippingFeeKobo  Int      @default(0) // flat fee, creator-set at publish time; added to Product.priceKobo at checkout
+}
+
+enum FulfillmentStatus {
+  TO_SHIP
+  SHIPPED
+  DELIVERED
+}
+
+// Creator-shipped fulfilment (DECISIONS.md): platform only collects the
+// address and payment; the creator ships and marks it fulfilled. No
+// platform warehouse/inventory system.
+model MerchOrderFulfillment {
+  orderId         String            @id
+  order           Order             @relation(fields: [orderId], references: [id])
+  recipientName   String
+  phone           String
+  addressLine1    String
+  addressLine2    String?
+  city            String
+  state           String
+  country         String            @default("Nigeria")
+  shippingFeeKobo Int               @default(0) // snapshot at checkout, independent of later fee edits on MerchItem
+  status          FulfillmentStatus @default(TO_SHIP)
+  shippedAt       DateTime?
+  trackingInfo    String?
 }
 
 enum OrderStatus {
@@ -251,10 +359,11 @@ model Order {
   status    OrderStatus @default(PENDING)
   createdAt DateTime    @default(now())
 
-  items         OrderItem[]
-  payment       Payment?
-  entitlements  Entitlement[]
-  ledgerEntries WalletLedgerEntry[]
+  items            OrderItem[]
+  payment          Payment?
+  entitlements     Entitlement[]
+  ledgerEntries    WalletLedgerEntry[]
+  merchFulfillment MerchOrderFulfillment?
 }
 
 model OrderItem {

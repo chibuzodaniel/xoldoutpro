@@ -13,8 +13,13 @@ export async function GET(req: NextRequest) {
           include: {
             creator: { select: { displayName: true, handle: true } },
             release: { include: { tracks: { orderBy: { order: "asc" } } } },
+            beat: true,
+            merchItem: true,
+            ticketTier: { include: { event: true } },
           },
         },
+        order: { include: { merchFulfillment: true } },
+        checkIn: true,
       },
     });
     return NextResponse.json({ entitlements });

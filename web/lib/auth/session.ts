@@ -25,3 +25,21 @@ export async function requireUser(req: NextRequest) {
   if (!user) throw new AuthError("Account not synced. Call /api/auth/sync first.");
   return { user, decoded };
 }
+
+/**
+ * Same as requireUser, but for endpoints that serve both anonymous browsers
+ * and signed-in visitors (product access checks, preview audio) — returns
+ * null instead of throwing when there's no token, an invalid one, or the
+ * user hasn't synced yet, rather than 401ing the whole request.
+ */
+export async function getOptionalUser(req: NextRequest) {
+  const header = req.headers.get("authorization") ?? "";
+  const idToken = header.startsWith("Bearer ") ? header.slice(7) : null;
+  if (!idToken) return null;
+  try {
+    const decoded = await verifyFirebaseIdToken(idToken);
+    return await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  } catch {
+    return null;
+  }
+}

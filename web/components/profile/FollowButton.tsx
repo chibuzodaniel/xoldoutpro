@@ -35,8 +35,8 @@ export function FollowButton({ targetUserId }: { targetUserId: string }) {
     <button
       onClick={toggle}
       disabled={busy || following === null}
-      className={`rounded-lg border px-4 py-1.5 text-xs font-semibold ${
-        following ? "border-line text-ink-2" : "border-red bg-red text-white"
+      className={`rounded-lg border px-4 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+        following ? "border-line text-ink-2 hover:border-line-strong hover:text-ink" : "border-red bg-red text-white hover:bg-red-soft hover:border-red-soft"
       }`}
     >
       {following ? "Following" : "Follow"}

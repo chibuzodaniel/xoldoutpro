@@ -51,7 +51,7 @@ export default function SignupPage() {
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/xoldout-logo.jpeg" alt="XOLDOUT" className="h-10 w-auto mb-8 rounded" />
+        <img src="/xoldout-logo-transparent.png" alt="XOLDOUT" className="h-10 w-auto mb-8" />
         <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Create account</p>
 
         <form onSubmit={handleEmailSignup} className="flex flex-col gap-3">
@@ -61,7 +61,7 @@ export default function SignupPage() {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
           <input
             type="password"
@@ -70,7 +70,7 @@ export default function SignupPage() {
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
           {error && <p className="text-sm text-red-soft">{error}</p>}
           <button

@@ -8,10 +8,12 @@ export async function GET(req: NextRequest) {
 
   const [products, creators] = await Promise.all([
     db.product.findMany({
-      where: { type: "RELEASE", status: "PUBLISHED", title: { contains: q, mode: "insensitive" } },
+      where: { type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED", title: { contains: q, mode: "insensitive" } },
       include: {
         creator: { select: { handle: true, displayName: true } },
         release: { select: { artworkLadder: true, releaseType: true } },
+        beat: { select: { coverImageLadder: true } },
+        merchItem: { select: { imageLadder: true } },
         stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
       },
       take: 20,

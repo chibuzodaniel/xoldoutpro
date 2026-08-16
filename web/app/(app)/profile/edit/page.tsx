@@ -8,6 +8,7 @@ import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { enablePush, disablePush } from "@/lib/push";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
@@ -23,6 +24,9 @@ export default function EditProfilePage() {
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>(appUser?.socialLinks ?? []);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(appUser?.avatarUrl ?? null);
+  const [coverPreview, setCoverPreview] = useState<string | null>(appUser?.coverUrl ?? null);
+  const [cropTarget, setCropTarget] = useState<{ file: File; kind: "avatar" | "cover" } | null>(null);
   const [pushEnabled, setPushEnabled] = useState(appUser?.pushEnabled ?? false);
   const [pushBusy, setPushBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -124,23 +128,68 @@ export default function EditProfilePage() {
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Photos</h2>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] uppercase tracking-widest text-ink-3">Cover photo</label>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
-              className="text-xs text-ink-2"
-            />
+            <label className="flex h-24 w-full items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
+              {coverPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-ink-3">Add cover photo</span>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setCropTarget({ file, kind: "cover" });
+                  e.target.value = "";
+                }}
+              />
+            </label>
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-[11px] uppercase tracking-widest text-ink-3">Avatar</label>
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => setAvatarFile(e.target.files?.[0] ?? null)}
-              className="text-xs text-ink-2"
-            />
+            <label className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
+              {avatarPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-ink-3">Add</span>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setCropTarget({ file, kind: "avatar" });
+                  e.target.value = "";
+                }}
+              />
+            </label>
           </div>
         </div>
+
+        {cropTarget && (
+          <ImageCropModal
+            file={cropTarget.file}
+            aspect={cropTarget.kind === "avatar" ? 1 : 3}
+            cropShape={cropTarget.kind === "avatar" ? "round" : "rect"}
+            outputWidth={cropTarget.kind === "avatar" ? 512 : 1200}
+            outputHeight={cropTarget.kind === "avatar" ? 512 : 400}
+            onCancel={() => setCropTarget(null)}
+            onConfirm={(cropped) => {
+              if (cropTarget.kind === "avatar") {
+                setAvatarFile(cropped);
+                setAvatarPreview(URL.createObjectURL(cropped));
+              } else {
+                setCoverFile(cropped);
+                setCoverPreview(URL.createObjectURL(cropped));
+              }
+              setCropTarget(null);
+            }}
+          />
+        )}
 
         <div className="flex flex-col gap-4">
           <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Profile</h2>
@@ -153,7 +202,7 @@ export default function EditProfilePage() {
               minLength={3}
               maxLength={24}
               pattern="[a-z0-9_]+"
-              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
             />
           </div>
           <div className="flex flex-col gap-1">
@@ -163,7 +212,7 @@ export default function EditProfilePage() {
               onChange={(e) => setDisplayName(e.target.value)}
               required
               maxLength={60}
-              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red"
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
             />
           </div>
         </div>
@@ -175,7 +224,7 @@ export default function EditProfilePage() {
             onChange={(e) => setBio(e.target.value)}
             maxLength={280}
             rows={3}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none focus:border-red resize-none"
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red resize-none"
           />
         </div>
 
@@ -203,7 +252,7 @@ export default function EditProfilePage() {
               }}
               placeholder="Add a tag (e.g. Producer)"
               maxLength={24}
-              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none focus:border-red"
+              className="flex-1 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
             />
             <button
               type="button"
@@ -235,7 +284,7 @@ export default function EditProfilePage() {
                   value={link.url}
                   onChange={(e) => updateSocialLink(i, { url: e.target.value })}
                   placeholder="https://..."
-                  className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-xs outline-none focus:border-red"
+                  className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-xs outline-none transition-colors duration-150 focus:border-red"
                 />
                 <button
                   type="button"

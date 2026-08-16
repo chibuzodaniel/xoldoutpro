@@ -1,17 +1,8 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/AuthProvider";
-
+// Discover is open to everyone (see app/(app)/layout.tsx) — no need to
+// branch on auth state here, unlike when anonymous visitors used to be
+// bounced to /login.
 export default function RootPage() {
-  const router = useRouter();
-  const { firebaseUser, loading } = useAuth();
-
-  useEffect(() => {
-    if (loading) return;
-    router.replace(firebaseUser ? "/discover" : "/login");
-  }, [loading, firebaseUser, router]);
-
-  return null;
+  redirect("/discover");
 }

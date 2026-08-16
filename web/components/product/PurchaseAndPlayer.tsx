@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { usePlayer } from "@/components/player/PlayerProvider";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 type AccessTrack = {
   id: string;
@@ -37,6 +38,7 @@ function formatTime(sec: number) {
 export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo, isSoldOut }: Props) {
   const router = useRouter();
   const player = usePlayer();
+  const { firebaseUser } = useAuth();
   const [entitled, setEntitled] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [tracks, setTracks] = useState<AccessTrack[] | null>(null);
@@ -59,6 +61,10 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   }, [productId]);
 
   async function handleBuy() {
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
     setError(null);
     setBusy(true);
     try {

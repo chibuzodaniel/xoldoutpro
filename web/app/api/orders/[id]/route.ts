@@ -9,7 +9,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const order = await db.order.findUnique({
       where: { id },
-      include: { items: { include: { product: { select: { id: true, title: true } } } } },
+      include: {
+        items: {
+          include: { product: { select: { id: true, title: true, type: true, ticketTier: { select: { eventId: true } } } } },
+        },
+      },
     });
     if (!order || order.buyerId !== user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

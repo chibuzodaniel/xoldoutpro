@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { FollowButton } from "@/components/profile/FollowButton";
+import { ProfileHeaderRow } from "@/components/profile/ProfileHeaderRow";
+import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard } from "@/components/product/ProductCard";
 
 export const dynamic = "force-dynamic";
@@ -44,10 +45,12 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   if (!user) notFound();
 
   const catalog = await db.product.findMany({
-    where: { creatorId: user.id, type: "RELEASE", status: "PUBLISHED" },
+    where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
     include: {
       creator: { select: { handle: true, displayName: true } },
       release: { select: { artworkLadder: true, releaseType: true } },
+      beat: { select: { coverImageLadder: true } },
+      merchItem: { select: { imageLadder: true } },
       stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
     },
     orderBy: { publishedAt: "desc" },
@@ -57,22 +60,21 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   return (
     <div className="pb-8">
-      <div
-        className="h-24 bg-surface-2 bg-cover bg-center"
-        style={user.coverUrl ? { backgroundImage: `url(${user.coverUrl})` } : undefined}
-      />
+      <ClickablePhoto
+        targetUserId={user.id}
+        kind="cover"
+        photoUrl={user.coverUrl}
+        alt="Cover photo"
+        label="Cover photo"
+        className="block w-full"
+      >
+        <div
+          className="h-24 bg-surface-2 bg-cover bg-center"
+          style={user.coverUrl ? { backgroundImage: `url(${user.coverUrl})` } : undefined}
+        />
+      </ClickablePhoto>
       <div className="px-4 -mt-8">
-        <div className="flex items-end justify-between mb-3">
-          <div className="h-16 w-16 rounded-full border-2 border-bg bg-surface-2 overflow-hidden flex items-center justify-center">
-            {user.avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={user.avatarUrl} alt={user.displayName} className="h-full w-full object-cover" />
-            ) : (
-              <span className="font-serif text-lg text-ink-3">{user.displayName.slice(0, 1).toUpperCase()}</span>
-            )}
-          </div>
-          <FollowButton targetUserId={user.id} />
-        </div>
+        <ProfileHeaderRow targetUserId={user.id} avatarUrl={user.avatarUrl} displayName={user.displayName} />
 
         <h1 className="font-serif text-xl">{user.displayName}</h1>
         <p className="text-sm text-ink-3 mb-2">@{user.handle}</p>

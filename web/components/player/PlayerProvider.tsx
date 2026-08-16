@@ -10,6 +10,10 @@ export type PlayableTrack = {
   artistName: string;
   artworkUrl: string | null;
   lyricsText: string | null;
+  // "track" (default, omit for Release call sites) fetches /api/tracks/[id]/audio-url
+  // and checks the offline cache; "beat" fetches /api/beats/[id]/audio-url and skips
+  // offline lookup (beats have no offline cache format — DECISIONS.md).
+  kind?: "track" | "beat";
 };
 
 type RepeatMode = "off" | "all" | "one";
@@ -105,11 +109,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
 
       const audio = audioRef.current!;
+      const kind = track.kind ?? "track";
 
       // Downloaded tracks play from the local encrypted cache with no
       // network round-trip at all — this is what makes offline playback
-      // (PRD §9) actually work, not just "the button exists".
-      const offlineUrl = await getOfflinePlaybackUrl(track.trackId);
+      // (PRD §9) actually work, not just "the button exists". Beats have no
+      // offline cache format yet, so this lookup is skipped for them.
+      const offlineUrl = kind === "track" ? await getOfflinePlaybackUrl(track.trackId) : null;
       if (offlineUrl) {
         objectUrlRef.current = offlineUrl;
         setEntitled(true);
@@ -122,7 +128,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await apiFetch(`/api/tracks/${track.trackId}/audio-url`);
+      const res = await apiFetch(kind === "beat" ? `/api/beats/${track.trackId}/audio-url` : `/api/tracks/${track.trackId}/audio-url`);
       if (!res.ok) throw new Error("Could not load track");
       const data = await res.json();
       setEntitled(data.entitled);
