@@ -1,0 +1,12 @@
+{
+  "crons": [
+    {
+      "path": "/api/internal/sweep-holds",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/internal/settle-ledger",
+      "schedule": "5 3 * * *"
+    }
+  ]
+}

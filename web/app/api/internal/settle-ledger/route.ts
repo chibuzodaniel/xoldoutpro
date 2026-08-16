@@ -7,11 +7,14 @@ export const runtime = "nodejs";
  * Balance correctness never depends on this running (see getWalletBalances,
  * which compares availableAt directly) — this only keeps the stored
  * `status` column truthful for anything that reads it as a label rather
- * than recomputing. Call from the same external scheduler as sweep-holds.
+ * than recomputing. Triggered by the same vercel.json cron mechanism as
+ * sweep-holds (GET + CRON_SECRET bearer auth) — see that route's comment
+ * for the Hobby-plan once/day frequency caveat, which matters far less
+ * here since nothing depends on this being fresh.
  */
-export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-internal-secret");
-  if (!secret || secret !== process.env.INTERNAL_CRON_SECRET) {
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -9,12 +9,20 @@ const HOLD_MINUTES = 10;
 /**
  * PRD §7.2: a failed or abandoned payment releases its stock hold, "hold
  * duration in the order of ten minutes". No persistent worker process runs
- * in this build (see DECISIONS.md) — call this from an external scheduler
- * (Vercel Cron, an OS cron hitting curl, etc.) every few minutes instead.
+ * in this build (see DECISIONS.md) — triggered by vercel.json's cron
+ * instead, which invokes via GET and signs requests with CRON_SECRET
+ * (Vercel's own convention: an env var of that exact name gets auto-attached
+ * as `Authorization: Bearer`).
+ *
+ * Known gap: the Hobby plan caps crons at once/day, so this currently runs
+ * far less often than the ~10-minute target — an abandoned hold can sit for
+ * up to 24h instead of ~10min before its stock is released. Fix by moving
+ * to Pro (unlocks per-minute schedules) or an external scheduler hitting
+ * this same URL more often; the secret check doesn't care which triggers it.
  */
-export async function POST(req: NextRequest) {
-  const secret = req.headers.get("x-internal-secret");
-  if (!secret || secret !== process.env.INTERNAL_CRON_SECRET) {
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
