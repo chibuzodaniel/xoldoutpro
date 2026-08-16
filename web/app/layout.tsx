@@ -36,11 +36,15 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col bg-bg text-ink">
+      {/* h-full (not min-h-full) + overflow-hidden caps the page at the
+          viewport height instead of letting content grow it taller — without
+          this, the *window* scrolls instead of the inner content pane below,
+          taking the "fixed" mini player/bottom nav along with it. */}
+      <body className="h-full flex flex-col bg-bg text-ink overflow-hidden">
         <AuthProvider>
           <PlayerProvider>
-            <div className="flex flex-1 flex-col min-h-screen">
-              <div className="flex-1 overflow-y-auto pb-2">{children}</div>
+            <div className="flex h-full flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
               <MiniPlayer />
               <BottomNav />
             </div>
