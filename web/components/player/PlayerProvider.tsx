@@ -29,19 +29,30 @@ type PlayerState = {
   previewStartSec: number | null;
   previewEndSec: number | null;
   loading: boolean;
-  play: (track: PlayableTrack) => void;
+  queue: PlayableTrack[];
+  queueIndex: number;
+  volume: number;
+  remoteSupported: boolean;
+  // `queue` is optional — call sites playing a single track (a beat, a
+  // standalone preview) can omit it and next/previous simply won't have
+  // anywhere to go; Release playback passes the full tracklist so skip
+  // controls have real siblings to move through.
+  play: (track: PlayableTrack, queue?: PlayableTrack[]) => void;
   togglePlay: () => void;
   seek: (sec: number) => void;
   cycleRepeat: () => void;
   setExpanded: (v: boolean) => void;
+  next: () => void;
+  previous: () => void;
+  setVolume: (v: number) => void;
+  requestRemotePlayback: () => void;
 };
 
 const PlayerContext = createContext<PlayerState | null>(null);
 
-// A single persistent <audio> element, held by a provider that wraps the
-// authenticated app shell layout — Next.js keeps layout components mounted
-// across route changes within it, which is what makes the mini player
-// survive tab switches (PRD §9 requirement) without a page reload.
+// A single persistent <audio> element, held by a provider mounted at the
+// app root — playback (and the mini player showing it) survives navigation
+// to any route, not just an authenticated app-shell subset (PRD §9).
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [current, setCurrent] = useState<PlayableTrack | null>(null);
@@ -54,51 +65,29 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [previewStartSec, setPreviewStartSec] = useState<number | null>(null);
   const [previewEndSec, setPreviewEndSec] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [queue, setQueue] = useState<PlayableTrack[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [volume, setVolumeState] = useState(1);
+  const [remoteSupported, setRemoteSupported] = useState(false);
+
+  useEffect(() => {
+    setRemoteSupported(typeof HTMLMediaElement !== "undefined" && "remote" in HTMLMediaElement.prototype);
+  }, []);
 
   // Read inside the (stable, registered-once) audio event listeners without
   // stale closures — these mirror the state above on every change.
-  const guardRef = useRef({ entitled, previewStartSec, previewEndSec, repeatMode });
+  const guardRef = useRef({ entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex });
   useEffect(() => {
-    guardRef.current = { entitled, previewStartSec, previewEndSec, repeatMode };
-  }, [entitled, previewStartSec, previewEndSec, repeatMode]);
-
-  useEffect(() => {
-    const audio = new Audio();
-    audioRef.current = audio;
-
-    const onTime = () => {
-      setPositionSec(audio.currentTime);
-      const { entitled: ent, previewStartSec: start, previewEndSec: end } = guardRef.current;
-      if (!ent && start !== null && end !== null && audio.currentTime >= end) {
-        audio.currentTime = start;
-        audio.pause();
-        setIsPlaying(false);
-      }
-    };
-    const onLoaded = () => setDurationSec(audio.duration || 0);
-    const onEnded = () => {
-      if (guardRef.current.repeatMode === "one" || guardRef.current.repeatMode === "all") {
-        audio.currentTime = 0;
-        audio.play();
-      } else {
-        setIsPlaying(false);
-      }
-    };
-
-    audio.addEventListener("timeupdate", onTime);
-    audio.addEventListener("loadedmetadata", onLoaded);
-    audio.addEventListener("ended", onEnded);
-    return () => {
-      audio.pause();
-      audio.removeEventListener("timeupdate", onTime);
-      audio.removeEventListener("loadedmetadata", onLoaded);
-      audio.removeEventListener("ended", onEnded);
-    };
-  }, []);
+    guardRef.current = { entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex };
+  }, [entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex]);
 
   const objectUrlRef = useRef<string | null>(null);
 
-  const play = useCallback(async (track: PlayableTrack) => {
+  const play = useCallback(async (track: PlayableTrack, queueArg?: PlayableTrack[]) => {
+    const q = queueArg && queueArg.length > 0 ? queueArg : [track];
+    const idx = q.findIndex((t) => t.trackId === track.trackId);
+    setQueue(q);
+    setQueueIndex(idx === -1 ? 0 : idx);
     setCurrent(track);
     setLoading(true);
     setIsPlaying(false);
@@ -146,6 +135,56 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const playRef = useRef(play);
+  useEffect(() => {
+    playRef.current = play;
+  }, [play]);
+
+  useEffect(() => {
+    const audio = new Audio();
+    audio.volume = volume;
+    audioRef.current = audio;
+
+    const onTime = () => {
+      setPositionSec(audio.currentTime);
+      const { entitled: ent, previewStartSec: start, previewEndSec: end } = guardRef.current;
+      if (!ent && start !== null && end !== null && audio.currentTime >= end) {
+        audio.currentTime = start;
+        audio.pause();
+        setIsPlaying(false);
+      }
+    };
+    const onLoaded = () => setDurationSec(audio.duration || 0);
+    const onEnded = () => {
+      const { repeatMode: mode, queue: q, queueIndex: idx } = guardRef.current;
+      if (mode === "one") {
+        audio.currentTime = 0;
+        audio.play();
+        return;
+      }
+      if (idx < q.length - 1) {
+        playRef.current(q[idx + 1], q);
+        return;
+      }
+      if (mode === "all" && q.length > 0) {
+        playRef.current(q[0], q);
+        return;
+      }
+      setIsPlaying(false);
+    };
+
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("loadedmetadata", onLoaded);
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.pause();
+      audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("loadedmetadata", onLoaded);
+      audio.removeEventListener("ended", onEnded);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one persistent <audio> element for the app's lifetime; volume applied here is just the initial value, live changes go through setVolume
+  }, []);
+
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !current) return;
@@ -176,6 +215,37 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setRepeatMode((m) => (m === "off" ? "all" : m === "all" ? "one" : "off"));
   }, []);
 
+  // Skip to the next track in the current queue — a no-op past the end.
+  const next = useCallback(() => {
+    if (queueIndex < queue.length - 1) play(queue[queueIndex + 1], queue);
+  }, [queue, queueIndex, play]);
+
+  // Mirrors the near-universal "tap back = restart this track, tap back
+  // again quickly = go to the previous one" convention (Spotify, Apple
+  // Music, etc.) rather than always jumping tracks.
+  const previous = useCallback(() => {
+    if (positionSec > 3 || queueIndex === 0) {
+      seek(0);
+    } else {
+      play(queue[queueIndex - 1], queue);
+    }
+  }, [queue, queueIndex, positionSec, seek, play]);
+
+  const setVolume = useCallback((v: number) => {
+    const clamped = Math.min(1, Math.max(0, v));
+    if (audioRef.current) audioRef.current.volume = clamped;
+    setVolumeState(clamped);
+  }, []);
+
+  // Remote Playback API — native browser picker for AirPlay/cast-capable
+  // devices on the current <audio> element. No SDK, no extra dependency;
+  // silently unavailable (remoteSupported is false) on browsers that don't
+  // implement it, so the UI can just hide the control there.
+  const requestRemotePlayback = useCallback(() => {
+    const remote = (audioRef.current as HTMLMediaElement & { remote?: { prompt: () => Promise<void> } })?.remote;
+    remote?.prompt().catch(() => {});
+  }, []);
+
   return (
     <PlayerContext.Provider
       value={{
@@ -189,11 +259,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         previewStartSec,
         previewEndSec,
         loading,
+        queue,
+        queueIndex,
+        volume,
+        remoteSupported,
         play,
         togglePlay,
         seek,
         cycleRepeat,
         setExpanded,
+        next,
+        previous,
+        setVolume,
+        requestRemotePlayback,
       }}
     >
       {children}

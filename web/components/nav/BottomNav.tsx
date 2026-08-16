@@ -40,8 +40,21 @@ const ITEMS: { href: string; label: string; icon: keyof typeof ICONS; isFab: boo
   { href: "/profile", label: "Profile", icon: "profile", isFab: false },
 ];
 
+// Rendered globally from the root layout (so it survives navigation
+// alongside the mini player) but only makes sense on the app-shell surfaces
+// it was designed for — hide it on auth/onboarding and public profile pages,
+// which have never had it and aren't part of the five-tab navigation model.
+const NO_NAV_EXACT = new Set(["/login", "/signup", "/onboarding"]);
+
+function hasBottomNav(pathname: string) {
+  if (NO_NAV_EXACT.has(pathname)) return false;
+  if (pathname.startsWith("/u/")) return false;
+  return true;
+}
+
 export function BottomNav() {
   const pathname = usePathname();
+  if (!hasBottomNav(pathname ?? "")) return null;
 
   return (
     <nav className="sticky bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">

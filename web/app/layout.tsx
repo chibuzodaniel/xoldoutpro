@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { PlayerProvider } from "@/components/player/PlayerProvider";
+import { MiniPlayer } from "@/components/player/MiniPlayer";
+import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
+import { BottomNav } from "@/components/nav/BottomNav";
 
 export const metadata: Metadata = {
   title: "XOLDOUT — Where music actually sells out",
@@ -22,11 +26,27 @@ export const viewport: Viewport = {
   themeColor: "#0a0a0b",
 };
 
+// PlayerProvider (and the single persistent <audio> element it owns) lives
+// here at the root, not inside app/(app)/layout.tsx — a track playing on,
+// say, /r/[id] previously stopped dead the moment you navigated to a route
+// outside the (app) group (public profile, /login, /onboarding) because the
+// whole provider unmounted. Same reasoning for MiniPlayer/BottomNav: one
+// shared bottom-chrome stack for the entire app, so the mini player stays
+// visible and playback survives every navigation, not just within (app).
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-bg text-ink">
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <PlayerProvider>
+            <div className="flex flex-1 flex-col min-h-screen">
+              <div className="flex-1 overflow-y-auto pb-2">{children}</div>
+              <MiniPlayer />
+              <BottomNav />
+            </div>
+            <ExpandedPlayer />
+          </PlayerProvider>
+        </AuthProvider>
       </body>
     </html>
   );

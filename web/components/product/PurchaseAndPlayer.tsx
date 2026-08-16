@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { usePlayer } from "@/components/player/PlayerProvider";
+import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
 import { useAuth } from "@/components/auth/AuthProvider";
 
 type AccessTrack = {
@@ -84,7 +84,14 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   }
 
   function handlePlay(track: AccessTrack) {
-    player.play({ trackId: track.id, title: track.title, artistName, artworkUrl, lyricsText: track.lyricsText });
+    const trackQueue: PlayableTrack[] = (tracks ?? []).map((t) => ({
+      trackId: t.id,
+      title: t.title,
+      artistName,
+      artworkUrl,
+      lyricsText: t.lyricsText,
+    }));
+    player.play({ trackId: track.id, title: track.title, artistName, artworkUrl, lyricsText: track.lyricsText }, trackQueue);
   }
 
   return (
