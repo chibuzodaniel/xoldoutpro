@@ -1,11 +1,12 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { apiFetch } from "@/lib/api";
+import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { GroupPostCard, type GroupPost } from "@/components/groups/GroupPostCard";
-import { GroupPostComposer } from "@/components/groups/GroupPostComposer";
+import { ChatMessage, type ChatMessageData } from "@/components/groups/ChatMessage";
+import { ChatComposer } from "@/components/groups/ChatComposer";
 import { ManageGroupSheet } from "@/components/groups/ManageGroupSheet";
 
 type GroupDetail = {
@@ -27,7 +28,8 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [myRole, setMyRole] = useState<"ADMIN" | "MEMBER" | null>(null);
   const [joinRequestStatus, setJoinRequestStatus] = useState<"PENDING" | "APPROVED" | "REJECTED" | null>(null);
-  const [posts, setPosts] = useState<GroupPost[] | null>(null);
+  const [messages, setMessages] = useState<ChatMessageData[] | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ChatMessageData | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [joining, setJoining] = useState(false);
 
@@ -56,7 +58,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     if (myRole === null) return;
     apiFetch(`/api/groups/${id}/posts`)
       .then((res) => (res.ok ? res.json() : { posts: [] }))
-      .then((data) => setPosts(data.posts));
+      .then((data) => setMessages(data.posts));
   }, [id, myRole]);
 
   async function handleJoin() {
@@ -83,68 +85,73 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     group.postPermission === "ALL_MEMBERS" ? isMember : group.postPermission === "ADMINS" ? myRole === "ADMIN" : amCreator;
 
   return (
-    <div className="pb-10">
-      <div className="h-28 w-full bg-surface-2">
-        {group.coverImageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={group.coverImageUrl} alt={group.name} className="h-full w-full object-cover" />
+    <div className="flex flex-col">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-line-soft">
+        <div
+          className={`h-10 w-10 rounded-full bg-gradient-to-br ${AVATAR_GRADIENTS[0]} flex items-center justify-center text-sm font-semibold text-white/90 shrink-0`}
+        >
+          {group.name.slice(0, 1).toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1">
+          <h1 className="text-base font-semibold line-clamp-1">{group.name}</h1>
+          <p className="text-xs text-ink-3">
+            {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
+          </p>
+        </div>
+        {myRole === "ADMIN" && (
+          <button type="button" onClick={() => setManageOpen(true)} className="text-xs font-semibold text-red-soft shrink-0">
+            Manage
+          </button>
         )}
       </div>
 
-      <div className="px-4 pt-4">
-        <div className="flex items-start justify-between gap-3 mb-1">
-          <h1 className="font-serif text-2xl">{group.name}</h1>
-          {myRole === "ADMIN" && (
-            <button type="button" onClick={() => setManageOpen(true)} className="text-xs font-semibold text-red-soft shrink-0">
-              Manage
+      {group.description && <p className="text-sm text-ink-2 px-4 py-3">{group.description}</p>}
+
+      {!isMember ? (
+        <div className="px-4 py-6">
+          {joinRequestStatus === "PENDING" ? (
+            <p className="text-sm text-ink-3">Your request to join is pending approval.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleJoin}
+              disabled={joining}
+              className="rounded-lg bg-red px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {joining ? "…" : group.visibility === "OPEN" ? "Join group" : "Request to join"}
             </button>
           )}
         </div>
-        <p className="text-xs text-ink-3 mb-1">
-          {group.memberCount} member{group.memberCount === 1 ? "" : "s"} · by {group.creator.displayName}
-        </p>
-        {group.description && <p className="text-sm text-ink-2 mb-4">{group.description}</p>}
+      ) : (
+        <>
+          {!amCreator && (
+            <button type="button" onClick={handleLeave} className="text-xs text-ink-3 px-4 pt-3 text-left">
+              Leave group
+            </button>
+          )}
 
-        {!isMember && (
-          <div className="mb-6">
-            {joinRequestStatus === "PENDING" ? (
-              <p className="text-sm text-ink-3">Your request to join is pending approval.</p>
+          <div className="flex flex-col gap-4 px-4 py-4">
+            {messages === null ? (
+              <LoadingSpinner full size="md" />
+            ) : messages.length === 0 ? (
+              <p className="text-sm text-ink-3">No messages yet — say something.</p>
             ) : (
-              <button
-                type="button"
-                onClick={handleJoin}
-                disabled={joining}
-                className="rounded-lg bg-red px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {joining ? "…" : group.visibility === "OPEN" ? "Join group" : "Request to join"}
-              </button>
+              messages.map((m) => (
+                <ChatMessage key={m.id} message={m} isMine={m.author.id === appUser?.id} onReply={setReplyingTo} />
+              ))
             )}
           </div>
-        )}
 
-        {isMember && !amCreator && (
-          <button type="button" onClick={handleLeave} className="text-xs text-ink-3 mb-6">
-            Leave group
-          </button>
-        )}
-
-        {isMember && (
-          <>
-            {canPost && <GroupPostComposer groupId={id} onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])} />}
-            {posts === null ? (
-              <LoadingSpinner full size="md" />
-            ) : posts.length === 0 ? (
-              <p className="text-sm text-ink-3">No posts yet.</p>
-            ) : (
-              <div className="flex flex-col">
-                {posts.map((p) => (
-                  <GroupPostCard key={p.id} post={p} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
+          {canPost && (
+            <ChatComposer
+              groupId={id}
+              replyingTo={replyingTo}
+              onClearReply={() => setReplyingTo(null)}
+              onPosted={(message) => setMessages((cur) => [...(cur ?? []), message])}
+            />
+          )}
+        </>
+      )}
 
       <ManageGroupSheet
         groupId={id}
@@ -153,9 +160,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
         onClose={() => setManageOpen(false)}
         postPermission={group.postPermission}
         visibility={group.visibility}
-        onSettingsChanged={(patch) =>
-          setGroup((cur) => (cur ? { ...cur, ...(patch as Partial<GroupDetail>) } : cur))
-        }
+        onSettingsChanged={(patch) => setGroup((cur) => (cur ? { ...cur, ...(patch as Partial<GroupDetail>) } : cur))}
       />
     </div>
   );

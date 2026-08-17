@@ -4,6 +4,7 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { EventCard } from "@/components/product/EventCard";
 import { AppHeader } from "@/components/nav/AppHeader";
 import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
+import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 
 // Stock counts and follower counts change on every purchase/follow — never
 // prerender this statically at build time.
@@ -21,13 +22,6 @@ function formatNaira(kobo: number) {
   if (kobo === 0) return "Free";
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 }
-
-const AVATAR_GRADIENTS = [
-  "from-[#6b0f1c] to-[#26070d]",
-  "from-[#5e0d19] to-[#26070d]",
-  "from-[#7d1424] to-[#2a0810]",
-  "from-[#4a0c15] to-[#1a0509]",
-];
 
 const VALID_TYPES = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
 const SECTION_TITLE: Record<(typeof VALID_TYPES)[number], string> = {

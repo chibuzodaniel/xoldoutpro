@@ -14,7 +14,12 @@ const FEEDBACK_REASONS = [
   { value: "FEATURE_REQUEST" as const, label: "Feature request" },
 ];
 
-type Stats = { fans: number; sales: number; catalog: { music: number; beats: number; events: number; merch: number } };
+type Stats = {
+  fans: number;
+  sales: number;
+  catalog: { music: number; beats: number; events: number; merch: number };
+  pendingFanbaseRequests: number;
+};
 
 const CATALOG_ROWS = [
   {
@@ -210,16 +215,21 @@ export default function ProfilePage() {
             </div>
             <span className="text-ink-3">›</span>
           </div>
-          <div className="flex items-center gap-3 py-3">
+          <Link href="/socials?tab=fanbase" className="flex items-center gap-3 py-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4 text-ink-3 shrink-0">
               <rect x="5" y="10" width="14" height="10" rx="2" />
               <path d="M8 10V7a4 4 0 118 0v3" />
             </svg>
-            <div>
-              <p className="text-sm font-semibold">Private Socials join requests</p>
-              <p className="text-xs text-ink-3">Nothing pending</p>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">Private Fanbase join requests</p>
+              <p className="text-xs text-ink-3">
+                {stats && stats.pendingFanbaseRequests > 0
+                  ? `${stats.pendingFanbaseRequests} pending`
+                  : "Nothing pending"}
+              </p>
             </div>
-          </div>
+            {stats && stats.pendingFanbaseRequests > 0 && <span className="text-ink-3">›</span>}
+          </Link>
         </div>
 
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">

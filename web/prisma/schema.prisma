@@ -106,6 +106,8 @@ model Post {
   author    User     @relation("PostsAuthored", fields: [authorId], references: [id])
   groupId   String?
   group     FanbaseGroup? @relation(fields: [groupId], references: [id])
+  replyToId String? // group chat quote-reply (image9 reference) — null for MVP announcement posts
+  replyTo   Post?    @relation("PostReplies", fields: [replyToId], references: [id])
   body      String
   imageUrl  String?
   createdAt DateTime @default(now())
@@ -114,6 +116,7 @@ model Post {
   comments Comment[]
   poll     Poll?
   reports  Report[]   @relation("ReportsOnPost")
+  replies  Post[]     @relation("PostReplies")
 
   @@index([authorId, createdAt])
   @@index([groupId, createdAt])
