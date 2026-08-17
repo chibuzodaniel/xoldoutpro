@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -18,6 +18,14 @@ const TABS = [
 type SocialsTab = (typeof TABS)[number]["key"];
 
 export default function SocialsPage() {
+  return (
+    <Suspense fallback={null}>
+      <SocialsPageInner />
+    </Suspense>
+  );
+}
+
+function SocialsPageInner() {
   const searchParams = useSearchParams();
   const [tab, setTab] = useState<SocialsTab>(searchParams.get("tab") === "fanbase" ? "fanbase" : "feed");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);

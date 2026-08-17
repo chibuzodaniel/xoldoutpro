@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
@@ -80,6 +80,14 @@ type LibraryTab = (typeof TABS)[number]["key"];
 const TAB_KEYS = TABS.map((t) => t.key);
 
 export default function LibraryPage() {
+  return (
+    <Suspense fallback={null}>
+      <LibraryPageInner />
+    </Suspense>
+  );
+}
+
+function LibraryPageInner() {
   const player = usePlayer();
   const initialTab = useSearchParams().get("tab");
   const [tab, setTab] = useState<LibraryTab>(

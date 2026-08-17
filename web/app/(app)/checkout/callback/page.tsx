@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
@@ -10,6 +10,14 @@ type OrderStatus = "PENDING" | "PAID" | "REFUNDED" | "FAILED";
 // truth (PRD §16: idempotent, may arrive before or after this redirect), so
 // this page just polls order status until the webhook has caught up.
 export default function CheckoutCallbackPage() {
+  return (
+    <Suspense fallback={null}>
+      <CheckoutCallbackInner />
+    </Suspense>
+  );
+}
+
+function CheckoutCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const orderId = searchParams.get("tx_ref");
