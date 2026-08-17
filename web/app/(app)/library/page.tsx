@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
 import { usePlayer } from "@/components/player/PlayerProvider";
@@ -11,6 +12,9 @@ import {
   removeDownload,
   totalDownloadBytes,
 } from "@/lib/offline/downloads";
+import { CollectionsTab } from "@/components/library/CollectionsTab";
+import { GiftsTab } from "@/components/library/GiftsTab";
+import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
 
 type LibraryTrack = {
   id: string;
@@ -66,13 +70,27 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+const TABS = [
+  { key: "purchased", label: "Purchased" },
+  { key: "collections", label: "Collections" },
+  { key: "gifts", label: "Gifts" },
+] as const;
+type LibraryTab = (typeof TABS)[number]["key"];
+
+const TAB_KEYS = TABS.map((t) => t.key);
+
 export default function LibraryPage() {
   const player = usePlayer();
+  const initialTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState<LibraryTab>(
+    TAB_KEYS.includes(initialTab as LibraryTab) ? (initialTab as LibraryTab) : "purchased",
+  );
   const [entitlements, setEntitlements] = useState<LibraryEntitlement[] | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null);
   const [usageBytes, setUsageBytes] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [collectingId, setCollectingId] = useState<string | null>(null);
 
   const refreshDownloadState = useCallback(async (tracks: LibraryTrack[]) => {
     const entries = await Promise.all(tracks.map(async (t) => [t.id, await isDownloaded(t.id)] as const));
@@ -121,33 +139,62 @@ export default function LibraryPage() {
 
   return (
     <div className="px-4 py-6">
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center justify-between mb-4">
         <h1 className="font-serif text-2xl">Library</h1>
       </div>
-      {usageBytes > 0 && <p className="text-xs text-ink-3 mb-6">{formatBytes(usageBytes)} downloaded on this device</p>}
-      {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
-      {entitlements === null ? (
-        <LoadingSpinner full size="md" />
-      ) : entitlements.length === 0 ? (
-        <p className="text-sm text-ink-3">Everything you buy shows up here, playable offline. Nothing yet.</p>
-      ) : (
-        <div className="flex flex-col gap-6">
-          {entitlements.map((e) =>
-            e.product.release ? (
-              <div key={e.id}>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-11 w-11 rounded bg-surface-2 overflow-hidden shrink-0">
-                    {artworkUrl(e.product.release, "64") && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={artworkUrl(e.product.release, "64")!} alt={e.product.title} className="h-full w-full object-cover" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">{e.product.title}</p>
-                    <p className="text-xs text-ink-3">{e.product.creator.displayName}</p>
-                  </div>
-                </div>
+      <div className="flex items-center gap-5 border-b border-line-soft mb-5">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`relative pb-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
+              tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "collections" && <CollectionsTab />}
+      {tab === "gifts" && <GiftsTab />}
+
+      {tab === "purchased" && (
+        <>
+          {usageBytes > 0 && <p className="text-xs text-ink-3 mb-6">{formatBytes(usageBytes)} downloaded on this device</p>}
+          {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
+
+          {entitlements === null ? (
+            <LoadingSpinner full size="md" />
+          ) : entitlements.length === 0 ? (
+            <p className="text-sm text-ink-3">Everything you buy shows up here, playable offline. Nothing yet.</p>
+          ) : (
+            <div className="flex flex-col gap-6">
+              {entitlements.map((e) =>
+                e.product.release ? (
+                  <div key={e.id}>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="h-11 w-11 rounded bg-surface-2 overflow-hidden shrink-0">
+                        {artworkUrl(e.product.release, "64") && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={artworkUrl(e.product.release, "64")!} alt={e.product.title} className="h-full w-full object-cover" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
+                        <p className="text-xs text-ink-3">{e.product.creator.displayName}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCollectingId(e.id)}
+                        aria-label="Add to collection"
+                        className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0"
+                      >
+                        +
+                      </button>
+                    </div>
                 <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
                   {e.product.release.tracks.map((track) => (
                     <div key={track.id} className="flex items-center justify-between py-2.5">
@@ -183,15 +230,23 @@ export default function LibraryPage() {
                 </div>
               </div>
             ) : e.product.beat ? (
-              <BeatLibraryRow key={e.id} entitlement={e} player={player} />
+              <BeatLibraryRow key={e.id} entitlement={e} player={player} onCollect={() => setCollectingId(e.id)} />
             ) : e.product.merchItem ? (
-              <MerchLibraryRow key={e.id} entitlement={e} />
+              <MerchLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
             ) : e.product.ticketTier ? (
-              <EventLibraryRow key={e.id} entitlement={e} />
+              <EventLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
             ) : null,
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
+
+      <AddToCollectionSheet
+        entitlementId={collectingId ?? ""}
+        open={collectingId !== null}
+        onClose={() => setCollectingId(null)}
+      />
     </div>
   );
 }
@@ -200,7 +255,15 @@ export default function LibraryPage() {
 // tracks (kind:"beat" — see PlayerProvider.play()). No offline caching yet,
 // unlike Release tracks: the "Download" button already hands over the real
 // master file, so there's no separate offline-cache format to build for it.
-function BeatLibraryRow({ entitlement, player }: { entitlement: LibraryEntitlement; player: ReturnType<typeof usePlayer> }) {
+function BeatLibraryRow({
+  entitlement,
+  player,
+  onCollect,
+}: {
+  entitlement: LibraryEntitlement;
+  player: ReturnType<typeof usePlayer>;
+  onCollect: () => void;
+}) {
   const productId = entitlement.product.id;
   const isThisTrack = player.current?.trackId === productId && player.current?.kind === "beat";
   const isPlaying = isThisTrack && player.isPlaying;
@@ -264,12 +327,15 @@ function BeatLibraryRow({ entitlement, player }: { entitlement: LibraryEntitleme
       <button onClick={handleDownload} className="text-[10px] text-red-soft uppercase tracking-widest shrink-0">
         Download
       </button>
+      <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
+        +
+      </button>
     </div>
   );
 }
 
 // No play/download for merch — just what a fan bought and its shipping status.
-function MerchLibraryRow({ entitlement }: { entitlement: LibraryEntitlement }) {
+function MerchLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntitlement; onCollect: () => void }) {
   const status = entitlement.order.merchFulfillment?.status ?? "TO_SHIP";
   return (
     <div className="flex items-center gap-3">
@@ -290,6 +356,9 @@ function MerchLibraryRow({ entitlement }: { entitlement: LibraryEntitlement }) {
       <span className="text-[10px] uppercase tracking-widest text-red-soft font-semibold shrink-0">
         {FULFILLMENT_LABEL[status]}
       </span>
+      <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
+        +
+      </button>
     </div>
   );
 }
@@ -301,7 +370,7 @@ function formatEventDate(iso: string) {
 // A ticket in the library is the QR code itself, not something to play —
 // this is the one place the entitlement's TicketCheckIn.code actually
 // surfaces to the buyer.
-function EventLibraryRow({ entitlement }: { entitlement: LibraryEntitlement }) {
+function EventLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntitlement; onCollect: () => void }) {
   const tier = entitlement.product.ticketTier;
   const [qr, setQr] = useState<string | null>(null);
 
@@ -318,7 +387,7 @@ function EventLibraryRow({ entitlement }: { entitlement: LibraryEntitlement }) {
         // eslint-disable-next-line @next/next/no-img-element
         <img src={qr} alt="Ticket QR code" className="h-16 w-16 rounded bg-white p-1 shrink-0" />
       )}
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold line-clamp-1">{tier.event.title}</p>
         <p className="text-xs text-ink-3 mb-1">
           {tier.name} · {formatEventDate(tier.event.startsAt)}
@@ -327,6 +396,9 @@ function EventLibraryRow({ entitlement }: { entitlement: LibraryEntitlement }) {
           {entitlement.checkIn?.checkedInAt ? "Checked in" : "Show this QR code at the door"}
         </p>
       </div>
+      <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
+        +
+      </button>
     </div>
   );
 }

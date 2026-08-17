@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { EventTierPicker } from "@/components/product/EventTierPicker";
+import { ReportButton } from "@/components/trust/ReportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -45,10 +46,15 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide mb-2">
           Event
         </span>
-        <h1 className="font-serif text-2xl">{event.title}</h1>
-        <Link href={`/u/${event.creator.handle}`} className="text-sm text-ink-3">
-          {event.creator.displayName}
-        </Link>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-serif text-2xl">{event.title}</h1>
+            <Link href={`/u/${event.creator.handle}`} className="text-sm text-ink-3">
+              {event.creator.displayName}
+            </Link>
+          </div>
+          <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} className="text-xs text-ink-3 shrink-0 pt-1" />
+        </div>
 
         <div className="flex flex-col gap-1 mt-3 mb-4 text-sm text-ink-2">
           <span>

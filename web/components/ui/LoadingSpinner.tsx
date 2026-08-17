@@ -1,22 +1,27 @@
 const SIZES = { sm: "h-6 w-6", md: "h-9 w-9", lg: "h-14 w-14" } as const;
 
-// flex-1 alone only centers when the parent is itself a flex container with
-// real height to give it (true for the root auth-gate loading state, not for
-// a spinner dropped into a plain block div mid-page, which most `full` call
-// sites are) — an explicit min-height guarantees room to actually center in
-// either case, not just sit top-left after its padding. Scaled to size: sm
-// is used for a compact inline section loader (e.g. one list among several
-// already-rendered on the page), md/lg for a page's primary content not
-// being ready yet, which reads better centered in the visible viewport.
-const MIN_HEIGHT = { sm: "min-h-24", md: "min-h-[60vh]", lg: "min-h-[70vh]" } as const;
-
 export function LoadingSpinner({ size = "md", full = false }: { size?: keyof typeof SIZES; full?: boolean }) {
   const spinner = (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src="/xoldout-icon-transparent.png" alt="" className={`${SIZES[size]} animate-spin`} />
+    <img src="/xoldout-icon-transparent.png" alt="" className={`${SIZES[size]} animate-spin-breathe`} />
   );
 
   if (!full) return spinner;
 
-  return <div className={`flex flex-1 ${MIN_HEIGHT[size]} items-center justify-center py-16`}>{spinner}</div>;
+  // Fixed against the real viewport, not sized/centered relative to
+  // whatever ancestor box happens to contain it. An in-flow box (flex-1,
+  // min-h-[Xvh], etc.) only centers correctly when every ancestor between it
+  // and a sized flex container cooperates — most `full` call sites nest this
+  // several plain block divs deep (page padding, conditional branches) with
+  // no such chain, so the box ends up shorter than the actual visible area
+  // and top-anchored, biasing the spinner upward instead of centering it.
+  // `fixed inset-0` sidesteps that entirely: it's always the true viewport,
+  // regardless of what contains it. No backdrop and pointer-events-none so
+  // it never blocks whatever chrome (headers, tabs) is already rendered
+  // above/around it.
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none">
+      {spinner}
+    </div>
+  );
 }

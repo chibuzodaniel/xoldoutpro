@@ -5,6 +5,7 @@ import { PlayerProvider } from "@/components/player/PlayerProvider";
 import { MiniPlayer } from "@/components/player/MiniPlayer";
 import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
 import { BottomNav } from "@/components/nav/BottomNav";
+import { InstallGuideProvider } from "@/components/pwa/InstallGuideProvider";
 
 export const metadata: Metadata = {
   title: "XOLDOUT — Where music actually sells out",
@@ -42,14 +43,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           taking the "fixed" mini player/bottom nav along with it. */}
       <body className="h-full flex flex-col bg-bg text-ink overflow-hidden">
         <AuthProvider>
-          <PlayerProvider>
-            <div className="flex h-full flex-col">
-              <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
-              <MiniPlayer />
-              <BottomNav />
-            </div>
-            <ExpandedPlayer />
-          </PlayerProvider>
+          <InstallGuideProvider>
+            <PlayerProvider>
+              <div className="flex h-full flex-col">
+                <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
+                <MiniPlayer />
+                <BottomNav />
+              </div>
+              <ExpandedPlayer />
+            </PlayerProvider>
+          </InstallGuideProvider>
         </AuthProvider>
       </body>
     </html>

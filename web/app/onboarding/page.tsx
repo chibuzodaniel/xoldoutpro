@@ -6,12 +6,14 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
+import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 
 const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { firebaseUser, appUser, loading, refreshAppUser } = useAuth();
+  const installGuide = useInstallGuide();
 
   const [handle, setHandle] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -70,6 +72,7 @@ export default function OnboardingPage() {
 
       await refreshAppUser();
       router.push("/discover");
+      installGuide.open();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {

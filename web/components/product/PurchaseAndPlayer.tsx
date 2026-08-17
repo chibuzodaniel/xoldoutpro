@@ -43,6 +43,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   const [isOwner, setIsOwner] = useState(false);
   const [tracks, setTracks] = useState<AccessTrack[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [gifting, setGifting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -83,6 +84,29 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     }
   }
 
+  async function handleGift() {
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
+    setError(null);
+    setGifting(true);
+    try {
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
+      if (data.free) {
+        router.push("/library?tab=gifts");
+      } else {
+        router.push(data.checkoutUrl);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setGifting(false);
+    }
+  }
+
   function handlePlay(track: AccessTrack) {
     const trackQueue: PlayableTrack[] = (tracks ?? []).map((t) => ({
       trackId: t.id,
@@ -96,15 +120,28 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
 
   return (
     <div>
-      {!entitled && !isOwner && (
-        <button
-          onClick={handleBuy}
-          disabled={busy || isSoldOut}
-          className="w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 mb-4"
-        >
-          {isSoldOut ? "Sold out" : busy ? "Starting checkout…" : formatNaira(priceKobo)}
-        </button>
-      )}
+      <div className="flex gap-2 mb-4">
+        {!entitled && !isOwner && (
+          <button
+            onClick={handleBuy}
+            disabled={busy || isSoldOut}
+            className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {isSoldOut ? "Sold out" : busy ? "Starting checkout…" : formatNaira(priceKobo)}
+          </button>
+        )}
+        {!isOwner && !isSoldOut && (
+          <button
+            onClick={handleGift}
+            disabled={gifting}
+            className={`rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-2 disabled:opacity-50 ${
+              entitled ? "flex-1" : "shrink-0"
+            }`}
+          >
+            {gifting ? "Starting…" : "Gift this"}
+          </button>
+        )}
+      </div>
       {error && <p className="text-sm text-red-soft mb-3">{error}</p>}
 
       <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">

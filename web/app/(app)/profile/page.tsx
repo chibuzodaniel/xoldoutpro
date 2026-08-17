@@ -5,6 +5,14 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
+import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { ReportSheet } from "@/components/trust/ReportSheet";
+import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
+
+const FEEDBACK_REASONS = [
+  { value: "BUG" as const, label: "Something's broken" },
+  { value: "FEATURE_REQUEST" as const, label: "Feature request" },
+];
 
 type Stats = { fans: number; sales: number; catalog: { music: number; beats: number; events: number; merch: number } };
 
@@ -53,7 +61,9 @@ const CATALOG_ROWS = [
 
 export default function ProfilePage() {
   const { appUser } = useAuth();
+  const installGuide = useInstallGuide();
   const [stats, setStats] = useState<Stats | null>(null);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   useEffect(() => {
     if (!appUser) return;
@@ -132,7 +142,10 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <h1 className="font-serif text-xl">{appUser.displayName}</h1>
+        <h1 className="flex items-center gap-1.5 font-serif text-xl">
+          {appUser.displayName}
+          {appUser.isVerified && <VerifiedBadge className="h-4 w-4 text-red-soft shrink-0" />}
+        </h1>
         <p className="text-sm text-ink-3 mb-4">@{appUser.handle}</p>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
@@ -209,14 +222,36 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <Link
-          href="/wallet"
-          className="flex items-center justify-between py-3 text-sm border-y border-line-soft"
-        >
-          <span>Wallet</span>
-          <span className="text-ink-3">›</span>
-        </Link>
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+          <Link href="/wallet" className="flex items-center justify-between py-3 text-sm">
+            <span>Wallet</span>
+            <span className="text-ink-3">›</span>
+          </Link>
+          <button type="button" onClick={installGuide.open} className="flex items-center justify-between py-3 text-sm text-left">
+            <span>Install app</span>
+            <span className="text-ink-3">›</span>
+          </button>
+          <button type="button" onClick={() => setFeedbackOpen(true)} className="flex items-center justify-between py-3 text-sm text-left">
+            <span>Send feedback</span>
+            <span className="text-ink-3">›</span>
+          </button>
+          {appUser.isModerator && (
+            <Link href="/moderation" className="flex items-center justify-between py-3 text-sm">
+              <span>Moderation queue</span>
+              <span className="text-ink-3">›</span>
+            </Link>
+          )}
+        </div>
       </div>
+      <ReportSheet
+        open={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        targetType="PROFILE"
+        targetId={appUser.id}
+        reasons={FEEDBACK_REASONS}
+        title="Send feedback"
+        detailsPlaceholder="What's broken, or what would you like to see?"
+      />
     </div>
   );
 }

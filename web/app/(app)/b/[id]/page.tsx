@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
+import { ReportButton } from "@/components/trust/ReportButton";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +43,15 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
         <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide mb-2">
           Beat
         </span>
-        <h1 className="font-serif text-2xl">{product.title}</h1>
-        <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
-          {product.creator.displayName}
-        </Link>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="font-serif text-2xl">{product.title}</h1>
+            <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
+              {product.creator.displayName}
+            </Link>
+          </div>
+          <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3 shrink-0 pt-1" />
+        </div>
 
         {(product.beat.bpm || product.beat.musicalKey || product.beat.tags.length > 0) && (
           <div className="flex flex-wrap items-center gap-2 mt-3">

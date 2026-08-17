@@ -32,6 +32,8 @@ model User {
   socialLinks Json     @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
   pushEnabled Boolean  @default(false)
   fcmTokens   String[] @default([]) // Firebase Cloud Messaging push tokens
+  isModerator Boolean  @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
+  isVerified  Boolean  @default(false) // badge (PRD §12); criteria explicitly undecided (PRD §18) — moderator-toggled only
   createdAt   DateTime @default(now())
 
   payoutAccounts PayoutAccount[]
@@ -41,11 +43,26 @@ model User {
   entitlements   Entitlement[]
   orders         Order[]
   reports        Report[]            @relation("ReportsFiled")
+  reportsAgainst Report[]            @relation("ReportsOnProfile")
 
   following Follow[] @relation("Following")
   followers Follow[] @relation("Followers")
 
   events Event[]
+
+  posts     Post[]     @relation("PostsAuthored")
+  postLikes PostLike[]
+  comments  Comment[]
+  pollVotes PollVote[]
+
+  collections Collection[]
+
+  giftsSent    Gift[] @relation("GiftsSent")
+  giftsClaimed Gift[] @relation("GiftsClaimed")
+
+  groupsCreated FanbaseGroup[]
+  memberships   Membership[]
+  joinRequests  JoinRequest[]
 }
 
 model PayoutAccount {
@@ -75,6 +92,149 @@ model Follow {
 
   @@id([followerId, followedId])
   @@index([followedId])
+}
+
+// ─── Fanbase: announcements (PRD §11 MVP) and groups (PRD §11 Phase 2) ─
+// A Post with groupId = null is a creator announcement reaching followers
+// (MVP). A Post with groupId set is a post inside that FanbaseGroup, subject
+// to the group's postPermission — who may author one is enforced at the API
+// layer, not by this model, the same way Report reasons are.
+
+model Post {
+  id        String   @id @default(cuid())
+  authorId  String
+  author    User     @relation("PostsAuthored", fields: [authorId], references: [id])
+  groupId   String?
+  group     FanbaseGroup? @relation(fields: [groupId], references: [id])
+  body      String
+  imageUrl  String?
+  createdAt DateTime @default(now())
+
+  likes    PostLike[]
+  comments Comment[]
+  poll     Poll?
+  reports  Report[]   @relation("ReportsOnPost")
+
+  @@index([authorId, createdAt])
+  @@index([groupId, createdAt])
+}
+
+// Flat, not threaded — Phase 2 scope is "member participation," not a full
+// nested comment tree.
+model Comment {
+  id        String   @id @default(cuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([postId, createdAt])
+}
+
+// One poll per post, one vote per user. options[i] is what PollVote.optionIndex
+// indexes into — simple enough for "proportional result bars" (PRD §11) without
+// a separate PollOption table.
+model Poll {
+  postId  String   @id
+  post    Post     @relation(fields: [postId], references: [id])
+  options String[]
+
+  votes PollVote[]
+}
+
+model PollVote {
+  pollId      String
+  userId      String
+  optionIndex Int
+  createdAt   DateTime @default(now())
+
+  poll Poll @relation(fields: [pollId], references: [postId])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([pollId, userId])
+}
+
+enum GroupVisibility {
+  OPEN
+  REQUEST_TO_JOIN
+}
+
+enum GroupPostPermission {
+  CREATOR_ONLY
+  ADMINS
+  ALL_MEMBERS
+}
+
+// Default CREATOR_ONLY (PRD §11: "An artist should opt into moderation load
+// deliberately rather than inherit it the day their group is created").
+model FanbaseGroup {
+  id             String              @id @default(cuid())
+  creatorId      String
+  creator        User                @relation(fields: [creatorId], references: [id])
+  name           String
+  description    String?
+  coverImageUrl  String?
+  visibility     GroupVisibility     @default(REQUEST_TO_JOIN)
+  postPermission GroupPostPermission @default(CREATOR_ONLY)
+  createdAt      DateTime            @default(now())
+
+  memberships  Membership[]
+  joinRequests JoinRequest[]
+  posts        Post[]
+
+  @@index([creatorId])
+}
+
+enum MembershipRole {
+  MEMBER
+  ADMIN
+}
+
+model Membership {
+  groupId  String
+  userId   String
+  role     MembershipRole @default(MEMBER)
+  joinedAt DateTime       @default(now())
+
+  group FanbaseGroup @relation(fields: [groupId], references: [id])
+  user  User         @relation(fields: [userId], references: [id])
+
+  @@id([groupId, userId])
+  @@index([userId])
+}
+
+enum JoinRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model JoinRequest {
+  id        String            @id @default(cuid())
+  groupId   String
+  userId    String
+  status    JoinRequestStatus @default(PENDING)
+  createdAt DateTime          @default(now())
+
+  group FanbaseGroup @relation(fields: [groupId], references: [id])
+  user  User         @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+  @@index([groupId, status])
+}
+
+model PostLike {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@id([postId, userId])
+  @@index([userId])
 }
 
 // ─── Money: ledger, not a balance column ───────────────────────────────
@@ -175,6 +335,7 @@ model Product {
   entitlements Entitlement[]
   orderItems   OrderItem[]
   reports      Report[]      @relation("ReportsOnProduct")
+  gifts        Gift[]
 
   @@index([creatorId])
   @@index([status, type])
@@ -258,9 +419,36 @@ model Entitlement {
   createdAt DateTime  @default(now())
   revokedAt DateTime? // set only by a refund
 
-  checkIn TicketCheckIn?
+  checkIn         TicketCheckIn?
+  collectionItems CollectionItem[]
 
   @@unique([userId, productId])
+}
+
+// User-organised groupings of what they own (PRD §10 Phase 2) — a thin
+// join table over Entitlement, not a copy of it. Deleting a Collection never
+// touches the underlying entitlement/ownership.
+model Collection {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  createdAt DateTime @default(now())
+
+  items CollectionItem[]
+
+  @@index([userId])
+}
+
+model CollectionItem {
+  collectionId  String
+  entitlementId String
+  addedAt       DateTime @default(now())
+
+  collection  Collection  @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  entitlement Entitlement @relation(fields: [entitlementId], references: [id])
+
+  @@id([collectionId, entitlementId])
 }
 
 // An Event is a parent listing (venue, date, cover image) grouping one or
@@ -284,7 +472,8 @@ model Event {
   publishedAt      DateTime?
   deletedAt        DateTime?
 
-  tiers TicketTier[]
+  tiers   TicketTier[]
+  reports Report[]     @relation("ReportsOnEvent")
 
   @@index([creatorId])
 }
@@ -357,6 +546,7 @@ model Order {
   buyerId   String
   buyer     User        @relation(fields: [buyerId], references: [id])
   status    OrderStatus @default(PENDING)
+  isGift    Boolean     @default(false) // routes the entitlement to a Gift instead of the buyer at confirm time
   createdAt DateTime    @default(now())
 
   items            OrderItem[]
@@ -364,6 +554,7 @@ model Order {
   entitlements     Entitlement[]
   ledgerEntries    WalletLedgerEntry[]
   merchFulfillment MerchOrderFulfillment?
+  gift             Gift?
 }
 
 model OrderItem {
@@ -394,10 +585,46 @@ model Payment {
   createdAt         DateTime      @default(now())
 }
 
+// ─── Gifting (PRD §7.3 Phase 2) ─────────────────────────────────────────
+// A gift purchase runs through the exact same checkout/webhook pipeline as a
+// normal buy (Order.isGift just tells the webhook to create a Gift instead
+// of an Entitlement) — reserveStock/confirmStock/recordSale are untouched.
+// "Stock decrements at purchase, not claim" falls out of that reuse for
+// free. Scoped to RELEASE/BEAT/EVENT-tier only, not MERCH — a claim link
+// with no recipient identity has no shipping address to gift physical goods to.
+
+enum GiftStatus {
+  PENDING
+  CLAIMED
+  EXPIRED
+  REFUNDED
+}
+
+model Gift {
+  id          String     @id @default(cuid())
+  productId   String
+  product     Product    @relation(fields: [productId], references: [id])
+  giverId     String
+  giver       User       @relation("GiftsSent", fields: [giverId], references: [id])
+  orderId     String     @unique
+  order       Order      @relation(fields: [orderId], references: [id])
+  claimToken  String     @unique @default(cuid())
+  status      GiftStatus @default(PENDING)
+  claimedById String?
+  claimedBy   User?      @relation("GiftsClaimed", fields: [claimedById], references: [id])
+  claimedAt   DateTime?
+  expiresAt   DateTime // claim window; PRD §18 open decision — defaulted to 7 days, see DECISIONS.md
+  createdAt   DateTime   @default(now())
+
+  @@index([giverId])
+  @@index([status, expiresAt])
+}
+
 // ─── Trust & safety ─────────────────────────────────────────────────────
 
 enum ReportTargetType {
   PRODUCT
+  EVENT // Event is not a Product (DECISIONS.md — tiers are); reported separately
   POST
   COMMENT
   PROFILE
@@ -416,16 +643,26 @@ enum ReportStatus {
   RESOLVED
 }
 
+// PRODUCT/EVENT/POST/PROFILE each have their own optional FK, exactly one set
+// per row depending on targetType — COMMENT has no FK yet since Comment
+// doesn't exist until Phase 2 groups ship (the enum member stays for forward compat).
 model Report {
   id         String           @id @default(cuid())
   reporterId String
   reporter   User             @relation("ReportsFiled", fields: [reporterId], references: [id])
   targetType ReportTargetType
-  productId  String? // set when targetType = PRODUCT; other target types added as those surfaces ship
+  productId  String?
   product    Product?         @relation("ReportsOnProduct", fields: [productId], references: [id])
+  eventId    String?
+  event      Event?           @relation("ReportsOnEvent", fields: [eventId], references: [id])
+  postId     String?
+  post       Post?            @relation("ReportsOnPost", fields: [postId], references: [id])
+  profileId  String?
+  profile    User?            @relation("ReportsOnProfile", fields: [profileId], references: [id])
   reason     ReportReason
+  details    String? // reporter's free-text context, optional
   status     ReportStatus     @default(OPEN)
-  slaDueAt   DateTime?
+  slaDueAt   DateTime? // set for time-critical reasons (inappropriate content, copyright) — PRD §14
   createdAt  DateTime         @default(now())
 
   @@index([status])

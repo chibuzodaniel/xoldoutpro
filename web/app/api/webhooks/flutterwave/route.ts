@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { verifyTransaction } from "@/lib/flutterwave";
 import { confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { recordSale } from "@/lib/commerce/ledger";
+import { giftExpiresAt } from "@/lib/commerce/gifts";
 
 export const runtime = "nodejs";
 
@@ -62,11 +63,20 @@ export async function POST(req: NextRequest) {
 
   await db.$transaction(async (tx) => {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
-    const entitlement = await tx.entitlement.create({
-      data: { userId: payment.order.buyerId, productId, orderId: payment.orderId },
-    });
-    if (product.type === "EVENT") {
-      await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+    if (payment.order.isGift) {
+      // Claiming (not this webhook) is what creates the Entitlement — see
+      // PRD §7.3: "stock decrements at purchase, not claim," which is why
+      // confirmStock still runs unconditionally below.
+      await tx.gift.create({
+        data: { productId, giverId: payment.order.buyerId, orderId: payment.orderId, expiresAt: giftExpiresAt() },
+      });
+    } else {
+      const entitlement = await tx.entitlement.create({
+        data: { userId: payment.order.buyerId, productId, orderId: payment.orderId },
+      });
+      if (product.type === "EVENT") {
+        await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+      }
     }
     await confirmStock(productId, tx);
     await recordSale(tx, { sellerId: product.creatorId, orderId: payment.orderId, grossKobo: payment.amountKobo });

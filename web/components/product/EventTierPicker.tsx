@@ -21,6 +21,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
   const [access, setAccess] = useState<Record<string, AccessTier> | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
+  const [giftingProductId, setGiftingProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
 
@@ -75,6 +76,29 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
     }
   }
 
+  async function handleGift(productId: string) {
+    if (!firebaseUser) {
+      router.push("/login");
+      return;
+    }
+    setError(null);
+    setGiftingProductId(productId);
+    try {
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
+      if (data.free) {
+        router.push("/library?tab=gifts");
+      } else {
+        router.push(data.checkoutUrl);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setGiftingProductId(null);
+    }
+  }
+
   if (isOwner) return null;
   if (!access) return null;
 
@@ -101,18 +125,28 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
           );
         }
         return (
-          <button
-            key={tier.productId}
-            onClick={() => handleBuy(tier.productId)}
-            disabled={busyProductId === tier.productId || tier.isSoldOut}
-            className="w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {tier.isSoldOut
-              ? `${tier.name} · Sold out`
-              : busyProductId === tier.productId
-                ? "Starting checkout…"
-                : `${tier.name} · ${formatNaira(tier.priceKobo)}`}
-          </button>
+          <div key={tier.productId} className="flex gap-2">
+            <button
+              onClick={() => handleBuy(tier.productId)}
+              disabled={busyProductId === tier.productId || tier.isSoldOut}
+              className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {tier.isSoldOut
+                ? `${tier.name} · Sold out`
+                : busyProductId === tier.productId
+                  ? "Starting checkout…"
+                  : `${tier.name} · ${formatNaira(tier.priceKobo)}`}
+            </button>
+            {!tier.isSoldOut && (
+              <button
+                onClick={() => handleGift(tier.productId)}
+                disabled={giftingProductId === tier.productId}
+                className="shrink-0 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-2 disabled:opacity-50"
+              >
+                {giftingProductId === tier.productId ? "Starting…" : "Gift"}
+              </button>
+            )}
+          </div>
         );
       })}
     </div>

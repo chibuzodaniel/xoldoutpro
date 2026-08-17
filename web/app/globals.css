@@ -55,3 +55,21 @@ body {
 .animate-waveform-bar {
   animation: waveform-bar 1s ease-in-out infinite;
 }
+
+/* A full 360° rotation with a breathe-in/breathe-out scale pulse layered on
+   top, one breath per rotation, rather than a flat linear spin. */
+@keyframes spin-breathe {
+  0% {
+    transform: rotate(0deg) scale(0.85);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.05);
+  }
+  100% {
+    transform: rotate(360deg) scale(0.85);
+  }
+}
+
+.animate-spin-breathe {
+  animation: spin-breathe 1.8s ease-in-out infinite;
+}

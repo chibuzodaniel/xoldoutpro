@@ -1,13 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import Link from "next/link";
 
 export default function LoginPage() {
   const router = useRouter();
+  // A gift claim link redirects here when signed out (?next=/gifts/claim/...)
+  // so login lands the user back on the flow they came from, not /discover.
+  const next = useSearchParams().get("next") || "/discover";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -20,7 +23,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
-      router.push("/discover");
+      router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Log in failed");
     } finally {
@@ -34,7 +37,7 @@ export default function LoginPage() {
     setBusy(true);
     try {
       await signInWithPopup(firebaseAuth, googleProvider);
-      router.push("/discover");
+      router.push(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
     } finally {

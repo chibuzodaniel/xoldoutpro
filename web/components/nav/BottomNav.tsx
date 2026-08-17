@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { PublishSheet } from "./PublishSheet";
 
 const ICONS: Record<string, React.ReactNode> = {
   discover: (
@@ -54,35 +56,40 @@ function hasBottomNav(pathname: string) {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const [publishOpen, setPublishOpen] = useState(false);
   if (!hasBottomNav(pathname ?? "")) return null;
 
   return (
-    <nav className="sticky bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">
-      {ITEMS.map((item) =>
-        item.isFab ? (
-          <Link
-            key={item.href}
-            href={item.href}
-            className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
-            aria-label="Publish"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
-              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-            </svg>
-          </Link>
-        ) : (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex flex-col items-center gap-1 px-3 py-1 text-[10px] ${
-              pathname?.startsWith(item.href) ? "text-white" : "text-ink-3"
-            }`}
-          >
-            <span className="h-[19px] w-[19px]">{ICONS[item.icon]}</span>
-            {item.label}
-          </Link>
-        ),
-      )}
-    </nav>
+    <>
+      <nav className="sticky bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">
+        {ITEMS.map((item) =>
+          item.isFab ? (
+            <button
+              key={item.href}
+              type="button"
+              onClick={() => setPublishOpen(true)}
+              className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
+              aria-label="Publish"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
+                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+              </svg>
+            </button>
+          ) : (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`flex flex-col items-center gap-1 px-3 py-1 text-[10px] ${
+                pathname?.startsWith(item.href) ? "text-white" : "text-ink-3"
+              }`}
+            >
+              <span className="h-[19px] w-[19px]">{ICONS[item.icon]}</span>
+              {item.label}
+            </Link>
+          ),
+        )}
+      </nav>
+      <PublishSheet open={publishOpen} onClose={() => setPublishOpen(false)} />
+    </>
   );
 }

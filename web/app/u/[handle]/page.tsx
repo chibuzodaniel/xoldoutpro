@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { ProfileHeaderRow } from "@/components/profile/ProfileHeaderRow";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard } from "@/components/product/ProductCard";
+import { ReportButton } from "@/components/trust/ReportButton";
+import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -76,7 +78,13 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       <div className="px-4 -mt-8">
         <ProfileHeaderRow targetUserId={user.id} avatarUrl={user.avatarUrl} displayName={user.displayName} />
 
-        <h1 className="font-serif text-xl">{user.displayName}</h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="flex items-center gap-1.5 font-serif text-xl">
+            {user.displayName}
+            {user.isVerified && <VerifiedBadge className="h-4 w-4 text-red-soft shrink-0" />}
+          </h1>
+          <ReportButton targetType="PROFILE" targetId={user.id} className="text-xs text-ink-3 shrink-0 pt-1" />
+        </div>
         <p className="text-sm text-ink-3 mb-2">@{user.handle}</p>
         {user.bio && <p className="text-sm text-ink-2 mb-3 max-w-md">{user.bio}</p>}
 

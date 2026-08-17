@@ -4,6 +4,7 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { initializePayment } from "@/lib/flutterwave";
+import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 
 const shippingSchema = z.object({
   recipientName: z.string().min(1).max(120),
@@ -15,12 +16,12 @@ const shippingSchema = z.object({
   country: z.string().min(1).max(60).default("Nigeria"),
 });
 
-const bodySchema = z.object({ productId: z.string().min(1), shipping: shippingSchema.optional() });
+const bodySchema = z.object({ productId: z.string().min(1), shipping: shippingSchema.optional(), isGift: z.boolean().optional() });
 
 export async function POST(req: NextRequest) {
   try {
     const { user: buyer } = await requireUser(req);
-    const { productId, shipping } = bodySchema.parse(await req.json());
+    const { productId, shipping, isGift = false } = bodySchema.parse(await req.json());
 
     // Sellable types are added here as each one's purchase flow ships
     // (Beat/Merch now; Event has its own tier-as-Product purchase path).
@@ -44,6 +45,9 @@ export async function POST(req: NextRequest) {
     if (product.creatorId === buyer.id) {
       return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
     }
+    if (isGift && !GIFTABLE_TYPES.includes(product.type as (typeof GIFTABLE_TYPES)[number])) {
+      return NextResponse.json({ error: "This can't be gifted" }, { status: 400 });
+    }
     // Creator-shipped fulfilment (DECISIONS.md): the platform only collects
     // the address here, at checkout time — it's stored on the Order
     // immediately (not deferred to the payment webhook) the same way
@@ -58,11 +62,13 @@ export async function POST(req: NextRequest) {
     const shippingFeeKobo = product.type === "MERCH" ? (product.merchItem?.shippingFeeKobo ?? 0) : 0;
     const amountKobo = product.priceKobo + shippingFeeKobo;
 
-    const existing = await db.entitlement.findUnique({
-      where: { userId_productId: { userId: buyer.id, productId } },
-    });
-    if (existing && !existing.revokedAt) {
-      return NextResponse.json({ error: "You already own this" }, { status: 409 });
+    if (!isGift) {
+      const existing = await db.entitlement.findUnique({
+        where: { userId_productId: { userId: buyer.id, productId } },
+      });
+      if (existing && !existing.revokedAt) {
+        return NextResponse.json({ error: "You already own this" }, { status: 409 });
+      }
     }
 
     const reservation = await reserveStock(productId);
@@ -81,13 +87,20 @@ export async function POST(req: NextRequest) {
             data: {
               buyerId: buyer.id,
               status: "PAID",
+              isGift,
               items: { create: { productId, priceKobo: 0 } },
               merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
             },
           });
-          const entitlement = await tx.entitlement.create({ data: { userId: buyer.id, productId, orderId: created.id } });
-          if (product.type === "EVENT") {
-            await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+          if (isGift) {
+            await tx.gift.create({
+              data: { productId, giverId: buyer.id, orderId: created.id, expiresAt: giftExpiresAt() },
+            });
+          } else {
+            const entitlement = await tx.entitlement.create({ data: { userId: buyer.id, productId, orderId: created.id } });
+            if (product.type === "EVENT") {
+              await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+            }
           }
           await confirmStock(productId, tx);
           return created;
@@ -104,6 +117,7 @@ export async function POST(req: NextRequest) {
         data: {
           buyerId: buyer.id,
           status: "PENDING",
+          isGift,
           items: { create: { productId, priceKobo: product.priceKobo } },
           merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
         },

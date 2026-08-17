@@ -44,3 +44,19 @@ export async function releaseReservation(productId: string, client: DbClient = d
     UPDATE "StockPolicy" SET "reserved" = GREATEST("reserved" - 1, 0) WHERE "productId" = ${productId}
   `;
 }
+
+/**
+ * Reverses a *confirmed* sale — the unit returns to the pool. Used only when
+ * an unclaimed gift expires (PRD §7.3: "returning the unit and refunding the
+ * buyer"), never for a normal refund/takedown, which deliberately leaves
+ * sold counts alone (a creator's own delete isn't a scarcity do-over). Undoes
+ * confirmStock's increment and un-sets soldOutAt if the item is back under cap.
+ */
+export async function releaseConfirmedUnit(productId: string, client: DbClient = db): Promise<void> {
+  await client.$executeRaw`
+    UPDATE "StockPolicy"
+    SET "sold" = GREATEST("sold" - 1, 0),
+        "soldOutAt" = CASE WHEN "cap" IS NOT NULL AND "sold" - 1 < "cap" THEN NULL ELSE "soldOutAt" END
+    WHERE "productId" = ${productId}
+  `;
+}

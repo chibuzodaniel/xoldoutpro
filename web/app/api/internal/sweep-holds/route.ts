@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { releaseReservation } from "@/lib/commerce/stock";
+import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
+import { recordRefund } from "@/lib/commerce/ledger";
 
 export const runtime = "nodejs";
 
@@ -45,5 +46,29 @@ export async function GET(req: NextRequest) {
     swept += 1;
   }
 
-  return NextResponse.json({ swept });
+  // PRD §7.3: an unclaimed gift expires after a fixed window, "returning the
+  // unit and refunding the buyer." Stock decremented at purchase (confirmStock
+  // in the checkout/webhook path), so expiry has to reverse both the unit and,
+  // for a paid gift, the giver's earnings-side ledger entry — the same
+  // recordRefund used by the copyright-takedown path, since this genuinely is
+  // a refund event too.
+  const expiredGifts = await db.gift.findMany({
+    where: { status: "PENDING", expiresAt: { lt: new Date() } },
+    include: { order: { include: { payment: true } }, product: { select: { creatorId: true } } },
+  });
+
+  let giftsExpired = 0;
+  for (const gift of expiredGifts) {
+    const claim = await db.gift.updateMany({ where: { id: gift.id, status: "PENDING" }, data: { status: "EXPIRED" } });
+    if (claim.count === 0) continue; // claimed in the meantime
+
+    await releaseConfirmedUnit(gift.productId);
+    if (gift.order.payment) {
+      await recordRefund(db, { sellerId: gift.product.creatorId, orderId: gift.orderId, grossKobo: gift.order.payment.amountKobo });
+      await db.order.update({ where: { id: gift.orderId }, data: { status: "REFUNDED" } });
+    }
+    giftsExpired += 1;
+  }
+
+  return NextResponse.json({ swept, giftsExpired });
 }

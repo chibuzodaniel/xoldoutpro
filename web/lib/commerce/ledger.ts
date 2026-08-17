@@ -43,6 +43,34 @@ export async function recordSale(
   });
 }
 
+/**
+ * Reverses a previously recorded sale: a single immutable debit for the net
+ * amount the seller received (gross minus commission), so the two entries
+ * from recordSale net to zero regardless of whether they've settled yet.
+ * Takes effect immediately (availableAt: null) rather than after the usual
+ * settlement window — a seller holding funds from a reversed sale owes them
+ * back now, not in 7 days. Used by the copyright takedown path (PRD §14):
+ * "a takedown path plus a way to reverse the associated payout."
+ */
+export async function recordRefund(
+  tx: Prisma.TransactionClient,
+  args: { sellerId: string; orderId: string; grossKobo: number },
+) {
+  const commissionKobo = Math.round(args.grossKobo * COMMISSION_RATE);
+  const netKobo = args.grossKobo - commissionKobo;
+
+  await tx.walletLedgerEntry.create({
+    data: {
+      userId: args.sellerId,
+      orderId: args.orderId,
+      amountKobo: -netKobo,
+      kind: "REFUND_DEBIT",
+      status: "AVAILABLE",
+      availableAt: null,
+    },
+  });
+}
+
 // Available/pending are computed from `availableAt` at query time rather
 // than trusted from the stored `status` column, so a balance is always
 // correct the instant the settlement window elapses — no dependency on a

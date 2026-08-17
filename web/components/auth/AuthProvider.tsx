@@ -17,6 +17,8 @@ export type AppUser = {
   tags: string[];
   socialLinks: SocialLink[];
   pushEnabled: boolean;
+  isModerator: boolean;
+  isVerified: boolean;
 };
 
 type AuthState = {
