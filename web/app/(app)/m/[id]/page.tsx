@@ -1,10 +1,13 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { MerchPurchaseForm } from "@/components/product/MerchPurchaseForm";
 import { ReportButton } from "@/components/trust/ReportButton";
 
-export const dynamic = "force-dynamic";
+// Public product data — cache and revalidate in the background instead of
+// hitting the DB on every view.
+export const revalidate = 30;
 
 function formatNaira(kobo: number) {
   if (kobo === 0) return "Free";
@@ -33,19 +36,17 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="pb-10">
-      <div className="aspect-square w-full bg-surface-2">
+      <div className="relative aspect-square w-full bg-surface-2">
         {primaryImage && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={primaryImage} alt={product.title} className="h-full w-full object-cover" />
+          <Image src={primaryImage} alt={product.title} fill sizes="100vw" priority className="object-cover" />
         )}
       </div>
 
       {gallery.length > 0 && (
         <div className="flex gap-2 px-4 py-3 overflow-x-auto">
           {gallery.map((url) => (
-            <div key={url} className="h-16 w-16 rounded-lg overflow-hidden bg-surface-2 shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={url} alt={product.title} className="h-full w-full object-cover" />
+            <div key={url} className="relative h-16 w-16 rounded-lg overflow-hidden bg-surface-2 shrink-0">
+              <Image src={url} alt={product.title} fill sizes="64px" className="object-cover" />
             </div>
           ))}
         </div>

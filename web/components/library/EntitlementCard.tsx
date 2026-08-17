@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export type EntitlementCardData = {
@@ -46,11 +47,8 @@ export function EntitlementCard({ entitlement }: { entitlement: EntitlementCardD
 
   return (
     <Link href={hrefFor(product)} className="block w-full">
-      <div className="aspect-square w-full rounded-lg bg-surface-2 overflow-hidden">
-        {imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={product.title} className="h-full w-full object-cover" />
-        )}
+      <div className="relative aspect-square w-full rounded-lg bg-surface-2 overflow-hidden">
+        {imageUrl && <Image src={imageUrl} alt={product.title} fill sizes="33vw" className="object-cover" />}
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{product.title}</p>
       <p className="text-[11px] text-ink-3 line-clamp-1">{subtitleFor(product)}</p>

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { FollowButton } from "./FollowButton";
@@ -33,10 +34,9 @@ export function ProfileHeaderRow({ targetUserId, avatarUrl, displayName }: Props
         label="Profile photo"
         className="relative block"
       >
-        <div className="h-16 w-16 rounded-full border-2 border-bg bg-surface-2 overflow-hidden flex items-center justify-center">
+        <div className="relative h-16 w-16 rounded-full border-2 border-bg bg-surface-2 overflow-hidden flex items-center justify-center">
           {avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={avatarUrl} alt={displayName} className="h-full w-full object-cover" />
+            <Image src={avatarUrl} alt={displayName} fill sizes="64px" className="object-cover" />
           ) : (
             <span className="font-serif text-lg text-ink-3">{displayName.slice(0, 1).toUpperCase()}</span>
           )}

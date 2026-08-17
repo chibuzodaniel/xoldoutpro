@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { ReportButton } from "@/components/trust/ReportButton";
@@ -57,10 +58,9 @@ export function PostCard({ post }: { post: FeedPost }) {
   return (
     <div className="border-b border-line-soft py-4">
       <div className="flex items-center gap-2.5 mb-2.5">
-        <Link href={`/u/${post.author.handle}`} className="h-8 w-8 rounded-full bg-surface-2 overflow-hidden shrink-0">
+        <Link href={`/u/${post.author.handle}`} className="relative h-8 w-8 rounded-full bg-surface-2 overflow-hidden shrink-0">
           {post.author.avatarUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={post.author.avatarUrl} alt={post.author.displayName} className="h-full w-full object-cover" />
+            <Image src={post.author.avatarUrl} alt={post.author.displayName} fill sizes="32px" className="object-cover" />
           )}
         </Link>
         <div className="min-w-0 flex-1">
@@ -74,9 +74,8 @@ export function PostCard({ post }: { post: FeedPost }) {
       </div>
       <p className="text-sm text-ink-2 whitespace-pre-wrap mb-3">{post.body}</p>
       {post.imageUrl && (
-        <div className="rounded-lg overflow-hidden mb-3 bg-surface-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={post.imageUrl} alt="" className="w-full aspect-square object-cover" />
+        <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-3 bg-surface-2">
+          <Image src={post.imageUrl} alt="" fill sizes="100vw" className="object-cover" />
         </div>
       )}
       <button

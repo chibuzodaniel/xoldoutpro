@@ -6,9 +6,10 @@ import { AppHeader } from "@/components/nav/AppHeader";
 import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 
-// Stock counts and follower counts change on every purchase/follow — never
-// prerender this statically at build time.
-export const dynamic = "force-dynamic";
+// Stock/follower counts change often, but not so often that every single
+// pageview needs to hit the DB — cache briefly and revalidate in the
+// background instead of forcing a fresh render every time.
+export const revalidate = 20;
 
 const cardInclude = {
   creator: { select: { handle: true, displayName: true } },

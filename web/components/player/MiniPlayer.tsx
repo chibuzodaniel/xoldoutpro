@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { usePlayer } from "./PlayerProvider";
 
 export function MiniPlayer() {
@@ -9,10 +10,9 @@ export function MiniPlayer() {
   return (
     <div className="flex items-center gap-3 border-t border-line bg-surface px-3 py-2">
       <button onClick={() => setExpanded(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
-        <div className="h-9 w-9 rounded bg-surface-2 shrink-0 overflow-hidden">
+        <div className="relative h-9 w-9 rounded bg-surface-2 shrink-0 overflow-hidden">
           {current.artworkUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={current.artworkUrl} alt={current.title} className="h-full w-full object-cover" />
+            <Image src={current.artworkUrl} alt={current.title} fill sizes="36px" className="object-cover" />
           )}
         </div>
         <div className="flex-1 min-w-0">

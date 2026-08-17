@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 export type ProductCardData = {
@@ -61,8 +62,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
     <Link href={hrefFor(product)} className="block w-full group">
       <div className="aspect-square w-full rounded-lg bg-surface-2 overflow-hidden relative">
         {imageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt={product.title} className="h-full w-full object-cover" />
+          <Image src={imageUrl} alt={product.title} fill sizes="33vw" className="object-cover" />
         )}
 
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[9px] font-semibold uppercase tracking-wide text-white">

@@ -1,10 +1,13 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { PurchaseAndPlayer } from "@/components/product/PurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
 
-export const dynamic = "force-dynamic";
+// Public product data — cache and revalidate in the background instead of
+// hitting the DB on every view.
+export const revalidate = 30;
 
 function formatNaira(kobo: number) {
   if (kobo === 0) return "Free";
@@ -32,10 +35,9 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
 
   return (
     <div className="pb-10">
-      <div className="aspect-square w-full bg-surface-2">
+      <div className="relative aspect-square w-full bg-surface-2">
         {artwork && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={artwork} alt={product.title} className="h-full w-full object-cover" />
+          <Image src={artwork} alt={product.title} fill sizes="100vw" priority className="object-cover" />
         )}
       </div>
 

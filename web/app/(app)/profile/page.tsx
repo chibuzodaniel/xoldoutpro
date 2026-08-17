@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
@@ -104,10 +105,9 @@ export default function ProfilePage() {
             label="Profile photo"
             className="relative block"
           >
-            <div className="h-[72px] w-[72px] rounded-full border-2 border-bg bg-surface-2 overflow-hidden flex items-center justify-center">
+            <div className="relative h-[72px] w-[72px] rounded-full border-2 border-bg bg-surface-2 overflow-hidden flex items-center justify-center">
               {appUser.avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={appUser.avatarUrl} alt={appUser.displayName} className="h-full w-full object-cover" />
+                <Image src={appUser.avatarUrl} alt={appUser.displayName} fill sizes="72px" className="object-cover" />
               ) : (
                 <span className="font-serif text-xl text-ink-3">{appUser.displayName.slice(0, 1).toUpperCase()}</span>
               )}

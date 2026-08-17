@@ -6,7 +6,9 @@ import { ProductCard } from "@/components/product/ProductCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 
-export const dynamic = "force-dynamic";
+// Public, non-personalized profile data — cache and serve from the CDN,
+// revalidating in the background rather than hitting the DB on every view.
+export const revalidate = 30;
 
 const SOCIAL_ICONS: Record<string, React.ReactNode> = {
   Instagram: (
