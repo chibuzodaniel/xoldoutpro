@@ -1,10 +1,12 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { ChatMessage, type ChatMessageData } from "@/components/groups/ChatMessage";
 import { ChatComposer } from "@/components/groups/ChatComposer";
 import { ManageGroupSheet } from "@/components/groups/ManageGroupSheet";
@@ -19,11 +21,24 @@ type GroupDetail = {
   creator: { handle: string; displayName: string };
   creatorId: string;
   memberCount: number;
+  isVerified: boolean;
+  verificationRequestedAt: string | null;
 };
+
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M12 3v12" strokeLinecap="round" />
+      <path d="M7 8l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 export default function GroupDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { appUser } = useAuth();
+  const { appUser, firebaseUser } = useAuth();
+  const router = useRouter();
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [myRole, setMyRole] = useState<"ADMIN" | "MEMBER" | null>(null);
@@ -32,6 +47,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const [replyingTo, setReplyingTo] = useState<ChatMessageData | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
 
   async function load() {
     const res = await apiFetch(`/api/groups/${id}`);
@@ -62,12 +78,38 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   }, [id, myRole]);
 
   async function handleJoin() {
+    // A shared group link is often opened signed-out — without this, the
+    // join POST just 401s silently and the button appears to do nothing.
+    if (!firebaseUser) {
+      router.push(`/login?next=/groups/${id}`);
+      return;
+    }
     setJoining(true);
     try {
       const res = await apiFetch(`/api/groups/${id}/join`, { method: "POST" });
       if (res.ok) await load();
     } finally {
       setJoining(false);
+    }
+  }
+
+  async function handleShare() {
+    const url = `${window.location.origin}/groups/${id}`;
+    const text = group ? `Join ${group.name} on XOLDOUT` : "Join this Fanbase on XOLDOUT";
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: group?.name, text, url });
+      } catch {
+        // user dismissed the native share sheet — nothing to do
+      }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareLabel("copied");
+      setTimeout(() => setShareLabel("idle"), 1500);
+    } catch {
+      // clipboard unavailable — silently give up
     }
   }
 
@@ -93,11 +135,24 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
           {group.name.slice(0, 1).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold line-clamp-1">{group.name}</h1>
+          <h1 className="flex items-center gap-1 text-base font-semibold">
+            <span className="line-clamp-1">{group.name}</span>
+            {group.isVerified && <VerifiedBadge />}
+          </h1>
           <p className="text-xs text-ink-3">
             {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
           </p>
         </div>
+        {isMember && (
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="Share this Fanbase"
+            className="text-ink-3 shrink-0"
+          >
+            {shareLabel === "copied" ? <span className="text-[10px] text-ink-3">Copied</span> : <ShareIcon />}
+          </button>
+        )}
         {myRole === "ADMIN" && (
           <button type="button" onClick={() => setManageOpen(true)} className="text-xs font-semibold text-red-soft shrink-0">
             Manage
@@ -160,6 +215,8 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
         onClose={() => setManageOpen(false)}
         postPermission={group.postPermission}
         visibility={group.visibility}
+        isVerified={group.isVerified}
+        verificationRequestedAt={group.verificationRequestedAt}
         onSettingsChanged={(patch) => setGroup((cur) => (cur ? { ...cur, ...(patch as Partial<GroupDetail>) } : cur))}
       />
     </div>

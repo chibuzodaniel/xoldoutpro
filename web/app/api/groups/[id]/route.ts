@@ -30,6 +30,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       creator: group.creator,
       creatorId: group.creatorId,
       memberCount: group._count.memberships,
+      isVerified: group.isVerified,
+      verificationRequestedAt: group.verificationRequestedAt,
     },
     myRole: membership?.role ?? null,
     joinRequestStatus: joinRequest?.status ?? null,

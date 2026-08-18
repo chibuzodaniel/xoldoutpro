@@ -204,6 +204,14 @@ model FanbaseGroup {
   postPermission GroupPostPermission @default(CREATOR_ONLY)
   createdAt      DateTime            @default(now())
 
+  // Verification criteria are undecided (same PRD §18 gap as User.isVerified)
+  // — deliberately a blunt moderator-toggled flag, not a review workflow with
+  // evidence. Unlike User verification, a group owner can self-serve *request*
+  // one (verificationRequestedAt), since "apply for verification" was an
+  // explicit ask; a moderator still has to actually flip isVerified.
+  isVerified              Boolean   @default(false)
+  verificationRequestedAt DateTime?
+
   memberships  Membership[]
   joinRequests JoinRequest[]
   posts        Post[]

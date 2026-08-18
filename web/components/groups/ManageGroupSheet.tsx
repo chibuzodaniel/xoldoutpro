@@ -13,6 +13,8 @@ type Props = {
   onClose: () => void;
   postPermission: "CREATOR_ONLY" | "ADMINS" | "ALL_MEMBERS";
   visibility: "OPEN" | "REQUEST_TO_JOIN";
+  isVerified: boolean;
+  verificationRequestedAt: string | null;
   onSettingsChanged: (next: { postPermission?: string; visibility?: string }) => void;
 };
 
@@ -25,10 +27,35 @@ const POST_PERMISSION_LABEL: Record<Props["postPermission"], string> = {
 // Bottom sheet, same shell as the rest of the app's sheets — join requests,
 // per-group settings (visibility, who may post), and the admin list all
 // live here since only a creator/admin ever opens it.
-export function ManageGroupSheet({ groupId, isCreator, open, onClose, postPermission, visibility, onSettingsChanged }: Props) {
+export function ManageGroupSheet({
+  groupId,
+  isCreator,
+  open,
+  onClose,
+  postPermission,
+  visibility,
+  isVerified,
+  verificationRequestedAt,
+  onSettingsChanged,
+}: Props) {
   const [tab, setTab] = useState<"requests" | "members" | "settings">("requests");
   const [requests, setRequests] = useState<JoinRequest[] | null>(null);
   const [members, setMembers] = useState<Member[] | null>(null);
+  const [requestedAt, setRequestedAt] = useState(verificationRequestedAt);
+  const [requestingVerification, setRequestingVerification] = useState(false);
+
+  async function requestVerification() {
+    setRequestingVerification(true);
+    try {
+      const res = await apiFetch(`/api/groups/${groupId}/verification-request`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setRequestedAt(data.verificationRequestedAt);
+      }
+    } finally {
+      setRequestingVerification(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -195,6 +222,28 @@ export function ManageGroupSheet({ groupId, isCreator, open, onClose, postPermis
                       </button>
                     ))}
                   </div>
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Verification</p>
+                  {isVerified ? (
+                    <p className="text-xs text-green">This Fanbase is verified.</p>
+                  ) : requestedAt ? (
+                    <p className="text-xs text-ink-3">Verification requested — a moderator will review it.</p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-ink-3 mb-2">
+                        Verified Fanbases get a badge next to their name wherever they&apos;re shown.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={requestVerification}
+                        disabled={requestingVerification}
+                        className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-2 disabled:opacity-50"
+                      >
+                        {requestingVerification ? "…" : "Apply for verification"}
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}

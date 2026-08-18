@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { Linkified } from "@/components/ui/Linkified";
 
 export type FeedPost = {
   id: string;
@@ -72,7 +73,9 @@ export function PostCard({ post }: { post: FeedPost }) {
         </div>
         <ReportButton targetType="POST" targetId={post.id} ownerId={post.author.id} className="text-[11px] text-ink-3 shrink-0" />
       </div>
-      <p className="text-sm text-ink-2 whitespace-pre-wrap mb-3">{post.body}</p>
+      <p className="text-sm text-ink-2 whitespace-pre-wrap mb-3">
+        <Linkified text={post.body} linkClassName="underline text-red-soft" />
+      </p>
       {post.imageUrl && (
         <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-3 bg-surface-2">
           <Image src={post.imageUrl} alt="" fill sizes="100vw" className="object-cover" />

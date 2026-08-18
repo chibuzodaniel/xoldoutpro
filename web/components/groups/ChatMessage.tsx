@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { Linkified } from "@/components/ui/Linkified";
 
 export type ChatMessageData = {
   id: string;
@@ -122,8 +123,13 @@ export function ChatMessage({
             <p className="text-[11px] text-ink-3 line-clamp-1">{message.replyTo.body}</p>
           </div>
         )}
-        <div className={`rounded-2xl px-3.5 py-2.5 ${isMine ? "bg-red text-white" : "bg-surface-2 text-ink"}`}>
-          <p className="text-sm whitespace-pre-wrap">{message.body}</p>
+        <div
+          onDoubleClick={() => onReply(message)}
+          className={`select-none rounded-2xl px-3.5 py-2.5 ${isMine ? "bg-red text-white" : "bg-surface-2 text-ink"}`}
+        >
+          <p className="text-sm whitespace-pre-wrap">
+            <Linkified text={message.body} />
+          </p>
           {message.imageUrl && (
             <div className="rounded-lg overflow-hidden mt-2 max-w-[220px]">
               {/* eslint-disable-next-line @next/next/no-img-element */}

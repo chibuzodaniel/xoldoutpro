@@ -9,6 +9,7 @@ export type FanbaseRowData = {
   memberCount: number;
   lastActivityAt: string | null;
   joinRequestPending: boolean;
+  isVerified: boolean;
   creator: { displayName: string; isVerified?: boolean };
 };
 
@@ -57,7 +58,7 @@ export function FanbaseRow({
       <Link href={`/groups/${group.id}`} className="min-w-0 flex-1">
         <p className="flex items-center gap-1 text-sm font-semibold">
           <span className="line-clamp-1">{group.name}</span>
-          {group.creator.isVerified && <VerifiedBadge />}
+          {group.isVerified && <VerifiedBadge />}
         </p>
         <p className="text-xs text-ink-3 line-clamp-1">{subtitle}</p>
       </Link>

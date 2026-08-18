@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
         myRole: g.memberships[0]?.role ?? null,
         lastActivityAt: lastActivityByGroup.get(g.id) ?? null,
         joinRequestPending: pendingRequestGroupIds.has(g.id),
+        isVerified: g.isVerified,
       })),
     });
   } catch (err) {
