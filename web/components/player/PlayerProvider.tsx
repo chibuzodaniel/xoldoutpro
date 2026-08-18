@@ -71,6 +71,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [remoteSupported, setRemoteSupported] = useState(false);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- feature detection can't run during SSR; must happen post-mount
     setRemoteSupported(typeof HTMLMediaElement !== "undefined" && "remote" in HTMLMediaElement.prototype);
   }, []);
 

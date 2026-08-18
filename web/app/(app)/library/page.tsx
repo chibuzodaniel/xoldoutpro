@@ -19,6 +19,7 @@ import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet"
 type LibraryTrack = {
   id: string;
   title: string;
+  description: string | null;
   order: number;
   durationSec: number;
   lyricsText: string | null;
@@ -204,21 +205,44 @@ function LibraryPageInner() {
                       </button>
                     </div>
                 <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-                  {e.product.release.tracks.map((track) => (
-                    <div key={track.id} className="flex items-center justify-between py-2.5">
+                  {e.product.release.tracks.map((track) => {
+                    const isThisTrack = player.current?.trackId === track.id;
+                    const isPlaying = isThisTrack && player.isPlaying;
+                    const loadingAudio = isThisTrack && player.loading;
+                    return (
+                    <div key={track.id} className="flex items-center gap-3 py-2.5">
                       <button
-                        onClick={() =>
+                        onClick={() => {
                           player.play({
                             trackId: track.id,
                             title: track.title,
                             artistName: e.product.creator.displayName,
                             artworkUrl: artworkUrl(e.product.release, "1024"),
                             lyricsText: track.lyricsText,
-                          })
-                        }
-                        className="text-sm text-left flex-1"
+                          });
+                          player.setExpanded(true);
+                        }}
+                        disabled={loadingAudio}
+                        className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-60"
                       >
-                        {track.title}
+                        <span className="h-8 w-8 rounded-full bg-red flex items-center justify-center shrink-0" aria-hidden>
+                          {isPlaying ? (
+                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
+                              <rect x="6" y="5" width="4" height="14" />
+                              <rect x="14" y="5" width="4" height="14" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white translate-x-[1px]">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
+                          )}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block text-sm truncate">{track.title}</span>
+                          <span className="block text-xs text-ink-3 truncate">
+                            {track.description || `Tap to play · ${e.product.creator.displayName}`}
+                          </span>
+                        </span>
                       </button>
                       {downloaded[track.id] ? (
                         <button onClick={() => handleRemoveDownload(track.id)} className="text-[10px] text-ink-3 uppercase tracking-widest">
@@ -234,7 +258,8 @@ function LibraryPageInner() {
                         </button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ) : e.product.beat ? (
@@ -280,6 +305,7 @@ function BeatLibraryRow({
   function handleTogglePlay() {
     if (isThisTrack) {
       player.togglePlay();
+      if (!isPlaying) player.setExpanded(true);
       return;
     }
     player.play({
@@ -290,6 +316,7 @@ function BeatLibraryRow({
       lyricsText: null,
       kind: "beat",
     });
+    player.setExpanded(true);
   }
 
   async function handleDownload() {

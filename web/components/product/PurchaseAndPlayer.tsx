@@ -9,6 +9,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 type AccessTrack = {
   id: string;
   title: string;
+  description: string | null;
   order: number;
   durationSec: number;
   previewStartSec: number;
@@ -116,6 +117,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       lyricsText: t.lyricsText,
     }));
     player.play({ trackId: track.id, title: track.title, artistName, artworkUrl, lyricsText: track.lyricsText }, trackQueue);
+    player.setExpanded(true);
   }
 
   return (
@@ -145,20 +147,46 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       {error && <p className="text-sm text-red-soft mb-3">{error}</p>}
 
       <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-        {(tracks ?? []).map((track, i) => (
-          <button key={track.id} onClick={() => handlePlay(track)} className="flex items-center justify-between py-3 text-left">
-            <span className="text-sm">
-              <span className="text-ink-3 mr-2">{i + 1}.</span>
-              {track.title}
-              {!entitled && !isOwner && (
-                <span className="ml-2 text-[10px] text-ink-3 uppercase tracking-widest">Preview</span>
-              )}
-            </span>
-            <span className="text-xs text-ink-3">
-              {entitled || isOwner ? formatTime(track.durationSec) : formatTime(track.previewEndSec - track.previewStartSec)}
-            </span>
-          </button>
-        ))}
+        {(tracks ?? []).map((track) => {
+          const isThisTrack = player.current?.trackId === track.id;
+          const isPlaying = isThisTrack && player.isPlaying;
+          const loadingAudio = isThisTrack && player.loading;
+          return (
+            <button
+              key={track.id}
+              onClick={() => handlePlay(track)}
+              disabled={loadingAudio}
+              className="flex items-center gap-3 py-3 text-left disabled:opacity-60"
+            >
+              <span className="h-9 w-9 rounded-full bg-red flex items-center justify-center shrink-0" aria-hidden>
+                {isPlaying ? (
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white">
+                    <rect x="6" y="5" width="4" height="14" />
+                    <rect x="14" y="5" width="4" height="14" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white translate-x-[1px]">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center text-sm">
+                  <span className="truncate">{track.title}</span>
+                  {!entitled && !isOwner && (
+                    <span className="ml-2 shrink-0 text-[10px] text-ink-3 uppercase tracking-widest">Preview</span>
+                  )}
+                </span>
+                <span className="block text-xs text-ink-3 line-clamp-1">
+                  {track.description || `Tap to preview · ${artistName}`}
+                </span>
+              </span>
+              <span className="text-xs text-ink-3 shrink-0">
+                {entitled || isOwner ? formatTime(track.durationSec) : formatTime(track.previewEndSec - track.previewStartSec)}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {entitled && (

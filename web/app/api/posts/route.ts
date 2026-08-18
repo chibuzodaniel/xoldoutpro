@@ -3,19 +3,44 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-// PRD §11 MVP: the Fanbase (Socials) tab is a reverse-chronological feed of
-// posts from creators a user follows. Own posts are included too, so the
-// composer feels functional without following yourself.
+const PLAY_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
+
+// The feed is "suggested," not strictly follows-only: creators you follow,
+// creators whose songs you play often (recent TrackPlay volume), and
+// creators you've shown interest in (liked one of their posts, or bought
+// something from them) all count toward the pool of authors shown — a
+// listener who's never tapped "follow" but plays an artist constantly, or
+// just bought their EP, still sees their announcements.
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
 
-    const follows = await db.follow.findMany({
-      where: { followerId: user.id },
-      select: { followed: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } },
-    });
+    const [follows, topPlayed, likedPosts, purchases] = await Promise.all([
+      db.follow.findMany({
+        where: { followerId: user.id },
+        select: { followed: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } },
+      }),
+      db.trackPlay.groupBy({
+        by: ["creatorId"],
+        where: { userId: user.id, createdAt: { gte: new Date(Date.now() - PLAY_LOOKBACK_MS) } },
+        _count: { creatorId: true },
+        orderBy: { _count: { creatorId: "desc" } },
+        take: 15,
+      }),
+      db.postLike.findMany({ where: { userId: user.id }, select: { post: { select: { authorId: true } } } }),
+      db.entitlement.findMany({ where: { userId: user.id }, select: { product: { select: { creatorId: true } } } }),
+    ]);
+
     const following = follows.map((f) => f.followed);
-    const authorIds = [...following.map((f) => f.id), user.id];
+    const authorIds = [
+      ...new Set([
+        ...following.map((f) => f.id),
+        ...topPlayed.map((p) => p.creatorId),
+        ...likedPosts.map((l) => l.post.authorId),
+        ...purchases.map((p) => p.product.creatorId),
+        user.id,
+      ]),
+    ];
 
     const posts = await db.post.findMany({
       where: { authorId: { in: authorIds }, groupId: null },

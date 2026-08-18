@@ -16,6 +16,7 @@ export type TrackDraft = {
   previewLengthCustomSec: number;
   previewStartSec: number;
   lyricsText: string;
+  description: string;
 };
 
 export function effectivePreviewLength(track: TrackDraft) {
@@ -80,6 +81,13 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
             placeholder="Track title"
             required
             className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
+          />
+
+          <input
+            value={track.description}
+            onChange={(e) => onChange({ description: e.target.value })}
+            placeholder="Short preview description (shown next to the play button)"
+            className="rounded-lg border border-line bg-surface-2 px-3 py-2 text-xs outline-none transition-colors duration-150 focus:border-red"
           />
 
           <div className="flex items-center gap-2">

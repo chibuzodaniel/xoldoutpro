@@ -17,6 +17,7 @@ function newTrack(): TrackDraft {
     previewLengthCustomSec: 30,
     previewStartSec: 0,
     lyricsText: "",
+    description: "",
   };
 }
 
@@ -119,7 +120,7 @@ export default function UploadMusicPage() {
           const length = effectivePreviewLength(t);
           return {
             title: t.title || title,
-            description: undefined,
+            description: t.description || undefined,
             order,
             audioMasterKey: t.audioMasterKey,
             audioStreamKey: t.audioStreamKey,

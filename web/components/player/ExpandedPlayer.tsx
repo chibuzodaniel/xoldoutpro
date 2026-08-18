@@ -232,27 +232,37 @@ export function ExpandedPlayer() {
             <span>-{formatTime(remainingSec)}</span>
           </div>
 
-          <div className="flex items-center justify-between mb-8 px-1">
-            <button onClick={previous} className="text-ink-2" aria-label="Previous">
-              <PreviousIcon />
-            </button>
-            <button
-              onClick={togglePlay}
-              className="h-16 w-16 rounded-full bg-ink text-bg flex items-center justify-center"
-              aria-label={isPlaying ? "Pause" : "Play"}
-            >
-              {isPlaying ? <PauseIcon /> : <PlayIcon />}
-            </button>
-            <button onClick={next} disabled={!hasNext} className="text-ink-2 disabled:opacity-30" aria-label="Next">
-              <NextIcon />
-            </button>
-            <button
-              onClick={cycleRepeat}
-              className={repeatMode !== "off" ? "text-red-soft" : "text-ink-2"}
-              aria-label={`Repeat: ${repeatMode}`}
-            >
-              <RepeatIcon />
-            </button>
+          {/* Previous/Play/Next form the true centered triad (equal flex-1
+              spacers on each side); Repeat sits apart at the trailing edge,
+              matching the standard player layout — a plain 4-up justify-between
+              row visually off-centers Play since its circle is much larger
+              than the other icons. */}
+          <div className="flex items-center mb-8 px-1">
+            <div className="flex-1" />
+            <div className="flex items-center gap-8">
+              <button onClick={previous} className="text-ink-2" aria-label="Previous">
+                <PreviousIcon />
+              </button>
+              <button
+                onClick={togglePlay}
+                className="h-16 w-16 rounded-full bg-ink text-bg flex items-center justify-center"
+                aria-label={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? <PauseIcon /> : <PlayIcon />}
+              </button>
+              <button onClick={next} disabled={!hasNext} className="text-ink-2 disabled:opacity-30" aria-label="Next">
+                <NextIcon />
+              </button>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <button
+                onClick={cycleRepeat}
+                className={repeatMode !== "off" ? "text-red-soft" : "text-ink-2"}
+                aria-label={`Repeat: ${repeatMode}`}
+              >
+                <RepeatIcon />
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-3 mb-8">

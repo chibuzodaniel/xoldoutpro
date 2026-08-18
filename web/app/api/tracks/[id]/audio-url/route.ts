@@ -31,6 +31,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const url = await presignDownload(track.audioStreamUrl, 300);
 
+    // Fire-and-forget play signal for the Socials "suggested" feed ranking
+    // (creators you play often) — never let a logging failure break playback.
+    if (user) {
+      db.trackPlay
+        .create({ data: { userId: user.id, creatorId: track.release.product.creatorId } })
+        .catch((err) => console.error("trackPlay log failed", err));
+    }
+
     return NextResponse.json({
       url,
       entitled,

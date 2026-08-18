@@ -63,6 +63,9 @@ model User {
   groupsCreated FanbaseGroup[]
   memberships   Membership[]
   joinRequests  JoinRequest[]
+
+  trackPlays       TrackPlay[] @relation("TrackPlaysByUser")
+  trackPlaysOfMine TrackPlay[] @relation("TrackPlaysOfCreator")
 }
 
 model PayoutAccount {
@@ -92,6 +95,24 @@ model Follow {
 
   @@id([followerId, followedId])
   @@index([followedId])
+}
+
+// One row per track/beat play start (recorded from the audio-url routes,
+// which already run once per PlayerProvider.play() call) — feeds the
+// Socials "suggested" ranking's "creators you play often" signal. Not a
+// full listening-history feature (no duration/completion tracking), just
+// enough signal to rank creators by play frequency.
+model TrackPlay {
+  id        String   @id @default(cuid())
+  userId    String
+  creatorId String
+  createdAt DateTime @default(now())
+
+  user    User @relation("TrackPlaysByUser", fields: [userId], references: [id])
+  creator User @relation("TrackPlaysOfCreator", fields: [creatorId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([creatorId])
 }
 
 // ─── Fanbase: announcements (PRD §11 MVP) and groups (PRD §11 Phase 2) ─

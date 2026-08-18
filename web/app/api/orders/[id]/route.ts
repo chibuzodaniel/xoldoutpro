@@ -17,7 +17,29 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     if (!order || order.buyerId !== user.id) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    return NextResponse.json({ order });
+    // Event purchases get a scannable ticket the moment the order settles —
+    // the checkout success screen shows this directly rather than sending
+    // the buyer digging through Library for it.
+    const entitlements = await db.entitlement.findMany({
+      where: { orderId: id },
+      include: {
+        checkIn: { select: { code: true } },
+        product: {
+          select: {
+            id: true,
+            type: true,
+            ticketTier: {
+              select: {
+                name: true,
+                event: { select: { title: true, venue: true, isVirtual: true, startsAt: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({ order, entitlements });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     throw err;

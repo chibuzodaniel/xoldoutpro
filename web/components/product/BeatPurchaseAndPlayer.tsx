@@ -63,9 +63,11 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   function handleTogglePlay() {
     if (isThisTrack) {
       player.togglePlay();
+      if (!isPlaying) player.setExpanded(true);
       return;
     }
     player.play({ trackId: productId, title, artistName, artworkUrl, lyricsText: null, kind: "beat" });
+    player.setExpanded(true);
   }
 
   async function handleDownload() {

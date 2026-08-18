@@ -4,6 +4,8 @@ import { verifyTransaction } from "@/lib/flutterwave";
 import { confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { recordSale } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
+import { buildTicketInfo } from "@/lib/commerce/tickets";
+import { sendOrderConfirmationEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 
@@ -61,6 +63,7 @@ export async function POST(req: NextRequest) {
 
   const product = await db.product.findUniqueOrThrow({ where: { id: productId } });
 
+  let checkInCode: string | null = null;
   await db.$transaction(async (tx) => {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
     if (payment.order.isGift) {
@@ -75,12 +78,27 @@ export async function POST(req: NextRequest) {
         data: { userId: payment.order.buyerId, productId, orderId: payment.orderId },
       });
       if (product.type === "EVENT") {
-        await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+        const checkIn = await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+        checkInCode = checkIn.code;
       }
     }
     await confirmStock(productId, tx);
     await recordSale(tx, { sellerId: product.creatorId, orderId: payment.orderId, grossKobo: payment.amountKobo });
   });
+
+  if (!payment.order.isGift) {
+    const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });
+    if (buyer) {
+      void sendOrderConfirmationEmail({
+        to: buyer.email,
+        buyerName: buyer.displayName,
+        orderId: payment.orderId,
+        productTitle: product.title,
+        priceKobo: payment.amountKobo,
+        ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
+      }).catch((err) => console.error("order confirmation email failed", err));
+    }
+  }
 
   return NextResponse.json({ ok: true });
 }

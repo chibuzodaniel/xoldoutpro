@@ -25,6 +25,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         where: { userId_productId: { userId: user.id, productId: id } },
       });
       entitled = Boolean((entitlement && !entitlement.revokedAt) || product.creatorId === user.id);
+
+      // Fire-and-forget play signal for the Socials "suggested" feed ranking
+      // (creators you play often) — never let a logging failure break playback.
+      db.trackPlay
+        .create({ data: { userId: user.id, creatorId: product.creatorId } })
+        .catch((err) => console.error("trackPlay log failed", err));
     }
 
     if (entitled) {

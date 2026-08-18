@@ -5,6 +5,8 @@ import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { initializePayment } from "@/lib/flutterwave";
 import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
+import { buildTicketInfo } from "@/lib/commerce/tickets";
+import { sendOrderConfirmationEmail } from "@/lib/email";
 
 const shippingSchema = z.object({
   recipientName: z.string().min(1).max(120),
@@ -82,6 +84,7 @@ export async function POST(req: NextRequest) {
     // it still owes the fee, so it falls through to the paid path below.
     if (amountKobo === 0) {
       try {
+        let checkInCode: string | null = null;
         const order = await db.$transaction(async (tx) => {
           const created = await tx.order.create({
             data: {
@@ -99,12 +102,25 @@ export async function POST(req: NextRequest) {
           } else {
             const entitlement = await tx.entitlement.create({ data: { userId: buyer.id, productId, orderId: created.id } });
             if (product.type === "EVENT") {
-              await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+              const checkIn = await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+              checkInCode = checkIn.code;
             }
           }
           await confirmStock(productId, tx);
           return created;
         });
+
+        if (!isGift) {
+          void sendOrderConfirmationEmail({
+            to: buyer.email,
+            buyerName: buyer.displayName,
+            orderId: order.id,
+            productTitle: product.title,
+            priceKobo: 0,
+            ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
+          }).catch((err) => console.error("order confirmation email failed", err));
+        }
+
         return NextResponse.json({ free: true, orderId: order.id }, { status: 201 });
       } catch (err) {
         await releaseReservation(productId);

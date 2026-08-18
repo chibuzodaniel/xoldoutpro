@@ -26,6 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     tracks: product.release.tracks.map((t) => ({
       id: t.id,
       title: t.title,
+      description: t.description,
       order: t.order,
       durationSec: t.durationSec,
       previewStartSec: t.previewStartSec,
