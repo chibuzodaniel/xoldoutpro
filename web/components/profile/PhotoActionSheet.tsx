@@ -14,7 +14,7 @@ export function PhotoActionSheet({ title, onView, onUpload, onClose }: Props) {
         className="relative w-full rounded-t-2xl border-t border-line-soft bg-surface p-4 pb-6"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-center text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">{title}</p>
+        <p className="text-center text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">{title}</p>
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-3">
           <button type="button" onClick={onView} className="py-3.5 text-sm font-semibold text-center text-ink">
             View photo

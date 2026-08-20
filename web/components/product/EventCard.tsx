@@ -32,13 +32,13 @@ export function EventCard({ event }: { event: EventCardData }) {
       <div className="aspect-square w-full rounded-lg bg-surface-2 overflow-hidden relative">
         {cover && <Image src={cover} alt={event.title} fill sizes="33vw" className="object-cover" />}
 
-        <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[9px] font-semibold uppercase tracking-wide text-white">
+        <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
           {formatDate(event.startsAt)}
         </span>
 
         {allSoldOut && (
           <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
-            <span className="rounded-full border border-white/40 px-3 py-1 text-[10px] uppercase tracking-widest text-white font-semibold">
+            <span className="rounded-full border border-white/40 px-3 py-1 text-[11px] uppercase tracking-widest text-white font-semibold">
               Sold out
             </span>
           </div>
@@ -46,10 +46,10 @@ export function EventCard({ event }: { event: EventCardData }) {
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{event.title}</p>
       <div className="flex items-center justify-between mt-0.5">
-        <span className="text-[11px] font-serif">
+        <span className="text-[12px] font-serif">
           {minPriceKobo === 0 ? "Free" : `From ${formatNaira(minPriceKobo)}`}
         </span>
-        <span className="text-[11px] text-ink-3">{allSoldOut ? "Sold out" : `${totalSold} sold`}</span>
+        <span className="text-[12px] text-ink-3">{allSoldOut ? "Sold out" : `${totalSold} sold`}</span>
       </div>
     </Link>
   );

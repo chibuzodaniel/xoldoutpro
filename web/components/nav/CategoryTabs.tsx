@@ -17,7 +17,7 @@ export function CategoryTabs({ active }: { active: CategoryType }) {
         <Link
           key={tab.label}
           href={tab.type ? `/discover?type=${tab.type}` : "/discover"}
-          className={`relative pb-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
+          className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
             tab.type === active
               ? "text-white border-red"
               : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"

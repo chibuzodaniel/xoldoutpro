@@ -106,7 +106,7 @@ export default function CreateEventPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Cover image</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Cover image</label>
           <label className="flex h-32 w-full items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
             {coverPreview ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -143,7 +143,7 @@ export default function CreateEventPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Title</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -154,7 +154,7 @@ export default function CreateEventPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Description</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -165,7 +165,7 @@ export default function CreateEventPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Venue</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Venue</label>
           <div className="flex items-center gap-3 mb-1">
             <button
               type="button"
@@ -189,7 +189,7 @@ export default function CreateEventPage() {
 
         <div className="flex gap-3">
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Starts</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Starts</label>
             <input
               type="datetime-local"
               value={startsAt}
@@ -199,7 +199,7 @@ export default function CreateEventPage() {
             />
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Ends (optional)</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Ends (optional)</label>
             <input
               type="datetime-local"
               value={endsAt}
@@ -211,7 +211,7 @@ export default function CreateEventPage() {
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Ticket tiers</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Ticket tiers</label>
             {tiers.length < 10 && (
               <button type="button" onClick={() => setTiers((cur) => [...cur, newTier()])} className="text-xs text-red-soft">
                 + Add tier

@@ -85,7 +85,7 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Fanbase name</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Fanbase name</label>
             <input
               value={name}
               onChange={(e) => setName(e.target.value.slice(0, 60))}
@@ -95,7 +95,7 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Description (optional)</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Description (optional)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value.slice(0, 500))}

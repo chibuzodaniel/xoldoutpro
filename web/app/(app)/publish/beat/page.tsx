@@ -150,7 +150,7 @@ export default function UploadBeatPage() {
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Cover art</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Cover art</label>
           <label className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
             {coverPreview ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -187,7 +187,7 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Title</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -198,7 +198,7 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Description</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -210,7 +210,7 @@ export default function UploadBeatPage() {
 
         <div className="flex gap-3">
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">BPM (optional)</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">BPM (optional)</label>
             <input
               type="number"
               min={1}
@@ -220,7 +220,7 @@ export default function UploadBeatPage() {
             />
           </div>
           <div className="flex flex-col gap-1 flex-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Key (optional)</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Key (optional)</label>
             <input
               value={musicalKey}
               onChange={(e) => setMusicalKey(e.target.value)}
@@ -232,7 +232,7 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Tags</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Tags</label>
           <div className="flex flex-wrap gap-2 mb-1">
             {tags.map((tag) => (
               <span key={tag} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs">
@@ -269,7 +269,7 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Price</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Price</label>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -300,7 +300,7 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Limited quantity</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Limited quantity</label>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -326,7 +326,7 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Audio file</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Audio file</label>
           <div className="rounded-xl border border-line bg-surface p-4">
             {audio.status === "idle" && (
               <input
@@ -382,7 +382,7 @@ export default function UploadBeatPage() {
                 </div>
 
                 <div>
-                  <p className="text-[11px] uppercase tracking-widest text-ink-3 mb-2">
+                  <p className="text-[12px] uppercase tracking-widest text-ink-3 mb-2">
                     Drag to choose the preview window
                   </p>
                   <WaveformScrubber
@@ -392,7 +392,7 @@ export default function UploadBeatPage() {
                     startSec={previewStartSec}
                     onStartChange={setPreviewStartSec}
                   />
-                  <p className="text-[10px] text-ink-3 mt-1">
+                  <p className="text-[11px] text-ink-3 mt-1">
                     {previewStartSec.toFixed(1)}s –{" "}
                     {(previewStartSec + effectivePreviewLength(audio.durationSec, previewLength, previewLengthCustomSec)).toFixed(1)}s
                     of {audio.durationSec.toFixed(0)}s

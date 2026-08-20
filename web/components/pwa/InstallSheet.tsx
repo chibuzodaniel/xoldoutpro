@@ -43,7 +43,7 @@ export function InstallSheet({ open, onClose, ready, installed, ios, canInstall,
           </svg>
         </button>
 
-        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-4">Install XOLDOUT</p>
+        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-4">Install XOLDOUT</p>
 
         {!ready ? (
           <div className="h-32" />

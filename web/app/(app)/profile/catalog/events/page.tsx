@@ -71,7 +71,7 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
     <div className="flex flex-col gap-2 py-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold">{tier.name}</span>
-        <span className="text-[10px] text-ink-3">{sold} sold</span>
+        <span className="text-[11px] text-ink-3">{sold} sold</span>
       </div>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
@@ -104,8 +104,8 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
           {busy ? "Saving…" : "Save"}
         </button>
       </div>
-      {hasCap && <p className="text-[10px] text-ink-3">Cap can only be lowered, never below tickets already sold.</p>}
-      {error && <p className="text-[10px] text-red-soft">{error}</p>}
+      {hasCap && <p className="text-[11px] text-ink-3">Cap can only be lowered, never below tickets already sold.</p>}
+      {error && <p className="text-[11px] text-red-soft">{error}</p>}
     </div>
   );
 }

@@ -155,7 +155,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <p className="text-[11px] uppercase tracking-widest text-ink-3">Shipping address</p>
+      <p className="text-[12px] uppercase tracking-widest text-ink-3">Shipping address</p>
       <input
         value={recipientName}
         onChange={(e) => setRecipientName(e.target.value)}

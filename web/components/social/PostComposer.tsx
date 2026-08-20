@@ -98,7 +98,7 @@ export function PostComposer({ onPosted }: { onPosted: (post: FeedPost) => void 
           </svg>
         </label>
         <div className="flex items-center gap-3">
-          <span className="text-[11px] text-ink-3">
+          <span className="text-[12px] text-ink-3">
             {body.length}/{MAX_LEN}
           </span>
           <button

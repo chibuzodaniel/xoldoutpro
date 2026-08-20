@@ -158,7 +158,7 @@ function LibraryPageInner() {
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`relative pb-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
+            className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
               tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
             }`}
           >
@@ -180,8 +180,20 @@ function LibraryPageInner() {
           ) : entitlements.length === 0 ? (
             <p className="text-sm text-ink-3">Everything you buy shows up here, playable offline. Nothing yet.</p>
           ) : (
-            <div className="flex flex-col gap-6">
-              {entitlements.map((e) =>
+            <div className="flex flex-col gap-8">
+              {(
+                [
+                  { key: "music", label: "Music & Beats", items: entitlements.filter((e) => e.product.release || e.product.beat) },
+                  { key: "tickets", label: "Tickets", items: entitlements.filter((e) => e.product.ticketTier) },
+                  { key: "merch", label: "Merch", items: entitlements.filter((e) => e.product.merchItem) },
+                ] as const
+              ).map(({ key, label, items }) => {
+                if (items.length === 0) return null;
+                return (
+                  <div key={key}>
+                    <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">{label}</h2>
+                    <div className="flex flex-col gap-6">
+                      {items.map((e) =>
                 e.product.release ? (
                   <div key={e.id}>
                     <div className="flex items-center gap-3 mb-2">
@@ -245,14 +257,14 @@ function LibraryPageInner() {
                         </span>
                       </button>
                       {downloaded[track.id] ? (
-                        <button onClick={() => handleRemoveDownload(track.id)} className="text-[10px] text-ink-3 uppercase tracking-widest">
+                        <button onClick={() => handleRemoveDownload(track.id)} className="text-[11px] text-ink-3 uppercase tracking-widest">
                           Downloaded · Remove
                         </button>
                       ) : (
                         <button
                           onClick={() => handleDownload(e, track)}
                           disabled={busyTrackId === track.id}
-                          className="text-[10px] text-red-soft uppercase tracking-widest disabled:opacity-50"
+                          className="text-[11px] text-red-soft uppercase tracking-widest disabled:opacity-50"
                         >
                           {busyTrackId === track.id ? "Downloading…" : "Download"}
                         </button>
@@ -269,7 +281,11 @@ function LibraryPageInner() {
             ) : e.product.ticketTier ? (
               <EventLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
             ) : null,
-              )}
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </>
@@ -359,7 +375,7 @@ function BeatLibraryRow({
           </svg>
         )}
       </button>
-      <button onClick={handleDownload} className="text-[10px] text-red-soft uppercase tracking-widest shrink-0">
+      <button onClick={handleDownload} className="text-[11px] text-red-soft uppercase tracking-widest shrink-0">
         Download
       </button>
       <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
@@ -388,7 +404,7 @@ function MerchLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntit
         <p className="text-sm font-semibold line-clamp-1">{entitlement.product.title}</p>
         <p className="text-xs text-ink-3">{entitlement.product.creator.displayName}</p>
       </div>
-      <span className="text-[10px] uppercase tracking-widest text-red-soft font-semibold shrink-0">
+      <span className="text-[11px] uppercase tracking-widest text-red-soft font-semibold shrink-0">
         {FULFILLMENT_LABEL[status]}
       </span>
       <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
@@ -427,7 +443,7 @@ function EventLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntit
         <p className="text-xs text-ink-3 mb-1">
           {tier.name} · {formatEventDate(tier.event.startsAt)}
         </p>
-        <p className="text-[10px] uppercase tracking-widest text-red-soft font-semibold">
+        <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">
           {entitlement.checkIn?.checkedInAt ? "Checked in" : "Show this QR code at the door"}
         </p>
       </div>

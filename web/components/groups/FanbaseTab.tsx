@@ -86,7 +86,7 @@ export function FanbaseTab() {
       </form>
 
       <div className="flex items-center justify-between mb-1">
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">My Fanbase</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">My Fanbase</h2>
         <button type="button" onClick={() => setShowCreate(true)} className="text-xs font-semibold text-red-soft">
           + Create
         </button>
@@ -101,7 +101,7 @@ export function FanbaseTab() {
         </div>
       )}
 
-      <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-1">Joined</h2>
+      <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Joined</h2>
       {joined.length === 0 ? (
         <p className="text-sm text-ink-3 py-2 mb-4">Groups you join will show up here.</p>
       ) : (
@@ -125,7 +125,7 @@ export function FanbaseTab() {
         </div>
       )}
 
-      <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-1">Discover</h2>
+      <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Discover</h2>
       {toDiscover.length === 0 ? (
         <p className="text-sm text-ink-3 py-2">Nothing to discover yet.</p>
       ) : (

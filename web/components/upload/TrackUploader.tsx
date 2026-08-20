@@ -36,7 +36,7 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[11px] uppercase tracking-widest text-ink-3">Track {index + 1}</span>
+        <span className="text-[12px] uppercase tracking-widest text-ink-3">Track {index + 1}</span>
         {onRemove && (
           <button type="button" onClick={onRemove} className="text-xs text-ink-3">
             Remove
@@ -118,7 +118,7 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
           </div>
 
           <div>
-            <p className="text-[11px] uppercase tracking-widest text-ink-3 mb-2">
+            <p className="text-[12px] uppercase tracking-widest text-ink-3 mb-2">
               Drag to choose the preview window
             </p>
             <WaveformScrubber
@@ -128,7 +128,7 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
               startSec={track.previewStartSec}
               onStartChange={(startSec) => onChange({ previewStartSec: startSec })}
             />
-            <p className="text-[10px] text-ink-3 mt-1">
+            <p className="text-[11px] text-ink-3 mt-1">
               {track.previewStartSec.toFixed(1)}s – {(track.previewStartSec + effectivePreviewLength(track)).toFixed(1)}s
               of {track.durationSec.toFixed(0)}s
             </p>

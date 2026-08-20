@@ -136,7 +136,7 @@ export function ManageGroupSheet({
               key={t}
               type="button"
               onClick={() => setTab(t)}
-              className={`pb-2.5 text-[13px] font-semibold capitalize border-b-2 ${
+              className={`pb-2.5 text-[14px] font-semibold capitalize border-b-2 ${
                 tab === t ? "text-white border-red" : "text-ink-3 border-transparent"
               }`}
             >
@@ -177,7 +177,7 @@ export function ManageGroupSheet({
                 <div key={m.userId} className="flex items-center justify-between py-3">
                   <div>
                     <p className="text-sm">{m.user.displayName}</p>
-                    <p className="text-[10px] uppercase tracking-widest text-ink-3">{m.role}</p>
+                    <p className="text-[11px] uppercase tracking-widest text-ink-3">{m.role}</p>
                   </div>
                   {isCreator && (
                     <div className="flex gap-2">
@@ -205,7 +205,7 @@ export function ManageGroupSheet({
             ) : (
               <>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Who can post</p>
+                  <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Who can post</p>
                   <div className="flex flex-wrap gap-2">
                     {(["CREATOR_ONLY", "ADMINS", "ALL_MEMBERS"] as const).map((p) => (
                       <button
@@ -222,7 +222,7 @@ export function ManageGroupSheet({
                   </div>
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Visibility</p>
+                  <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Visibility</p>
                   <div className="flex gap-2">
                     {(["REQUEST_TO_JOIN", "OPEN"] as const).map((v) => (
                       <button
@@ -239,7 +239,7 @@ export function ManageGroupSheet({
                   </div>
                 </div>
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Verification</p>
+                  <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Verification</p>
                   {isVerified ? (
                     <p className="text-xs text-green">This Fanbase is verified.</p>
                   ) : requestedAt ? (
@@ -261,7 +261,7 @@ export function ManageGroupSheet({
                   )}
                 </div>
                 <div className="border-t border-line-soft pt-4">
-                  <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Danger zone</p>
+                  <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Danger zone</p>
                   <button
                     type="button"
                     onClick={deleteGroup}

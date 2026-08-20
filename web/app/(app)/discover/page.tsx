@@ -163,10 +163,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-black/40" />
 
-          <span className="absolute left-3 top-3 rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wide text-white">
+          <span className="absolute left-3 top-3 rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
             {(hero.release?.releaseType ?? "single").toLowerCase()}
           </span>
-          <span className="absolute left-3 top-10 rounded-full bg-red px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide text-white">
+          <span className="absolute left-3 top-10 rounded-full bg-red px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
             New Release
           </span>
 
@@ -179,7 +179,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
 
           <div className="absolute left-4 right-4 bottom-4">
-            <p className="text-[11px] text-white/60 uppercase tracking-wide mb-1">{hero.creator.displayName}</p>
+            <p className="text-[12px] text-white/60 uppercase tracking-wide mb-1">{hero.creator.displayName}</p>
             <h2 className="font-serif text-2xl text-white leading-tight mb-2">{hero.title}</h2>
             <div className="flex items-center justify-between">
               {heroRemaining !== null ? (
@@ -197,7 +197,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       {sellingOutNow.length > 0 && (
         <section className="px-4 mb-7">
-          <h3 className="text-[11px] font-bold uppercase tracking-wide text-red-soft mb-3">Selling Out Now</h3>
+          <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft mb-3">Selling Out Now</h3>
           <div className="grid grid-cols-3 gap-3">
             {sellingOutNow.map((p) => (
               <ProductCard key={p.id} product={p} />
@@ -295,7 +295,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   )}
                 </div>
                 <span className="text-[10.5px] font-medium text-ink-2 line-clamp-1 text-center">{c.displayName}</span>
-                <span className="text-[9px] text-ink-3">{c._count.followers}</span>
+                <span className="text-[10px] text-ink-3">{c._count.followers}</span>
               </Link>
             ))}
           </div>

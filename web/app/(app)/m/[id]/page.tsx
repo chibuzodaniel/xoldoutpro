@@ -53,7 +53,7 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
       )}
 
       <div className="px-4 pt-4">
-        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide mb-2">
+        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
           Merch
         </span>
         <div className="flex items-start justify-between gap-3">

@@ -110,7 +110,7 @@ export default function WithdrawPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Destination account</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Destination account</label>
           <select
             value={payoutAccountId}
             onChange={(e) => setPayoutAccountId(e.target.value)}

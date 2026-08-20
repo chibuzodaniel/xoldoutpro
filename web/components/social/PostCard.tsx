@@ -111,7 +111,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
   }
 
   return (
-    <div className="border-b border-line-soft py-4">
+    <div className="rounded-2xl border border-red/15 bg-red/10 px-4 py-4">
       <div className="flex items-center gap-2.5 mb-2.5">
         <Link href={`/u/${post.author.handle}`} className="relative h-8 w-8 rounded-full bg-surface-2 overflow-hidden shrink-0">
           {post.author.avatarUrl && (
@@ -123,19 +123,19 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
             <span className="line-clamp-1">{post.author.displayName}</span>
             {post.author.isVerified && <VerifiedBadge />}
           </Link>
-          <p className="text-[11px] text-ink-3">{timeAgo(post.createdAt)}</p>
+          <p className="text-[12px] text-ink-3">{timeAgo(post.createdAt)}</p>
         </div>
         {appUser?.id === post.author.id ? (
           <button
             type="button"
             onClick={handleDelete}
             disabled={deleting}
-            className="text-[11px] text-ink-3 shrink-0 disabled:opacity-50"
+            className="text-[12px] text-ink-3 shrink-0 disabled:opacity-50"
           >
             Delete
           </button>
         ) : (
-          <ReportButton targetType="POST" targetId={post.id} ownerId={post.author.id} className="text-[11px] text-ink-3 shrink-0" />
+          <ReportButton targetType="POST" targetId={post.id} ownerId={post.author.id} className="text-[12px] text-ink-3 shrink-0" />
         )}
       </div>
       <p className="text-sm text-ink-2 whitespace-pre-wrap mb-3">
@@ -183,7 +183,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
                     <span className="font-semibold mr-1.5">{c.author.displayName}</span>
                     <Linkified text={c.body} />
                   </p>
-                  <p className="text-[10px] text-ink-3">{timeAgo(c.createdAt)}</p>
+                  <p className="text-[11px] text-ink-3">{timeAgo(c.createdAt)}</p>
                 </div>
               </div>
             ))

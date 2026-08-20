@@ -75,7 +75,7 @@ export default function ClaimGiftPage({ params }: { params: Promise<{ token: str
   return (
     <main className="flex flex-1 flex-col items-center px-6 py-16">
       <div className="w-full max-w-sm text-center">
-        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-4">You&apos;ve got a gift</p>
+        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-4">You&apos;ve got a gift</p>
 
         <div className="h-40 w-40 rounded-lg bg-surface-2 overflow-hidden mx-auto mb-5">
           {art && (

@@ -17,7 +17,7 @@ export function MiniPlayer() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold line-clamp-1">{current.title}</p>
-          <p className="text-[10px] text-ink-3 line-clamp-1">{current.artistName}</p>
+          <p className="text-[11px] text-ink-3 line-clamp-1">{current.artistName}</p>
         </div>
       </button>
       <button onClick={togglePlay} className="text-lg text-white px-2" aria-label={isPlaying ? "Pause" : "Play"}>

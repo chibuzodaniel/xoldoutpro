@@ -76,9 +76,9 @@ export default function PayoutAccountsPage() {
                 </p>
               </div>
               {a.isDefault ? (
-                <span className="text-[10px] uppercase tracking-widest text-red-soft">Default</span>
+                <span className="text-[11px] uppercase tracking-widest text-red-soft">Default</span>
               ) : (
-                <button onClick={() => handleSetDefault(a.id)} className="text-[10px] uppercase tracking-widest text-ink-3">
+                <button onClick={() => handleSetDefault(a.id)} className="text-[11px] uppercase tracking-widest text-ink-3">
                   Make default
                 </button>
               )}
@@ -87,7 +87,7 @@ export default function PayoutAccountsPage() {
         </div>
       )}
 
-      <h2 className="text-[11px] uppercase tracking-widest text-ink-3 mb-3">Add an account</h2>
+      <h2 className="text-[12px] uppercase tracking-widest text-ink-3 mb-3">Add an account</h2>
       <form onSubmit={handleAdd} className="flex flex-col gap-3">
         <select
           value={bankCode}

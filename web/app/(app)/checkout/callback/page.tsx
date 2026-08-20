@@ -173,7 +173,7 @@ function CheckoutCallbackInner() {
                 <p className="text-xs text-ink-3 mb-3">
                   {formatEventDate(ticket.startsAt)} · {ticket.isVirtual ? "Virtual" : (ticket.venue ?? "Venue TBA")}
                 </p>
-                <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold text-center">
+                <p className="text-[12px] uppercase tracking-widest text-red-soft font-semibold text-center">
                   Show this QR code at the door
                 </p>
               </div>
@@ -181,7 +181,7 @@ function CheckoutCallbackInner() {
           ) : (
             productTitle && (
               <div className="w-full max-w-xs rounded-2xl border border-line bg-surface p-5 text-left">
-                <p className="text-[10px] uppercase tracking-widest text-ink-3 mb-1">Order</p>
+                <p className="text-[11px] uppercase tracking-widest text-ink-3 mb-1">Order</p>
                 <p className="text-sm font-semibold mb-3">{productTitle}</p>
                 <div className="flex items-center justify-between text-xs text-ink-3 border-t border-line-soft pt-3">
                   <span>Total paid</span>

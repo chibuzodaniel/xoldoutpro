@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/* Bumps every rem-based Tailwind text utility (text-xs, text-sm, text-base,
+   the serif headings, etc.) app-wide from a single spot — readability
+   request from users who wear glasses. Arbitrary text-[Npx] utilities don't
+   scale off this since they're literal px, so those are bumped directly at
+   each call site instead. */
+html {
+  font-size: 106.25%;
+}
+
 :root {
   --bg: #0a0a0b;
   --surface: #121214;

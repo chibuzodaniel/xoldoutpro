@@ -52,7 +52,7 @@ function SocialsPageInner() {
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`relative pb-2.5 text-[13px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
+            className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
               tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
             }`}
           >
@@ -77,7 +77,7 @@ function SocialsPageInner() {
                       <img src={creator.avatarUrl} alt={creator.displayName} className="h-full w-full object-cover" />
                     )}
                   </div>
-                  <span className="text-[10px] text-ink-3 line-clamp-1 text-center">{creator.displayName}</span>
+                  <span className="text-[11px] text-ink-3 line-clamp-1 text-center">{creator.displayName}</span>
                 </Link>
               ))}
             </div>
@@ -92,7 +92,7 @@ function SocialsPageInner() {
               Announcements from creators you follow will show up here once you start following someone.
             </p>
           ) : (
-            <div className="flex flex-col">
+            <div className="flex flex-col gap-3">
               {posts.map((post) => (
                 <PostCard
                   key={post.id}

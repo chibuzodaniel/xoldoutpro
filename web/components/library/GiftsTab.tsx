@@ -77,7 +77,7 @@ function SentGiftCard({ gift }: { gift: SentGift }) {
         {gift.status === "CLAIMED" && gift.claimedBy ? `Claimed by ${gift.claimedBy.displayName}` : STATUS_LABEL[gift.status]}
       </p>
       {gift.status === "PENDING" && (
-        <button type="button" onClick={copyLink} className="text-[11px] font-semibold text-red-soft">
+        <button type="button" onClick={copyLink} className="text-[12px] font-semibold text-red-soft">
           {copied ? "Link copied" : "Copy claim link"}
         </button>
       )}
@@ -109,7 +109,7 @@ export function GiftsTab() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Sent</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Sent</h2>
         {data.sent.length === 0 ? (
           <p className="text-sm text-ink-3">Gift a release, beat, or ticket from its page — nothing sent yet.</p>
         ) : (
@@ -122,7 +122,7 @@ export function GiftsTab() {
       </div>
 
       <div>
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Received</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Received</h2>
         {data.received.length === 0 ? (
           <p className="text-sm text-ink-3">Nothing claimed yet.</p>
         ) : (

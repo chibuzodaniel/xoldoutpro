@@ -125,9 +125,9 @@ export default function EditProfilePage() {
 
       <form onSubmit={handleSubmit} className="px-4 flex flex-col gap-8 max-w-sm mx-auto">
         <div className="flex flex-col gap-4">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Photos</h2>
+          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Photos</h2>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Cover photo</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Cover photo</label>
             <label className="flex h-24 w-full items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
               {coverPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -148,7 +148,7 @@ export default function EditProfilePage() {
             </label>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Avatar</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Avatar</label>
             <label className="flex h-20 w-20 items-center justify-center rounded-full border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
               {avatarPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -192,9 +192,9 @@ export default function EditProfilePage() {
         )}
 
         <div className="flex flex-col gap-4">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Profile</h2>
+          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Profile</h2>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Handle</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Handle</label>
             <input
               value={handle}
               onChange={(e) => setHandle(e.target.value.toLowerCase())}
@@ -206,7 +206,7 @@ export default function EditProfilePage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Display name</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Display name</label>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -218,7 +218,7 @@ export default function EditProfilePage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Bio</h2>
+          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Bio</h2>
           <textarea
             value={bio}
             onChange={(e) => setBio(e.target.value)}
@@ -229,7 +229,7 @@ export default function EditProfilePage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Tags</h2>
+          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Tags</h2>
           <div className="flex flex-wrap gap-2 mb-1">
             {tags.map((tag) => (
               <span key={tag} className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1.5 text-xs">
@@ -265,7 +265,7 @@ export default function EditProfilePage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Social accounts</h2>
+          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Social accounts</h2>
           <div className="flex flex-col gap-2">
             {socialLinks.map((link, i) => (
               <div key={i} className="flex items-center gap-2">
@@ -316,7 +316,7 @@ export default function EditProfilePage() {
       </form>
 
       <div className="px-4 max-w-sm mx-auto mt-8">
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
         <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
           <div>
             <p className="text-sm font-semibold mb-0.5">Get notified in the background</p>

@@ -52,7 +52,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/xoldout-logo-transparent.png" alt="XOLDOUT" className="h-10 w-auto mb-8" />
-        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Create account</p>
+        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Create account</p>
 
         <form onSubmit={handleEmailSignup} className="flex flex-col gap-3">
           <input

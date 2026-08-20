@@ -70,7 +70,7 @@ export function ImageCropModal({ file, aspect, cropShape = "rect", outputWidth, 
 
       <div className="shrink-0 border-t border-line-soft bg-surface px-4 py-4 flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <span className="text-[11px] uppercase tracking-widest text-ink-3 shrink-0">Zoom</span>
+          <span className="text-[12px] uppercase tracking-widest text-ink-3 shrink-0">Zoom</span>
           <input
             type="range"
             min={1}

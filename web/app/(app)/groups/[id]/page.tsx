@@ -199,7 +199,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
             aria-label="Share this Fanbase"
             className="text-ink-3 shrink-0"
           >
-            {shareLabel === "copied" ? <span className="text-[10px] text-ink-3">Copied</span> : <ShareIcon />}
+            {shareLabel === "copied" ? <span className="text-[11px] text-ink-3">Copied</span> : <ShareIcon />}
           </button>
         )}
         {myRole === "ADMIN" && (

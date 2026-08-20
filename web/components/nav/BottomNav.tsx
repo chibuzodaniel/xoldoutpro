@@ -79,7 +79,7 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 px-3 py-1 text-[10px] ${
+              className={`flex flex-col items-center gap-1 px-3 py-1 text-[11px] ${
                 pathname?.startsWith(item.href) ? "text-white" : "text-ink-3"
               }`}
             >

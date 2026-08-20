@@ -79,7 +79,7 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
       {replyingTo && (
         <div className="flex items-center justify-between rounded-lg bg-surface-2 px-2.5 py-1.5 mb-2">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold text-red-soft">Replying to {replyingTo.author.displayName}</p>
+            <p className="text-[11px] font-semibold text-red-soft">Replying to {replyingTo.author.displayName}</p>
             <p className="text-xs text-ink-3 line-clamp-1">{replyingTo.body}</p>
           </div>
           <button type="button" onClick={onClearReply} className="text-ink-3 shrink-0 ml-2" aria-label="Cancel reply">
@@ -113,11 +113,11 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
           ))}
           <div className="flex items-center justify-between">
             {options.length < 6 && (
-              <button type="button" onClick={() => setOptions((cur) => [...cur, ""])} className="text-[11px] text-ink-3">
+              <button type="button" onClick={() => setOptions((cur) => [...cur, ""])} className="text-[12px] text-ink-3">
                 + Add option
               </button>
             )}
-            <button type="button" onClick={() => setPollMode(false)} className="text-[11px] text-red-soft">
+            <button type="button" onClick={() => setPollMode(false)} className="text-[12px] text-red-soft">
               Remove poll
             </button>
           </div>

@@ -183,9 +183,9 @@ export function ExpandedPlayer() {
         <button onClick={() => setExpanded(false)} className="text-2xl text-ink-2 w-8" aria-label="Minimize">
           ‹
         </button>
-        <span className="text-[11px] font-bold uppercase tracking-widest text-ink-3">Playing in XOLDOUT</span>
+        <span className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Playing in XOLDOUT</span>
         <button onClick={handleShare} className="w-8 flex justify-end text-ink-2" aria-label="Share">
-          {shareLabel === "copied" ? <span className="text-[10px] text-ink-3">Copied</span> : <ShareIcon />}
+          {shareLabel === "copied" ? <span className="text-[11px] text-ink-3">Copied</span> : <ShareIcon />}
         </button>
       </div>
 
@@ -213,7 +213,7 @@ export function ExpandedPlayer() {
           </p>
 
           {!entitled && previewStartSec !== null && previewEndSec !== null && (
-            <p className="text-[11px] text-red-soft mb-3">
+            <p className="text-[12px] text-red-soft mb-3">
               Preview only — {formatTime(previewStartSec)} to {formatTime(previewEndSec)}. Buy to hear the rest.
             </p>
           )}
@@ -227,7 +227,7 @@ export function ExpandedPlayer() {
             onChange={(e) => seek(Number(e.target.value))}
             className="w-full h-1 accent-red mb-1"
           />
-          <div className="flex justify-between text-[10px] text-ink-3 mb-6">
+          <div className="flex justify-between text-[11px] text-ink-3 mb-6">
             <span>{formatTime(positionSec)}</span>
             <span>-{formatTime(remainingSec)}</span>
           </div>
@@ -326,7 +326,7 @@ export function ExpandedPlayer() {
                     <span className="text-ink-3 mr-2">{i + 1}.</span>
                     {t.title}
                   </span>
-                  {i === queueIndex && <span className="text-[10px] uppercase tracking-widest">Now Playing</span>}
+                  {i === queueIndex && <span className="text-[11px] uppercase tracking-widest">Now Playing</span>}
                 </button>
               ))}
             </div>

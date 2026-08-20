@@ -174,7 +174,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
                 <span className="flex items-center text-sm">
                   <span className="truncate">{track.title}</span>
                   {!entitled && !isOwner && (
-                    <span className="ml-2 shrink-0 text-[10px] text-ink-3 uppercase tracking-widest">Preview</span>
+                    <span className="ml-2 shrink-0 text-[11px] text-ink-3 uppercase tracking-widest">Preview</span>
                   )}
                 </span>
                 <span className="block text-xs text-ink-3 line-clamp-1">
@@ -190,7 +190,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       </div>
 
       {entitled && (
-        <p className="text-[11px] text-green mt-4">
+        <p className="text-[12px] text-green mt-4">
           You own this. Playable offline once downloaded to your Library.
         </p>
       )}

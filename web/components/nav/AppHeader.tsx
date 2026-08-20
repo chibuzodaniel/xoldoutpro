@@ -6,7 +6,7 @@ export function AppHeader() {
       <Link href="/discover" className="flex items-center gap-2">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/xoldout-icon-transparent.png" alt="" className="h-6 w-6" />
-        <span className="font-sans font-extrabold tracking-tight text-[15px]">XOLDOUT</span>
+        <span className="font-sans font-extrabold tracking-tight text-[16px]">XOLDOUT</span>
       </Link>
       <div className="flex items-center gap-4">
         <Link href="/search" aria-label="Search" className="text-ink-2">

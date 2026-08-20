@@ -25,7 +25,7 @@ function CollectionCard({ collection }: { collection: Collection }) {
         )}
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{collection.name}</p>
-      <p className="text-[11px] text-ink-3">{collection.itemCount} item{collection.itemCount === 1 ? "" : "s"}</p>
+      <p className="text-[12px] text-ink-3">{collection.itemCount} item{collection.itemCount === 1 ? "" : "s"}</p>
     </Link>
   );
 }

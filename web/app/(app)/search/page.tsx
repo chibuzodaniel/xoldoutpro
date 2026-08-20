@@ -51,7 +51,7 @@ export default function SearchPage() {
 
       {!queryTooShort && creators.length > 0 && (
         <div className="mb-7">
-          <h3 className="text-[11px] font-bold uppercase tracking-wide text-ink-3 mb-3">Creators</h3>
+          <h3 className="text-[12px] font-bold uppercase tracking-wide text-ink-3 mb-3">Creators</h3>
           <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
             {creators.map((c) => (
               <Link key={c.id} href={`/u/${c.handle}`} className="flex items-center gap-3 py-2.5">
@@ -75,7 +75,7 @@ export default function SearchPage() {
 
       {!queryTooShort && products.length > 0 && (
         <div>
-          <h3 className="text-[11px] font-bold uppercase tracking-wide text-ink-3 mb-3">Releases</h3>
+          <h3 className="text-[12px] font-bold uppercase tracking-wide text-ink-3 mb-3">Releases</h3>
           <div className="grid grid-cols-3 gap-3">
             {products.map((p) => (
               <ProductCard key={p.id} product={p} />

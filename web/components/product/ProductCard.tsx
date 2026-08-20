@@ -65,7 +65,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           <Image src={imageUrl} alt={product.title} fill sizes="33vw" className="object-cover" />
         )}
 
-        <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[9px] font-semibold uppercase tracking-wide text-white">
+        <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
           {categoryLabelFor(product)}
         </span>
 
@@ -79,22 +79,22 @@ export function ProductCard({ product }: { product: ProductCardData }) {
 
         {isSoldOut && (
           <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
-            <span className="rounded-full border border-white/40 px-3 py-1 text-[10px] uppercase tracking-widest text-white font-semibold">
+            <span className="rounded-full border border-white/40 px-3 py-1 text-[11px] uppercase tracking-widest text-white font-semibold">
               Sold out
             </span>
           </div>
         )}
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{product.title}</p>
-      <p className="text-[11px] text-ink-3 line-clamp-1">{product.creator.displayName}</p>
+      <p className="text-[12px] text-ink-3 line-clamp-1">{product.creator.displayName}</p>
       <div className="flex items-center justify-between mt-0.5">
-        <span className="text-[11px] font-serif">{formatNaira(product.priceKobo)}</span>
+        <span className="text-[12px] font-serif">{formatNaira(product.priceKobo)}</span>
         {remaining !== null ? (
-          <span className="text-[11px] font-semibold text-red-soft">
+          <span className="text-[12px] font-semibold text-red-soft">
             {isSoldOut ? "Sold out" : `${remaining} left`}
           </span>
         ) : (
-          <span className="text-[11px] text-ink-3">{sold} sold</span>
+          <span className="text-[12px] text-ink-3">{sold} sold</span>
         )}
       </div>
     </Link>

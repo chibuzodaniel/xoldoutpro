@@ -143,11 +143,11 @@ export default function ModerationPage() {
             return (
               <div key={r.id} className="rounded-lg border border-line-soft p-4">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide">
+                  <span className="rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide">
                     {REASON_LABEL[r.reason]}
                   </span>
                   {sla && (
-                    <span className={`text-[11px] font-semibold ${sla.overdue ? "text-red-soft" : "text-ink-3"}`}>{sla.text}</span>
+                    <span className={`text-[12px] font-semibold ${sla.overdue ? "text-red-soft" : "text-ink-3"}`}>{sla.text}</span>
                   )}
                 </div>
                 {target.href ? (
@@ -158,7 +158,7 @@ export default function ModerationPage() {
                   <p className="text-sm font-semibold mb-1">{target.label}</p>
                 )}
                 {r.details && <p className="text-sm text-ink-2 mb-2">{r.details}</p>}
-                <p className="text-[11px] text-ink-3 mb-3">
+                <p className="text-[12px] text-ink-3 mb-3">
                   Reported by {r.reporter.displayName} · {new Date(r.createdAt).toLocaleString("en-NG")} · {r.status}
                 </p>
                 <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ function VerifyCreatorPanel() {
 
   return (
     <div className="rounded-lg border border-line-soft p-4 mb-6">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Verify a creator</p>
+      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Verify a creator</p>
       <div className="flex gap-2 mb-2">
         <input
           value={handle}
@@ -322,7 +322,7 @@ function VerifyGroupPanel() {
 
   return (
     <div className="rounded-lg border border-line-soft p-4 mb-6">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Verify a Fanbase group</p>
+      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Verify a Fanbase group</p>
 
       {pending === null ? (
         <p className="text-xs text-ink-3 mb-3">Loading…</p>
@@ -334,7 +334,7 @@ function VerifyGroupPanel() {
             <div key={g.id} className="flex items-center justify-between py-2.5">
               <div>
                 <p className="text-sm font-semibold">{g.name}</p>
-                <p className="text-[11px] text-ink-3">by {g.creator.displayName}</p>
+                <p className="text-[12px] text-ink-3">by {g.creator.displayName}</p>
               </div>
               <div className="flex gap-2">
                 <button

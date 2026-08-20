@@ -167,7 +167,7 @@ export default function UploadMusicPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Artwork</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Artwork</label>
           <label className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
             {artworkPreview ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -204,7 +204,7 @@ export default function UploadMusicPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Title</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Title</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
@@ -215,7 +215,7 @@ export default function UploadMusicPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Description</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Description</label>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -226,7 +226,7 @@ export default function UploadMusicPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Price</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Price</label>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -254,7 +254,7 @@ export default function UploadMusicPage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label className="text-[11px] uppercase tracking-widest text-ink-3">Limited quantity</label>
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Limited quantity</label>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -286,7 +286,7 @@ export default function UploadMusicPage() {
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Tracks</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Tracks</label>
             {canAddTrack && (
               <button type="button" onClick={() => setTracks((cur) => [...cur, newTrack()])} className="text-xs text-red-soft">
                 + Add track

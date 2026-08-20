@@ -2,9 +2,15 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ProfileHeaderRow } from "@/components/profile/ProfileHeaderRow";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
-import { ProductCard } from "@/components/product/ProductCard";
+import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { FanbaseJoinButton } from "@/components/profile/FanbaseJoinButton";
+
+const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = [
+  { types: ["RELEASE", "BEAT"], label: "Music & Beats" },
+  { types: ["MERCH"], label: "Merch" },
+];
 
 // Public, non-personalized profile data — cache and serve from the CDN,
 // revalidating in the background rather than hitting the DB on every view.
@@ -48,17 +54,29 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   const user = await db.user.findUnique({ where: { handle } });
   if (!user) notFound();
 
-  const catalog = await db.product.findMany({
-    where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
-    include: {
-      creator: { select: { handle: true, displayName: true } },
-      release: { select: { artworkLadder: true, releaseType: true } },
-      beat: { select: { coverImageLadder: true } },
-      merchItem: { select: { imageLadder: true } },
-      stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
-    },
-    orderBy: { publishedAt: "desc" },
-  });
+  const [catalog, fansCount, salesAgg, fanbaseGroup] = await Promise.all([
+    db.product.findMany({
+      where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
+      include: {
+        creator: { select: { handle: true, displayName: true } },
+        release: { select: { artworkLadder: true, releaseType: true } },
+        beat: { select: { coverImageLadder: true } },
+        merchItem: { select: { imageLadder: true } },
+        stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
+      },
+      orderBy: { publishedAt: "desc" },
+    }),
+    db.follow.count({ where: { followedId: user.id } }),
+    db.stockPolicy.aggregate({ where: { product: { creatorId: user.id } }, _sum: { sold: true } }),
+    // A creator can technically own more than one group — the oldest one
+    // they created is treated as "their" Fanbase, same convention as the
+    // rest of the app (e.g. ManageGroupSheet's danger zone assumes one).
+    db.fanbaseGroup.findFirst({
+      where: { creatorId: user.id },
+      orderBy: { createdAt: "asc" },
+      include: { _count: { select: { memberships: true } } },
+    }),
+  ]);
 
   const socialLinks = (user.socialLinks as { platform: string; url: string }[] | null) ?? [];
 
@@ -90,6 +108,26 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <p className="text-sm text-ink-3 mb-2">@{user.handle}</p>
         {user.bio && <p className="text-sm text-ink-2 mb-3 max-w-md">{user.bio}</p>}
 
+        <div className="flex items-center gap-4 mb-3 text-xs text-ink-2">
+          <span>
+            <strong className="font-semibold text-ink">{fansCount.toLocaleString("en-NG")}</strong> Fans
+          </span>
+          {fanbaseGroup && (
+            <span>
+              <strong className="font-semibold text-ink">{fanbaseGroup._count.memberships.toLocaleString("en-NG")}</strong> Fanbase
+            </span>
+          )}
+          <span>
+            <strong className="font-semibold text-ink">{(salesAgg._sum.sold ?? 0).toLocaleString("en-NG")}</strong> Sales
+          </span>
+        </div>
+
+        {fanbaseGroup && (
+          <div className="mb-3">
+            <FanbaseJoinButton groupId={fanbaseGroup.id} creatorId={user.id} />
+          </div>
+        )}
+
         {user.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
             {user.tags.map((tag) => (
@@ -118,13 +156,21 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         )}
 
         {catalog.length > 0 && (
-          <div className="mt-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Catalog</h2>
-            <div className="grid grid-cols-3 gap-3">
-              {catalog.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+          <div className="mt-2 flex flex-col gap-6">
+            {CATALOG_SECTIONS.map(({ types, label }) => {
+              const items = catalog.filter((p) => types.includes(p.type));
+              if (items.length === 0) return null;
+              return (
+                <div key={label}>
+                  <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">{label}</h2>
+                  <div className="grid grid-cols-3 gap-3">
+                    {items.map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

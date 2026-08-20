@@ -50,22 +50,22 @@ export default function WalletPage() {
       <h1 className="font-serif text-2xl mb-6">Wallet</h1>
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-3">
-        <p className="text-[10px] uppercase tracking-widest text-ink-3">Available</p>
+        <p className="text-[11px] uppercase tracking-widest text-ink-3">Available</p>
         <p className="font-serif text-3xl">{naira(data.availableKobo)}</p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="rounded-xl border border-line bg-surface p-3">
-          <p className="text-[10px] uppercase tracking-widest text-ink-3">Pending</p>
+          <p className="text-[11px] uppercase tracking-widest text-ink-3">Pending</p>
           <p className="font-serif text-lg">{naira(data.pendingKobo)}</p>
         </div>
         <div className="rounded-xl border border-line bg-surface p-3">
-          <p className="text-[10px] uppercase tracking-widest text-ink-3">Total earned</p>
+          <p className="text-[11px] uppercase tracking-widest text-ink-3">Total earned</p>
           <p className="font-serif text-lg">{naira(data.totalEarnedKobo)}</p>
         </div>
       </div>
 
-      <p className="text-[11px] text-ink-3 mb-6">
+      <p className="text-[12px] text-ink-3 mb-6">
         Pending becomes available 7 days after a sale, matching the refund window. Once it&apos;s available, it&apos;s
         yours to withdraw.
       </p>
@@ -85,7 +85,7 @@ export default function WalletPage() {
 
       {Object.keys(data.earnedByCategory).length > 0 && (
         <div className="mb-8">
-          <h2 className="text-[11px] uppercase tracking-widest text-ink-3 mb-3">Earned by category</h2>
+          <h2 className="text-[12px] uppercase tracking-widest text-ink-3 mb-3">Earned by category</h2>
           <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
             {Object.entries(data.earnedByCategory).map(([type, kobo]) => (
               <div key={type} className="flex items-center justify-between py-2.5 text-sm">
@@ -98,7 +98,7 @@ export default function WalletPage() {
       )}
 
       <div>
-        <h2 className="text-[11px] uppercase tracking-widest text-ink-3 mb-3">Payout history</h2>
+        <h2 className="text-[12px] uppercase tracking-widest text-ink-3 mb-3">Payout history</h2>
         {data.payouts.length === 0 ? (
           <p className="text-sm text-ink-3">No payouts yet.</p>
         ) : (
@@ -107,11 +107,11 @@ export default function WalletPage() {
               <div key={p.id} className="flex items-center justify-between py-2.5 text-sm">
                 <div>
                   <p>{naira(p.netKobo)}</p>
-                  <p className="text-[10px] text-ink-3">
+                  <p className="text-[11px] text-ink-3">
                     {p.payoutAccount.bankName} ···{p.payoutAccount.accountNumber.slice(-4)}
                   </p>
                 </div>
-                <span className="text-[10px] uppercase tracking-widest text-ink-3">{p.status}</span>
+                <span className="text-[11px] uppercase tracking-widest text-ink-3">{p.status}</span>
               </div>
             ))}
           </div>

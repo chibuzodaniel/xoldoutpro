@@ -43,7 +43,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
       </div>
 
       <div className="px-4 pt-4">
-        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide mb-2">
+        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
           Event
         </span>
         <div className="flex items-start justify-between gap-3">
@@ -65,7 +65,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         {event.description && <p className="text-sm text-ink-2 mb-5">{event.description}</p>}
 
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Tickets</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Tickets</h2>
         <div className="flex flex-col gap-2 mb-6">
           {event.tiers.map((tier) => {
             const isSoldOut = Boolean(tier.product.stockPolicy?.soldOutAt);

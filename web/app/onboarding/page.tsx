@@ -85,7 +85,7 @@ export default function OnboardingPage() {
   return (
     <main className="flex flex-1 flex-col items-center px-6 py-16">
       <div className="w-full max-w-sm">
-        <p className="text-[11px] tracking-[0.22em] uppercase text-red font-semibold mb-4">Set up your profile</p>
+        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-4">Set up your profile</p>
         <h1 className="font-serif text-3xl mb-8">You&apos;re in.</h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -121,7 +121,7 @@ export default function OnboardingPage() {
           )}
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Handle</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Handle</label>
             <input
               value={handle}
               onChange={(e) => setHandle(e.target.value.toLowerCase())}
@@ -134,7 +134,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Display name</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Display name</label>
             <input
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -145,7 +145,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="flex flex-col gap-1">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">Bio</label>
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Bio</label>
             <textarea
               value={bio}
               onChange={(e) => setBio(e.target.value)}
@@ -156,7 +156,7 @@ export default function OnboardingPage() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[11px] uppercase tracking-widest text-ink-3">
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">
               Tags — describe yourself, doesn&apos;t restrict what you can do
             </label>
             <div className="flex flex-wrap gap-2">

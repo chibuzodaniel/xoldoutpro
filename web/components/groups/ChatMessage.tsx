@@ -65,12 +65,12 @@ function PollBlock({ messageId, poll, onVoted }: { messageId: string; poll: Chat
             <div className={`absolute inset-y-0 left-0 ${mine ? "bg-white/25" : "bg-white/5"}`} style={{ width: poll.myVote !== null ? `${pct}%` : "0%" }} />
             <div className="relative flex items-center justify-between px-2.5 py-1.5">
               <span className="text-xs">{option}</span>
-              {poll.myVote !== null && <span className="text-[11px] opacity-80">{pct}%</span>}
+              {poll.myVote !== null && <span className="text-[12px] opacity-80">{pct}%</span>}
             </div>
           </button>
         );
       })}
-      <p className="text-[10px] opacity-70">{poll.totalVotes} vote{poll.totalVotes === 1 ? "" : "s"}</p>
+      <p className="text-[11px] opacity-70">{poll.totalVotes} vote{poll.totalVotes === 1 ? "" : "s"}</p>
     </div>
   );
 }
@@ -120,20 +120,20 @@ export function ChatMessage({
   return (
     <div className={`flex gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
       {!isMine && (
-        <div className="h-8 w-8 rounded-full bg-red/20 text-red-soft flex items-center justify-center text-[10px] font-bold shrink-0">
+        <div className="h-8 w-8 rounded-full bg-red/20 text-red-soft flex items-center justify-center text-[11px] font-bold shrink-0">
           {initials(message.author.displayName)}
         </div>
       )}
       <div className={`flex flex-col max-w-[78%] ${isMine ? "items-end" : "items-start"}`}>
         {!isMine && (
-          <p className="text-[11px] font-semibold text-red-soft mb-0.5 flex items-center gap-1">
+          <p className="text-[12px] font-semibold text-red-soft mb-0.5 flex items-center gap-1">
             {message.author.displayName}
           </p>
         )}
         {message.replyTo && (
           <div className={`mb-1 rounded-lg border-l-2 border-red-soft/60 bg-white/5 px-2.5 py-1.5 max-w-full`}>
-            <p className="text-[10px] font-semibold text-red-soft">{message.replyTo.author.displayName}</p>
-            <p className="text-[11px] text-ink-3 line-clamp-1">{message.replyTo.body}</p>
+            <p className="text-[11px] font-semibold text-red-soft">{message.replyTo.author.displayName}</p>
+            <p className="text-[12px] text-ink-3 line-clamp-1">{message.replyTo.body}</p>
           </div>
         )}
         <div
@@ -152,15 +152,15 @@ export function ChatMessage({
           <PollBlock messageId={message.id} poll={poll} onVoted={setPoll} />
         </div>
         <div className="flex items-center gap-3 mt-1 px-1">
-          <span className="text-[10px] text-ink-3">{timeAgo(message.createdAt)} ago</span>
-          <button type="button" onClick={() => onReply(message)} className="text-[10px] text-ink-3 font-semibold">
+          <span className="text-[11px] text-ink-3">{timeAgo(message.createdAt)} ago</span>
+          <button type="button" onClick={() => onReply(message)} className="text-[11px] text-ink-3 font-semibold">
             Reply
           </button>
-          <button type="button" onClick={toggleLike} className={`text-[10px] font-semibold ${liked ? "text-red-soft" : "text-ink-3"}`}>
+          <button type="button" onClick={toggleLike} className={`text-[11px] font-semibold ${liked ? "text-red-soft" : "text-ink-3"}`}>
             ♥ {likeCount > 0 ? likeCount : ""}
           </button>
           {canDelete && (
-            <button type="button" onClick={handleDelete} disabled={deleting} className="text-[10px] text-ink-3 font-semibold disabled:opacity-50">
+            <button type="button" onClick={handleDelete} disabled={deleting} className="text-[11px] text-ink-3 font-semibold disabled:opacity-50">
               Delete
             </button>
           )}

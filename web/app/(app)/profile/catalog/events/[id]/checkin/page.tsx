@@ -118,7 +118,7 @@ export default function EventCheckInPage() {
         </div>
       )}
 
-      <p className="text-[11px] uppercase tracking-widest text-ink-3 mb-2">Or enter the code manually</p>
+      <p className="text-[12px] uppercase tracking-widest text-ink-3 mb-2">Or enter the code manually</p>
       <div className="flex gap-2 mb-4">
         <input
           value={manualCode}

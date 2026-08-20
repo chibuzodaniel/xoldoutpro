@@ -188,7 +188,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
             </svg>
             Download
           </button>
-          {entitled && <p className="text-[11px] text-green mt-3">You own this beat, licensed for commercial use.</p>}
+          {entitled && <p className="text-[12px] text-green mt-3">You own this beat, licensed for commercial use.</p>}
         </div>
       )}
     </div>

@@ -59,29 +59,29 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
           <p className="font-serif text-2xl">{totals.unitsSold}</p>
-          <p className="text-[10px] uppercase tracking-widest text-ink-3 mt-0.5">Units sold</p>
+          <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Units sold</p>
         </div>
         <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
           <p className="font-serif text-2xl">{totals.fans}</p>
-          <p className="text-[10px] uppercase tracking-widest text-ink-3 mt-0.5">Fans</p>
-          {totals.newFans30d > 0 && <p className="text-[10px] text-red-soft mt-0.5">+{totals.newFans30d} in 30d</p>}
+          <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Fans</p>
+          {totals.newFans30d > 0 && <p className="text-[11px] text-red-soft mt-0.5">+{totals.newFans30d} in 30d</p>}
         </div>
         <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
           <p className="font-serif text-2xl">{totals.sellOutRatePct !== null ? `${totals.sellOutRatePct}%` : "—"}</p>
-          <p className="text-[10px] uppercase tracking-widest text-ink-3 mt-0.5">Sell-out rate</p>
+          <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Sell-out rate</p>
         </div>
         <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
           <p className="font-serif text-2xl">{returningPct !== null ? `${returningPct}%` : "—"}</p>
-          <p className="text-[10px] uppercase tracking-widest text-ink-3 mt-0.5">Returning fans</p>
+          <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Returning fans</p>
           {totals.totalCustomers > 0 && (
-            <p className="text-[10px] text-ink-3 mt-0.5">
+            <p className="text-[11px] text-ink-3 mt-0.5">
               {totals.returningCustomers} of {totals.totalCustomers}
             </p>
           )}
         </div>
       </div>
 
-      <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-1">Top products</h2>
+      <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Top products</h2>
       {topProducts.length === 0 ? (
         <p className="text-sm text-ink-3 mb-6">Nothing published yet.</p>
       ) : (
@@ -91,7 +91,7 @@ export default function AnalyticsPage() {
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold line-clamp-1">{p.title}</p>
-                  <p className="text-[10px] uppercase tracking-widest text-ink-3">{TYPE_LABEL[p.type]}</p>
+                  <p className="text-[11px] uppercase tracking-widest text-ink-3">{TYPE_LABEL[p.type]}</p>
                 </div>
                 <span className="font-serif text-lg shrink-0 ml-3">{p.sold}</span>
               </div>

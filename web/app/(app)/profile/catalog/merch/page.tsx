@@ -127,7 +127,7 @@ export default function MerchCatalogPage() {
         </div>
       )}
 
-      <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Orders to fulfil</h2>
+      <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Orders to fulfil</h2>
       {orders === null ? (
         <LoadingSpinner full size="sm" />
       ) : orders.length === 0 ? (
@@ -138,7 +138,7 @@ export default function MerchCatalogPage() {
             <div key={o.id} className="rounded-lg border border-line bg-surface p-4">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-sm font-semibold">{o.items.map((i) => i.product.title).join(", ")}</p>
-                <span className="text-[10px] uppercase tracking-widest text-red-soft font-semibold">
+                <span className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">
                   {o.merchFulfillment?.status.replace("_", " ")}
                 </span>
               </div>

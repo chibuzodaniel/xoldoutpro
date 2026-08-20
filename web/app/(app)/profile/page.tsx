@@ -156,11 +156,11 @@ export default function ProfilePage() {
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
             <p className="font-serif text-2xl">{stats?.fans ?? "—"}</p>
-            <p className="text-[10px] uppercase tracking-widest text-ink-3 mt-0.5">Fans</p>
+            <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Fans</p>
           </div>
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
             <p className="font-serif text-2xl">{stats?.sales ?? "—"}</p>
-            <p className="text-[10px] uppercase tracking-widest text-ink-3 mt-0.5">Sales</p>
+            <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Sales</p>
           </div>
         </div>
 
@@ -181,7 +181,7 @@ export default function ProfilePage() {
 
         {appUser.bio && <p className="text-sm text-ink-2 mb-6 max-w-md">{appUser.bio}</p>}
 
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-1">Your Catalog</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Your Catalog</h2>
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-6">
           {CATALOG_ROWS.map((row) => (
             <Link
@@ -206,7 +206,7 @@ export default function ProfilePage() {
           ))}
         </div>
 
-        <h2 className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-1">Requests</h2>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Requests</h2>
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-6">
           <div className="flex items-center justify-between py-3">
             <div>

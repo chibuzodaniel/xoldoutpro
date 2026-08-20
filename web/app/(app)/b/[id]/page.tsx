@@ -40,7 +40,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="px-4 pt-4">
-        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[9px] font-bold uppercase tracking-wide mb-2">
+        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
           Beat
         </span>
         <div className="flex items-start justify-between gap-3">
@@ -56,13 +56,13 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
         {(product.beat.bpm || product.beat.musicalKey || product.beat.tags.length > 0) && (
           <div className="flex flex-wrap items-center gap-2 mt-3">
             {product.beat.bpm && (
-              <span className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-2">{product.beat.bpm} BPM</span>
+              <span className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-2">{product.beat.bpm} BPM</span>
             )}
             {product.beat.musicalKey && (
-              <span className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-2">{product.beat.musicalKey}</span>
+              <span className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-2">{product.beat.musicalKey}</span>
             )}
             {product.beat.tags.map((tag) => (
-              <span key={tag} className="rounded-full border border-line px-2.5 py-1 text-[11px] text-ink-2">
+              <span key={tag} className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-2">
                 {tag}
               </span>
             ))}
