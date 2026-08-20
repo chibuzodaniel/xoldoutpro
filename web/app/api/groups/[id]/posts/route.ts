@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { sendPushToUsers } from "@/lib/push/send";
 
 const authorSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } as const;
 const replyToSelect = { select: { id: true, body: true, author: { select: { displayName: true } } } } as const;
@@ -118,6 +119,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       },
       include: { author: authorSelect, replyTo: replyToSelect, poll: { include: { votes: true } } },
     });
+
+    const otherMembers = await db.membership.findMany({ where: { groupId: id, userId: { not: user.id } }, select: { userId: true } });
+    sendPushToUsers(
+      otherMembers.map((m) => m.userId),
+      { title: group.name, body: `${user.displayName}: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+    );
 
     return NextResponse.json({ post: serialize(post, 0, 0, false, user.id) });
   } catch (err) {

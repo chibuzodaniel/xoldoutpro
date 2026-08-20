@@ -108,18 +108,21 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <p className="text-sm text-ink-3 mb-2">@{user.handle}</p>
         {user.bio && <p className="text-sm text-ink-2 mb-3 max-w-md">{user.bio}</p>}
 
-        <div className="flex items-center gap-4 mb-3 text-xs text-ink-2">
-          <span>
-            <strong className="font-semibold text-ink">{fansCount.toLocaleString("en-NG")}</strong> Fans
-          </span>
+        <div className={`grid gap-3 mb-3 ${fanbaseGroup ? "grid-cols-3" : "grid-cols-2"}`}>
+          <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
+            <p className="font-serif text-2xl">{fansCount.toLocaleString("en-NG")}</p>
+            <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Fans</p>
+          </div>
           {fanbaseGroup && (
-            <span>
-              <strong className="font-semibold text-ink">{fanbaseGroup._count.memberships.toLocaleString("en-NG")}</strong> Fanbase
-            </span>
+            <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
+              <p className="font-serif text-2xl">{fanbaseGroup._count.memberships.toLocaleString("en-NG")}</p>
+              <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Fanbase</p>
+            </div>
           )}
-          <span>
-            <strong className="font-semibold text-ink">{(salesAgg._sum.sold ?? 0).toLocaleString("en-NG")}</strong> Sales
-          </span>
+          <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
+            <p className="font-serif text-2xl">{(salesAgg._sum.sold ?? 0).toLocaleString("en-NG")}</p>
+            <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Sales</p>
+          </div>
         </div>
 
         {fanbaseGroup && (

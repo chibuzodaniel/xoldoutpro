@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
+import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -96,8 +97,9 @@ function LoginForm() {
         <button
           onClick={handleGoogle}
           disabled={busy}
-          className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold disabled:opacity-50"
+          className="w-full flex items-center justify-center gap-2.5 rounded-lg border border-line px-4 py-3 text-sm font-semibold disabled:opacity-50"
         >
+          <GoogleLogo />
           Continue with Google
         </button>
 

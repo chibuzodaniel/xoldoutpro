@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { sendPushToUsers } from "@/lib/push/send";
 
 // PRD §11 Phase 2: OPEN groups join immediately; REQUEST_TO_JOIN groups
 // queue a JoinRequest for the creator/admins to approve.
@@ -25,6 +26,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       update: { status: "PENDING" },
       create: { groupId: id, userId: user.id },
     });
+
+    const admins = await db.membership.findMany({ where: { groupId: id, role: "ADMIN" }, select: { userId: true } });
+    sendPushToUsers(
+      admins.map((a) => a.userId),
+      { title: "New Fanbase request", body: `${user.displayName} wants to join ${group.name}`, url: `/groups/${id}` },
+    );
+
     return NextResponse.json({ status: request.status });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

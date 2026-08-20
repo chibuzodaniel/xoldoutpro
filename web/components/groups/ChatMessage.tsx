@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Linkified } from "@/components/ui/Linkified";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export type ChatMessageData = {
   id: string;
@@ -92,6 +94,7 @@ export function ChatMessage({
   canDelete?: boolean;
   onDeleted?: (messageId: string) => void;
 }) {
+  const toast = useToast();
   const [liked, setLiked] = useState(message.likedByMe);
   const [likeCount, setLikeCount] = useState(message.likeCount);
   const [poll, setPoll] = useState(message.poll);
@@ -106,6 +109,10 @@ export function ChatMessage({
       const data = await res.json();
       setLiked(data.liked);
       setLikeCount(data.likeCount);
+    } else {
+      setLiked(!next);
+      setLikeCount((c) => c + (next ? -1 : 1));
+      toast.error("Couldn't update like. Try again.");
     }
   }
 
@@ -114,21 +121,27 @@ export function ChatMessage({
     setDeleting(true);
     const res = await apiFetch(`/api/posts/${message.id}`, { method: "DELETE" });
     if (res.ok) onDeleted?.(message.id);
-    else setDeleting(false);
+    else {
+      setDeleting(false);
+      toast.error("Couldn't delete this message. Try again.");
+    }
   }
 
   return (
     <div className={`flex gap-2 ${isMine ? "flex-row-reverse" : ""}`}>
       {!isMine && (
-        <div className="h-8 w-8 rounded-full bg-red/20 text-red-soft flex items-center justify-center text-[11px] font-bold shrink-0">
+        <Link
+          href={`/u/${message.author.handle}`}
+          className="h-8 w-8 rounded-full bg-red/20 text-red-soft flex items-center justify-center text-[11px] font-bold shrink-0"
+        >
           {initials(message.author.displayName)}
-        </div>
+        </Link>
       )}
       <div className={`flex flex-col max-w-[78%] ${isMine ? "items-end" : "items-start"}`}>
         {!isMine && (
-          <p className="text-[12px] font-semibold text-red-soft mb-0.5 flex items-center gap-1">
+          <Link href={`/u/${message.author.handle}`} className="text-[12px] font-semibold text-red-soft mb-0.5 flex items-center gap-1">
             {message.author.displayName}
-          </p>
+          </Link>
         )}
         {message.replyTo && (
           <div className={`mb-1 rounded-lg border-l-2 border-red-soft/60 bg-white/5 px-2.5 py-1.5 max-w-full`}>

@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 import { apiFetch } from "@/lib/api";
 
 export function FollowButton({ targetUserId }: { targetUserId: string }) {
   const { appUser } = useAuth();
+  const toast = useToast();
   const [following, setFollowing] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -26,6 +28,7 @@ export function FollowButton({ targetUserId }: { targetUserId: string }) {
         body: following ? undefined : JSON.stringify({ targetUserId }),
       });
       if (res.ok) setFollowing(!following);
+      else toast.error(following ? "Couldn't unfollow. Try again." : "Couldn't follow. Try again.");
     } finally {
       setBusy(false);
     }

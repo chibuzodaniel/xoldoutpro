@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { sendPushToUser } from "@/lib/push/send";
 
 // Flat comments (PRD §11 Phase 2 "member participation") — reachable on any
 // Post, but the only UI that renders them is the group post view; the MVP
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { body } = bodySchema.parse(await req.json());
 
-    const post = await db.post.findUnique({ where: { id }, select: { groupId: true } });
+    const post = await db.post.findUnique({ where: { id }, select: { authorId: true, groupId: true } });
     if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (post.groupId) {
       const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: post.groupId, userId: user.id } } });
@@ -35,6 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       data: { postId: id, authorId: user.id, body },
       include: { author: { select: { handle: true, displayName: true, avatarUrl: true } } },
     });
+    if (post.authorId !== user.id) {
+      sendPushToUser(post.authorId, { title: "New comment", body: `${user.displayName} commented on your post`, url: `/socials` });
+    }
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

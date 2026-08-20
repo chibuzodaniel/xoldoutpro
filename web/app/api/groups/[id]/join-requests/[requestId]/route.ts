@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { sendPushToUser } from "@/lib/push/send";
 
 const bodySchema = z.object({ action: z.enum(["approve", "reject"]) });
 
@@ -19,14 +20,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (request.status !== "PENDING") return NextResponse.json({ error: "Already resolved" }, { status: 409 });
 
     if (action === "approve") {
-      await db.$transaction([
+      const [, , group] = await db.$transaction([
         db.joinRequest.update({ where: { id: requestId }, data: { status: "APPROVED" } }),
         db.membership.upsert({
           where: { groupId_userId: { groupId: id, userId: request.userId } },
           update: {},
           create: { groupId: id, userId: request.userId, role: "MEMBER" },
         }),
+        db.fanbaseGroup.findUnique({ where: { id }, select: { name: true } }),
       ]);
+      sendPushToUser(request.userId, {
+        title: "Fanbase request approved",
+        body: `You're in ${group?.name ?? "the Fanbase"}`,
+        url: `/groups/${id}`,
+      });
     } else {
       await db.joinRequest.update({ where: { id: requestId }, data: { status: "REJECTED" } });
     }

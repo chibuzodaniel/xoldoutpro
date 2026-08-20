@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { sendPushToUser } from "@/lib/push/send";
 
 const bodySchema = z.object({ targetUserId: z.string().min(1) });
 
@@ -26,11 +27,17 @@ export async function POST(req: NextRequest) {
     const { targetUserId } = bodySchema.parse(await req.json());
     if (targetUserId === user.id) return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
 
+    const existing = await db.follow.findUnique({
+      where: { followerId_followedId: { followerId: user.id, followedId: targetUserId } },
+    });
     await db.follow.upsert({
       where: { followerId_followedId: { followerId: user.id, followedId: targetUserId } },
       create: { followerId: user.id, followedId: targetUserId },
       update: {},
     });
+    if (!existing) {
+      sendPushToUser(targetUserId, { title: "New follower", body: `${user.displayName} started following you`, url: `/u/${user.handle}` });
+    }
     return NextResponse.json({ following: true });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

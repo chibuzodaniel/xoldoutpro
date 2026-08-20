@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type JoinRequest = { id: string; user: { id: string; handle: string; displayName: string; avatarUrl: string | null } };
 type Member = { userId: string; role: "ADMIN" | "MEMBER"; user: { id: string; handle: string; displayName: string; avatarUrl: string | null } };
@@ -40,6 +41,7 @@ export function ManageGroupSheet({
   onSettingsChanged,
   onDeleted,
 }: Props) {
+  const toast = useToast();
   const [tab, setTab] = useState<"requests" | "members" | "settings">("requests");
   const [requests, setRequests] = useState<JoinRequest[] | null>(null);
   const [members, setMembers] = useState<Member[] | null>(null);
@@ -53,9 +55,13 @@ export function ManageGroupSheet({
     try {
       const res = await apiFetch(`/api/groups/${groupId}`, { method: "DELETE" });
       if (res.ok) onDeleted();
-      else setDeletingGroup(false);
+      else {
+        setDeletingGroup(false);
+        toast.error("Couldn't delete this Fanbase. Try again.");
+      }
     } catch {
       setDeletingGroup(false);
+      toast.error("Couldn't delete this Fanbase. Try again.");
     }
   }
 
@@ -66,6 +72,9 @@ export function ManageGroupSheet({
       if (res.ok) {
         const data = await res.json();
         setRequestedAt(data.verificationRequestedAt);
+        toast.success("Verification requested.");
+      } else {
+        toast.error("Couldn't request verification. Try again.");
       }
     } finally {
       setRequestingVerification(false);
@@ -85,22 +94,26 @@ export function ManageGroupSheet({
   async function respond(requestId: string, action: "approve" | "reject") {
     const res = await apiFetch(`/api/groups/${groupId}/join-requests/${requestId}`, { method: "PATCH", body: JSON.stringify({ action }) });
     if (res.ok) setRequests((cur) => cur?.filter((r) => r.id !== requestId) ?? null);
+    else toast.error("Couldn't update this request. Try again.");
   }
 
   async function setRole(userId: string, role: "ADMIN" | "MEMBER") {
     const res = await apiFetch(`/api/groups/${groupId}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ role }) });
     if (res.ok) setMembers((cur) => cur?.map((m) => (m.userId === userId ? { ...m, role } : m)) ?? null);
+    else toast.error("Couldn't update this member. Try again.");
   }
 
   async function removeMember(userId: string) {
     if (!window.confirm("Remove this member from the group?")) return;
     const res = await apiFetch(`/api/groups/${groupId}/members/${userId}`, { method: "DELETE" });
     if (res.ok) setMembers((cur) => cur?.filter((m) => m.userId !== userId) ?? null);
+    else toast.error("Couldn't remove this member. Try again.");
   }
 
   async function updateSetting(patch: { postPermission?: string; visibility?: string }) {
     const res = await apiFetch(`/api/groups/${groupId}`, { method: "PATCH", body: JSON.stringify(patch) });
     if (res.ok) onSettingsChanged(patch);
+    else toast.error("Couldn't update settings. Try again.");
   }
 
   return (

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Status = "NOT_MEMBER" | "MEMBER" | "PENDING";
 
@@ -14,6 +15,7 @@ type Status = "NOT_MEMBER" | "MEMBER" | "PENDING";
 export function FanbaseJoinButton({ groupId, creatorId }: { groupId: string; creatorId: string }) {
   const { appUser, firebaseUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [status, setStatus] = useState<Status | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -42,6 +44,8 @@ export function FanbaseJoinButton({ groupId, creatorId }: { groupId: string; cre
       if (res.ok) {
         const data = await res.json();
         setStatus(data.status === "JOINED" ? "MEMBER" : "PENDING");
+      } else {
+        toast.error("Couldn't join this Fanbase. Try again.");
       }
     } finally {
       setBusy(false);

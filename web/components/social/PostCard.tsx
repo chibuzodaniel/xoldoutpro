@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { Linkified } from "@/components/ui/Linkified";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export type FeedPost = {
   id: string;
@@ -41,6 +42,7 @@ function timeAgo(iso: string) {
 
 export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (postId: string) => void }) {
   const { appUser } = useAuth();
+  const toast = useToast();
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [busy, setBusy] = useState(false);
@@ -59,6 +61,8 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
       if (res.ok) {
         const data = await res.json();
         setComments(data.comments);
+      } else {
+        toast.error("Couldn't load comments.");
       }
     }
   }
@@ -75,6 +79,8 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
         setComments((cur) => [...(cur ?? []), data.comment]);
         setCommentCount((c) => c + 1);
         setCommentBody("");
+      } else {
+        toast.error("Couldn't post your comment. Try again.");
       }
     } finally {
       setPostingComment(false);
@@ -86,7 +92,10 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
     setDeleting(true);
     const res = await apiFetch(`/api/posts/${post.id}`, { method: "DELETE" });
     if (res.ok) onDeleted?.(post.id);
-    else setDeleting(false);
+    else {
+      setDeleting(false);
+      toast.error("Couldn't delete this post. Try again.");
+    }
   }
 
   async function toggleLike() {
@@ -104,6 +113,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
       } else {
         setLiked(!nextLiked);
         setLikeCount((c) => c + (nextLiked ? -1 : 1));
+        toast.error("Couldn't update like. Try again.");
       }
     } finally {
       setBusy(false);
@@ -173,14 +183,16 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
           ) : (
             comments.map((c) => (
               <div key={c.id} className="flex gap-2">
-                <div className="relative h-6 w-6 rounded-full bg-surface-2 overflow-hidden shrink-0">
+                <Link href={`/u/${c.author.handle}`} className="relative h-6 w-6 rounded-full bg-surface-2 overflow-hidden shrink-0">
                   {c.author.avatarUrl && (
                     <Image src={c.author.avatarUrl} alt={c.author.displayName} fill sizes="24px" className="object-cover" />
                   )}
-                </div>
+                </Link>
                 <div className="min-w-0">
                   <p className="text-xs">
-                    <span className="font-semibold mr-1.5">{c.author.displayName}</span>
+                    <Link href={`/u/${c.author.handle}`} className="font-semibold mr-1.5">
+                      {c.author.displayName}
+                    </Link>
                     <Linkified text={c.body} />
                   </p>
                   <p className="text-[11px] text-ink-3">{timeAgo(c.createdAt)}</p>

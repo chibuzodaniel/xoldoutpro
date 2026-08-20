@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { PostComposer } from "@/components/social/PostComposer";
+import { CreatePostSheet } from "@/components/social/CreatePostSheet";
 import { PostCard, type FeedPost } from "@/components/social/PostCard";
 import { FanbaseTab } from "@/components/groups/FanbaseTab";
 
@@ -27,9 +27,25 @@ export default function SocialsPage() {
 
 function SocialsPageInner() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [tab, setTab] = useState<SocialsTab>(searchParams.get("tab") === "fanbase" ? "fanbase" : "feed");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
+  // BottomNav's central "+" links here with ?compose=1 while on Socials
+  // (replacing the general publish sheet it opens everywhere else) — it has
+  // no way to reach this page's `posts` state directly, so it hands off via
+  // the URL instead. Derived straight from searchParams (which itself
+  // re-renders this component on navigation) rather than synced into state
+  // via an effect, so there's no setState-in-effect cascade; the param only
+  // gets stripped once the sheet is actually dismissed.
+  const composerOpenFromQuery = searchParams.get("compose") === "1";
+  const sheetOpen = composerOpen || composerOpenFromQuery;
+
+  function closeComposer() {
+    setComposerOpen(false);
+    if (composerOpenFromQuery) router.replace("/socials?tab=feed");
+  }
 
   useEffect(() => {
     async function load() {
@@ -83,8 +99,6 @@ function SocialsPageInner() {
             </div>
           )}
 
-          <PostComposer onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])} />
-
           {posts === null ? (
             <LoadingSpinner full size="md" />
           ) : posts.length === 0 ? (
@@ -102,6 +116,12 @@ function SocialsPageInner() {
               ))}
             </div>
           )}
+
+          <CreatePostSheet
+            open={sheetOpen}
+            onClose={closeComposer}
+            onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])}
+          />
         </>
       )}
     </div>

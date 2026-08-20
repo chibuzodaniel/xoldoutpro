@@ -59,22 +59,40 @@ export function BottomNav() {
   const [publishOpen, setPublishOpen] = useState(false);
   if (!hasBottomNav(pathname ?? "")) return null;
 
+  // On Socials, the central FAB creates a feed post instead of opening the
+  // general "what are you publishing" sheet — it hands off via a query param
+  // since this component has no access to the Socials page's post list state.
+  const onSocials = pathname?.startsWith("/socials");
+
   return (
     <>
       <nav className="sticky bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">
         {ITEMS.map((item) =>
           item.isFab ? (
-            <button
-              key={item.href}
-              type="button"
-              onClick={() => setPublishOpen(true)}
-              className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
-              aria-label="Publish"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
-                <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-              </svg>
-            </button>
+            onSocials ? (
+              <Link
+                key={item.href}
+                href="/socials?compose=1"
+                className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
+                aria-label="New post"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                </svg>
+              </Link>
+            ) : (
+              <button
+                key={item.href}
+                type="button"
+                onClick={() => setPublishOpen(true)}
+                className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
+                aria-label="Publish"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                </svg>
+              </button>
+            )
           ) : (
             <Link
               key={item.href}

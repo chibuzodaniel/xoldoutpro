@@ -7,7 +7,13 @@ import type { FeedPost } from "./PostCard";
 
 const MAX_LEN = 500;
 
-export function PostComposer({ onPosted }: { onPosted: (post: FeedPost) => void }) {
+export function PostComposer({
+  onPosted,
+  className = "border-b border-line-soft pb-4 mb-4",
+}: {
+  onPosted: (post: FeedPost) => void;
+  className?: string;
+}) {
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -59,7 +65,7 @@ export function PostComposer({ onPosted }: { onPosted: (post: FeedPost) => void 
   }
 
   return (
-    <form onSubmit={handleSubmit} className="border-b border-line-soft pb-4 mb-4">
+    <form onSubmit={handleSubmit} className={className}>
       <textarea
         value={body}
         onChange={(e) => setBody(e.target.value.slice(0, MAX_LEN))}

@@ -13,6 +13,7 @@ import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { ChatMessage, type ChatMessageData } from "@/components/groups/ChatMessage";
 import { ChatComposer } from "@/components/groups/ChatComposer";
 import { ManageGroupSheet } from "@/components/groups/ManageGroupSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type GroupDetail = {
   id: string;
@@ -42,6 +43,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params);
   const { appUser, firebaseUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
 
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [myRole, setMyRole] = useState<"ADMIN" | "MEMBER" | null>(null);
@@ -94,6 +96,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     try {
       const res = await apiFetch(`/api/groups/${id}/join`, { method: "POST" });
       if (res.ok) await load();
+      else toast.error("Couldn't join this Fanbase. Try again.");
     } finally {
       setJoining(false);
     }
@@ -128,6 +131,8 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
       if (res.ok) {
         const data = await res.json();
         setGroup((cur) => (cur ? { ...cur, coverImageUrl: data.coverImageUrl } : cur));
+      } else {
+        toast.error("Couldn't update the group photo. Try again.");
       }
     } finally {
       setUploadingPhoto(false);
@@ -138,6 +143,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     if (!window.confirm("Leave this group?")) return;
     const res = await apiFetch(`/api/groups/${id}/join`, { method: "DELETE" });
     if (res.ok) await load();
+    else toast.error("Couldn't leave this group. Try again.");
   }
 
   if (group === null) return <LoadingSpinner full size="lg" />;

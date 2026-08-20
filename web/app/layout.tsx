@@ -6,6 +6,7 @@ import { MiniPlayer } from "@/components/player/MiniPlayer";
 import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
 import { BottomNav } from "@/components/nav/BottomNav";
 import { InstallGuideProvider } from "@/components/pwa/InstallGuideProvider";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 
 export const metadata: Metadata = {
   title: "XOLDOUT — Where music actually sells out",
@@ -42,18 +43,20 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           this, the *window* scrolls instead of the inner content pane below,
           taking the "fixed" mini player/bottom nav along with it. */}
       <body className="h-full flex flex-col bg-bg text-ink overflow-hidden">
-        <AuthProvider>
-          <InstallGuideProvider>
-            <PlayerProvider>
-              <div className="flex h-full flex-col">
-                <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
-                <MiniPlayer />
-                <BottomNav />
-              </div>
-              <ExpandedPlayer />
-            </PlayerProvider>
-          </InstallGuideProvider>
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <InstallGuideProvider>
+              <PlayerProvider>
+                <div className="flex h-full flex-col">
+                  <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
+                  <MiniPlayer />
+                  <BottomNav />
+                </div>
+                <ExpandedPlayer />
+              </PlayerProvider>
+            </InstallGuideProvider>
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );
