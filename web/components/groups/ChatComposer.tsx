@@ -12,10 +12,12 @@ type Props = {
   onPosted: (message: ChatMessageData) => void;
 };
 
-// Bottom-pinned (sticky, not fixed — sticks to the shared scroll region's
-// bottom edge the same way MiniPlayer/BottomNav already do) to match the
-// chat reference: attach + text + send in one row, with an optional
-// "replying to X" strip above it that clears once you send or dismiss it.
+// A plain flex sibling below the (flex-1, scrollable) message list, not
+// `sticky` — sticky only pins against scrollable overflow, which a thread
+// shorter than the viewport never has, so it used to just sit wherever the
+// last message ended instead of at the bottom. Attach + text + send in one
+// row, with an optional "replying to X" strip above it that clears once you
+// send or dismiss it.
 export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Props) {
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -73,7 +75,7 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
   }
 
   return (
-    <div className="sticky bottom-0 bg-bg/95 backdrop-blur border-t border-line-soft px-3 pt-2 pb-3">
+    <div className="shrink-0 bg-bg/95 backdrop-blur border-t border-line-soft px-3 pt-2 pb-3">
       {replyingTo && (
         <div className="flex items-center justify-between rounded-lg bg-surface-2 px-2.5 py-1.5 mb-2">
           <div className="min-w-0">
@@ -164,7 +166,7 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
           className="h-9 w-9 rounded-full bg-red flex items-center justify-center shrink-0 disabled:opacity-40"
           aria-label="Send"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 fill-white -scale-x-100">
             <path d="M4 12l16-8-6 8 6 8z" />
           </svg>
         </button>

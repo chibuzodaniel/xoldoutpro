@@ -1,12 +1,15 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
+import { uploadImage } from "@/lib/uploadImage";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { ChatMessage, type ChatMessageData } from "@/components/groups/ChatMessage";
 import { ChatComposer } from "@/components/groups/ChatComposer";
 import { ManageGroupSheet } from "@/components/groups/ManageGroupSheet";
@@ -48,6 +51,9 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   const [manageOpen, setManageOpen] = useState(false);
   const [joining, setJoining] = useState(false);
   const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     const res = await apiFetch(`/api/groups/${id}`);
@@ -113,6 +119,21 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     }
   }
 
+  async function handlePhotoConfirm(cropped: File) {
+    setPhotoFile(null);
+    setUploadingPhoto(true);
+    try {
+      const key = await uploadImage(cropped, "avatar");
+      const res = await apiFetch(`/api/groups/${id}/photo`, { method: "POST", body: JSON.stringify({ key }) });
+      if (res.ok) {
+        const data = await res.json();
+        setGroup((cur) => (cur ? { ...cur, coverImageUrl: data.coverImageUrl } : cur));
+      }
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   async function handleLeave() {
     if (!window.confirm("Leave this group?")) return;
     const res = await apiFetch(`/api/groups/${id}/join`, { method: "DELETE" });
@@ -127,13 +148,41 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     group.postPermission === "ALL_MEMBERS" ? isMember : group.postPermission === "ADMINS" ? myRole === "ADMIN" : amCreator;
 
   return (
-    <div className="flex flex-col">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-line-soft">
-        <div
-          className={`h-10 w-10 rounded-full bg-gradient-to-br ${AVATAR_GRADIENTS[0]} flex items-center justify-center text-sm font-semibold text-white/90 shrink-0`}
+    <div className="flex h-full flex-col">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-line-soft shrink-0">
+        <button
+          type="button"
+          onClick={() => myRole === "ADMIN" && fileInputRef.current?.click()}
+          disabled={myRole !== "ADMIN" || uploadingPhoto}
+          aria-label={myRole === "ADMIN" ? "Change group photo" : undefined}
+          className={`relative h-10 w-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-sm font-semibold text-white/90 ${
+            group.coverImageUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[0]}`
+          }`}
         >
-          {group.name.slice(0, 1).toUpperCase()}
-        </div>
+          {group.coverImageUrl ? (
+            <Image src={group.coverImageUrl} alt={group.name} fill sizes="40px" className="object-cover" />
+          ) : (
+            group.name.slice(0, 1).toUpperCase()
+          )}
+          {uploadingPhoto && (
+            <span className="absolute inset-0 flex items-center justify-center bg-black/50">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            </span>
+          )}
+        </button>
+        {myRole === "ADMIN" && (
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) setPhotoFile(file);
+              e.target.value = "";
+            }}
+          />
+        )}
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-1 text-base font-semibold">
             <span className="line-clamp-1">{group.name}</span>
@@ -160,7 +209,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
         )}
       </div>
 
-      {group.description && <p className="text-sm text-ink-2 px-4 py-3">{group.description}</p>}
+      {group.description && <p className="text-sm text-ink-2 px-4 py-3 shrink-0">{group.description}</p>}
 
       {!isMember ? (
         <div className="px-4 py-6">
@@ -180,19 +229,32 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
       ) : (
         <>
           {!amCreator && (
-            <button type="button" onClick={handleLeave} className="text-xs text-ink-3 px-4 pt-3 text-left">
+            <button type="button" onClick={handleLeave} className="text-xs text-ink-3 px-4 pt-3 text-left shrink-0">
               Leave group
             </button>
           )}
 
-          <div className="flex flex-col gap-4 px-4 py-4">
+          {/* flex-1 min-h-0 + its own overflow-y-auto is what actually pins
+              the composer below at the viewport's bottom on a short thread —
+              a plain block here relies on `sticky` having scrollable
+              overflow to stick against, which a thread shorter than the
+              screen never has, so the composer just sat wherever the last
+              message happened to end instead of at the bottom. */}
+          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-4 py-4">
             {messages === null ? (
               <LoadingSpinner full size="md" />
             ) : messages.length === 0 ? (
               <p className="text-sm text-ink-3">No messages yet — say something.</p>
             ) : (
               messages.map((m) => (
-                <ChatMessage key={m.id} message={m} isMine={m.author.id === appUser?.id} onReply={setReplyingTo} />
+                <ChatMessage
+                  key={m.id}
+                  message={m}
+                  isMine={m.author.id === appUser?.id}
+                  onReply={setReplyingTo}
+                  canDelete={m.author.id === appUser?.id || myRole === "ADMIN"}
+                  onDeleted={(messageId) => setMessages((cur) => cur?.filter((msg) => msg.id !== messageId) ?? null)}
+                />
               ))
             )}
           </div>
@@ -218,7 +280,20 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
         isVerified={group.isVerified}
         verificationRequestedAt={group.verificationRequestedAt}
         onSettingsChanged={(patch) => setGroup((cur) => (cur ? { ...cur, ...(patch as Partial<GroupDetail>) } : cur))}
+        onDeleted={() => router.push("/socials?tab=fanbase")}
       />
+
+      {photoFile && (
+        <ImageCropModal
+          file={photoFile}
+          aspect={1}
+          cropShape="round"
+          outputWidth={512}
+          outputHeight={512}
+          onCancel={() => setPhotoFile(null)}
+          onConfirm={handlePhotoConfirm}
+        />
+      )}
     </div>
   );
 }

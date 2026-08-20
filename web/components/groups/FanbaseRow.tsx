@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
@@ -5,6 +6,7 @@ import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 export type FanbaseRowData = {
   id: string;
   name: string;
+  coverImageUrl: string | null;
   visibility: "OPEN" | "REQUEST_TO_JOIN";
   memberCount: number;
   lastActivityAt: string | null;
@@ -42,9 +44,15 @@ export function FanbaseRow({
     <div className="flex items-center gap-3 py-3">
       <Link href={`/groups/${group.id}`} className="relative shrink-0">
         <div
-          className={`h-12 w-12 rounded-full bg-gradient-to-br ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]} flex items-center justify-center text-sm font-semibold text-white/90`}
+          className={`relative h-12 w-12 rounded-full overflow-hidden flex items-center justify-center text-sm font-semibold text-white/90 ${
+            group.coverImageUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]}`
+          }`}
         >
-          {group.name.slice(0, 1).toUpperCase()}
+          {group.coverImageUrl ? (
+            <Image src={group.coverImageUrl} alt={group.name} fill sizes="48px" className="object-cover" />
+          ) : (
+            group.name.slice(0, 1).toUpperCase()
+          )}
         </div>
         {group.visibility === "REQUEST_TO_JOIN" && (
           <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-surface border border-line-soft flex items-center justify-center">

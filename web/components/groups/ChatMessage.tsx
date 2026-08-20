@@ -83,14 +83,19 @@ export function ChatMessage({
   message,
   isMine,
   onReply,
+  canDelete,
+  onDeleted,
 }: {
   message: ChatMessageData;
   isMine: boolean;
   onReply: (message: ChatMessageData) => void;
+  canDelete?: boolean;
+  onDeleted?: (messageId: string) => void;
 }) {
   const [liked, setLiked] = useState(message.likedByMe);
   const [likeCount, setLikeCount] = useState(message.likeCount);
   const [poll, setPoll] = useState(message.poll);
+  const [deleting, setDeleting] = useState(false);
 
   async function toggleLike() {
     const next = !liked;
@@ -102,6 +107,14 @@ export function ChatMessage({
       setLiked(data.liked);
       setLikeCount(data.likeCount);
     }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm("Delete this message?")) return;
+    setDeleting(true);
+    const res = await apiFetch(`/api/posts/${message.id}`, { method: "DELETE" });
+    if (res.ok) onDeleted?.(message.id);
+    else setDeleting(false);
   }
 
   return (
@@ -146,6 +159,11 @@ export function ChatMessage({
           <button type="button" onClick={toggleLike} className={`text-[10px] font-semibold ${liked ? "text-red-soft" : "text-ink-3"}`}>
             ♥ {likeCount > 0 ? likeCount : ""}
           </button>
+          {canDelete && (
+            <button type="button" onClick={handleDelete} disabled={deleting} className="text-[10px] text-ink-3 font-semibold disabled:opacity-50">
+              Delete
+            </button>
+          )}
         </div>
       </div>
     </div>

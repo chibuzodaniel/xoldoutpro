@@ -16,6 +16,7 @@ type Props = {
   isVerified: boolean;
   verificationRequestedAt: string | null;
   onSettingsChanged: (next: { postPermission?: string; visibility?: string }) => void;
+  onDeleted: () => void;
 };
 
 const POST_PERMISSION_LABEL: Record<Props["postPermission"], string> = {
@@ -37,12 +38,26 @@ export function ManageGroupSheet({
   isVerified,
   verificationRequestedAt,
   onSettingsChanged,
+  onDeleted,
 }: Props) {
   const [tab, setTab] = useState<"requests" | "members" | "settings">("requests");
   const [requests, setRequests] = useState<JoinRequest[] | null>(null);
   const [members, setMembers] = useState<Member[] | null>(null);
   const [requestedAt, setRequestedAt] = useState(verificationRequestedAt);
   const [requestingVerification, setRequestingVerification] = useState(false);
+  const [deletingGroup, setDeletingGroup] = useState(false);
+
+  async function deleteGroup() {
+    if (!window.confirm(`Delete this Fanbase? This removes every message and can't be undone.`)) return;
+    setDeletingGroup(true);
+    try {
+      const res = await apiFetch(`/api/groups/${groupId}`, { method: "DELETE" });
+      if (res.ok) onDeleted();
+      else setDeletingGroup(false);
+    } catch {
+      setDeletingGroup(false);
+    }
+  }
 
   async function requestVerification() {
     setRequestingVerification(true);
@@ -244,6 +259,17 @@ export function ManageGroupSheet({
                       </button>
                     </>
                   )}
+                </div>
+                <div className="border-t border-line-soft pt-4">
+                  <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-2">Danger zone</p>
+                  <button
+                    type="button"
+                    onClick={deleteGroup}
+                    disabled={deletingGroup}
+                    className="rounded-lg border border-red-soft px-3 py-1.5 text-xs font-semibold text-red-soft disabled:opacity-50"
+                  >
+                    {deletingGroup ? "Deleting…" : "Delete this Fanbase"}
+                  </button>
                 </div>
               </>
             )}

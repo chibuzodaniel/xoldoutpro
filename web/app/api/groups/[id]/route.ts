@@ -63,3 +63,38 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     throw err;
   }
 }
+
+// No onDelete: Cascade in the schema (same reasoning as post deletion —
+// a hard FK is a guard rail against an accidental delete silently wiping
+// everything downstream), so every post's dependents get cleaned up
+// explicitly here before the posts themselves, then the group's own rows.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { user } = await requireUser(req);
+    const { id } = await params;
+
+    const group = await db.fanbaseGroup.findUnique({ where: { id } });
+    if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (group.creatorId !== user.id) return NextResponse.json({ error: "Only the creator can delete this group" }, { status: 403 });
+
+    const postIdRows = await db.post.findMany({ where: { groupId: id }, select: { id: true } });
+    const postIds = postIdRows.map((p) => p.id);
+
+    await db.$transaction([
+      db.pollVote.deleteMany({ where: { poll: { postId: { in: postIds } } } }),
+      db.poll.deleteMany({ where: { postId: { in: postIds } } }),
+      db.postLike.deleteMany({ where: { postId: { in: postIds } } }),
+      db.comment.deleteMany({ where: { postId: { in: postIds } } }),
+      db.report.deleteMany({ where: { postId: { in: postIds } } }),
+      db.post.deleteMany({ where: { groupId: id } }),
+      db.joinRequest.deleteMany({ where: { groupId: id } }),
+      db.membership.deleteMany({ where: { groupId: id } }),
+      db.fanbaseGroup.delete({ where: { id } }),
+    ]);
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+}

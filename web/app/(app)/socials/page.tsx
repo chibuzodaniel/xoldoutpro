@@ -94,7 +94,11 @@ function SocialsPageInner() {
           ) : (
             <div className="flex flex-col">
               {posts.map((post) => (
-                <PostCard key={post.id} post={post} />
+                <PostCard
+                  key={post.id}
+                  post={post}
+                  onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)}
+                />
               ))}
             </div>
           )}

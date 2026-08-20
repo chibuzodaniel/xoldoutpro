@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
       take: 50,
       include: {
         author: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } },
-        _count: { select: { likes: true } },
+        _count: { select: { likes: true, comments: true } },
         likes: { where: { userId: user.id }, select: { userId: true } },
       },
     });
@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
         author: p.author,
         likeCount: p._count.likes,
         likedByMe: p.likes.length > 0,
+        commentCount: p._count.comments,
       })),
     });
   } catch (err) {
@@ -87,7 +88,16 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({
-      post: { id: post.id, body: post.body, imageUrl: post.imageUrl, createdAt: post.createdAt, author: post.author, likeCount: 0, likedByMe: false },
+      post: {
+        id: post.id,
+        body: post.body,
+        imageUrl: post.imageUrl,
+        createdAt: post.createdAt,
+        author: post.author,
+        likeCount: 0,
+        likedByMe: false,
+        commentCount: 0,
+      },
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
