@@ -70,6 +70,20 @@ export async function verifyTransaction(transactionId: number | string): Promise
   };
 }
 
+/**
+ * Reverses a charge at the processor — takes Flutterwave's own numeric
+ * transaction id (Payment.providerTransactionId), not our tx_ref. Omitting
+ * `amountKobo` refunds the full amount, which is all the takedown flow
+ * needs; partial refunds aren't used anywhere yet.
+ */
+export async function initiateRefund(transactionId: string, amountKobo?: number) {
+  const data = await fw<{ data: { id: number; status: string } }>(`/transactions/${transactionId}/refund`, {
+    method: "POST",
+    body: JSON.stringify(amountKobo ? { amount: (amountKobo / 100).toFixed(2) } : {}),
+  });
+  return data.data;
+}
+
 export async function getNigerianBanks() {
   const data = await fw<{ data: { id: number; code: string; name: string }[] }>("/banks/NG");
   return data.data.map((b) => ({ code: b.code, name: b.name }));

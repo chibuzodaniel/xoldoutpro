@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { recordRefund } from "@/lib/commerce/ledger";
+import { initiateRefund } from "@/lib/flutterwave";
 
 const patchSchema = z.object({ action: z.enum(["review", "dismiss", "takedown"]) });
 
@@ -37,28 +38,54 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Takedown only applies to a copyright claim on a product" }, { status: 400 });
     }
 
-    await db.$transaction(async (tx) => {
-      const product = await tx.product.findUniqueOrThrow({ where: { id: report.productId! } });
-      await tx.product.update({ where: { id: product.id }, data: { status: "DELETED", deletedAt: new Date() } });
+    const product = await db.product.findUniqueOrThrow({ where: { id: report.productId } });
+    // Pulling infringing content down can't wait on a payment processor
+    // round-trip for every buyer — this happens unconditionally, immediately.
+    await db.product.update({ where: { id: product.id }, data: { status: "DELETED", deletedAt: new Date() } });
 
-      const entitlements = await tx.entitlement.findMany({
-        where: { productId: product.id, revokedAt: null },
-        include: { order: { include: { payment: true } } },
-      });
-
-      for (const ent of entitlements) {
-        await tx.entitlement.update({ where: { id: ent.id }, data: { revokedAt: new Date() } });
-        if (ent.order.status !== "PAID") continue;
-        if (ent.order.payment) {
-          await recordRefund(tx, { sellerId: product.creatorId, orderId: ent.orderId, grossKobo: ent.order.payment.amountKobo });
-        }
-        await tx.order.update({ where: { id: ent.orderId }, data: { status: "REFUNDED" } });
-      }
-
-      await tx.report.update({ where: { id }, data: { status: "RESOLVED" } });
+    const entitlements = await db.entitlement.findMany({
+      where: { productId: product.id, revokedAt: null },
+      include: { order: { include: { payment: true } } },
     });
 
-    return NextResponse.json({ ok: true });
+    // The Flutterwave refund is a real, hard-to-reverse external effect — it
+    // has to happen (and succeed) before the DB ever records a refund, or
+    // the ledger can claim money moved that never actually did (the exact
+    // gap this wiring closes). Each entitlement is its own atomic step: on
+    // failure it's left untouched and reported back instead of the takedown
+    // silently lying about it.
+    const refundFailures: { orderId: string; reason: string }[] = [];
+
+    for (const ent of entitlements) {
+      if (ent.order.status !== "PAID") {
+        await db.entitlement.update({ where: { id: ent.id }, data: { revokedAt: new Date() } });
+        continue;
+      }
+
+      const payment = ent.order.payment;
+      if (payment && payment.amountKobo > 0) {
+        if (!payment.providerTransactionId) {
+          refundFailures.push({ orderId: ent.orderId, reason: "No processor transaction on record — refund manually" });
+          continue;
+        }
+        try {
+          await initiateRefund(payment.providerTransactionId, payment.amountKobo);
+        } catch (err) {
+          refundFailures.push({ orderId: ent.orderId, reason: err instanceof Error ? err.message : "Refund call failed" });
+          continue;
+        }
+      }
+
+      await db.$transaction(async (tx) => {
+        await tx.entitlement.update({ where: { id: ent.id }, data: { revokedAt: new Date() } });
+        if (payment) await recordRefund(tx, { sellerId: product.creatorId, orderId: ent.orderId, grossKobo: payment.amountKobo });
+        await tx.order.update({ where: { id: ent.orderId }, data: { status: "REFUNDED" } });
+      });
+    }
+
+    await db.report.update({ where: { id }, data: { status: "RESOLVED" } });
+
+    return NextResponse.json({ ok: true, refundFailures });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });

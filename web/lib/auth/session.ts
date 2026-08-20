@@ -37,6 +37,13 @@ export async function requireModerator(req: NextRequest) {
   return { user, decoded };
 }
 
+/** Same as requireModerator, but 403s unless the user can also manage other moderators. */
+export async function requireSuperModerator(req: NextRequest) {
+  const { user, decoded } = await requireUser(req);
+  if (!user.isSuperModerator) throw new AuthError("Not authorized", 403);
+  return { user, decoded };
+}
+
 /**
  * Same as requireUser, but for endpoints that serve both anonymous browsers
  * and signed-in visitors (product access checks, preview audio) — returns

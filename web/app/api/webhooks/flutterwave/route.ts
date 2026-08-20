@@ -46,7 +46,12 @@ export async function POST(req: NextRequest) {
   // Every retry/duplicate after that sees count 0 and no-ops with 200.
   const claim = await db.payment.updateMany({
     where: { id: payment.id, status: "INITIATED" },
-    data: { status: verified.status === "successful" ? "SUCCESSFUL" : "FAILED", webhookReceivedAt: new Date(), rawPayload: body },
+    data: {
+      status: verified.status === "successful" ? "SUCCESSFUL" : "FAILED",
+      webhookReceivedAt: new Date(),
+      rawPayload: body,
+      providerTransactionId: String(verified.id),
+    },
   });
   if (claim.count === 0) {
     return NextResponse.json({ ok: true, note: "already processed" });

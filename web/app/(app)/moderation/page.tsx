@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type ReportRow = {
   id: string;
@@ -59,6 +60,7 @@ function slaLabel(slaDueAt: string | null) {
 
 export default function ModerationPage() {
   const { appUser, loading } = useAuth();
+  const toast = useToast();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +104,16 @@ export default function ModerationPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not update report");
       }
+      if (action === "takedown") {
+        const data: { refundFailures?: { orderId: string; reason: string }[] } = await res.json();
+        if (data.refundFailures && data.refundFailures.length > 0) {
+          toast.error(
+            `Taken down, but ${data.refundFailures.length} order${data.refundFailures.length === 1 ? "" : "s"} couldn't be auto-refunded — check the wallet ledger and refund manually via Flutterwave.`,
+          );
+        } else {
+          toast.success("Taken down and every paid buyer refunded.");
+        }
+      }
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
@@ -125,6 +137,7 @@ export default function ModerationPage() {
       <h1 className="font-serif text-2xl mb-1">Moderation queue</h1>
       <p className="text-xs text-ink-3 mb-6">Open and in-review reports, soonest SLA first.</p>
 
+      {appUser.isSuperModerator && <ManageModeratorsPanel />}
       <VerifyCreatorPanel />
       <VerifyGroupPanel />
 
@@ -194,6 +207,109 @@ export default function ModerationPage() {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ModeratorRow = { id: string; handle: string; displayName: string; email: string; isSuperModerator: boolean };
+
+// Only super-moderators see this — grants/revokes plain isModerator by
+// handle. Doesn't touch isSuperModerator itself; that stays a direct-DB-only
+// flag, same reasoning as why the very first moderator has to be set that
+// way too (PRD §3: internal staff, not a self-serve promotion chain).
+function ManageModeratorsPanel() {
+  const toast = useToast();
+  const [handle, setHandle] = useState("");
+  const [moderators, setModerators] = useState<ModeratorRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const res = await apiFetch("/api/admin/moderators");
+    if (!res.ok) return;
+    const data: { moderators: ModeratorRow[] } = await res.json();
+    setModerators(data.moderators);
+  }, []);
+
+  useEffect(() => {
+    async function initialLoad() {
+      const res = await apiFetch("/api/admin/moderators");
+      if (!res.ok) return;
+      const data: { moderators: ModeratorRow[] } = await res.json();
+      setModerators(data.moderators);
+    }
+    initialLoad();
+  }, []);
+
+  async function setModeratorStatus(targetHandle: string, isModerator: boolean) {
+    const trimmed = targetHandle.trim().replace(/^@/, "");
+    if (!trimmed) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/moderators", {
+        method: "POST",
+        body: JSON.stringify({ handle: trimmed, isModerator }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not update");
+      toast.success(`@${trimmed} is ${isModerator ? "now a moderator" : "no longer a moderator"}.`);
+      setHandle("");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-line-soft p-4 mb-6">
+      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Manage moderators</p>
+      <div className="flex gap-2 mb-3">
+        <input
+          value={handle}
+          onChange={(e) => setHandle(e.target.value)}
+          placeholder="handle"
+          className="flex-1 rounded-lg border border-line bg-transparent px-3 py-2 text-sm outline-none focus:border-red"
+        />
+        <button
+          type="button"
+          onClick={() => setModeratorStatus(handle, true)}
+          disabled={busy || !handle.trim()}
+          className="rounded-lg bg-red px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+        >
+          Grant
+        </button>
+      </div>
+
+      {moderators === null ? (
+        <p className="text-xs text-ink-3">Loading…</p>
+      ) : moderators.length === 0 ? (
+        <p className="text-xs text-ink-3">No moderators yet.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+          {moderators.map((m) => (
+            <div key={m.id} className="flex items-center justify-between py-2.5">
+              <div>
+                <p className="text-sm">
+                  {m.displayName} <span className="text-ink-3">@{m.handle}</span>
+                  {m.isSuperModerator && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Super</span>}
+                </p>
+                <p className="text-[11px] text-ink-3">{m.email}</p>
+              </div>
+              {!m.isSuperModerator && (
+                <button
+                  type="button"
+                  onClick={() => setModeratorStatus(m.handle, false)}
+                  disabled={busy}
+                  className="text-xs text-red-soft font-semibold disabled:opacity-40 shrink-0"
+                >
+                  Revoke
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

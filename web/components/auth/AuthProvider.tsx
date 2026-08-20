@@ -18,6 +18,7 @@ export type AppUser = {
   socialLinks: SocialLink[];
   pushEnabled: boolean;
   isModerator: boolean;
+  isSuperModerator: boolean;
   isVerified: boolean;
 };
 
