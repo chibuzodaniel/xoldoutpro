@@ -5,7 +5,6 @@ import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
-import { FanbaseJoinButton } from "@/components/profile/FanbaseJoinButton";
 
 const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = [
   { types: ["RELEASE", "BEAT"], label: "Music & Beats" },
@@ -54,7 +53,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   const user = await db.user.findUnique({ where: { handle } });
   if (!user) notFound();
 
-  const [catalog, fansCount, salesAgg, fanbaseGroup] = await Promise.all([
+  const [catalog, fansCount, salesAgg] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: {
@@ -68,14 +67,6 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
     }),
     db.follow.count({ where: { followedId: user.id } }),
     db.stockPolicy.aggregate({ where: { product: { creatorId: user.id } }, _sum: { sold: true } }),
-    // A creator can technically own more than one group — the oldest one
-    // they created is treated as "their" Fanbase, same convention as the
-    // rest of the app (e.g. ManageGroupSheet's danger zone assumes one).
-    db.fanbaseGroup.findFirst({
-      where: { creatorId: user.id },
-      orderBy: { createdAt: "asc" },
-      include: { _count: { select: { memberships: true } } },
-    }),
   ]);
 
   const socialLinks = (user.socialLinks as { platform: string; url: string }[] | null) ?? [];
@@ -108,28 +99,16 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <p className="text-sm text-ink-3 mb-2">@{user.handle}</p>
         {user.bio && <p className="text-sm text-ink-2 mb-3 max-w-md">{user.bio}</p>}
 
-        <div className={`grid gap-3 mb-3 ${fanbaseGroup ? "grid-cols-3" : "grid-cols-2"}`}>
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
             <p className="font-serif text-2xl">{fansCount.toLocaleString("en-NG")}</p>
             <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Fans</p>
           </div>
-          {fanbaseGroup && (
-            <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
-              <p className="font-serif text-2xl">{fanbaseGroup._count.memberships.toLocaleString("en-NG")}</p>
-              <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Fanbase</p>
-            </div>
-          )}
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
             <p className="font-serif text-2xl">{(salesAgg._sum.sold ?? 0).toLocaleString("en-NG")}</p>
             <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Sales</p>
           </div>
         </div>
-
-        {fanbaseGroup && (
-          <div className="mb-3">
-            <FanbaseJoinButton groupId={fanbaseGroup.id} creatorId={user.id} />
-          </div>
-        )}
 
         {user.tags.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
