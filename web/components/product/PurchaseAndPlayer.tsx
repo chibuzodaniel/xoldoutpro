@@ -115,8 +115,12 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       artistName,
       artworkUrl,
       lyricsText: t.lyricsText,
+      productId,
     }));
-    player.play({ trackId: track.id, title: track.title, artistName, artworkUrl, lyricsText: track.lyricsText }, trackQueue);
+    player.play(
+      { trackId: track.id, title: track.title, artistName, artworkUrl, lyricsText: track.lyricsText, productId },
+      trackQueue,
+    );
     player.setExpanded(true);
   }
 

@@ -231,6 +231,7 @@ function LibraryPageInner() {
                             artistName: e.product.creator.displayName,
                             artworkUrl: artworkUrl(e.product.release, "1024"),
                             lyricsText: track.lyricsText,
+                            productId: e.product.id,
                           });
                           player.setExpanded(true);
                         }}
@@ -331,6 +332,7 @@ function BeatLibraryRow({
       artworkUrl: beatCoverUrl(entitlement.product.beat, "1024"),
       lyricsText: null,
       kind: "beat",
+      productId,
     });
     player.setExpanded(true);
   }

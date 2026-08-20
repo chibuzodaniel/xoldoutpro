@@ -14,6 +14,12 @@ export type PlayableTrack = {
   // and checks the offline cache; "beat" fetches /api/beats/[id]/audio-url and skips
   // offline lookup (beats have no offline cache format — DECISIONS.md).
   kind?: "track" | "beat";
+  // The sellable Product this track belongs to — for "track" this is the
+  // parent Release's id (trackId is the individual Track's own id, a
+  // different record), for "beat" it's the same as trackId. Needed so the
+  // player's Share button can link to the actual product page instead of
+  // just sharing the title/artist as plain text.
+  productId?: string;
 };
 
 type RepeatMode = "off" | "all" | "one";

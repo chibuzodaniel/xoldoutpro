@@ -150,16 +150,19 @@ export function ExpandedPlayer() {
 
   async function handleShare() {
     const text = `${current!.title} — ${current!.artistName} on XOLDOUT`;
+    const url = current!.productId
+      ? `${window.location.origin}/${current!.kind === "beat" ? "b" : "r"}/${current!.productId}`
+      : undefined;
     if (typeof navigator.share === "function") {
       try {
-        await navigator.share({ title: current!.title, text });
+        await navigator.share({ title: current!.title, text, url });
       } catch {
         // user dismissed the native share sheet — nothing to do
       }
       return;
     }
     try {
-      await navigator.clipboard.writeText(text);
+      await navigator.clipboard.writeText(url ? `${text}\n${url}` : text);
       setShareLabel("copied");
       setTimeout(() => setShareLabel("idle"), 1500);
     } catch {

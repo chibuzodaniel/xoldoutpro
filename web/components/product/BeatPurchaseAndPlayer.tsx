@@ -66,7 +66,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       if (!isPlaying) player.setExpanded(true);
       return;
     }
-    player.play({ trackId: productId, title, artistName, artworkUrl, lyricsText: null, kind: "beat" });
+    player.play({ trackId: productId, title, artistName, artworkUrl, lyricsText: null, kind: "beat", productId });
     player.setExpanded(true);
   }
 

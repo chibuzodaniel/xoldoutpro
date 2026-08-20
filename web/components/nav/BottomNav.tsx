@@ -76,8 +76,9 @@ export function BottomNav() {
                 className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30"
                 aria-label="New post"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
-                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
+                  <path d="M4 20l.9-4.5a2 2 0 01.55-1.03L16.6 3.32a1.6 1.6 0 012.26 0l1.82 1.82a1.6 1.6 0 010 2.26L9.53 18.55a2 2 0 01-1.03.55L4 20z" strokeLinejoin="round" />
+                  <path d="M14.5 5.5l4 4" strokeLinecap="round" />
                 </svg>
               </Link>
             ) : (
