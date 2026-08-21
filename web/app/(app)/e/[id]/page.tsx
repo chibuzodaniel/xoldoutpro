@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { EventTierPicker } from "@/components/product/EventTierPicker";
 import { ReportButton } from "@/components/trust/ReportButton";
+import { ShareButton } from "@/components/ui/ShareButton";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -53,7 +54,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               {event.creator.displayName}
             </Link>
           </div>
-          <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} className="text-xs text-ink-3 shrink-0 pt-1" />
+          <div className="flex items-center gap-3 shrink-0 pt-1">
+            <ShareButton title={event.title} text={`${event.title} — ${event.creator.displayName} on XOLDOUT`} path={`/e/${event.id}`} />
+            <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} className="text-xs text-ink-3" />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1 mt-3 mb-4 text-sm text-ink-2">

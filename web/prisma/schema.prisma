@@ -30,7 +30,13 @@ model User {
   coverUrl    String?
   tags        String[] @default([])
   socialLinks Json     @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
-  pushEnabled Boolean  @default(false)
+  // Defaults on for new signups (onboarding calls enablePush() once the
+  // profile step completes, which is what actually requests the browser's
+  // notification permission — this column alone is just the stored
+  // preference). Existing users who signed up before this default flipped
+  // keep whatever they'd already set; the toggle in Edit Profile still lets
+  // anyone turn it off.
+  pushEnabled Boolean  @default(true)
   fcmTokens   String[] @default([]) // Firebase Cloud Messaging push tokens
   isModerator Boolean  @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
   // A super-moderator can additionally promote/demote other moderators from

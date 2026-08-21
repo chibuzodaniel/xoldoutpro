@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { PurchaseAndPlayer } from "@/components/product/PurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
+import { ShareButton } from "@/components/ui/ShareButton";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -49,7 +50,10 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
               {product.creator.displayName}
             </Link>
           </div>
-          <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3 shrink-0 pt-1" />
+          <div className="flex items-center gap-3 shrink-0 pt-1">
+            <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/r/${product.id}`} />
+            <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3" />
+          </div>
         </div>
 
         <div className="flex items-center justify-between mt-3 mb-4">

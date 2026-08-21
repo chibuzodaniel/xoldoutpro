@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
+import { ShareButton } from "@/components/ui/ShareButton";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -50,7 +51,10 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
               {product.creator.displayName}
             </Link>
           </div>
-          <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3 shrink-0 pt-1" />
+          <div className="flex items-center gap-3 shrink-0 pt-1">
+            <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/b/${product.id}`} />
+            <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3" />
+          </div>
         </div>
 
         {(product.beat.bpm || product.beat.musicalKey || product.beat.tags.length > 0) && (

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
+import { enablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 
@@ -73,6 +74,12 @@ export default function OnboardingPage() {
       await refreshAppUser();
       router.push("/discover");
       installGuide.open();
+      // Best-effort — pushEnabled defaults to true for new signups, but that's
+      // just the stored preference; this is what actually asks the browser
+      // for notification permission. Never blocks/fails onboarding: if it's
+      // unsupported or denied, the user can still turn it on later from
+      // Edit Profile.
+      void enablePush().catch(() => {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
