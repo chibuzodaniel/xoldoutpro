@@ -25,11 +25,14 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
 
   let response;
   try {
+    // Data-only, deliberately no top-level `notification` field — when a
+    // background push carries one, the browser auto-displays it itself
+    // *and* the service worker's onBackgroundMessage handler displays it
+    // again, showing the same notification twice. Data-only means our SW is
+    // the only thing that ever calls showNotification().
     response = await adminMessaging().sendEachForMulticast({
       tokens,
-      notification: { title: payload.title, body: payload.body },
-      data: payload.url ? { url: payload.url } : undefined,
-      webpush: { fcmOptions: payload.url ? { link: payload.url } : undefined },
+      data: { title: payload.title, body: payload.body, ...(payload.url ? { url: payload.url } : {}) },
     });
   } catch {
     // Push is best-effort — a misconfigured project (e.g. no VAPID key yet)

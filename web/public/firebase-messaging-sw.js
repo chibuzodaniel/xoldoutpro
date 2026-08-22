@@ -20,12 +20,16 @@ firebase.initializeApp({
 
 const messaging = firebase.messaging();
 
+// Reads from `data`, not `notification` — the server (lib/push/send.ts)
+// deliberately sends data-only payloads. A `notification` field makes the
+// browser auto-display the push itself in the background *in addition to*
+// this handler calling showNotification(), doubling every notification.
 messaging.onBackgroundMessage((payload) => {
-  const { title, body, icon } = payload.notification ?? {};
+  const { title, body, url } = payload.data ?? {};
   self.registration.showNotification(title ?? "XOLDOUT", {
     body,
-    icon: icon ?? "/xoldout-icon-transparent.png",
-    data: payload.data,
+    icon: "/xoldout-icon-transparent.png",
+    data: { url },
   });
 });
 
