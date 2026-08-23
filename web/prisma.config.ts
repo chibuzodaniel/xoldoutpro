@@ -9,6 +9,9 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // Migrations need a direct connection, not the pooled one the app uses
+    // at runtime (lib/db.ts) — DATABASE_URL_UNPOOLED is only set on Vercel;
+    // local dev falls back to DATABASE_URL (a plain, unpooled local Postgres).
+    url: process.env["DATABASE_URL_UNPOOLED"] || process.env["DATABASE_URL"],
   },
 });
