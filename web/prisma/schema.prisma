@@ -50,6 +50,18 @@ model User {
   isSuperModerator Boolean @default(false)
   isVerified  Boolean  @default(false) // badge (PRD §12); criteria explicitly undecided (PRD §18) — moderator-toggled only
   createdAt   DateTime @default(now())
+  // Opt-in only, defaults off — unlike pushEnabled this is never
+  // auto-enrolled. Weekly/monthly/yearly best-seller digest emails
+  // (lib/email.ts sendDigestEmail, cron at /api/internal/send-digests).
+  emailDigestSubscribed Boolean @default(false)
+  // Lets a signed-out recipient unsubscribe straight from the email footer
+  // without an auth flow — a per-user secret, not the user's own id (which
+  // would let anyone unsubscribe anyone by guessing/scraping ids). Optional
+  // + lazily generated (getUnsubscribeToken in lib/email.ts) rather than a
+  // Prisma-level default: db push can't backfill a required unique default
+  // onto existing rows in one step, and every user needs a digest sent to
+  // them at least once before the token is ever actually used anyway.
+  unsubscribeToken      String? @unique
 
   payoutAccounts PayoutAccount[]
   ledgerEntries  WalletLedgerEntry[]

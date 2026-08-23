@@ -35,6 +35,7 @@ const patchSchema = z.object({
   socialLinks: z.array(socialLinkSchema).max(6).optional(),
   pushEnabled: z.boolean().optional(),
   fcmTokens: z.array(z.string()).optional(),
+  emailDigestSubscribed: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest) {

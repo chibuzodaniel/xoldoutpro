@@ -17,6 +17,7 @@ export type AppUser = {
   tags: string[];
   socialLinks: SocialLink[];
   pushEnabled: boolean;
+  emailDigestSubscribed: boolean;
   isModerator: boolean;
   isSuperModerator: boolean;
   isVerified: boolean;

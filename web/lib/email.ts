@@ -7,7 +7,7 @@ import QRCode from "qrcode";
 const RESEND_API_URL = "https://api.resend.com/emails";
 
 const HTML_ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-function escapeHtml(s: string) {
+export function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
@@ -103,4 +103,99 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
     subject: input.ticket ? `Your ticket: ${input.ticket.eventTitle}` : `Order confirmed: ${input.productTitle}`,
     html,
   });
+}
+
+export type DigestKind = "weekly" | "monthly" | "yearly";
+
+const DIGEST_PERIOD_LABEL: Record<DigestKind, string> = {
+  weekly: "This Week's",
+  monthly: "This Month's",
+  yearly: "This Year's",
+};
+
+type DigestTopSong = { title: string; artistName: string; artworkUrl: string | null; href: string; soldInWindow: number };
+type DigestProduct = { title: string; creatorName: string; imageUrl: string | null; href: string; priceLabel: string };
+
+// Opt-in only (User.emailDigestSubscribed) — sent by the cron at
+// /api/internal/send-digests, one kind at a time depending on the day.
+// No template engine/React Email dependency, same raw-HTML-string approach
+// as sendOrderConfirmationEmail above.
+export async function sendDigestEmail(input: {
+  to: string;
+  displayName: string;
+  kind: DigestKind;
+  topSong: DigestTopSong | null;
+  recommended: DigestProduct[];
+  unsubscribeUrl: string;
+}) {
+  const periodLabel = DIGEST_PERIOD_LABEL[input.kind];
+
+  const topSongHtml = input.topSong
+    ? `
+      <div style="margin-top:20px;padding:20px;border:1px solid #2a2a2a;border-radius:12px;">
+        <p style="margin:0 0 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#e11d48;font-weight:600;">
+          ${escapeHtml(periodLabel)} Top Song
+        </p>
+        <a href="${input.topSong.href}" style="display:flex;align-items:center;gap:14px;text-decoration:none;color:inherit;">
+          ${
+            input.topSong.artworkUrl
+              ? `<img src="${input.topSong.artworkUrl}" width="64" height="64" alt="" style="border-radius:8px;object-fit:cover;flex-shrink:0;" />`
+              : ""
+          }
+          <span>
+            <span style="display:block;font-weight:600;font-size:15px;">${escapeHtml(input.topSong.title)}</span>
+            <span style="display:block;color:#888888;font-size:13px;">${escapeHtml(input.topSong.artistName)}</span>
+            <span style="display:block;color:#888888;font-size:12px;margin-top:2px;">${input.topSong.soldInWindow} sold</span>
+          </span>
+        </a>
+      </div>
+    `
+    : "";
+
+  const recommendedHtml =
+    input.recommended.length > 0
+      ? `
+      <p style="margin:28px 0 12px;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#888888;font-weight:600;">
+        Recommended for you
+      </p>
+      <table style="width:100%;border-collapse:collapse;">
+        ${input.recommended
+          .map(
+            (p) => `
+          <tr>
+            <td style="padding:8px 0;">
+              <a href="${p.href}" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;">
+                ${
+                  p.imageUrl
+                    ? `<img src="${p.imageUrl}" width="48" height="48" alt="" style="border-radius:6px;object-fit:cover;flex-shrink:0;" />`
+                    : ""
+                }
+                <span>
+                  <span style="display:block;font-weight:600;font-size:13px;">${escapeHtml(p.title)}</span>
+                  <span style="display:block;color:#888888;font-size:12px;">${escapeHtml(p.creatorName)} &middot; ${escapeHtml(p.priceLabel)}</span>
+                </span>
+              </a>
+            </td>
+          </tr>
+        `,
+          )
+          .join("")}
+      </table>
+    `
+      : "";
+
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#111111;">
+      <h1 style="font-size:20px;">${escapeHtml(periodLabel)} best on XOLDOUT</h1>
+      <p style="color:#555555;font-size:14px;">Hey ${escapeHtml(input.displayName)}, here's what's selling.</p>
+      ${topSongHtml}
+      ${recommendedHtml}
+      <p style="margin-top:32px;font-size:11px;color:#999999;">
+        You're getting this because you subscribed to XOLDOUT digest emails.
+        <a href="${input.unsubscribeUrl}" style="color:#999999;">Unsubscribe</a>
+      </p>
+    </div>
+  `;
+
+  await sendEmail({ to: input.to, subject: `${periodLabel} best-sellers on XOLDOUT`, html });
 }

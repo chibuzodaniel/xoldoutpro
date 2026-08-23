@@ -7,6 +7,10 @@
     {
       "path": "/api/internal/settle-ledger",
       "schedule": "5 3 * * *"
+    },
+    {
+      "path": "/api/internal/send-digests",
+      "schedule": "10 3 * * *"
     }
   ]
 }

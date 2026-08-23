@@ -29,6 +29,8 @@ export default function EditProfilePage() {
   const [cropTarget, setCropTarget] = useState<{ file: File; kind: "avatar" | "cover" } | null>(null);
   const [pushEnabled, setPushEnabled] = useState(appUser?.pushEnabled ?? false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [digestSubscribed, setDigestSubscribed] = useState(appUser?.emailDigestSubscribed ?? false);
+  const [digestBusy, setDigestBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -73,6 +75,17 @@ export default function EditProfilePage() {
       }
     } finally {
       setPushBusy(false);
+    }
+  }
+
+  async function handleToggleDigest() {
+    setDigestBusy(true);
+    const next = !digestSubscribed;
+    try {
+      const res = await apiFetch("/api/me", { method: "PATCH", body: JSON.stringify({ emailDigestSubscribed: next }) });
+      if (res.ok) setDigestSubscribed(next);
+    } finally {
+      setDigestBusy(false);
     }
   }
 
@@ -334,6 +347,29 @@ export default function EditProfilePage() {
             <span
               className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
                 pushEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Email Digest</h2>
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
+          <div>
+            <p className="text-sm font-semibold mb-0.5">Best-sellers, by email</p>
+            <p className="text-xs text-ink-3">Weekly, monthly, and yearly top songs plus a few things worth checking out.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleToggleDigest}
+            disabled={digestBusy}
+            aria-pressed={digestSubscribed}
+            className={`relative h-6 w-11 rounded-full shrink-0 transition-colors disabled:opacity-50 ${
+              digestSubscribed ? "bg-red" : "bg-surface-2 border border-line"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                digestSubscribed ? "translate-x-[22px]" : "translate-x-0.5"
               }`}
             />
           </button>
