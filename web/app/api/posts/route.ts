@@ -2,24 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { fetchForYouSignals, scoreForYou } from "@/lib/socials/forYouRanking";
 
-const PLAY_LOOKBACK_MS = 90 * 24 * 60 * 60 * 1000;
 const authorSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } as const;
 
-// Two modes, both non-group announcement posts, ordered newest-first:
+// Two modes, both non-group announcement posts:
 //
-// "following" (default) — "suggested," not strictly follows-only: creators
-// you follow, creators whose songs you play often (recent TrackPlay
-// volume), and creators you've shown interest in (liked one of their
-// posts, or bought something from them) all count toward the pool of
-// authors shown — a listener who's never tapped "follow" but plays an
-// artist constantly, or just bought their EP, still sees their
-// announcements.
+// "following" (default) — strictly creators you follow, plus your own
+// posts, newest-first. No play/like/purchase-based expansion — that pool
+// blurred the distinction between this tab and For You, so it was pulled
+// out entirely.
 //
 // "forYou" (?feed=forYou) — genuine discovery, no pool restriction at all:
-// every public post from every creator except your own, regardless of any
-// prior relationship (follow/play/like/purchase). PostCard's inline Follow
-// button is what lets a viewer act on something they discover here.
+// every public post from every creator except your own is eligible,
+// regardless of any prior relationship. What changes is *order*, not the
+// pool: candidates are ranked by affinity to the viewer (follows, likes,
+// plays, purchases, network proximity, shared tags — see
+// lib/socials/forYouRanking.ts) plus a recency factor, so a brand-new post
+// from an unrelated creator still surfaces rather than being filtered out.
+// PostCard's inline Follow button is what lets a viewer act on something
+// they discover here.
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
@@ -32,43 +34,41 @@ export async function GET(req: NextRequest) {
     const following = follows.map((f) => f.followed);
     const followedIds = new Set(following.map((f) => f.id));
 
-    let authorIds: string[] | null = null;
-    if (!forYou) {
-      const [topPlayed, likedPosts, purchases] = await Promise.all([
-        db.trackPlay.groupBy({
-          by: ["creatorId"],
-          where: { userId: user.id, createdAt: { gte: new Date(Date.now() - PLAY_LOOKBACK_MS) } },
-          _count: { creatorId: true },
-          orderBy: { _count: { creatorId: "desc" } },
-          take: 15,
-        }),
-        db.postLike.findMany({ where: { userId: user.id }, select: { post: { select: { authorId: true } } } }),
-        db.entitlement.findMany({ where: { userId: user.id }, select: { product: { select: { creatorId: true } } } }),
-      ]);
-      authorIds = [
-        ...new Set([
-          ...followedIds,
-          ...topPlayed.map((p) => p.creatorId),
-          ...likedPosts.map((l) => l.post.authorId),
-          ...purchases.map((p) => p.product.creatorId),
-          user.id,
-        ]),
-      ];
-    }
-
-    const posts = await db.post.findMany({
+    // Wider candidate pool than the 50 actually returned, purely so ranking
+    // has something to reorder among — the public "50 posts, no pagination"
+    // contract (DECISIONS.md) is unchanged, just which 50 win and their order.
+    const candidatePosts = await db.post.findMany({
       where: {
         groupId: null,
-        ...(forYou ? { authorId: { not: user.id } } : { authorId: { in: authorIds! } }),
+        ...(forYou ? { authorId: { not: user.id } } : { authorId: { in: [...followedIds, user.id] } }),
       },
       orderBy: { createdAt: "desc" },
-      take: 50,
+      take: forYou ? 150 : 50,
       include: {
         author: authorSelect,
         _count: { select: { likes: true, comments: true } },
         likes: { where: { userId: user.id }, select: { userId: true } },
       },
     });
+
+    let posts = candidatePosts;
+    if (forYou && candidatePosts.length > 0) {
+      const authorIds = [...new Set(candidatePosts.map((p) => p.authorId))];
+      const [signals, authorTagRows] = await Promise.all([
+        fetchForYouSignals(user.id, [...followedIds]),
+        db.user.findMany({ where: { id: { in: authorIds } }, select: { id: true, tags: true } }),
+      ]);
+      const tagsByAuthor = new Map(authorTagRows.map((a) => [a.id, a.tags]));
+
+      const ranked = scoreForYou(
+        candidatePosts.map((p) => ({ ...p, authorTags: tagsByAuthor.get(p.authorId) })),
+        signals,
+        [...followedIds],
+      );
+      posts = ranked.slice(0, 50);
+    } else {
+      posts = candidatePosts.slice(0, 50);
+    }
 
     return NextResponse.json({
       following,
