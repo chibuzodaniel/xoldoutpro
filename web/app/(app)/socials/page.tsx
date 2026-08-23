@@ -17,13 +17,13 @@ const TABS = [
 ] as const;
 type SocialsTab = (typeof TABS)[number]["key"];
 
-// "Following" is the existing suggested/relationship-based pool
-// (follow/play/like/purchase signals); "For You" is genuine discovery —
-// every public post from every creator with no relationship required,
-// which is why PostCard shows an inline Follow button there.
+// "For You" is genuine discovery — every public post from every creator
+// with no relationship required, which is why PostCard shows an inline
+// Follow button there. "Following" is strictly people you follow. For You
+// on the left, Following on the right (matches the reference layout).
 const FEED_MODES = [
-  { key: "following", label: "Following" },
   { key: "forYou", label: "For You" },
+  { key: "following", label: "Following" },
 ] as const;
 type FeedMode = (typeof FEED_MODES)[number]["key"];
 
@@ -39,7 +39,7 @@ function SocialsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [tab, setTab] = useState<SocialsTab>(searchParams.get("tab") === "fanbase" ? "fanbase" : "feed");
-  const [feedMode, setFeedMode] = useState<FeedMode>("following");
+  const [feedMode, setFeedMode] = useState<FeedMode>("forYou");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -107,10 +107,6 @@ function SocialsPageInner() {
               </button>
             ))}
           </div>
-
-          <p className="text-xs text-ink-3 mb-6">
-            {feedMode === "forYou" ? "Discover creators across XOLDOUT, followed or not" : "Where you and the creators you follow actually talk"}
-          </p>
 
           {feedMode === "following" && following && following.length > 0 && (
             <div className="flex gap-4 overflow-x-auto mb-6 -mx-4 px-4">
