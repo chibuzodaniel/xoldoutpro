@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { enablePush, disablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
+import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
@@ -33,6 +34,7 @@ export default function EditProfilePage() {
   const [digestBusy, setDigestBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
 
   function addTag() {
     const t = tagInput.trim();
@@ -381,7 +383,17 @@ export default function EditProfilePage() {
         >
           Log Out
         </button>
+
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3 mt-8">Danger Zone</h2>
+        <button
+          onClick={() => setDeleteSheetOpen(true)}
+          className="w-full rounded-lg border border-red-soft px-4 py-3.5 text-sm font-semibold text-red-soft transition-colors duration-150 hover:bg-red-soft/10"
+        >
+          Delete Account
+        </button>
       </div>
+
+      <DeleteAccountSheet open={deleteSheetOpen} onClose={() => setDeleteSheetOpen(false)} handle={appUser.handle} />
     </div>
   );
 }

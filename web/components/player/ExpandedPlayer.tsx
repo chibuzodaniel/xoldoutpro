@@ -72,15 +72,6 @@ function RepeatIcon() {
   );
 }
 
-function SpeakerIcon({ level }: { level: "low" | "high" }) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M3 9v6h4l5 4V5L7 9H3z" strokeLinejoin="round" strokeLinecap="round" />
-      {level === "high" && <path d="M16.5 8.5a5 5 0 010 7" strokeLinecap="round" />}
-    </svg>
-  );
-}
-
 function CommentIcon() {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -122,7 +113,6 @@ export function ExpandedPlayer() {
     previewEndSec,
     queue,
     queueIndex,
-    volume,
     remoteSupported,
     play,
     togglePlay,
@@ -131,14 +121,12 @@ export function ExpandedPlayer() {
     setExpanded,
     next,
     previous,
-    setVolume,
     requestRemotePlayback,
   } = usePlayer();
 
   const [showLyrics, setShowLyrics] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
   const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
-  const [mutedVolume, setMutedVolume] = useState<number | null>(null);
 
   if (!expanded || !current) return null;
 
@@ -167,16 +155,6 @@ export function ExpandedPlayer() {
       setTimeout(() => setShareLabel("idle"), 1500);
     } catch {
       // clipboard unavailable — silently give up
-    }
-  }
-
-  function handleToggleMute() {
-    if (volume > 0) {
-      setMutedVolume(volume);
-      setVolume(0);
-    } else {
-      setVolume(mutedVolume ?? 1);
-      setMutedVolume(null);
     }
   }
 
@@ -266,25 +244,6 @@ export function ExpandedPlayer() {
                 <RepeatIcon />
               </button>
             </div>
-          </div>
-
-          <div className="flex items-center gap-3 mb-8">
-            <button onClick={handleToggleMute} className="text-ink-3 shrink-0" aria-label={volume === 0 ? "Unmute" : "Mute"}>
-              <SpeakerIcon level="low" />
-            </button>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={volume}
-              onChange={(e) => setVolume(Number(e.target.value))}
-              className="flex-1 h-1 accent-ink"
-              aria-label="Volume"
-            />
-            <button onClick={() => setVolume(1)} className="text-ink-3 shrink-0" aria-label="Max volume">
-              <SpeakerIcon level="high" />
-            </button>
           </div>
 
           <div className="flex items-center justify-between px-1">

@@ -25,10 +25,10 @@ const messaging = firebase.messaging();
 // browser auto-display the push itself in the background *in addition to*
 // this handler calling showNotification(), doubling every notification.
 messaging.onBackgroundMessage((payload) => {
-  const { title, body, url } = payload.data ?? {};
+  const { title, body, url, icon } = payload.data ?? {};
   self.registration.showNotification(title ?? "XOLDOUT", {
     body,
-    icon: "/xoldout-icon-transparent.png",
+    icon: icon || "/xoldout-icon-transparent.png",
     data: { url },
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
@@ -34,6 +35,8 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,9 +46,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await apiFetch("/api/auth/sync", { method: "POST" });
     if (!res.ok) return;
     const data = await res.json();
+    // A deleted account still has a working Firebase login (on purpose, so
+    // its owner can sign back in to recover it) — send them to the recovery
+    // prompt instead of exposing them to the rest of the app as "logged in".
+    if (data.accountDeleted) {
+      setAppUser(null);
+      if (!pathname?.startsWith("/recoveraccount/")) router.replace(`/recoveraccount/${data.user.handle}`);
+      return;
+    }
     setAppUser(data.user);
     setNeedsOnboarding(Boolean(data.needsOnboarding));
-  }, []);
+  }, [pathname, router]);
 
   useEffect(() => {
     if (!firebaseAuth) {

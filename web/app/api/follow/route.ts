@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 import { sendPushToUser } from "@/lib/push/send";
 
 const bodySchema = z.object({ targetUserId: z.string().min(1) });
@@ -27,16 +28,27 @@ export async function POST(req: NextRequest) {
     const { targetUserId } = bodySchema.parse(await req.json());
     if (targetUserId === user.id) return NextResponse.json({ error: "Cannot follow yourself" }, { status: 400 });
 
-    const existing = await db.follow.findUnique({
-      where: { followerId_followedId: { followerId: user.id, followedId: targetUserId } },
-    });
-    await db.follow.upsert({
-      where: { followerId_followedId: { followerId: user.id, followedId: targetUserId } },
-      create: { followerId: user.id, followedId: targetUserId },
-      update: {},
-    });
-    if (!existing) {
-      sendPushToUser(targetUserId, { title: "New follower", body: `${user.displayName} started following you`, url: `/u/${user.handle}` });
+    // create() + catch-unique-violation (rather than check-then-upsert) so the
+    // "is this a brand new follow" decision is atomic with the insert itself —
+    // two concurrent requests racing a check-then-write would otherwise both
+    // see "not following yet" and both fire a push for the same follow.
+    let isNewFollow = true;
+    try {
+      await db.follow.create({ data: { followerId: user.id, followedId: targetUserId } });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        isNewFollow = false;
+      } else {
+        throw err;
+      }
+    }
+    if (isNewFollow) {
+      sendPushToUser(targetUserId, {
+        title: "New follower",
+        body: `${user.displayName} started following you`,
+        url: `/u/${user.handle}`,
+        icon: user.avatarUrl ?? undefined,
+      });
     }
     return NextResponse.json({ following: true });
   } catch (err) {

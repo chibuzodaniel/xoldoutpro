@@ -199,3 +199,31 @@ export async function sendDigestEmail(input: {
 
   await sendEmail({ to: input.to, subject: `${periodLabel} best-sellers on XOLDOUT`, html });
 }
+
+const RECOVERY_WINDOW_DAYS = 45;
+
+// Sent once, synchronously, from DELETE /api/me — recoveryUrl points at
+// /recoveraccount/[handle], where signing back in as this account within
+// the window clears User.deletedAt. After the window, self-service recovery
+// closes and only a moderator can restore the account.
+export async function sendAccountDeletedEmail(input: { to: string; displayName: string; recoveryUrl: string }) {
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#111111;">
+      <h1 style="font-size:20px;">Your XOLDOUT account has been deleted</h1>
+      <p style="color:#555555;font-size:14px;">Hey ${escapeHtml(input.displayName)}, this confirms your account was deleted.</p>
+      <p style="color:#555555;font-size:14px;">
+        Changed your mind? You have <strong>${RECOVERY_WINDOW_DAYS} days</strong> from today to recover it by signing back in here:
+      </p>
+      <p style="margin:20px 0;">
+        <a href="${input.recoveryUrl}" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          Recover my account
+        </a>
+      </p>
+      <p style="color:#999999;font-size:12px;">
+        After ${RECOVERY_WINDOW_DAYS} days, this link stops working and the account can only be restored by a XOLDOUT moderator.
+        If you didn't request this deletion, contact support as soon as possible.
+      </p>
+    </div>
+  `;
+  await sendEmail({ to: input.to, subject: "Your XOLDOUT account has been deleted", html });
+}

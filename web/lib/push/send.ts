@@ -1,7 +1,7 @@
 import { adminMessaging } from "@/lib/firebase/admin";
 import { db } from "@/lib/db";
 
-type PushPayload = { title: string; body: string; url?: string };
+type PushPayload = { title: string; body: string; url?: string; icon?: string };
 
 // Sends to every device token a user has registered (User.fcmTokens), and
 // prunes tokens FCM reports as dead (unregistered/invalid) so they don't
@@ -32,7 +32,12 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
     // the only thing that ever calls showNotification().
     response = await adminMessaging().sendEachForMulticast({
       tokens,
-      data: { title: payload.title, body: payload.body, ...(payload.url ? { url: payload.url } : {}) },
+      data: {
+        title: payload.title,
+        body: payload.body,
+        ...(payload.url ? { url: payload.url } : {}),
+        ...(payload.icon ? { icon: payload.icon } : {}),
+      },
     });
   } catch {
     // Push is best-effort — a misconfigured project (e.g. no VAPID key yet)

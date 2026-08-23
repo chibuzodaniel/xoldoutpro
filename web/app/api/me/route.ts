@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { adminAuth } from "@/lib/firebase/admin";
+import { sendAccountDeletedEmail } from "@/lib/email";
+
+const SITE_URL = "https://www.xoldout.app";
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,6 +54,48 @@ export async function PATCH(req: NextRequest) {
 
     const updated = await db.user.update({ where: { id: user.id }, data: body });
     return NextResponse.json({ user: updated });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
+    console.error(err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+
+const deleteSchema = z.object({ confirmation: z.string() });
+
+// Soft delete: scrubs nothing yet (see prisma/schema.prisma's deletedAt
+// comment) — sets deletedAt, mutes push/email, and revokes the Firebase
+// refresh token so any other signed-in device is logged out. Deliberately
+// does NOT disable the Firebase Auth account: the owner still needs to be
+// able to sign back in, at /recoveraccount/[handle], to recover within the
+// window (POST /api/account/recover). Every other endpoint's requireUser()
+// rejects this account until then.
+export async function DELETE(req: NextRequest) {
+  try {
+    const { user, decoded } = await requireUser(req);
+    const { confirmation } = deleteSchema.parse(await req.json());
+
+    if (confirmation !== `DELETE ${user.handle}`) {
+      return NextResponse.json({ error: `Type "DELETE ${user.handle}" exactly to confirm` }, { status: 400 });
+    }
+
+    await db.user.update({
+      where: { id: user.id },
+      data: { deletedAt: new Date(), pushEnabled: false, fcmTokens: [], emailDigestSubscribed: false },
+    });
+
+    await adminAuth()
+      .revokeRefreshTokens(decoded.uid)
+      .catch((err) => console.error("[account-delete] revokeRefreshTokens failed", err));
+
+    await sendAccountDeletedEmail({
+      to: user.email,
+      displayName: user.displayName,
+      recoveryUrl: `${SITE_URL}/recoveraccount/${user.handle}`,
+    });
+
+    return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });

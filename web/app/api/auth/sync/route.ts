@@ -15,6 +15,9 @@ export async function POST(req: NextRequest) {
 
     const existing = await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
     if (existing) {
+      if (existing.deletedAt) {
+        return NextResponse.json({ user: existing, needsOnboarding: false, accountDeleted: true });
+      }
       return NextResponse.json({ user: existing, needsOnboarding: false });
     }
 

@@ -27,6 +27,22 @@ export async function requireUser(req: NextRequest) {
   const decoded = await requireFirebaseUser(req);
   const user = await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
   if (!user) throw new AuthError("Account not synced. Call /api/auth/sync first.");
+  // A deleted-but-recoverable account keeps its Firebase login working (so the
+  // owner can sign back in to recover it — see /api/account/recover), but is
+  // locked out of every other endpoint. 423 Locked, not 401, so the client
+  // can tell "deleted" apart from "not signed in" and route to recovery.
+  if (user.deletedAt) throw new AuthError("Account deleted", 423);
+  return { user, decoded };
+}
+
+/**
+ * Same as requireUser, but for the one endpoint (POST /api/account/recover)
+ * that must be reachable by a deleted account precisely to un-delete it.
+ */
+export async function requireUserAllowDeleted(req: NextRequest) {
+  const decoded = await requireFirebaseUser(req);
+  const user = await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
+  if (!user) throw new AuthError("Account not synced. Call /api/auth/sync first.");
   return { user, decoded };
 }
 
@@ -56,7 +72,8 @@ export async function getOptionalUser(req: NextRequest) {
   if (!idToken) return null;
   try {
     const decoded = await verifyFirebaseIdToken(idToken);
-    return await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    const user = await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
+    return user && !user.deletedAt ? user : null;
   } catch {
     return null;
   }

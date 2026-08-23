@@ -62,6 +62,15 @@ model User {
   // onto existing rows in one step, and every user needs a digest sent to
   // them at least once before the token is ever actually used anyway.
   unsubscribeToken      String? @unique
+  // Soft delete: set by DELETE /api/me once the user confirms via the
+  // "type DELETE <handle>" flow (components/profile/DeleteAccountSheet).
+  // Real user rows are never hard-deleted — nothing in the schema cascades
+  // off User, so a row with orders/payouts/products attached couldn't be
+  // dropped anyway without destroying financial history. Deletion instead
+  // scrubs PII (email/handle/displayName/avatar/bio/tags/socialLinks) and
+  // disables the Firebase Auth account; requireUser() rejects any request
+  // once this is set, even for a still-unexpired ID token.
+  deletedAt             DateTime?
 
   payoutAccounts PayoutAccount[]
   ledgerEntries  WalletLedgerEntry[]

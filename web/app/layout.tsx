@@ -47,22 +47,39 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       {/* h-full (not min-h-full) + overflow-hidden caps the page at the
           viewport height instead of letting content grow it taller — without
           this, the *window* scrolls instead of the inner content pane below,
-          taking the "fixed" mini player/bottom nav along with it. */}
-      <body className="h-full flex flex-col bg-bg text-ink overflow-hidden">
-        <ToastProvider>
-          <AuthProvider>
-            <InstallGuideProvider>
-              <PlayerProvider>
-                <div className="flex h-full flex-col">
-                  <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
-                  <MiniPlayer />
-                  <BottomNav />
-                </div>
-                <ExpandedPlayer />
-              </PlayerProvider>
-            </InstallGuideProvider>
-          </AuthProvider>
-        </ToastProvider>
+          taking the "fixed" mini player/bottom nav along with it.
+          bg-black here (not bg-bg) is deliberately a neutral frame color for
+          the gutters outside the app column on wide screens — see below. */}
+      <body className="h-full flex flex-col bg-black text-ink overflow-hidden">
+        {/* Every page/component here was built for a phone-width viewport
+            (BottomNav, hero images with aspect-square w-full, etc.) with no
+            per-page responsive handling. Rather than retrofit every page and
+            every fixed-position sheet/modal individually, cap and center the
+            whole shell once, here. The inline `[transform:translateZ(0)]` is
+            load-bearing, not decorative: per the CSS spec, an ancestor with
+            any non-`none` transform becomes the containing block for
+            `position: fixed` descendants instead of the viewport — so
+            ExpandedPlayer's `fixed inset-0` and every bottom sheet's backdrop
+            automatically confine themselves to this max-w-md column too,
+            without touching those components. Tailwind v4's bare `transform`
+            class doesn't actually emit a transform value (computed style
+            stays `none`), so it has to be this explicit arbitrary value. */}
+        <div className="mx-auto flex h-full w-full max-w-md flex-col bg-bg [transform:translateZ(0)]">
+          <ToastProvider>
+            <AuthProvider>
+              <InstallGuideProvider>
+                <PlayerProvider>
+                  <div className="flex h-full flex-col">
+                    <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
+                    <MiniPlayer />
+                    <BottomNav />
+                  </div>
+                  <ExpandedPlayer />
+                </PlayerProvider>
+              </InstallGuideProvider>
+            </AuthProvider>
+          </ToastProvider>
+        </div>
       </body>
     </html>
   );

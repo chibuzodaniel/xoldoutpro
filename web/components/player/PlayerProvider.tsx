@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { getOfflinePlaybackUrl } from "@/lib/offline/downloads";
+import { getOfflinePlaybackUrl, listDownloads } from "@/lib/offline/downloads";
 
 export type PlayableTrack = {
   trackId: string;
@@ -177,7 +177,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     };
     const onLoaded = () => setDurationSec(audio.duration || 0);
-    const onEnded = () => {
+    const onEnded = async () => {
       const { repeatMode: mode, queue: q, queueIndex: idx } = guardRef.current;
       if (mode === "one") {
         audio.currentTime = 0;
@@ -192,6 +192,39 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         playRef.current(q[0], q);
         return;
       }
+      // End of the playlist/album with repeat off — rather than just going
+      // silent, fall back to the offline library so something keeps playing,
+      // most recently downloaded first.
+      try {
+        const downloads = await listDownloads();
+        const justFinishedId = q[idx]?.trackId;
+        const fallbackQueue = downloads
+          .sort((a, b) => b.downloadedAt - a.downloadedAt)
+          .filter((d) => d.trackId !== justFinishedId)
+          .map((d) => ({
+            trackId: d.trackId,
+            title: d.title,
+            artistName: d.artistName,
+            artworkUrl: d.artworkUrl,
+            lyricsText: null,
+            kind: "track" as const,
+            productId: d.productId,
+          }));
+        if (fallbackQueue.length > 0) {
+          playRef.current(fallbackQueue[0], fallbackQueue);
+          return;
+        }
+      } catch {
+        // Offline store unavailable — fall through to just stopping below.
+      }
+      // Truly nothing else to play — reset position explicitly (rather than
+      // relying on the browser's implicit ended-state replay behavior) so a
+      // lock-screen "play" press afterward deterministically restarts this
+      // track, and a lock-screen "previous" press afterward correctly jumps
+      // to the prior track instead of re-triggering the position>3s "restart
+      // current track" branch in `previous()`.
+      audio.currentTime = 0;
+      setPositionSec(0);
       setIsPlaying(false);
     };
 

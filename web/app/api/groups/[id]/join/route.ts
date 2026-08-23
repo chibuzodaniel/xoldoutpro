@@ -21,17 +21,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ status: "JOINED" });
     }
 
+    // Only notify admins when this is genuinely a new pending request — the
+    // upsert alone can't tell us that, since re-submitting while already
+    // PENDING (e.g. re-clicking "request to join") would otherwise re-notify
+    // every admin on every click.
+    const priorRequest = await db.joinRequest.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
     const request = await db.joinRequest.upsert({
       where: { groupId_userId: { groupId: id, userId: user.id } },
       update: { status: "PENDING" },
       create: { groupId: id, userId: user.id },
     });
 
-    const admins = await db.membership.findMany({ where: { groupId: id, role: "ADMIN" }, select: { userId: true } });
-    sendPushToUsers(
-      admins.map((a) => a.userId),
-      { title: "New Fanbase request", body: `${user.displayName} wants to join ${group.name}`, url: `/groups/${id}` },
-    );
+    if (!priorRequest || priorRequest.status !== "PENDING") {
+      const admins = await db.membership.findMany({ where: { groupId: id, role: "ADMIN" }, select: { userId: true } });
+      sendPushToUsers(
+        admins.map((a) => a.userId),
+        { title: "New Fanbase request", body: `${user.displayName} wants to join ${group.name}`, url: `/groups/${id}` },
+      );
+    }
 
     return NextResponse.json({ status: request.status });
   } catch (err) {
