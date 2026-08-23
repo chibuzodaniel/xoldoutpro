@@ -58,7 +58,10 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
 
   let ticketHtml = "";
   if (input.ticket) {
-    const qrDataUrl = await QRCode.toDataURL(input.ticket.checkInCode, { margin: 1, width: 240 });
+    // Generated well above the email's 200x200 display size so a recipient
+    // who pinch-zooms or screenshots-and-zooms the email at the door still
+    // gets a scannable, non-blurry code.
+    const qrDataUrl = await QRCode.toDataURL(input.ticket.checkInCode, { margin: 1, width: 512 });
     const when = input.ticket.startsAt.toLocaleString("en-NG", {
       day: "numeric",
       month: "short",

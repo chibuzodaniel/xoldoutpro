@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { TicketQrCode } from "@/components/ui/TicketQrCode";
 
 type Tier = { productId: string; name: string; priceKobo: number; isSoldOut: boolean };
 
@@ -45,7 +46,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
     if (!access) return;
     for (const tier of Object.values(access)) {
       if (tier.checkInCode && !qrDataUrls[tier.checkInCode]) {
-        QRCode.toDataURL(tier.checkInCode, { margin: 1, width: 200 }).then((url) => {
+        QRCode.toDataURL(tier.checkInCode, { margin: 1, width: 512 }).then((url) => {
           setQrDataUrls((cur) => ({ ...cur, [tier.checkInCode as string]: url }));
         });
       }
@@ -111,10 +112,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
           const qr = tierAccess.checkInCode ? qrDataUrls[tierAccess.checkInCode] : null;
           return (
             <div key={tier.productId} className="rounded-lg border border-line bg-surface p-4 flex items-center gap-4">
-              {qr && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={qr} alt="Ticket QR code" className="h-20 w-20 rounded bg-white p-1 shrink-0" />
-              )}
+              {qr && <TicketQrCode qrDataUrl={qr} label={`${tier.name} ticket`} thumbnailClassName="h-20 w-20 rounded bg-white p-1" />}
               <div>
                 <p className="text-sm font-semibold mb-0.5">{tier.name} ticket</p>
                 <p className="text-xs text-red-soft font-semibold">

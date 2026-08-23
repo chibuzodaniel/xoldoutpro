@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
 import { ReportSheet } from "@/components/trust/ReportSheet";
+import { TicketQrCode } from "@/components/ui/TicketQrCode";
 
 type OrderStatus = "PENDING" | "PAID" | "REFUNDED" | "FAILED";
 
@@ -188,7 +189,7 @@ function CheckoutCallbackInner() {
 
   useEffect(() => {
     if (!ticket) return;
-    QRCode.toDataURL(ticket.checkInCode, { margin: 1, width: 240 }).then(setQrDataUrl);
+    QRCode.toDataURL(ticket.checkInCode, { margin: 1, width: 512 }).then(setQrDataUrl);
   }, [ticket]);
 
   // Each sellable type gets its own detail route. Event is keyed by
@@ -252,8 +253,11 @@ function CheckoutCallbackInner() {
             <div className="relative w-full max-w-xs rounded-2xl border border-line bg-surface text-left overflow-hidden shadow-[0_0_0_1px_rgba(225,29,72,0.08)]">
               <div className="p-5 pb-4 text-center">
                 {qrDataUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={qrDataUrl} alt="Ticket QR code" className="mx-auto h-40 w-40 rounded-lg bg-white p-2" />
+                  <TicketQrCode
+                    qrDataUrl={qrDataUrl}
+                    label={`${ticket.eventTitle} · ${ticket.tierName}`}
+                    thumbnailClassName="mx-auto h-40 w-40 rounded-lg bg-white p-2"
+                  />
                 )}
               </div>
               <div className="relative border-t border-dashed border-line-strong px-5 pt-4 pb-5">

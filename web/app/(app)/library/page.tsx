@@ -15,6 +15,7 @@ import {
 import { CollectionsTab } from "@/components/library/CollectionsTab";
 import { GiftsTab } from "@/components/library/GiftsTab";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
+import { TicketQrCode } from "@/components/ui/TicketQrCode";
 
 type LibraryTrack = {
   id: string;
@@ -429,7 +430,7 @@ function EventLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntit
 
   useEffect(() => {
     if (!entitlement.checkIn) return;
-    QRCode.toDataURL(entitlement.checkIn.code, { margin: 1, width: 200 }).then(setQr);
+    QRCode.toDataURL(entitlement.checkIn.code, { margin: 1, width: 512 }).then(setQr);
   }, [entitlement.checkIn]);
 
   if (!tier) return null;
@@ -437,8 +438,11 @@ function EventLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntit
   return (
     <div className="rounded-lg border border-line bg-surface p-4 flex items-center gap-4">
       {qr && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={qr} alt="Ticket QR code" className="h-16 w-16 rounded bg-white p-1 shrink-0" />
+        <TicketQrCode
+          qrDataUrl={qr}
+          label={`${tier.event.title} · ${tier.name}`}
+          thumbnailClassName="h-16 w-16 rounded bg-white p-1"
+        />
       )}
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold line-clamp-1">{tier.event.title}</p>
