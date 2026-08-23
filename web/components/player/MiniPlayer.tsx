@@ -14,6 +14,14 @@ export function MiniPlayer() {
           {current.artworkUrl && (
             <Image src={current.artworkUrl} alt={current.title} fill sizes="36px" className="object-cover" />
           )}
+          {/* Small brand watermark on the artwork corner — the mini bar has
+              no spare vertical room for a "Playing from XOLDOUT" text line
+              (it's persistent across every screen), unlike the expanded
+              player and lock screen, which both show that in full. */}
+          <span className="absolute bottom-0 right-0 flex h-3.5 w-3.5 items-center justify-center rounded-tl bg-black/50">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/xoldout-icon-transparent.png" alt="" className="h-2.5 w-2.5" />
+          </span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold line-clamp-1">{current.title}</p>

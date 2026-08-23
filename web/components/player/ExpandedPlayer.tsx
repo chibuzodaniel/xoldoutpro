@@ -186,7 +186,7 @@ export function ExpandedPlayer() {
         <button onClick={() => setExpanded(false)} className="text-2xl text-ink-2 w-8" aria-label="Minimize">
           ‹
         </button>
-        <span className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Playing in XOLDOUT</span>
+        <span className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Playing from XOLDOUT</span>
         <button onClick={handleShare} className="w-8 flex justify-end text-ink-2" aria-label="Share">
           {shareLabel === "copied" ? <span className="text-[11px] text-ink-3">Copied</span> : <ShareIcon />}
         </button>

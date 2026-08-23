@@ -211,7 +211,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // shade, headset controls) — title/artwork straight from the current
   // track, with a fixed "album" line as the app watermark (lock screens
   // typically render title/artist/album as the visible hierarchy, so this
-  // is the one field that reliably shows "Playing on XOLDOUT" everywhere).
+  // is the one field that reliably shows "Playing from XOLDOUT" everywhere).
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
     if (!current) {
@@ -221,7 +221,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     navigator.mediaSession.metadata = new MediaMetadata({
       title: current.title,
       artist: current.artistName,
-      album: "Playing on XOLDOUT",
+      album: "Playing from XOLDOUT",
       artwork: current.artworkUrl
         ? [96, 256, 512].map((size) => ({ src: current.artworkUrl!, sizes: `${size}x${size}` }))
         : [],
