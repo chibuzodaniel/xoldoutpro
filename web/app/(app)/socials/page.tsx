@@ -17,6 +17,16 @@ const TABS = [
 ] as const;
 type SocialsTab = (typeof TABS)[number]["key"];
 
+// "Following" is the existing suggested/relationship-based pool
+// (follow/play/like/purchase signals); "For You" is genuine discovery —
+// every public post from every creator with no relationship required,
+// which is why PostCard shows an inline Follow button there.
+const FEED_MODES = [
+  { key: "following", label: "Following" },
+  { key: "forYou", label: "For You" },
+] as const;
+type FeedMode = (typeof FEED_MODES)[number]["key"];
+
 export default function SocialsPage() {
   return (
     <Suspense fallback={null}>
@@ -29,6 +39,7 @@ function SocialsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const [tab, setTab] = useState<SocialsTab>(searchParams.get("tab") === "fanbase" ? "fanbase" : "feed");
+  const [feedMode, setFeedMode] = useState<FeedMode>("following");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -49,14 +60,15 @@ function SocialsPageInner() {
 
   useEffect(() => {
     async function load() {
-      const res = await apiFetch("/api/posts");
+      setPosts(null);
+      const res = await apiFetch(feedMode === "forYou" ? "/api/posts?feed=forYou" : "/api/posts");
       if (!res.ok) return;
       const data: { following: FollowedCreator[]; posts: FeedPost[] } = await res.json();
       setFollowing(data.following);
       setPosts(data.posts);
     }
     load();
-  }, []);
+  }, [feedMode]);
 
   return (
     <div className="px-4 py-6">
@@ -81,9 +93,26 @@ function SocialsPageInner() {
 
       {tab === "feed" && (
         <>
-          <p className="text-xs text-ink-3 mb-6">Where you and the creators you follow actually talk</p>
+          <div className="flex items-center gap-2 mb-4">
+            {FEED_MODES.map((m) => (
+              <button
+                key={m.key}
+                type="button"
+                onClick={() => setFeedMode(m.key)}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                  feedMode === m.key ? "bg-red text-white" : "bg-surface-2 text-ink-3"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
 
-          {following && following.length > 0 && (
+          <p className="text-xs text-ink-3 mb-6">
+            {feedMode === "forYou" ? "Discover creators across XOLDOUT, followed or not" : "Where you and the creators you follow actually talk"}
+          </p>
+
+          {feedMode === "following" && following && following.length > 0 && (
             <div className="flex gap-4 overflow-x-auto mb-6 -mx-4 px-4">
               {following.map((creator) => (
                 <Link key={creator.id} href={`/u/${creator.handle}`} className="flex flex-col items-center gap-1 shrink-0 w-14">
@@ -103,7 +132,9 @@ function SocialsPageInner() {
             <LoadingSpinner full size="md" />
           ) : posts.length === 0 ? (
             <p className="text-sm text-ink-3">
-              Announcements from creators you follow will show up here once you start following someone.
+              {feedMode === "forYou"
+                ? "Nothing to discover yet — check back once more creators start posting."
+                : "Announcements from creators you follow will show up here once you start following someone."}
             </p>
           ) : (
             <div className="flex flex-col gap-3">

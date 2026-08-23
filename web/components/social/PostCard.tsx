@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { FollowButton } from "@/components/profile/FollowButton";
 import { Linkified } from "@/components/ui/Linkified";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -19,6 +20,7 @@ export type FeedPost = {
   likeCount: number;
   likedByMe: boolean;
   commentCount: number;
+  followedByMe?: boolean;
 };
 
 type Comment = {
@@ -135,18 +137,23 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
           </Link>
           <p className="text-[12px] text-ink-3">{timeAgo(post.createdAt)}</p>
         </div>
-        {appUser?.id === post.author.id ? (
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="text-[12px] text-ink-3 shrink-0 disabled:opacity-50"
-          >
-            Delete
-          </button>
-        ) : (
-          <ReportButton targetType="POST" targetId={post.id} ownerId={post.author.id} className="text-[12px] text-ink-3 shrink-0" />
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {appUser?.id !== post.author.id && (
+            <FollowButton targetUserId={post.author.id} size="compact" initialFollowing={post.followedByMe} />
+          )}
+          {appUser?.id === post.author.id ? (
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="text-[12px] text-ink-3 shrink-0 disabled:opacity-50"
+            >
+              Delete
+            </button>
+          ) : (
+            <ReportButton targetType="POST" targetId={post.id} ownerId={post.author.id} className="text-[12px] text-ink-3 shrink-0" />
+          )}
+        </div>
       </div>
       <p className="text-sm text-ink-2 whitespace-pre-wrap mb-3">
         <Linkified text={post.body} linkClassName="underline text-red-soft" />
