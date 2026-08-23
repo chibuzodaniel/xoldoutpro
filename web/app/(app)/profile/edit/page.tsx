@@ -342,12 +342,13 @@ export default function EditProfilePage() {
             onClick={handleTogglePush}
             disabled={pushBusy}
             aria-pressed={pushEnabled}
-            className={`relative h-6 w-11 rounded-full shrink-0 transition-colors disabled:opacity-50 ${
-              pushEnabled ? "bg-red" : "bg-surface-2 border border-line"
-            }`}
+            className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
+            {/* The dot is always red, not just when on — it's the thing that
+                slides from 0% (left, off) to 100% (right, on) and back, not
+                a state-colored fill like the track used to be. */}
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-red transition-transform ${
                 pushEnabled ? "translate-x-[22px]" : "translate-x-0.5"
               }`}
             />
@@ -365,12 +366,10 @@ export default function EditProfilePage() {
             onClick={handleToggleDigest}
             disabled={digestBusy}
             aria-pressed={digestSubscribed}
-            className={`relative h-6 w-11 rounded-full shrink-0 transition-colors disabled:opacity-50 ${
-              digestSubscribed ? "bg-red" : "bg-surface-2 border border-line"
-            }`}
+            className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-red transition-transform ${
                 digestSubscribed ? "translate-x-[22px]" : "translate-x-0.5"
               }`}
             />

@@ -50,10 +50,12 @@ model User {
   isSuperModerator Boolean @default(false)
   isVerified  Boolean  @default(false) // badge (PRD §12); criteria explicitly undecided (PRD §18) — moderator-toggled only
   createdAt   DateTime @default(now())
-  // Opt-in only, defaults off — unlike pushEnabled this is never
-  // auto-enrolled. Weekly/monthly/yearly best-seller digest emails
+  // Defaults on for new signups, same as pushEnabled — user can turn it off
+  // from the profile toggle. Weekly/monthly/yearly best-seller digest emails
   // (lib/email.ts sendDigestEmail, cron at /api/internal/send-digests).
-  emailDigestSubscribed Boolean @default(false)
+  // Existing users' values are untouched by this default (Prisma column
+  // defaults only apply to new rows) — only new signups start opted in.
+  emailDigestSubscribed Boolean @default(true)
   // Lets a signed-out recipient unsubscribe straight from the email footer
   // without an auth flow — a per-user secret, not the user's own id (which
   // would let anyone unsubscribe anyone by guessing/scraping ids). Optional

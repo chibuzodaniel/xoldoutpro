@@ -8,6 +8,7 @@ import {
   updateProfile,
 } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
+import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import Link from "next/link";
 
@@ -17,6 +18,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deletedHandle, setDeletedHandle] = useState<string | null>(null);
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -40,6 +42,15 @@ export default function SignupPage() {
     setBusy(true);
     try {
       await signInWithPopup(firebaseAuth, googleProvider);
+      // signInWithPopup logs in an *existing* Google-linked account rather
+      // than erroring like createUserWithEmailAndPassword would — so someone
+      // hitting "sign up" with a Google account that's actually a deleted
+      // account needs the same recovery prompt as the login page.
+      const deleted = await checkAccountDeletedAfterSignIn();
+      if (deleted) {
+        setDeletedHandle(deleted);
+        return;
+      }
       router.push("/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Google sign-in failed");
@@ -53,57 +64,78 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/xoldout-logo-transparent.png" alt="XOLDOUT" className="h-10 w-auto mb-8" />
-        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Create account</p>
 
-        <form onSubmit={handleEmailSignup} className="flex flex-col gap-3">
-          <input
-            type="email"
-            required
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
-          />
-          <input
-            type="password"
-            required
-            minLength={6}
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
-          />
-          {error && <p className="text-sm text-red-soft">{error}</p>}
-          <button
-            type="submit"
-            disabled={busy}
-            className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            Create account
-          </button>
-        </form>
+        {deletedHandle ? (
+          <>
+            <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Account deleted</p>
+            <div className="rounded-lg border border-red-soft bg-red/10 px-4 py-4 mb-4">
+              <p className="text-sm font-semibold mb-1">You deleted this account</p>
+              <p className="text-sm text-ink-3">
+                It&apos;s still within its 45-day recovery window. Click below to get it back.
+              </p>
+            </div>
+            <Link
+              href={`/recoveraccount/${deletedHandle}`}
+              className="block w-full rounded-lg bg-red px-4 py-3 text-center text-sm font-semibold text-white"
+            >
+              Click here to recover it
+            </Link>
+          </>
+        ) : (
+          <>
+            <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Create account</p>
 
-        <div className="my-5 flex items-center gap-3 text-ink-3 text-xs">
-          <div className="h-px flex-1 bg-line" />
-          or
-          <div className="h-px flex-1 bg-line" />
-        </div>
+            <form onSubmit={handleEmailSignup} className="flex flex-col gap-3">
+              <input
+                type="email"
+                required
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
+              />
+              <input
+                type="password"
+                required
+                minLength={6}
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
+              />
+              {error && <p className="text-sm text-red-soft">{error}</p>}
+              <button
+                type="submit"
+                disabled={busy}
+                className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Create account
+              </button>
+            </form>
 
-        <button
-          onClick={handleGoogle}
-          disabled={busy}
-          className="w-full flex items-center justify-center gap-2.5 rounded-lg border border-line px-4 py-3 text-sm font-semibold disabled:opacity-50"
-        >
-          <GoogleLogo />
-          Continue with Google
-        </button>
+            <div className="my-5 flex items-center gap-3 text-ink-3 text-xs">
+              <div className="h-px flex-1 bg-line" />
+              or
+              <div className="h-px flex-1 bg-line" />
+            </div>
 
-        <p className="mt-8 text-sm text-ink-3">
-          Already have an account?{" "}
-          <Link href="/login" className="text-red-soft">
-            Log in
-          </Link>
-        </p>
+            <button
+              onClick={handleGoogle}
+              disabled={busy}
+              className="w-full flex items-center justify-center gap-2.5 rounded-lg border border-line px-4 py-3 text-sm font-semibold disabled:opacity-50"
+            >
+              <GoogleLogo />
+              Continue with Google
+            </button>
+
+            <p className="mt-8 text-sm text-ink-3">
+              Already have an account?{" "}
+              <Link href="/login" className="text-red-soft">
+                Log in
+              </Link>
+            </p>
+          </>
+        )}
       </div>
     </main>
   );

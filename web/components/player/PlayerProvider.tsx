@@ -90,9 +90,20 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const objectUrlRef = useRef<string | null>(null);
 
+  // /api/tracks/[id]/audio-url signs its R2 URL for only 300s. Resuming via
+  // a bare audio.play() after that window (e.g. pressing play again once a
+  // track has fully ended and playback stopped) hits an expired URL: play()
+  // doesn't throw, isPlaying still flips to true, but no audio actually
+  // comes out. Set whenever playback stops with the loaded URL possibly
+  // stale; togglePlay checks it and re-fetches through play() instead of
+  // resuming in place. play() always clears it since it always fetches (or
+  // re-decrypts, for offline) a fresh source.
+  const needsFreshUrlRef = useRef(false);
+
   const play = useCallback(async (track: PlayableTrack, queueArg?: PlayableTrack[]) => {
     const q = queueArg && queueArg.length > 0 ? queueArg : [track];
     const idx = q.findIndex((t) => t.trackId === track.trackId);
+    needsFreshUrlRef.current = false;
     setQueue(q);
     setQueueIndex(idx === -1 ? 0 : idx);
     setCurrent(track);
@@ -180,8 +191,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const onEnded = async () => {
       const { repeatMode: mode, queue: q, queueIndex: idx } = guardRef.current;
       if (mode === "one") {
-        audio.currentTime = 0;
-        audio.play();
+        // Re-fetch through play() rather than a bare seek+audio.play() — the
+        // signed audio URL loaded when this play-through started may already
+        // be past its 300s expiry by the time the track finishes.
+        playRef.current(q[idx], q);
         return;
       }
       if (idx < q.length - 1) {
@@ -222,10 +235,13 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // lock-screen "play" press afterward deterministically restarts this
       // track, and a lock-screen "previous" press afterward correctly jumps
       // to the prior track instead of re-triggering the position>3s "restart
-      // current track" branch in `previous()`.
+      // current track" branch in `previous()`. Also flag that whenever
+      // playback resumes from here, it needs a fresh signed URL rather than
+      // resuming this stale <audio> element in place — see needsFreshUrlRef.
       audio.currentTime = 0;
       setPositionSec(0);
       setIsPlaying(false);
+      needsFreshUrlRef.current = true;
     };
 
     audio.addEventListener("timeupdate", onTime);
@@ -272,11 +288,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
+    } else if (needsFreshUrlRef.current) {
+      // The loaded <audio> src may be past its signed-URL expiry (see
+      // needsFreshUrlRef) — re-fetch via play() instead of resuming in
+      // place, which would otherwise flip isPlaying to true with no actual
+      // audio coming out.
+      play(current, queue);
     } else {
       audio.play();
       setIsPlaying(true);
     }
-  }, [isPlaying, current]);
+  }, [isPlaying, current, queue, play]);
 
   const seek = useCallback(
     (sec: number) => {

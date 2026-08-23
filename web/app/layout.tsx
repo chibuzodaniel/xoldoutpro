@@ -43,12 +43,17 @@ export const viewport: Viewport = {
 // visible and playback survives every navigation, not just within (app).
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
-      {/* h-full (not min-h-full) + overflow-hidden caps the page at the
-          viewport height instead of letting content grow it taller — without
-          this, the *window* scrolls instead of the inner content pane below,
-          taking the "fixed" mini player/bottom nav along with it. */}
-      <body className="h-full flex flex-col bg-bg text-ink overflow-hidden">
+    <html lang="en" className="h-dvh antialiased">
+      {/* h-dvh (dynamic viewport height, not h-full/100%) + overflow-hidden
+          caps the page at the *real* visible viewport instead of letting
+          content grow it taller. Using the dvh unit specifically (rather
+          than plain h-full) is what makes this reactive to the on-screen
+          keyboard opening: 100% would stay anchored to the pre-keyboard
+          layout height on iOS Safari, leaving BottomNav and any composer
+          input (e.g. ChatComposer in a Fanbase) sitting behind the keyboard
+          instead of floating up above it. dvh shrinks live as the keyboard
+          opens, so this flex column reflows and pushes them up with it. */}
+      <body className="h-dvh flex flex-col bg-bg text-ink overflow-hidden">
         <ToastProvider>
           <AuthProvider>
             <InstallGuideProvider>

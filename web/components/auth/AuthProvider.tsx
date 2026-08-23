@@ -49,9 +49,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // A deleted account still has a working Firebase login (on purpose, so
     // its owner can sign back in to recover it) — send them to the recovery
     // prompt instead of exposing them to the rest of the app as "logged in".
+    // /login and /signup skip this auto-redirect too: they show their own
+    // inline "you deleted this account" prompt right after sign-in (see
+    // handleEmailLogin/handleGoogle there) instead of silently bouncing the
+    // user away before they can read it.
     if (data.accountDeleted) {
       setAppUser(null);
-      if (!pathname?.startsWith("/recoveraccount/")) router.replace(`/recoveraccount/${data.user.handle}`);
+      if (!pathname?.startsWith("/recoveraccount/") && pathname !== "/login" && pathname !== "/signup") {
+        router.replace(`/recoveraccount/${data.user.handle}`);
+      }
       return;
     }
     setAppUser(data.user);

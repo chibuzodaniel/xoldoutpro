@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
@@ -49,7 +50,7 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
     }
   }
 
-  async function handleDoneContinue() {
+  async function handleSignOutAndLeave() {
     if (firebaseAuth) await signOut(firebaseAuth);
     router.push("/login");
   }
@@ -75,11 +76,19 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
               We&apos;ve emailed you a recovery link. You have 45 days to recover your account before it becomes
               permanently disabled and only restorable by a moderator.
             </p>
-            <button
-              type="button"
-              onClick={handleDoneContinue}
-              className="w-full rounded-lg bg-red py-3 text-sm font-semibold text-white"
+            <Link
+              href={`/recoveraccount/${handle}`}
+              className="block w-full rounded-lg bg-red py-3 text-sm font-semibold text-white mb-2"
             >
+              View recovery link
+            </Link>
+            <Link
+              href="/signup"
+              className="block w-full rounded-lg border border-line py-3 text-sm font-semibold text-ink-2 mb-3 transition-colors duration-150 hover:border-line-strong hover:text-ink"
+            >
+              Create a new account instead
+            </Link>
+            <button type="button" onClick={handleSignOutAndLeave} className="text-xs text-ink-3">
               Done
             </button>
           </div>
@@ -87,8 +96,8 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
           <>
             <h1 className="font-serif text-2xl mb-2">Delete account</h1>
             <p className="text-sm text-ink-3 mb-4">
-              This signs you out of every device and hides your profile immediately. You&apos;ll have 45 days to
-              recover it — after that, only a moderator can restore it.
+              This signs you out of every device immediately. You&apos;ll have 45 days to recover it — after that,
+              you&apos;ll have to contact support.
             </p>
             <label className="text-[12px] uppercase tracking-widest text-ink-3 mb-1 block">
               Type <span className="text-ink font-semibold">{requiredText}</span> to confirm
