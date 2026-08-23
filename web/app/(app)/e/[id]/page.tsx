@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,6 +6,7 @@ import { db } from "@/lib/db";
 import { EventTierPicker } from "@/components/product/EventTierPicker";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { buildOgMetadata } from "@/lib/og";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -21,6 +23,22 @@ function formatDate(d: Date) {
 
 function formatTime(d: Date) {
   return d.toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const event = await db.event.findUnique({
+    where: { id },
+    select: { title: true, description: true, coverImageLadder: true, venue: true, isVirtual: true, creator: { select: { displayName: true } } },
+  });
+  if (!event) return {};
+  const cover = (event.coverImageLadder as Record<string, string> | null)?.["1024"] ?? null;
+  return buildOgMetadata({
+    title: `${event.title} — ${event.creator.displayName}`,
+    description: event.description || `${event.title} · ${event.isVirtual ? "Virtual event" : event.venue ?? "Live event"} on XOLDOUT.`,
+    imageUrl: cover,
+    path: `/e/${id}`,
+  });
 }
 
 export default async function EventDetailPage({ params }: { params: Promise<{ id: string }> }) {

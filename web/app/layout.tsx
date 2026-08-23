@@ -9,6 +9,12 @@ import { InstallGuideProvider } from "@/components/pwa/InstallGuideProvider";
 import { ToastProvider } from "@/components/ui/ToastProvider";
 
 export const metadata: Metadata = {
+  // Lets per-page generateMetadata (product/profile detail pages) set
+  // relative openGraph URLs/paths that resolve against the real domain
+  // instead of localhost when building — required for those pages' shared
+  // links to preview correctly instead of falling back to this generic
+  // site-wide description.
+  metadataBase: new URL("https://www.xoldout.app"),
   title: "XOLDOUT — Where music actually sells out",
   description: "A direct-to-fan music marketplace. Fans buy, fans own, creators get paid.",
   manifest: "/manifest.json",

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -5,6 +6,7 @@ import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { buildOgMetadata } from "@/lib/og";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -13,6 +15,22 @@ export const revalidate = 30;
 function formatNaira(kobo: number) {
   if (kobo === 0) return "Free";
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params;
+  const product = await db.product.findUnique({
+    where: { id },
+    select: { title: true, description: true, creator: { select: { displayName: true } }, beat: { select: { coverImageLadder: true } } },
+  });
+  if (!product || !product.beat) return {};
+  const cover = (product.beat.coverImageLadder as Record<string, string> | null)?.["1024"] ?? null;
+  return buildOgMetadata({
+    title: `${product.title} — ${product.creator.displayName}`,
+    description: product.description || `${product.title}, a beat by ${product.creator.displayName} on XOLDOUT.`,
+    imageUrl: cover,
+    path: `/b/${id}`,
+  });
 }
 
 export default async function BeatDetailPage({ params }: { params: Promise<{ id: string }> }) {

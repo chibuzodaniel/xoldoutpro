@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { ProfileHeaderRow } from "@/components/profile/ProfileHeaderRow";
@@ -5,6 +6,7 @@ import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { buildOgMetadata } from "@/lib/og";
 
 const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = [
   { types: ["RELEASE", "BEAT"], label: "Music & Beats" },
@@ -47,6 +49,18 @@ const SOCIAL_ICONS: Record<string, React.ReactNode> = {
     </svg>
   ),
 };
+
+export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
+  const { handle } = await params;
+  const user = await db.user.findUnique({ where: { handle }, select: { displayName: true, bio: true, avatarUrl: true } });
+  if (!user) return {};
+  return buildOgMetadata({
+    title: `${user.displayName} (@${handle}) on XOLDOUT`,
+    description: user.bio || `Check out ${user.displayName}'s catalog on XOLDOUT.`,
+    imageUrl: user.avatarUrl,
+    path: `/u/${handle}`,
+  });
+}
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
