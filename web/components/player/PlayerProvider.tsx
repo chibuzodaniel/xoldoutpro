@@ -160,6 +160,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         audio.pause();
         setIsPlaying(false);
       }
+      // Drives the scrub bar on the lock-screen/OS media controls — reads
+      // straight off the audio element rather than React state, so it's
+      // fine inside this once-registered, empty-deps listener.
+      if ("mediaSession" in navigator && Number.isFinite(audio.duration) && audio.duration > 0) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audio.duration,
+            playbackRate: audio.playbackRate,
+            position: Math.min(audio.currentTime, audio.duration),
+          });
+        } catch {
+          // Some browsers throw if position/duration are momentarily out of
+          // sync (e.g. right after a seek) — cosmetic, safe to ignore.
+        }
+      }
     };
     const onLoaded = () => setDurationSec(audio.duration || 0);
     const onEnded = () => {
@@ -191,6 +206,32 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one persistent <audio> element for the app's lifetime; volume applied here is just the initial value, live changes go through setVolume
   }, []);
+
+  // Drives the OS-level "now playing" surface (lock screen, notification
+  // shade, headset controls) — title/artwork straight from the current
+  // track, with a fixed "album" line as the app watermark (lock screens
+  // typically render title/artist/album as the visible hierarchy, so this
+  // is the one field that reliably shows "Playing on XOLDOUT" everywhere).
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    if (!current) {
+      navigator.mediaSession.metadata = null;
+      return;
+    }
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: current.title,
+      artist: current.artistName,
+      album: "Playing on XOLDOUT",
+      artwork: current.artworkUrl
+        ? [96, 256, 512].map((size) => ({ src: current.artworkUrl!, sizes: `${size}x${size}` }))
+        : [],
+    });
+  }, [current]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
+  }, [isPlaying]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
@@ -243,6 +284,28 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) audioRef.current.volume = clamped;
     setVolumeState(clamped);
   }, []);
+
+  // Makes the lock-screen/notification transport controls actually do
+  // something, not just display — same handlers the in-app player buttons
+  // call. Re-registered whenever these identities change (isPlaying/queue
+  // position shift them), which is cheap — just reassigning a few handlers.
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    navigator.mediaSession.setActionHandler("play", togglePlay);
+    navigator.mediaSession.setActionHandler("pause", togglePlay);
+    navigator.mediaSession.setActionHandler("previoustrack", previous);
+    navigator.mediaSession.setActionHandler("nexttrack", next);
+    navigator.mediaSession.setActionHandler("seekto", (details) => {
+      if (details.seekTime !== undefined) seek(details.seekTime);
+    });
+    return () => {
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.setActionHandler("previoustrack", null);
+      navigator.mediaSession.setActionHandler("nexttrack", null);
+      navigator.mediaSession.setActionHandler("seekto", null);
+    };
+  }, [togglePlay, previous, next, seek]);
 
   // Remote Playback API — native browser picker for AirPlay/cast-capable
   // devices on the current <audio> element. No SDK, no extra dependency;
