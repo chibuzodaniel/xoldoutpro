@@ -61,13 +61,34 @@ function PauseIcon() {
   );
 }
 
-function RepeatIcon() {
+// A small "1" badge on repeat-one, same as Spotify/Apple Music — otherwise
+// the icon looks identical whether it's repeating just this track or the
+// whole album/EP/playlist, and the only difference (icon color) is easy to
+// miss, especially since off/all/one all reuse the exact same glyph.
+function RepeatIcon({ mode }: { mode: "one" | "other" }) {
   return (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M17 2l4 4-4 4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M3 11V9a4 4 0 014-4h14" strokeLinecap="round" />
       <path d="M7 22l-4-4 4-4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M21 13v2a4 4 0 01-4 4H3" strokeLinecap="round" />
+      {mode === "one" && (
+        <text x="12" y="15.5" textAnchor="middle" fontSize="8" fontWeight="700" stroke="none" fill="currentColor">
+          1
+        </text>
+      )}
+    </svg>
+  );
+}
+
+function ShuffleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d="M3 6h3.5a4 4 0 013.2 1.6l6.6 8.8A4 4 0 0019.5 18H21" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 4l4 2-4 2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M3 18h3.5a4 4 0 003.2-1.6l.7-.93" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M14.5 7.53l.7-.93A4 4 0 0118.5 5H21" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M17 20l4-2-4-2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -107,6 +128,7 @@ export function ExpandedPlayer() {
     positionSec,
     durationSec,
     repeatMode,
+    shuffled,
     expanded,
     entitled,
     previewStartSec,
@@ -118,6 +140,7 @@ export function ExpandedPlayer() {
     togglePlay,
     seek,
     cycleRepeat,
+    toggleShuffle,
     setExpanded,
     next,
     previous,
@@ -132,7 +155,9 @@ export function ExpandedPlayer() {
 
   const seekMin = !entitled && previewStartSec !== null ? previewStartSec : 0;
   const seekMax = !entitled && previewEndSec !== null ? previewEndSec : durationSec || 100;
-  const hasNext = queueIndex < queue.length - 1;
+  // At the last track, Next is still usable when repeat-all will wrap it
+  // back to the first track (matches next()'s own repeat-all handling).
+  const hasNext = queueIndex < queue.length - 1 || (repeatMode === "all" && queue.length > 0);
   const trackLengthSec = entitled ? durationSec : seekMax - seekMin;
   const remainingSec = Math.max((entitled ? durationSec : seekMax) - positionSec, 0);
 
@@ -219,7 +244,17 @@ export function ExpandedPlayer() {
               row visually off-centers Play since its circle is much larger
               than the other icons. */}
           <div className="flex items-center mb-8 px-1">
-            <div className="flex-1" />
+            <div className="flex-1">
+              <button
+                onClick={toggleShuffle}
+                disabled={queue.length < 2}
+                className={`disabled:opacity-30 ${shuffled ? "text-red-soft" : "text-ink-2"}`}
+                aria-label={shuffled ? "Shuffle: on" : "Shuffle: off"}
+                aria-pressed={shuffled}
+              >
+                <ShuffleIcon />
+              </button>
+            </div>
             <div className="flex items-center gap-8">
               <button onClick={previous} className="text-ink-2" aria-label="Previous">
                 <PreviousIcon />
@@ -241,7 +276,7 @@ export function ExpandedPlayer() {
                 className={repeatMode !== "off" ? "text-red-soft" : "text-ink-2"}
                 aria-label={`Repeat: ${repeatMode}`}
               >
-                <RepeatIcon />
+                <RepeatIcon mode={repeatMode === "one" ? "one" : "other"} />
               </button>
             </div>
           </div>

@@ -30,6 +30,7 @@ type PlayerState = {
   positionSec: number;
   durationSec: number;
   repeatMode: RepeatMode;
+  shuffled: boolean;
   expanded: boolean;
   entitled: boolean;
   previewStartSec: number | null;
@@ -47,6 +48,7 @@ type PlayerState = {
   togglePlay: () => void;
   seek: (sec: number) => void;
   cycleRepeat: () => void;
+  toggleShuffle: () => void;
   setExpanded: (v: boolean) => void;
   next: () => void;
   previous: () => void;
@@ -56,9 +58,25 @@ type PlayerState = {
 
 const PlayerContext = createContext<PlayerState | null>(null);
 
+// Registers a Media Session action handler defensively — some actions
+// (e.g. "stop") aren't implemented by every browser, and calling
+// setActionHandler for one throws there rather than no-oping. Progressive
+// enhancement: never let an unsupported action break the rest.
+function safeSetActionHandler(action: MediaSessionAction, handler: MediaSessionActionHandler | null) {
+  try {
+    navigator.mediaSession.setActionHandler(action, handler);
+  } catch {
+    // Not supported by this browser/platform — safe to ignore.
+  }
+}
+
 // A single persistent <audio> element, held by a provider mounted at the
 // app root — playback (and the mini player showing it) survives navigation
-// to any route, not just an authenticated app-shell subset (PRD §9).
+// to any route, not just an authenticated app-shell subset (PRD §9). This
+// is the app's one and only audio engine; every play entry point (in-app
+// buttons, the lock screen, headset controls) goes through the play/
+// togglePlay/next/previous functions this provider exposes — none of them
+// duplicate playback logic of their own.
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [current, setCurrent] = useState<PlayableTrack | null>(null);
@@ -66,6 +84,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [positionSec, setPositionSec] = useState(0);
   const [durationSec, setDurationSec] = useState(0);
   const [repeatMode, setRepeatMode] = useState<RepeatMode>("off");
+  const [shuffled, setShuffled] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [entitled, setEntitled] = useState(true);
   const [previewStartSec, setPreviewStartSec] = useState<number | null>(null);
@@ -83,24 +102,34 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   // Read inside the (stable, registered-once) audio event listeners without
   // stale closures — these mirror the state above on every change.
-  const guardRef = useRef({ entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex });
+  const guardRef = useRef({ current, entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex });
   useEffect(() => {
-    guardRef.current = { entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex };
-  }, [entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex]);
+    guardRef.current = { current, entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex };
+  }, [current, entitled, previewStartSec, previewEndSec, repeatMode, queue, queueIndex]);
 
   const objectUrlRef = useRef<string | null>(null);
 
   // /api/tracks/[id]/audio-url signs its R2 URL for only 300s. Resuming via
   // a bare audio.play() after that window (e.g. pressing play again once a
-  // track has fully ended and playback stopped) hits an expired URL: play()
-  // doesn't throw, isPlaying still flips to true, but no audio actually
-  // comes out. Set whenever playback stops with the loaded URL possibly
-  // stale; togglePlay checks it and re-fetches through play() instead of
-  // resuming in place. play() always clears it since it always fetches (or
-  // re-decrypts, for offline) a fresh source.
+  // track has fully ended and playback stopped) hits an expired URL: the
+  // browser fires an 'error' event rather than actually playing anything.
+  // Set whenever playback stops with the loaded URL known to be stale;
+  // togglePlay checks it and re-fetches through play() instead of resuming
+  // in place. This is a fast-path optimization, not the only line of
+  // defense — the 'error' listener below catches every other staleness
+  // case (e.g. resuming after a long mid-track pause) generically. play()
+  // always clears it since it always fetches (or re-decrypts, for offline)
+  // a fresh source.
   const needsFreshUrlRef = useRef(false);
 
+  // Incrementing token so overlapping play() calls (double-tapping Next,
+  // the lock screen and an in-app tap landing at nearly the same time,
+  // etc.) can't race — a call whose token has been superseded by a newer
+  // one bails out after each await instead of mutating state out of order.
+  const playTokenRef = useRef(0);
+
   const play = useCallback(async (track: PlayableTrack, queueArg?: PlayableTrack[]) => {
+    const myToken = ++playTokenRef.current;
     const q = queueArg && queueArg.length > 0 ? queueArg : [track];
     const idx = q.findIndex((t) => t.trackId === track.trackId);
     needsFreshUrlRef.current = false;
@@ -108,14 +137,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setQueueIndex(idx === -1 ? 0 : idx);
     setCurrent(track);
     setLoading(true);
-    setIsPlaying(false);
     try {
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
         objectUrlRef.current = null;
       }
 
-      const audio = audioRef.current!;
+      const audio = audioRef.current;
+      if (!audio) return;
       const kind = track.kind ?? "track";
 
       // Downloaded tracks play from the local encrypted cache with no
@@ -123,6 +152,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // (PRD §9) actually work, not just "the button exists". Beats have no
       // offline cache format yet, so this lookup is skipped for them.
       const offlineUrl = kind === "track" ? await getOfflinePlaybackUrl(track.trackId) : null;
+      if (myToken !== playTokenRef.current) return; // superseded by a newer play() while awaiting the offline lookup
+
       if (offlineUrl) {
         objectUrlRef.current = offlineUrl;
         setEntitled(true);
@@ -131,13 +162,16 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         audio.src = offlineUrl;
         audio.currentTime = 0;
         await audio.play();
-        setIsPlaying(true);
+        // isPlaying is set by the 'playing' event listener once playback is
+        // genuinely confirmed, not assumed here just because play() didn't throw.
         return;
       }
 
       const res = await apiFetch(kind === "beat" ? `/api/beats/${track.trackId}/audio-url` : `/api/tracks/${track.trackId}/audio-url`);
+      if (myToken !== playTokenRef.current) return;
       if (!res.ok) throw new Error("Could not load track");
       const data = await res.json();
+      if (myToken !== playTokenRef.current) return;
       setEntitled(data.entitled);
       setPreviewStartSec(data.previewStartSec);
       setPreviewEndSec(data.previewEndSec);
@@ -145,11 +179,11 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       audio.src = data.url;
       audio.currentTime = data.entitled ? 0 : data.previewStartSec ?? 0;
       await audio.play();
-      setIsPlaying(true);
     } catch (err) {
-      console.error(err);
+      console.error("[player] play() failed", err);
+      if (myToken === playTokenRef.current) setIsPlaying(false);
     } finally {
-      setLoading(false);
+      if (myToken === playTokenRef.current) setLoading(false);
     }
   }, []);
 
@@ -168,8 +202,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const { entitled: ent, previewStartSec: start, previewEndSec: end } = guardRef.current;
       if (!ent && start !== null && end !== null && audio.currentTime >= end) {
         audio.currentTime = start;
-        audio.pause();
-        setIsPlaying(false);
+        audio.pause(); // the 'pause' listener below flips isPlaying to false
       }
       // Drives the scrub bar on the lock-screen/OS media controls — reads
       // straight off the audio element rather than React state, so it's
@@ -179,7 +212,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
           navigator.mediaSession.setPositionState({
             duration: audio.duration,
             playbackRate: audio.playbackRate,
-            position: Math.min(audio.currentTime, audio.duration),
+            position: Math.min(Math.max(audio.currentTime, 0), audio.duration),
           });
         } catch {
           // Some browsers throw if position/duration are momentarily out of
@@ -188,6 +221,36 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       }
     };
     const onLoaded = () => setDurationSec(audio.duration || 0);
+
+    // Single source of truth for isPlaying: derived from the audio
+    // element's own events, not from callers assuming a play()/pause()
+    // call succeeded. Nothing else in this file sets isPlaying directly
+    // outside of these listeners and play()/togglePlay()'s failure paths.
+    const onPlaying = () => setIsPlaying(true);
+    const onPauseEvent = () => setIsPlaying(false);
+    const onWaiting = () => setLoading(true);
+    const onCanPlay = () => setLoading(false);
+    const onEmptied = () => setIsPlaying(false);
+
+    // One-shot auto-retry on a genuine audio error (expired/invalid URL,
+    // transient network failure, etc.) — closes the gap needsFreshUrlRef's
+    // proactive check can't cover (e.g. resuming after a long mid-track
+    // pause, not just a full track end). Guarded by `retrying` so a track
+    // that's genuinely broken fails once rather than looping.
+    let retrying = false;
+    const onError = () => {
+      setIsPlaying(false);
+      setLoading(false);
+      console.error("[player] audio element error", audio.error?.code, audio.error?.message);
+      const { current: cur, queue: q } = guardRef.current;
+      if (cur && !retrying) {
+        retrying = true;
+        playRef.current(cur, q).finally(() => {
+          retrying = false;
+        });
+      }
+    };
+
     const onEnded = async () => {
       const { repeatMode: mode, queue: q, queueIndex: idx } = guardRef.current;
       if (mode === "one") {
@@ -240,17 +303,34 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       // resuming this stale <audio> element in place — see needsFreshUrlRef.
       audio.currentTime = 0;
       setPositionSec(0);
-      setIsPlaying(false);
       needsFreshUrlRef.current = true;
+      // isPlaying already false via the 'pause' event the native end-of-media
+      // stop fires; no need to set it here too.
     };
 
     audio.addEventListener("timeupdate", onTime);
     audio.addEventListener("loadedmetadata", onLoaded);
+    audio.addEventListener("playing", onPlaying);
+    audio.addEventListener("pause", onPauseEvent);
+    audio.addEventListener("waiting", onWaiting);
+    audio.addEventListener("stalled", onWaiting);
+    audio.addEventListener("canplay", onCanPlay);
+    audio.addEventListener("canplaythrough", onCanPlay);
+    audio.addEventListener("emptied", onEmptied);
+    audio.addEventListener("error", onError);
     audio.addEventListener("ended", onEnded);
     return () => {
       audio.pause();
       audio.removeEventListener("timeupdate", onTime);
       audio.removeEventListener("loadedmetadata", onLoaded);
+      audio.removeEventListener("playing", onPlaying);
+      audio.removeEventListener("pause", onPauseEvent);
+      audio.removeEventListener("waiting", onWaiting);
+      audio.removeEventListener("stalled", onWaiting);
+      audio.removeEventListener("canplay", onCanPlay);
+      audio.removeEventListener("canplaythrough", onCanPlay);
+      audio.removeEventListener("emptied", onEmptied);
+      audio.removeEventListener("error", onError);
       audio.removeEventListener("ended", onEnded);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- one persistent <audio> element for the app's lifetime; volume applied here is just the initial value, live changes go through setVolume
@@ -277,26 +357,31 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     });
   }, [current]);
 
+  // "none" (rather than "paused") when nothing is loaded at all — lets the
+  // OS distinguish "no media session" from "media session, paused".
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.playbackState = isPlaying ? "playing" : "paused";
-  }, [isPlaying]);
+    navigator.mediaSession.playbackState = !current ? "none" : isPlaying ? "playing" : "paused";
+  }, [isPlaying, current]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !current) return;
     if (isPlaying) {
       audio.pause();
-      setIsPlaying(false);
     } else if (needsFreshUrlRef.current) {
       // The loaded <audio> src may be past its signed-URL expiry (see
       // needsFreshUrlRef) — re-fetch via play() instead of resuming in
-      // place, which would otherwise flip isPlaying to true with no actual
-      // audio coming out.
+      // place, which would otherwise silently produce no audio.
       play(current, queue);
     } else {
-      audio.play();
-      setIsPlaying(true);
+      audio.play().catch(() => {
+        // Resume rejected for a reason needsFreshUrlRef didn't anticipate
+        // (e.g. the URL went stale mid-pause, not at a natural track end) —
+        // the 'error' listener's own retry covers this too, but retrying
+        // immediately here avoids waiting on that event to fire.
+        play(current, queue);
+      });
     }
   }, [isPlaying, current, queue, play]);
 
@@ -307,6 +392,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       let clamped = sec;
       if (!entitled && previewStartSec !== null && previewEndSec !== null) {
         clamped = Math.min(Math.max(sec, previewStartSec), previewEndSec);
+      } else {
+        clamped = Math.max(0, Number.isFinite(audio.duration) && audio.duration > 0 ? Math.min(clamped, audio.duration) : clamped);
       }
       audio.currentTime = clamped;
       setPositionSec(clamped);
@@ -318,10 +405,46 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setRepeatMode((m) => (m === "off" ? "all" : m === "all" ? "one" : "off"));
   }, []);
 
-  // Skip to the next track in the current queue — a no-op past the end.
+  // Shuffles everything after the currently-playing track, keeping it in
+  // place at the front — turning shuffle back off restores the exact
+  // original order (remembered in originalQueueRef) rather than re-sorting.
+  const originalQueueRef = useRef<PlayableTrack[] | null>(null);
+  const toggleShuffle = useCallback(() => {
+    setQueue((currentQueue) => {
+      if (currentQueue.length === 0) return currentQueue;
+      if (!shuffled) {
+        originalQueueRef.current = currentQueue;
+        const playingTrack = currentQueue[queueIndex];
+        const rest = currentQueue.filter((_, i) => i !== queueIndex);
+        for (let i = rest.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [rest[i], rest[j]] = [rest[j], rest[i]];
+        }
+        setQueueIndex(0);
+        return playingTrack ? [playingTrack, ...rest] : rest;
+      }
+      const original = originalQueueRef.current ?? currentQueue;
+      const playingTrack = currentQueue[queueIndex];
+      const restoredIndex = playingTrack ? original.findIndex((t) => t.trackId === playingTrack.trackId) : 0;
+      setQueueIndex(restoredIndex === -1 ? 0 : restoredIndex);
+      originalQueueRef.current = null;
+      return original;
+    });
+    setShuffled((s) => !s);
+  }, [shuffled, queueIndex]);
+
+  // Skip to the next track in the current (possibly shuffled) queue.
   const next = useCallback(() => {
-    if (queueIndex < queue.length - 1) play(queue[queueIndex + 1], queue);
-  }, [queue, queueIndex, play]);
+    if (queueIndex < queue.length - 1) {
+      play(queue[queueIndex + 1], queue);
+    } else if (repeatMode === "all" && queue.length > 0) {
+      // Manual skip on the last track of a repeat-all album/EP/playlist
+      // should wrap to the first track — same as what already happens when
+      // the track ends naturally (onEnded's mode === "all" branch), just
+      // triggered by the Next button (in-app or lock-screen) instead.
+      play(queue[0], queue);
+    }
+  }, [queue, queueIndex, play, repeatMode]);
 
   // Mirrors the near-universal "tap back = restart this track, tap back
   // again quickly = go to the previous one" convention (Spotify, Apple
@@ -341,26 +464,71 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Makes the lock-screen/notification transport controls actually do
-  // something, not just display — same handlers the in-app player buttons
-  // call. Re-registered whenever these identities change (isPlaying/queue
+  // something, not just display — the exact same functions the in-app
+  // player buttons call, so there is only ever one playback implementation.
+  // Re-registered whenever these identities change (isPlaying/queue
   // position shift them), which is cheap — just reassigning a few handlers.
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    navigator.mediaSession.setActionHandler("play", togglePlay);
-    navigator.mediaSession.setActionHandler("pause", togglePlay);
-    navigator.mediaSession.setActionHandler("previoustrack", previous);
-    navigator.mediaSession.setActionHandler("nexttrack", next);
-    navigator.mediaSession.setActionHandler("seekto", (details) => {
+    safeSetActionHandler("play", togglePlay);
+    safeSetActionHandler("pause", togglePlay);
+    safeSetActionHandler("stop", () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.pause();
+      audio.currentTime = 0;
+      setPositionSec(0);
+    });
+    safeSetActionHandler("previoustrack", previous);
+    safeSetActionHandler("nexttrack", next);
+    safeSetActionHandler("seekbackward", (details) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      seek(Math.max(0, audio.currentTime - (details.seekOffset ?? 10)));
+    });
+    safeSetActionHandler("seekforward", (details) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      const max = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : Infinity;
+      seek(Math.min(max, audio.currentTime + (details.seekOffset ?? 10)));
+    });
+    safeSetActionHandler("seekto", (details) => {
       if (details.seekTime !== undefined) seek(details.seekTime);
     });
     return () => {
-      navigator.mediaSession.setActionHandler("play", null);
-      navigator.mediaSession.setActionHandler("pause", null);
-      navigator.mediaSession.setActionHandler("previoustrack", null);
-      navigator.mediaSession.setActionHandler("nexttrack", null);
-      navigator.mediaSession.setActionHandler("seekto", null);
+      safeSetActionHandler("play", null);
+      safeSetActionHandler("pause", null);
+      safeSetActionHandler("stop", null);
+      safeSetActionHandler("previoustrack", null);
+      safeSetActionHandler("nexttrack", null);
+      safeSetActionHandler("seekbackward", null);
+      safeSetActionHandler("seekforward", null);
+      safeSetActionHandler("seekto", null);
     };
   }, [togglePlay, previous, next, seek]);
+
+  // Safety net for cases the audio element's own events might miss syncing
+  // promptly around a background/foreground transition (locking/unlocking
+  // the device, switching apps and back) — reconcile React state against
+  // the actual audio element whenever the page becomes visible/active
+  // again. The event listeners above are the primary mechanism (they fire
+  // regardless of tab visibility); this just corrects any drift.
+  useEffect(() => {
+    function reconcile() {
+      const audio = audioRef.current;
+      if (!audio || !current) return;
+      const reallyPlaying = !audio.paused && !audio.ended;
+      setIsPlaying((prev) => (prev === reallyPlaying ? prev : reallyPlaying));
+    }
+    document.addEventListener("visibilitychange", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    window.addEventListener("focus", reconcile);
+    return () => {
+      document.removeEventListener("visibilitychange", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+      window.removeEventListener("focus", reconcile);
+    };
+  }, [current]);
 
   // Remote Playback API — native browser picker for AirPlay/cast-capable
   // devices on the current <audio> element. No SDK, no extra dependency;
@@ -379,6 +547,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         positionSec,
         durationSec,
         repeatMode,
+        shuffled,
         expanded,
         entitled,
         previewStartSec,
@@ -392,6 +561,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         togglePlay,
         seek,
         cycleRepeat,
+        toggleShuffle,
         setExpanded,
         next,
         previous,
