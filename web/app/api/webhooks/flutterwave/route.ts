@@ -6,6 +6,11 @@ import { recordSale } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { createNotification } from "@/lib/notifications/create";
+
+function formatNaira(kobo: number) {
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
 
 export const runtime = "nodejs";
 
@@ -103,6 +108,21 @@ export async function POST(req: NextRequest) {
         ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
       }).catch((err) => console.error("order confirmation email failed", err));
     }
+    await createNotification(payment.order.buyerId, {
+      kind: "ORDER_PAID",
+      title: "Order confirmed",
+      body: `${product.title} · ${formatNaira(payment.amountKobo)}`,
+      url: "/library",
+    });
+  }
+
+  if (product.creatorId !== payment.order.buyerId) {
+    await createNotification(product.creatorId, {
+      kind: "SALE",
+      title: "You made a sale",
+      body: `${product.title} · ${formatNaira(payment.amountKobo)}`,
+      url: "/wallet",
+    });
   }
 
   return NextResponse.json({ ok: true });

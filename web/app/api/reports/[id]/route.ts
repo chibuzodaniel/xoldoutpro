@@ -4,6 +4,11 @@ import { requireModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { recordRefund } from "@/lib/commerce/ledger";
 import { initiateRefund } from "@/lib/flutterwave";
+import { createNotification } from "@/lib/notifications/create";
+
+function formatNaira(kobo: number) {
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
 
 const patchSchema = z.object({ action: z.enum(["review", "dismiss", "takedown"]) });
 
@@ -81,6 +86,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         if (payment) await recordRefund(tx, { sellerId: product.creatorId, orderId: ent.orderId, grossKobo: payment.amountKobo });
         await tx.order.update({ where: { id: ent.orderId }, data: { status: "REFUNDED" } });
       });
+
+      if (payment) {
+        await createNotification(ent.order.buyerId, {
+          kind: "REFUND",
+          title: "Order refunded",
+          body: `${product.title} · ${formatNaira(payment.amountKobo)} refunded to your original payment method.`,
+          url: "/library",
+        });
+      }
     }
 
     await db.report.update({ where: { id }, data: { status: "RESOLVED" } });

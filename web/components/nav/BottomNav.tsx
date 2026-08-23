@@ -1,9 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { apiFetch } from "@/lib/api";
 import { PublishSheet } from "./PublishSheet";
+
+const UNREAD_POLL_MS = 45000;
 
 const ICONS: Record<string, React.ReactNode> = {
   discover: (
@@ -56,13 +60,46 @@ function hasBottomNav(pathname: string) {
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { appUser } = useAuth();
   const [publishOpen, setPublishOpen] = useState(false);
-  if (!hasBottomNav(pathname ?? "")) return null;
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // On Socials, the central FAB creates a feed post instead of opening the
   // general "what are you publishing" sheet — it hands off via a query param
   // since this component has no access to the Socials page's post list state.
   const onSocials = pathname?.startsWith("/socials");
+
+  // Polls the in-app unread badge (separate signal from push — see
+  // lib/socials/unread.ts) while elsewhere in the app; skipped while
+  // actually on Socials since that's handled by the mark-read effect below.
+  useEffect(() => {
+    if (!appUser || onSocials) return;
+    let cancelled = false;
+    function poll() {
+      apiFetch("/api/socials/unread")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && !cancelled) setUnreadCount(data.count);
+        });
+    }
+    poll();
+    const interval = setInterval(poll, UNREAD_POLL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [appUser, onSocials]);
+
+  // Opening Socials zeroes the badge immediately by advancing the
+  // "last seen" watermark, rather than waiting for the next poll.
+  useEffect(() => {
+    if (!appUser || !onSocials) return;
+    apiFetch("/api/socials/unread", { method: "POST" }).then((res) => {
+      if (res.ok) setUnreadCount(0);
+    });
+  }, [appUser, onSocials]);
+
+  if (!hasBottomNav(pathname ?? "")) return null;
 
   return (
     <>
@@ -102,7 +139,14 @@ export function BottomNav() {
                 pathname?.startsWith(item.href) ? "text-white" : "text-ink-3"
               }`}
             >
-              <span className="h-[19px] w-[19px]">{ICONS[item.icon]}</span>
+              <span className="relative h-[19px] w-[19px]">
+                {ICONS[item.icon]}
+                {item.icon === "socials" && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red px-1 text-[9px] font-bold leading-none text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </span>
               {item.label}
             </Link>
           ),

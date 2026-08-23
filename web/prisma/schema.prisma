@@ -38,6 +38,10 @@ model User {
   // anyone turn it off.
   pushEnabled Boolean  @default(true)
   fcmTokens   String[] @default([]) // Firebase Cloud Messaging push tokens
+  // Drives the in-app unread badge on the Socials nav tab (distinct from
+  // push — this counts activity while the app itself is open) — null until
+  // the user's first-ever Socials visit, treated as "everything" from then on.
+  socialsLastSeenAt DateTime?
   isModerator Boolean  @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
   // A super-moderator can additionally promote/demote other moderators from
   // the moderation dashboard (ManageModeratorsPanel) — the first one still
@@ -55,6 +59,7 @@ model User {
   orders         Order[]
   reports        Report[]            @relation("ReportsFiled")
   reportsAgainst Report[]            @relation("ReportsOnProfile")
+  notifications  Notification[]
 
   following Follow[] @relation("Following")
   followers Follow[] @relation("Followers")
@@ -631,6 +636,34 @@ model Payment {
   webhookReceivedAt DateTime?
   rawPayload        Json?
   createdAt         DateTime      @default(now())
+}
+
+// The header bell — deliberately transactional/money-related only (a sale
+// made, an order paid, a payout started/failed, a refund) and never Socials
+// activity (follows/comments/likes/group messages/join requests), which has
+// its own separate in-app signal: the unread badge on the Socials nav tab
+// (lib/socials/unread.ts). Two different signals for two different kinds of
+// "something happened" on purpose, not an oversight.
+enum NotificationKind {
+  SALE
+  ORDER_PAID
+  PAYOUT_INITIATED
+  PAYOUT_FAILED
+  REFUND
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  kind      NotificationKind
+  title     String
+  body      String
+  url       String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // ─── Gifting (PRD §7.3 Phase 2) ─────────────────────────────────────────

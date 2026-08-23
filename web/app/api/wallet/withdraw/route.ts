@@ -4,6 +4,11 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getWalletBalances } from "@/lib/commerce/ledger";
 import { initiateTransfer } from "@/lib/flutterwave";
+import { createNotification } from "@/lib/notifications/create";
+
+function formatNaira(kobo: number) {
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
 
 const bodySchema = z.object({
   amountKobo: z.number().int().positive(),
@@ -68,8 +73,21 @@ export async function POST(req: NextRequest) {
           data: { userId: user.id, amountKobo, kind: "PAYOUT_DEBIT", status: "AVAILABLE", payoutId: payout.id },
         }),
       ]);
+      await createNotification(user.id, {
+        kind: "PAYOUT_FAILED",
+        title: "Withdrawal failed",
+        body: `${formatNaira(netKobo)} could not be sent — your balance has been restored.`,
+        url: "/wallet",
+      });
       return NextResponse.json({ error: "Could not start the transfer. Your balance has been restored." }, { status: 502 });
     }
+
+    await createNotification(user.id, {
+      kind: "PAYOUT_INITIATED",
+      title: "Withdrawal started",
+      body: `${formatNaira(netKobo)} is on its way to your bank.`,
+      url: "/wallet",
+    });
 
     return NextResponse.json({ payout }, { status: 201 });
   } catch (err) {
