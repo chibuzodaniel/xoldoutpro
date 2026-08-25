@@ -344,14 +344,20 @@ export default function EditProfilePage() {
             aria-pressed={pushEnabled}
             className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
-            {/* Track is 44px (w-11) with a 1px border each side, so the
-                padding box the dot actually positions within is 42px, not
-                44 — translate-x-5 (20px) is what leaves a clean, symmetric
-                2px inset on the right to match the 2px left inset when off
-                (translate-x-[22px] ignored the border and sat flush against
-                the edge — the dot looked like it was poking off the track). */}
+            {/* left-0 is load-bearing, not decorative: the dot is a plain
+                <span>, naturally inline, and buttons default to
+                text-align: center — without an explicit left, its "auto"
+                static position resolves against that centering instead of
+                the track's edge, landing it off to the right (worse once
+                translated further right for "on"). left-0 anchors it to a
+                known 0, so translate-x-0.5/-5 (2px/20px) move it a
+                predictable amount from the track's actual left edge.
+                Track is 44px (w-11) with a 1px border each side, so the
+                padding box the dot positions within is 42px, not 44 —
+                translate-x-5 leaves a clean ~2px inset on the right,
+                matching the 2px left inset when off. */}
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
+              className={`absolute left-0 top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
                 pushEnabled ? "translate-x-5 bg-red" : "translate-x-0.5 bg-white"
               }`}
             />
@@ -372,7 +378,7 @@ export default function EditProfilePage() {
             className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
+              className={`absolute left-0 top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
                 digestSubscribed ? "translate-x-5 bg-red" : "translate-x-0.5 bg-white"
               }`}
             />

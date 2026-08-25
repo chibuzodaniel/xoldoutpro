@@ -55,6 +55,13 @@ const NO_NAV_EXACT = new Set(["/login", "/signup", "/onboarding", "/unsubscribe"
 function hasBottomNav(pathname: string) {
   if (NO_NAV_EXACT.has(pathname)) return false;
   if (pathname.startsWith("/u/")) return false;
+  // A Fanbase group's own chat view (not the /groups list) is a full-height
+  // ChatComposer-driven surface, same shape as the reasoning above for /u/ —
+  // with the tab bar also in the flex column, opening the keyboard pushed
+  // both it and ChatComposer up together (root layout's h-dvh reflow),
+  // stacking two bars directly above the keyboard instead of leaving the
+  // composer alone right above it.
+  if (pathname.startsWith("/groups/")) return false;
   return true;
 }
 
