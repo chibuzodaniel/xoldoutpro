@@ -344,12 +344,15 @@ export default function EditProfilePage() {
             aria-pressed={pushEnabled}
             className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
-            {/* The dot is always red, not just when on — it's the thing that
-                slides from 0% (left, off) to 100% (right, on) and back, not
-                a state-colored fill like the track used to be. */}
+            {/* Track is 44px (w-11) with a 1px border each side, so the
+                padding box the dot actually positions within is 42px, not
+                44 — translate-x-5 (20px) is what leaves a clean, symmetric
+                2px inset on the right to match the 2px left inset when off
+                (translate-x-[22px] ignored the border and sat flush against
+                the edge — the dot looked like it was poking off the track). */}
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-red transition-transform ${
-                pushEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+              className={`absolute top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
+                pushEnabled ? "translate-x-5 bg-red" : "translate-x-0.5 bg-white"
               }`}
             />
           </button>
@@ -369,8 +372,8 @@ export default function EditProfilePage() {
             className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
             <span
-              className={`absolute top-0.5 h-5 w-5 rounded-full bg-red transition-transform ${
-                digestSubscribed ? "translate-x-[22px]" : "translate-x-0.5"
+              className={`absolute top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
+                digestSubscribed ? "translate-x-5 bg-red" : "translate-x-0.5 bg-white"
               }`}
             />
           </button>
