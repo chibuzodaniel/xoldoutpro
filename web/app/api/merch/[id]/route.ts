@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 
 const patchSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   priceKobo: z.number().int().min(0).optional(),
   shippingFeeKobo: z.number().int().min(0).optional(),
@@ -25,6 +27,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const product = await loadOwned(id, user.id);
     if (!product) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (product.status === "DELETED") return NextResponse.json({ error: "Listing is deleted" }, { status: 409 });
+    if (!isWithinEditWindow(product.publishedAt)) {
+      return NextResponse.json({ error: `Editing closes ${EDIT_WINDOW_HOURS} hours after a listing goes live` }, { status: 403 });
+    }
 
     if (body.cap !== undefined) {
       const policy = product.stockPolicy;
@@ -49,6 +54,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const updated = await db.product.update({
       where: { id },
       data: {
+        title: body.title,
         description: body.description,
         priceKobo: body.priceKobo,
         merchItem:

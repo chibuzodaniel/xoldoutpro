@@ -4,18 +4,26 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 
 type CatalogTier = {
   productId: string;
   name: string;
-  product: { priceKobo: number; stockPolicy: { cap: number | null; sold: number; soldOutAt: string | null } | null };
+  product: {
+    priceKobo: number;
+    publishedAt: string | null;
+    stockPolicy: { cap: number | null; sold: number; soldOutAt: string | null } | null;
+  };
 };
 
 type CatalogEvent = {
   id: string;
   title: string;
+  description: string;
+  venue: string | null;
   startsAt: string;
   status: "DRAFT" | "PUBLISHED" | "DELETED";
+  publishedAt: string | null;
   coverImageLadder: unknown;
   tiers: CatalogTier[];
 };
@@ -30,6 +38,7 @@ function formatNaira(kobo: number) {
 }
 
 function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: CatalogTier; onSaved: () => void }) {
+  const [name, setName] = useState(tier.name);
   const [priceNaira, setPriceNaira] = useState(String(tier.product.priceKobo / 100));
   const [capValue, setCapValue] = useState(tier.product.stockPolicy?.cap != null ? String(tier.product.stockPolicy.cap) : "");
   const [busy, setBusy] = useState(false);
@@ -37,11 +46,13 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
 
   const hasCap = tier.product.stockPolicy?.cap != null;
   const sold = tier.product.stockPolicy?.sold ?? 0;
+  const editable = isWithinEditWindow(tier.product.publishedAt);
 
   async function handleSave() {
     setError(null);
     const priceKobo = Math.round(parseFloat(priceNaira || "0") * 100);
-    const body: { priceKobo?: number; cap?: number } = {};
+    const body: { name?: string; priceKobo?: number; cap?: number } = {};
+    if (name.trim() && name !== tier.name) body.name = name.trim();
     if (!Number.isNaN(priceKobo) && priceKobo !== tier.product.priceKobo) body.priceKobo = priceKobo;
     if (hasCap) {
       const cap = parseInt(capValue, 10);
@@ -67,11 +78,26 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
     }
   }
 
+  if (!editable) {
+    return (
+      <div className="flex items-center justify-between py-3">
+        <span className="text-xs font-semibold">{tier.name}</span>
+        <span className="text-[11px] text-ink-3">
+          {formatNaira(tier.product.priceKobo)} · {sold} sold · editing closed
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-2 py-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold">{tier.name}</span>
-        <span className="text-[11px] text-ink-3">{sold} sold</span>
+      <div className="flex items-center justify-between gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="flex-1 rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold outline-none transition-colors duration-150 focus:border-red"
+        />
+        <span className="text-[11px] text-ink-3 shrink-0">{sold} sold</span>
       </div>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
@@ -104,7 +130,72 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
           {busy ? "Saving…" : "Save"}
         </button>
       </div>
+      <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after this tier went live.</p>
       {hasCap && <p className="text-[11px] text-ink-3">Cap can only be lowered, never below tickets already sold.</p>}
+      {error && <p className="text-[11px] text-red-soft">{error}</p>}
+    </div>
+  );
+}
+
+function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => void }) {
+  const [title, setTitle] = useState(event.title);
+  const [description, setDescription] = useState(event.description);
+  const [venue, setVenue] = useState(event.venue ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setError(null);
+    const body: { title?: string; description?: string; venue?: string } = {};
+    if (title.trim() && title !== event.title) body.title = title.trim();
+    if (description !== event.description) body.description = description;
+    if (venue !== (event.venue ?? "")) body.venue = venue;
+    if (Object.keys(body).length === 0) return;
+
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/events/${event.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not save");
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 pb-3 mb-1 border-b border-line-soft">
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        className="rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
+      />
+      <textarea
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        rows={2}
+        className="rounded-lg border border-line bg-surface px-3 py-2 text-xs outline-none transition-colors duration-150 focus:border-red resize-none"
+      />
+      <div className="flex items-center gap-2">
+        <input
+          value={venue}
+          onChange={(e) => setVenue(e.target.value)}
+          placeholder="Venue"
+          className="flex-1 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs outline-none transition-colors duration-150 focus:border-red"
+        />
+        <button
+          onClick={handleSave}
+          disabled={busy}
+          className="rounded-lg bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50 shrink-0"
+        >
+          {busy ? "Saving…" : "Save"}
+        </button>
+      </div>
+      <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after publishing.</p>
       {error && <p className="text-[11px] text-red-soft">{error}</p>}
     </div>
   );
@@ -191,10 +282,19 @@ export default function EventCatalogPage() {
                   )}
                 </div>
                 {isManaging && (
-                  <div className="mt-2 ml-[52px] pl-3 border-l border-line-soft flex flex-col divide-y divide-line-soft">
-                    {ev.tiers.map((tier) => (
-                      <TierEditor key={tier.productId} eventId={ev.id} tier={tier} onSaved={load} />
-                    ))}
+                  <div className="mt-2 ml-[52px] pl-3 border-l border-line-soft flex flex-col">
+                    {isWithinEditWindow(ev.publishedAt) ? (
+                      <EventEditor event={ev} onSaved={load} />
+                    ) : (
+                      <p className="text-[11px] text-ink-3 pb-3 mb-1 border-b border-line-soft">
+                        Editing this event&apos;s details closed {EDIT_WINDOW_HOURS} hours after it went live.
+                      </p>
+                    )}
+                    <div className="flex flex-col divide-y divide-line-soft">
+                      {ev.tiers.map((tier) => (
+                        <TierEditor key={tier.productId} eventId={ev.id} tier={tier} onSaved={load} />
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

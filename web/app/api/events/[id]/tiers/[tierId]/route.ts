@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 
 const patchSchema = z.object({
+  name: z.string().min(1).max(60).optional(),
   priceKobo: z.number().int().min(0).optional(),
   cap: z.number().int().positive().optional(),
 });
@@ -29,6 +31,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const tier = await loadOwnedTier(id, tierId, user.id);
     if (!tier) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (tier.product.status === "DELETED") return NextResponse.json({ error: "Event is deleted" }, { status: 409 });
+    if (!isWithinEditWindow(tier.product.publishedAt)) {
+      return NextResponse.json({ error: `Editing closes ${EDIT_WINDOW_HOURS} hours after a tier goes live` }, { status: 403 });
+    }
 
     if (body.cap !== undefined) {
       const policy = tier.product.stockPolicy;
@@ -49,7 +54,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const updated = await db.product.update({
       where: { id: tierId },
-      data: { priceKobo: body.priceKobo },
+      data: {
+        priceKobo: body.priceKobo,
+        ticketTier: body.name !== undefined ? { update: { name: body.name } } : undefined,
+      },
       include: { stockPolicy: true, ticketTier: true },
     });
 

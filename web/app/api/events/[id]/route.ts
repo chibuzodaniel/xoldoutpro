@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 
 const patchSchema = z.object({
+  title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   venue: z.string().max(200).optional(),
 });
@@ -23,10 +25,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const event = await loadOwned(id, user.id);
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (event.status === "DELETED") return NextResponse.json({ error: "Event is deleted" }, { status: 409 });
+    if (!isWithinEditWindow(event.publishedAt)) {
+      return NextResponse.json({ error: `Editing closes ${EDIT_WINDOW_HOURS} hours after an event goes live` }, { status: 403 });
+    }
 
     const updated = await db.event.update({
       where: { id },
-      data: { description: body.description, venue: body.venue },
+      data: { title: body.title, description: body.description, venue: body.venue },
       include: { tiers: { include: { product: { include: { stockPolicy: true } } } } },
     });
 
