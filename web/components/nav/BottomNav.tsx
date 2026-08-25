@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
+import { useKeyboardOpen } from "@/lib/useKeyboardOpen";
 import { PublishSheet } from "./PublishSheet";
 
 const UNREAD_POLL_MS = 45000;
@@ -55,13 +56,6 @@ const NO_NAV_EXACT = new Set(["/login", "/signup", "/onboarding", "/unsubscribe"
 function hasBottomNav(pathname: string) {
   if (NO_NAV_EXACT.has(pathname)) return false;
   if (pathname.startsWith("/u/")) return false;
-  // A Fanbase group's own chat view (not the /groups list) is a full-height
-  // ChatComposer-driven surface, same shape as the reasoning above for /u/ —
-  // with the tab bar also in the flex column, opening the keyboard pushed
-  // both it and ChatComposer up together (root layout's h-dvh reflow),
-  // stacking two bars directly above the keyboard instead of leaving the
-  // composer alone right above it.
-  if (pathname.startsWith("/groups/")) return false;
   return true;
 }
 
@@ -70,6 +64,7 @@ export function BottomNav() {
   const { appUser } = useAuth();
   const [publishOpen, setPublishOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const keyboardOpen = useKeyboardOpen();
 
   // On Socials, the central FAB creates a feed post instead of opening the
   // general "what are you publishing" sheet — it hands off via a query param
@@ -107,6 +102,14 @@ export function BottomNav() {
   }, [appUser, onSocials]);
 
   if (!hasBottomNav(pathname ?? "")) return null;
+  // A Fanbase group's own chat view is otherwise a normal app-shell surface
+  // (tab bar visible like anywhere else) — but it's also the one place the
+  // keyboard opens routinely against a ChatComposer, and the root layout's
+  // h-dvh reflow pushes the *entire* bottom flex stack (this bar included)
+  // up above the keyboard, not just the composer. Rather than hide the tab
+  // bar on this route permanently, only hide it while the keyboard is
+  // actually open, so it's back the moment the field is blurred.
+  if (pathname?.startsWith("/groups/") && keyboardOpen) return null;
 
   return (
     <>

@@ -1,11 +1,21 @@
 "use client";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { usePlayer } from "./PlayerProvider";
+import { useKeyboardOpen } from "@/lib/useKeyboardOpen";
 
 export function MiniPlayer() {
   const { current, isPlaying, togglePlay, setExpanded, loading } = usePlayer();
+  const pathname = usePathname();
+  const keyboardOpen = useKeyboardOpen();
   if (!current) return null;
+  // Same reasoning as BottomNav: hide only while the keyboard is actually
+  // open in a Fanbase group's chat, not on the route generally. The
+  // underlying <audio> element lives in PlayerProvider, mounted at the app
+  // root regardless of what renders here — hiding this purely visual bar
+  // never touches playback, which keeps running the whole time.
+  if (pathname?.startsWith("/groups/") && keyboardOpen) return null;
 
   return (
     <div className="flex items-center gap-3 border-t border-line bg-surface px-3 py-2">
