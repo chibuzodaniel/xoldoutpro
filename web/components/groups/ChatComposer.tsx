@@ -94,8 +94,15 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
         <div className="flex items-center gap-2 mb-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={URL.createObjectURL(imageFile)} alt="" className="h-10 w-10 rounded object-cover" />
-          <button type="button" onClick={() => setImageFile(null)} className="text-xs text-ink-3">
-            Remove
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+              setImageFile(null);
+            }}
+            className="text-xs text-ink-3"
+          >
+            Delete
           </button>
         </div>
       )}

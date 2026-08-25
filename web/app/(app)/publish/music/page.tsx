@@ -168,24 +168,40 @@ export default function UploadMusicPage() {
 
         <div className="flex flex-col gap-1">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Artwork</label>
-          <label className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
-            {artworkPreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={artworkPreview} alt="Artwork preview" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs text-ink-3">Add square artwork</span>
+          <div className="relative h-32 w-32">
+            <label className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
+              {artworkPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={artworkPreview} alt="Artwork preview" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-ink-3">Add square artwork</span>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setArtworkCropFile(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {artworkPreview && !artworkUploading && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("This artwork will be permanently deleted. Continue?")) return;
+                  setArtworkPreview(null);
+                  setArtworkLadder(null);
+                }}
+                aria-label="Delete artwork"
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+              >
+                ×
+              </button>
             )}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) setArtworkCropFile(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          </div>
           {artworkUploading && <p className="text-xs text-ink-3">Processing artwork…</p>}
 
           {artworkCropFile && (

@@ -151,24 +151,40 @@ export default function UploadBeatPage() {
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Cover art</label>
-          <label className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
-            {coverPreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs text-ink-3">Add square cover art</span>
+          <div className="relative h-32 w-32">
+            <label className="flex h-32 w-32 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
+              {coverPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
+              ) : (
+                <span className="text-xs text-ink-3">Add square cover art</span>
+              )}
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setCoverCropFile(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            {coverPreview && !coverUploading && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("This cover art will be permanently deleted. Continue?")) return;
+                  setCoverPreview(null);
+                  setCoverImageLadder(null);
+                }}
+                aria-label="Delete cover art"
+                className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+              >
+                ×
+              </button>
             )}
-            <input
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) setCoverCropFile(file);
-                e.target.value = "";
-              }}
-            />
-          </label>
+          </div>
           {coverUploading && <p className="text-xs text-ink-3">Processing cover…</p>}
 
           {coverCropFile && (
@@ -326,7 +342,21 @@ export default function UploadBeatPage() {
         </div>
 
         <div className="flex flex-col gap-3">
-          <label className="text-[12px] uppercase tracking-widest text-ink-3">Audio file</label>
+          <div className="flex items-center justify-between">
+            <label className="text-[12px] uppercase tracking-widest text-ink-3">Audio file</label>
+            {audio.status === "ready" && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!window.confirm("This audio file will be permanently deleted. Continue?")) return;
+                  setAudio({ status: "idle" });
+                }}
+                className="text-xs text-ink-3"
+              >
+                Delete
+              </button>
+            )}
+          </div>
           <div className="rounded-xl border border-line bg-surface p-4">
             {audio.status === "idle" && (
               <input

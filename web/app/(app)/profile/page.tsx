@@ -9,6 +9,7 @@ import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
+import { SalesMilestoneSheet } from "@/components/profile/SalesMilestoneSheet";
 
 const FEEDBACK_REASONS = [
   { value: "BUG" as const, label: "Something's broken" },
@@ -237,6 +238,10 @@ export default function ProfilePage() {
             <span>Wallet</span>
             <span className="text-ink-3">›</span>
           </Link>
+          <Link href="/verification" className="flex items-center justify-between py-3 text-sm">
+            <span>{appUser.isVerified ? "Verification" : "Get verified"}</span>
+            <span className="text-ink-3">›</span>
+          </Link>
           <button type="button" onClick={installGuide.open} className="flex items-center justify-between py-3 text-sm text-left">
             <span>Install app</span>
             <span className="text-ink-3">›</span>
@@ -262,6 +267,7 @@ export default function ProfilePage() {
         title="Send feedback"
         detailsPlaceholder="What's broken, or what would you like to see?"
       />
+      <SalesMilestoneSheet />
     </div>
   );
 }

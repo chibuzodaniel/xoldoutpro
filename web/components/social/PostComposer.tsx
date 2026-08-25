@@ -32,6 +32,11 @@ export function PostComposer({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
+  function handleRemoveImage() {
+    if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+    clearImage();
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = body.trim();
@@ -79,9 +84,9 @@ export function PostComposer({
           <img src={imagePreview} alt="" className="h-full w-full object-cover" />
           <button
             type="button"
-            onClick={clearImage}
+            onClick={handleRemoveImage}
             className="absolute top-1 right-1 h-5 w-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
-            aria-label="Remove photo"
+            aria-label="Delete photo"
           >
             ×
           </button>

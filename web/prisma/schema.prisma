@@ -48,7 +48,26 @@ model User {
   // has to be set directly in the DB, same as isModerator itself, but from
   // there on out further moderators can be assigned/removed through the UI.
   isSuperModerator Boolean @default(false)
-  isVerified  Boolean  @default(false) // badge (PRD §12); criteria explicitly undecided (PRD §18) — moderator-toggled only
+  // Master "has a checkmark" flag — unchanged from its original PRD §12/§18
+  // meaning and still moderator-togglable directly (POST /api/admin/verify)
+  // for backward compatibility with every existing <VerifiedBadge> call
+  // site. The verification system below is additive: approving any
+  // VerificationApplication also sets this true (never unsets it — a
+  // suspension/revocation clears verificationBadges but leaves this alone,
+  // since other things, like the old moderator toggle, may still want it
+  // on) and records which specific badge(s) were actually granted.
+  isVerified  Boolean  @default(false)
+  // Specific badges actually granted through VerificationApplication
+  // approvals — distinct from isVerified so the UI can show e.g. "Seller
+  // Verified" instead of just a bare checkmark. A plain array (matching
+  // `tags`' convention elsewhere on this model) rather than a join table:
+  // membership only ever needs "is type X currently granted," never its
+  // own per-badge relations.
+  verificationBadges VerificationBadgeType[] @default([])
+  // Set the first time the 50-valid-sales milestone notification/modal is
+  // shown, so it doesn't re-trigger on every visit — see
+  // lib/verification/eligibility.ts.
+  salesMilestoneNotifiedAt DateTime?
   createdAt   DateTime @default(now())
   // Defaults on for new signups, same as pushEnabled — user can turn it off
   // from the profile toggle. Weekly/monthly/yearly best-seller digest emails
@@ -105,6 +124,10 @@ model User {
 
   trackPlays       TrackPlay[] @relation("TrackPlaysByUser")
   trackPlaysOfMine TrackPlay[] @relation("TrackPlaysOfCreator")
+
+  verificationApplications VerificationApplication[] @relation("VerificationApplicant")
+  verificationReviewed     VerificationApplication[] @relation("VerificationReviewer")
+  verificationAuditActions VerificationAuditLog[]    @relation("VerificationAuditActor")
 }
 
 model PayoutAccount {
@@ -250,10 +273,17 @@ model FanbaseGroup {
   // explicit ask; a moderator still has to actually flip isVerified.
   isVerified              Boolean   @default(false)
   verificationRequestedAt DateTime?
+  // Set alongside isVerified when a FANBASE-type VerificationApplication is
+  // approved — distinguishes an officially-authorized fanbase from one
+  // just recognized as a genuine community without proof of authorization
+  // (spec: "do not automatically assume every fanbase is officially
+  // endorsed"). Null until an application targeting this group is approved.
+  verificationBadgeType VerificationBadgeType?
 
   memberships  Membership[]
   joinRequests JoinRequest[]
   posts        Post[]
+  verificationApplications VerificationApplication[]
 
   @@index([creatorId])
 }
@@ -770,6 +800,175 @@ model Report {
   createdAt  DateTime         @default(now())
 
   @@index([status])
+}
+
+// ─── Verification ────────────────────────────────────────────────────────
+// A user (or, for FANBASE, a group they own) applies for one of these types;
+// on approval a specific VerificationBadgeType is granted. The split exists
+// because FANBASE applications can be approved as either OFFICIAL_FANBASE
+// (proven authorization) or the lesser RECOGNIZED_COMMUNITY — the applicant
+// requests FANBASE, the reviewer decides which badge that actually earns.
+// Every other type maps 1:1 to its badge (SELLER -> SELLER_VERIFIED, etc).
+
+enum VerificationType {
+  IDENTITY
+  SELLER
+  CREATOR
+  OFFICIAL
+  BUSINESS
+  FANBASE
+}
+
+enum VerificationBadgeType {
+  IDENTITY_VERIFIED
+  SELLER_VERIFIED
+  CREATOR_VERIFIED
+  OFFICIAL_ACCOUNT
+  TRUSTED_BUSINESS
+  OFFICIAL_FANBASE
+  RECOGNIZED_COMMUNITY
+}
+
+enum VerificationApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  MORE_INFO_REQUIRED
+  APPROVED
+  REJECTED
+  SUSPENDED
+  REVOKED
+  EXPIRED
+}
+
+enum VerificationDocumentType {
+  ID_FRONT
+  ID_BACK
+  SELFIE
+  PROOF_OF_ADDRESS
+  BUSINESS_REGISTRATION
+  SUPPORTING_EVIDENCE
+}
+
+enum VerificationDocumentStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum VerificationAuditAction {
+  APPLICATION_CREATED
+  DOCUMENT_UPLOADED
+  APPLICATION_SUBMITTED
+  MOVED_UNDER_REVIEW
+  INFO_REQUESTED
+  APPLICATION_APPROVED
+  APPLICATION_REJECTED
+  VERIFICATION_SUSPENDED
+  VERIFICATION_REVOKED
+  VERIFICATION_EXPIRED
+}
+
+// One draft/application per attempt — a user can have multiple historical
+// rows per type (e.g. rejected, then reapplied) but at most one in a
+// non-terminal status (DRAFT/SUBMITTED/UNDER_REVIEW/MORE_INFO_REQUIRED) per
+// type at a time, enforced in the API layer rather than a DB constraint
+// (Postgres partial unique indexes aren't expressible in Prisma's schema
+// language without raw SQL — see lib/verification/applications.ts).
+model VerificationApplication {
+  id     String                         @id @default(cuid())
+  userId String
+  user   User                           @relation("VerificationApplicant", fields: [userId], references: [id])
+  type   VerificationType
+  status VerificationApplicationStatus  @default(DRAFT)
+
+  // Only set for type FANBASE — the group being verified, as opposed to the
+  // applicant themselves (who's the group's creator/owner, checked at the
+  // API layer). Null for every other type.
+  groupId String?
+  group   FanbaseGroup? @relation(fields: [groupId], references: [id])
+
+  // Step 2 — personal information
+  legalFirstName String?
+  legalLastName  String?
+  dateOfBirth    DateTime?
+  country        String?
+  region         String?
+  phone          String?
+  photoUrl       String? // private storage key, not a public avatar
+
+  // Step 3 — identity document metadata (the actual images are
+  // VerificationDocument rows; this is just what the document *is*).
+  documentType      String? // "NIN" | "PASSPORT" | "DRIVERS_LICENSE" | "VOTERS_CARD"
+  documentNumber    String? // never returned in a public/list API response — see lib/verification/serialize.ts
+  documentExpiresAt DateTime?
+
+  // Step 5 — everything specific to the chosen type (creator's social
+  // links, business registration info, fanbase evidence, etc.) — one JSON
+  // blob rather than a dozen mostly-null columns, since each type's extra
+  // fields are completely different and none need to be queried/filtered
+  // on individually.
+  categoryData Json?
+
+  // What checkVerificationEligibility() returned at submit time — an audit
+  // trail proving the applicant really was eligible when they applied, even
+  // if their standing changes later while the application is under review.
+  eligibilitySnapshot Json?
+
+  submittedAt           DateTime?
+  reviewedAt             DateTime?
+  reviewedBy             String?
+  reviewer               User?     @relation("VerificationReviewer", fields: [reviewedBy], references: [id])
+  approvedAt             DateTime?
+  rejectedAt             DateTime?
+  rejectionReason        String? // user-facing
+  additionalInfoRequest  String? // user-facing, set when status = MORE_INFO_REQUIRED
+  internalNotes          String? // moderator-only, never exposed to the applicant
+  grantedBadgeType       VerificationBadgeType? // set on approval; see comment above the enum block
+  expiresAt              DateTime?
+  revokedAt               DateTime?
+  revokedReason            String?
+  suspendedAt              DateTime?
+  suspendedReason          String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  documents VerificationDocument[]
+  auditLogs VerificationAuditLog[]
+
+  @@index([userId, status])
+  @@index([status, type])
+  @@index([groupId])
+}
+
+// storageKey is a private R2 object key, resolved to a short-TTL signed URL
+// on demand (lib/storage/r2.ts's presignDownload) — never a public URL,
+// never returned directly by any list/detail API response.
+model VerificationDocument {
+  id            String                     @id @default(cuid())
+  applicationId String
+  application   VerificationApplication    @relation(fields: [applicationId], references: [id])
+  documentType  VerificationDocumentType
+  storageKey    String
+  status        VerificationDocumentStatus @default(PENDING)
+  uploadedAt    DateTime                   @default(now())
+  reviewedAt    DateTime?
+
+  @@index([applicationId])
+}
+
+model VerificationAuditLog {
+  id            String                   @id @default(cuid())
+  applicationId String
+  application   VerificationApplication  @relation(fields: [applicationId], references: [id])
+  actorId       String
+  actor         User                     @relation("VerificationAuditActor", fields: [actorId], references: [id])
+  action        VerificationAuditAction
+  metadata      Json?
+  createdAt     DateTime                 @default(now())
+
+  @@index([applicationId, createdAt])
 }
 
 // ─── Background work queue ──────────────────────────────────────────────

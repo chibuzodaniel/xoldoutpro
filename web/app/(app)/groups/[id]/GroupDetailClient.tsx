@@ -142,6 +142,21 @@ export function GroupDetailClient({ id }: { id: string }) {
     }
   }
 
+  async function handlePhotoRemove() {
+    if (!window.confirm("This group photo will be permanently deleted. Continue?")) return;
+    setUploadingPhoto(true);
+    try {
+      const res = await apiFetch(`/api/groups/${id}/photo`, { method: "DELETE" });
+      if (res.ok) {
+        setGroup((cur) => (cur ? { ...cur, coverImageUrl: null } : cur));
+      } else {
+        toast.error("Couldn't delete the group photo. Try again.");
+      }
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
+
   async function handleLeave() {
     if (!window.confirm("Leave this group?")) return;
     const res = await apiFetch(`/api/groups/${id}/join`, { method: "DELETE" });
@@ -159,26 +174,38 @@ export function GroupDetailClient({ id }: { id: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-line-soft shrink-0">
-        <button
-          type="button"
-          onClick={() => myRole === "ADMIN" && fileInputRef.current?.click()}
-          disabled={myRole !== "ADMIN" || uploadingPhoto}
-          aria-label={myRole === "ADMIN" ? "Change group photo" : undefined}
-          className={`relative h-10 w-10 rounded-full overflow-hidden shrink-0 flex items-center justify-center text-sm font-semibold text-white/90 ${
-            group.coverImageUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[0]}`
-          }`}
-        >
-          {group.coverImageUrl ? (
-            <Image src={group.coverImageUrl} alt={group.name} fill sizes="40px" className="object-cover" />
-          ) : (
-            group.name.slice(0, 1).toUpperCase()
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            onClick={() => myRole === "ADMIN" && fileInputRef.current?.click()}
+            disabled={myRole !== "ADMIN" || uploadingPhoto}
+            aria-label={myRole === "ADMIN" ? "Change group photo" : undefined}
+            className={`relative h-10 w-10 rounded-full overflow-hidden flex items-center justify-center text-sm font-semibold text-white/90 ${
+              group.coverImageUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[0]}`
+            }`}
+          >
+            {group.coverImageUrl ? (
+              <Image src={group.coverImageUrl} alt={group.name} fill sizes="40px" className="object-cover" />
+            ) : (
+              group.name.slice(0, 1).toUpperCase()
+            )}
+            {uploadingPhoto && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              </span>
+            )}
+          </button>
+          {myRole === "ADMIN" && group.coverImageUrl && !uploadingPhoto && (
+            <button
+              type="button"
+              onClick={handlePhotoRemove}
+              aria-label="Delete group photo"
+              className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-black/70 text-white text-[10px] flex items-center justify-center"
+            >
+              ×
+            </button>
           )}
-          {uploadingPhoto && (
-            <span className="absolute inset-0 flex items-center justify-center bg-black/50">
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-            </span>
-          )}
-        </button>
+        </div>
         {myRole === "ADMIN" && (
           <input
             ref={fileInputRef}

@@ -76,6 +76,21 @@ export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, class
     }
   }
 
+  async function handleRemove() {
+    setUploading(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/me/${kind}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Could not delete photo");
+      await refreshAppUser();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const clickable = isOwner || Boolean(photoUrl);
   if (!clickable) return <div className={className}>{children}</div>;
 
@@ -118,6 +133,10 @@ export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, class
           onUpload={() => {
             setSheetOpen(false);
             openFilePicker();
+          }}
+          onRemove={() => {
+            setSheetOpen(false);
+            handleRemove();
           }}
           onClose={() => setSheetOpen(false)}
         />

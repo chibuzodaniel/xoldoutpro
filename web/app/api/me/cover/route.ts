@@ -36,3 +36,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { user } = await requireUser(req);
+    const updated = await db.user.update({ where: { id: user.id }, data: { coverUrl: null } });
+    return NextResponse.json({ user: updated });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+}

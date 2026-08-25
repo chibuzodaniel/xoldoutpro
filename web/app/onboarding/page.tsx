@@ -96,20 +96,36 @@ export default function OnboardingPage() {
         <h1 className="font-serif text-3xl mb-8">You&apos;re in.</h1>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <label className="flex flex-col items-center gap-2 cursor-pointer">
-            <div className="h-20 w-20 rounded-full bg-surface-2 border border-line overflow-hidden flex items-center justify-center">
-              {avatarPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
-              ) : (
-                <span className="font-serif text-xl text-ink-3">
-                  {(displayName || "?").slice(0, 1).toUpperCase()}
-                </span>
+          <div className="flex flex-col items-center gap-2">
+            <div className="relative h-20 w-20">
+              <label className="flex h-20 w-20 items-center justify-center rounded-full bg-surface-2 border border-line overflow-hidden cursor-pointer">
+                {avatarPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={avatarPreview} alt="Avatar preview" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="font-serif text-xl text-ink-3">
+                    {(displayName || "?").slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onAvatarChange} />
+              </label>
+              {avatarPreview && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+                    setAvatarFile(null);
+                    setAvatarPreview(null);
+                  }}
+                  aria-label="Delete photo"
+                  className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-black/70 text-white text-xs flex items-center justify-center"
+                >
+                  ×
+                </button>
               )}
             </div>
             <span className="text-xs text-ink-3">Add a photo</span>
-            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={onAvatarChange} />
-          </label>
+          </div>
 
           {cropFile && (
             <ImageCropModal

@@ -22,6 +22,7 @@ export type AppUser = {
   isModerator: boolean;
   isSuperModerator: boolean;
   isVerified: boolean;
+  verificationBadges: string[];
 };
 
 type AuthState = {

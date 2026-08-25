@@ -41,3 +41,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { user } = await requireUser(req);
+    const { id } = await params;
+
+    const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
+    if (membership?.role !== "ADMIN") {
+      return NextResponse.json({ error: "Only an admin can change this group's photo" }, { status: 403 });
+    }
+
+    const updated = await db.fanbaseGroup.update({ where: { id }, data: { coverImageUrl: null } });
+    return NextResponse.json({ coverImageUrl: updated.coverImageUrl });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    throw err;
+  }
+}

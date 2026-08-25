@@ -38,8 +38,15 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
       <div className="flex items-center justify-between mb-3">
         <span className="text-[12px] uppercase tracking-widest text-ink-3">Track {index + 1}</span>
         {onRemove && (
-          <button type="button" onClick={onRemove} className="text-xs text-ink-3">
-            Remove
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm("This track will be permanently deleted. Continue?")) return;
+              onRemove();
+            }}
+            className="text-xs text-ink-3"
+          >
+            Delete
           </button>
         )}
       </div>

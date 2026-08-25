@@ -4,10 +4,16 @@ type Props = {
   title: string;
   onView: () => void;
   onUpload: () => void;
+  onRemove: () => void;
   onClose: () => void;
 };
 
-export function PhotoActionSheet({ title, onView, onUpload, onClose }: Props) {
+export function PhotoActionSheet({ title, onView, onUpload, onRemove, onClose }: Props) {
+  function handleRemove() {
+    if (!window.confirm(`This ${title.toLowerCase()} will be permanently deleted. Continue?`)) return;
+    onRemove();
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
       <div
@@ -21,6 +27,9 @@ export function PhotoActionSheet({ title, onView, onUpload, onClose }: Props) {
           </button>
           <button type="button" onClick={onUpload} className="py-3.5 text-sm font-semibold text-center text-red-soft">
             Upload new photo
+          </button>
+          <button type="button" onClick={handleRemove} className="py-3.5 text-sm font-semibold text-center text-red-soft">
+            Delete photo
           </button>
         </div>
         <button

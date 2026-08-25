@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
 import { recordRefund } from "@/lib/commerce/ledger";
+import { sweepExpiredVerifications } from "@/lib/verification/applications";
 
 export const runtime = "nodejs";
 
@@ -70,5 +71,11 @@ export async function GET(req: NextRequest) {
     giftsExpired += 1;
   }
 
-  return NextResponse.json({ swept, giftsExpired });
+  // Expired IDENTITY verifications (see lib/verification/applications.ts) —
+  // an unrelated domain sharing this cron for the same reason gifts do: no
+  // persistent worker process exists in this build, and a fourth Hobby-plan
+  // cron slot isn't worth spending on something this infrequent.
+  const verificationsExpired = await sweepExpiredVerifications();
+
+  return NextResponse.json({ swept, giftsExpired, verificationsExpired });
 }
