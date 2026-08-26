@@ -10,6 +10,7 @@ export type SocialLink = { platform: "Instagram" | "X" | "TikTok" | "YouTube" | 
 
 export type AppUser = {
   id: string;
+  email: string;
   handle: string;
   displayName: string;
   bio: string | null;

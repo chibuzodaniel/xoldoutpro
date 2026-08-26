@@ -8,6 +8,8 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useToast } from "@/components/ui/ToastProvider";
+import { GrowthChart } from "@/components/moderation/GrowthChart";
+import { useModeratorSession } from "@/lib/useModeratorSession";
 
 type ReportRow = {
   id: string;
@@ -63,6 +65,7 @@ function slaLabel(slaDueAt: string | null) {
 export default function ModerationPage() {
   const { firebaseUser, appUser, loading } = useAuth();
   const toast = useToast();
+  const { verified: otpVerified, markVerified } = useModeratorSession();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +141,10 @@ export default function ModerationPage() {
       </div>
     );
   }
+  // Explicit ask: the same email/password as their regular account gets a
+  // moderator to here, but a one-time code is still required every time the
+  // 60s inactivity window (useModeratorSession) has lapsed.
+  if (!otpVerified) return <ModeratorOtpForm email={appUser.email} onVerified={markVerified} />;
 
   return (
     <div className="px-4 py-6">
@@ -145,6 +152,7 @@ export default function ModerationPage() {
       <p className="text-xs text-ink-3 mb-6">Open and in-review reports, soonest SLA first.</p>
 
       <PlatformStatsPanel />
+      <GrowthChart />
 
       {appUser.isSuperModerator && <ManageModeratorsPanel />}
       <VerifyCreatorPanel />
@@ -244,9 +252,12 @@ function StatTile({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-// Explicit ask: "track of users and how the platform is growing" — stat
-// tiles only, no chart, matching the same call the creator-facing
-// /api/analytics made ("the PRD requires the metrics, not a visualization").
+// Explicit ask: "track of users and how the platform is growing" — a KPI
+// row of stat tiles for the headline numbers, plus GrowthChart (see that
+// component) for the actual day/week/month/year trend with a signed,
+// colored delta. The creator-facing /api/analytics deliberately stayed
+// stat-tiles-only ("the PRD requires the metrics, not a visualization") —
+// this is the different, later ask the dataviz skill was flagged for then.
 function PlatformStatsPanel() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
 
@@ -273,8 +284,8 @@ function PlatformStatsPanel() {
           </div>
           <div className="grid grid-cols-3 gap-2">
             <StatTile label="New today" value={stats.newUsers24h} />
-            <StatTile label="New, 7d" value={stats.newUsers7d} />
-            <StatTile label="New, 30d" value={stats.newUsers30d} />
+            <StatTile label="New this week" value={stats.newUsers7d} />
+            <StatTile label="New this month" value={stats.newUsers30d} />
           </div>
           {stats.deletedUsers > 0 && (
             <p className="text-[11px] text-ink-3 mt-2">
@@ -1017,6 +1028,115 @@ function ModeratorLoginForm() {
             {busy ? "Logging in…" : "Log in"}
           </button>
         </form>
+      </div>
+    </main>
+  );
+}
+
+function maskEmail(email: string) {
+  const [name, domain] = email.split("@");
+  if (!domain) return email;
+  const visible = name.slice(0, 2);
+  return `${visible}${"•".repeat(Math.max(1, name.length - visible.length))}@${domain}`;
+}
+
+// The step-up factor on top of ModeratorLoginForm's email/password — a
+// fresh 6-digit code is requested (and emailed) the instant this mounts,
+// i.e. every time useModeratorSession's 60s inactivity window has lapsed
+// and ModerationPage falls back to this branch. onVerified marks the
+// session valid for another 60s of activity (see useModeratorSession) and
+// hands control back to ModerationPage.
+function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: () => void }) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [justSent, setJustSent] = useState(false);
+
+  async function requestCode() {
+    setSending(true);
+    setError(null);
+    setJustSent(false);
+    try {
+      const res = await apiFetch("/api/admin/otp/request", { method: "POST" });
+      if (!res.ok) throw new Error("Could not send a code — try again");
+      setJustSent(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send a code");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  useEffect(() => {
+    async function initialSend() {
+      setSending(true);
+      setError(null);
+      try {
+        const res = await apiFetch("/api/admin/otp/request", { method: "POST" });
+        if (!res.ok) throw new Error("Could not send a code — try again");
+        setJustSent(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not send a code");
+      } finally {
+        setSending(false);
+      }
+    }
+    initialSend();
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/otp/verify", { method: "POST", body: JSON.stringify({ code }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Invalid code");
+      onVerified();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Invalid code");
+      setCode("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+      <div className="w-full max-w-sm">
+        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-1">Verify it&apos;s you</p>
+        <h1 className="font-serif text-2xl mb-2">Enter your code</h1>
+        <p className="text-sm text-ink-3 mb-6">
+          {sending ? "Sending a code…" : `We sent a 6-digit code to ${maskEmail(email)}.`}
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            required
+            placeholder="000000"
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.4em] outline-none transition-colors duration-150 focus:border-red"
+          />
+          {error && <p className="text-sm text-red-soft">{error}</p>}
+          {justSent && !error && <p className="text-xs text-green">Code sent.</p>}
+          <button
+            type="submit"
+            disabled={busy || code.length !== 6}
+            className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? "Verifying…" : "Verify"}
+          </button>
+        </form>
+
+        <button type="button" onClick={requestCode} disabled={sending} className="mt-4 text-xs text-ink-3 disabled:opacity-50">
+          {sending ? "Sending…" : "Resend code"}
+        </button>
       </div>
     </main>
   );

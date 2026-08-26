@@ -128,6 +128,8 @@ model User {
   verificationApplications VerificationApplication[] @relation("VerificationApplicant")
   verificationReviewed     VerificationApplication[] @relation("VerificationReviewer")
   verificationAuditActions VerificationAuditLog[]    @relation("VerificationAuditActor")
+
+  moderatorOtpCodes ModeratorOtpCode[]
 }
 
 model PayoutAccount {
@@ -800,6 +802,28 @@ model Report {
   createdAt  DateTime         @default(now())
 
   @@index([status])
+}
+
+// ─── Moderator step-up OTP ────────────────────────────────────────────────
+// A moderator signs into /moderation with the exact same email/password as
+// their regular XOLDOUT account (no separate moderator signup) — this is
+// the extra one-time-code step that route specifically requires on top of
+// that, emailed fresh on every request. Only the hash is ever stored, same
+// reasoning as never storing a password in plaintext. The 60s
+// inactivity-timeout itself is enforced client-side (lib/useModeratorSession.ts)
+// against a sessionStorage timestamp, not this table — this table only
+// answers "was a valid code entered," not "is the session still fresh."
+model ModeratorOtpCode {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, expiresAt])
 }
 
 // ─── Verification ────────────────────────────────────────────────────────

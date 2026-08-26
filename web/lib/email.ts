@@ -200,6 +200,20 @@ export async function sendDigestEmail(input: {
   await sendEmail({ to: input.to, subject: `${periodLabel} best-sellers on XOLDOUT`, html });
 }
 
+// Second factor for /moderation — same account/inbox as a moderator's
+// regular XOLDOUT login, just this one extra step that route requires.
+export async function sendModeratorOtpEmail(input: { to: string; displayName: string; code: string }) {
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#111111;">
+      <h1 style="font-size:20px;">Your moderation dashboard code</h1>
+      <p style="color:#555555;font-size:14px;">Hey ${escapeHtml(input.displayName)}, use this code to finish signing into the XOLDOUT moderation dashboard.</p>
+      <p style="margin:24px 0;font-size:32px;font-weight:700;letter-spacing:6px;text-align:center;">${escapeHtml(input.code)}</p>
+      <p style="color:#999999;font-size:12px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+    </div>
+  `;
+  await sendEmail({ to: input.to, subject: `${input.code} is your moderation dashboard code`, html });
+}
+
 const RECOVERY_WINDOW_DAYS = 45;
 
 // Sent once, synchronously, from DELETE /api/me — recoveryUrl points at
