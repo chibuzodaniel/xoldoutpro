@@ -17,6 +17,20 @@ const nextConfig: NextConfig = {
       // Google-account avatars, used when a user signs in with Google.
       { protocol: "https" as const, hostname: "lh3.googleusercontent.com" },
     ],
+    // Cost-reduction pass on top of the per-component `unoptimized` fix
+    // (DECISIONS.md) for whatever still goes through the optimizer (post
+    // images, merch gallery, avatars/covers — genuinely unladdered uploads):
+    // - webp only, not the avif+webp default — avif costs roughly double the
+    //   transformations for a format gain not worth it at this quality/size.
+    // - no `<Image quality=...>` call site exists anywhere in the app (every
+    //   one uses the 75 default), so `qualities` is locked to just that —
+    //   nothing to break, and it forecloses a future accidental multiplier.
+    // - a month-long cache TTL: these URLs are immutable per-upload (a new
+    //   upload gets a new random R2 key, lib/uploadImage.ts), so nothing at
+    //   an existing URL ever changes underneath a cached transformation.
+    formats: ["image/webp"],
+    qualities: [75],
+    minimumCacheTTL: 2678400,
   },
   // ffmpeg-static ships a binary it locates via __dirname at runtime; sharp
   // ships native bindings the same way. Bundling either breaks that lookup
