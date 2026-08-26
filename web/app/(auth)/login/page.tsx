@@ -2,9 +2,10 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signInWithEmailAndPassword, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
+import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
+import { apiFetch } from "@/lib/api";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import Link from "next/link";
 
@@ -54,21 +55,19 @@ function LoginForm() {
 
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseAuth) return setResetError("Firebase isn't configured yet. See .env.local.example.");
     setResetError(null);
     setResetBusy(true);
     try {
-      await sendPasswordResetEmail(firebaseAuth, resetEmail);
+      // Server generates the reset link and sends its own branded email via
+      // Resend (see /api/auth/reset-password) instead of Firebase's plain-text
+      // default. Always shows the same "check your email" outcome regardless
+      // of the response — this page never confirms or denies whether an email
+      // is registered, same as before.
+      const res = await apiFetch("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ email: resetEmail }) });
+      if (!res.ok) throw new Error("Could not send a reset link");
       setResetSent(true);
     } catch (err) {
-      // Doesn't distinguish "no account with that email" from success — the
-      // generic post-submit message covers both, so this page never confirms
-      // or denies whether an email is registered.
-      if (err instanceof Error && "code" in err && err.code === "auth/user-not-found") {
-        setResetSent(true);
-      } else {
-        setResetError(err instanceof Error ? err.message : "Could not send a reset link");
-      }
+      setResetError(err instanceof Error ? err.message : "Could not send a reset link");
     } finally {
       setResetBusy(false);
     }

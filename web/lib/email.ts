@@ -218,6 +218,31 @@ export async function sendModeratorOtpEmail(input: { to: string; displayName: st
   return sendEmail({ to: input.to, subject: `${input.code} is your moderation dashboard code`, html });
 }
 
+// Sent from POST /api/auth/reset-password, which generates `resetLink` via
+// firebase-admin's generatePasswordResetLink server-side — Firebase's own
+// client-triggered reset email is plain text with a raw URL and no way to
+// style it, so this route sends its own branded email through Resend instead,
+// same pattern as every other transactional email in this file.
+export async function sendPasswordResetEmail(input: { to: string; resetLink: string }): Promise<boolean> {
+  const html = `
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#111111;">
+      <h1 style="font-size:20px;">Reset your password</h1>
+      <p style="color:#555555;font-size:14px;">
+        We got a request to reset the password for your XOLDOUT account (${escapeHtml(input.to)}).
+      </p>
+      <p style="margin:20px 0;">
+        <a href="${input.resetLink}" style="display:inline-block;background:#e11d48;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:14px;font-weight:600;">
+          Reset password
+        </a>
+      </p>
+      <p style="color:#999999;font-size:12px;">
+        This link expires in 1 hour. If you didn't request this, you can ignore this email — your password won't change.
+      </p>
+    </div>
+  `;
+  return sendEmail({ to: input.to, subject: "Reset your XOLDOUT password", html });
+}
+
 const RECOVERY_WINDOW_DAYS = 45;
 
 // Sent once, synchronously, from DELETE /api/me — recoveryUrl points at
