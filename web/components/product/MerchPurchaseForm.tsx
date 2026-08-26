@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
+import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 
 type Props = { productId: string; priceKobo: number; shippingFeeKobo: number; isSoldOut: boolean };
 
@@ -45,6 +47,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
@@ -81,10 +84,12 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     setError(null);
     setBusy(true);
     try {
+      const gateway = totalKobo > 0 ? await pickGateway() : undefined;
       const res = await apiFetch("/api/orders", {
         method: "POST",
         body: JSON.stringify({
           productId,
+          gateway,
           shipping: {
             recipientName,
             phone,
@@ -104,6 +109,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
         router.push(data.checkoutUrl);
       }
     } catch (err) {
+      if (err instanceof GatewayPickerCancelled) return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
@@ -154,8 +160,9 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <p className="text-[12px] uppercase tracking-widest text-ink-3">Shipping address</p>
+    <>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        <p className="text-[12px] uppercase tracking-widest text-ink-3">Shipping address</p>
       <input
         value={recipientName}
         onChange={(e) => setRecipientName(e.target.value)}
@@ -215,6 +222,8 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       >
         {busy ? "Starting checkout…" : formatNaira(totalKobo)}
       </button>
-    </form>
+      </form>
+      <GatewayPickerSheet open={gatewaySheetOpen} onSelect={handleGatewaySelect} onClose={closeGatewaySheet} />
+    </>
   );
 }

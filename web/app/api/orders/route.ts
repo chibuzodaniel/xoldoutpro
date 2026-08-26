@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
-import { initializePayment } from "@/lib/flutterwave";
+import { initializePayment as initializeFlutterwavePayment } from "@/lib/flutterwave";
+import { initializePayment as initializeMonnifyPayment } from "@/lib/monnify";
 import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
@@ -18,12 +19,20 @@ const shippingSchema = z.object({
   country: z.string().min(1).max(60).default("Nigeria"),
 });
 
-const bodySchema = z.object({ productId: z.string().min(1), shipping: shippingSchema.optional(), isGift: z.boolean().optional() });
+const bodySchema = z.object({
+  productId: z.string().min(1),
+  shipping: shippingSchema.optional(),
+  isGift: z.boolean().optional(),
+  // Buyer-selected checkout processor — ignored for free (₦0) orders, which
+  // never reach a processor at all. Flutterwave stays the default so any
+  // client that hasn't been updated to send this keeps working unchanged.
+  gateway: z.enum(["flutterwave", "monnify"]).default("flutterwave"),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const { user: buyer } = await requireUser(req);
-    const { productId, shipping, isGift = false } = bodySchema.parse(await req.json());
+    const { productId, shipping, isGift = false, gateway } = bodySchema.parse(await req.json());
 
     // Sellable types are added here as each one's purchase flow ships
     // (Beat/Merch now; Event has its own tier-as-Product purchase path).
@@ -139,16 +148,26 @@ export async function POST(req: NextRequest) {
         },
       });
       await db.payment.create({
-        data: { orderId: order.id, processorRef: order.id, amountKobo, status: "INITIATED" },
+        data: { orderId: order.id, processor: gateway, processorRef: order.id, amountKobo, status: "INITIATED" },
       });
 
-      const checkoutUrl = await initializePayment({
-        txRef: order.id,
-        amountKobo,
-        customerEmail: buyer.email,
-        redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
-        title: product.title,
-      });
+      const checkoutUrl =
+        gateway === "monnify"
+          ? await initializeMonnifyPayment({
+              txRef: order.id,
+              amountKobo,
+              customerEmail: buyer.email,
+              customerName: buyer.displayName,
+              redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+              title: product.title,
+            })
+          : await initializeFlutterwavePayment({
+              txRef: order.id,
+              amountKobo,
+              customerEmail: buyer.email,
+              redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+              title: product.title,
+            });
 
       return NextResponse.json({ orderId: order.id, checkoutUrl }, { status: 201 });
     } catch (err) {

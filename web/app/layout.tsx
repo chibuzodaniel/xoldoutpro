@@ -46,13 +46,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className="h-dvh antialiased">
       {/* h-dvh (dynamic viewport height, not h-full/100%) + overflow-hidden
           caps the page at the *real* visible viewport instead of letting
-          content grow it taller. Using the dvh unit specifically (rather
-          than plain h-full) is what makes this reactive to the on-screen
-          keyboard opening: 100% would stay anchored to the pre-keyboard
-          layout height on iOS Safari, leaving BottomNav and any composer
-          input (e.g. ChatComposer in a Fanbase) sitting behind the keyboard
-          instead of floating up above it. dvh shrinks live as the keyboard
-          opens, so this flex column reflows and pushes them up with it. */}
+          content grow it taller. dvh shrinks live as an on-screen keyboard
+          opens, reflowing this flex column so a composer input inside
+          {children} (e.g. ChatComposer in a Fanbase) floats up above the
+          keyboard instead of sitting behind it. BottomNav is deliberately
+          *not* part of that reflow — see its own component for why. */}
       <body className="h-dvh flex flex-col bg-bg text-ink overflow-hidden">
         <ToastProvider>
           <AuthProvider>

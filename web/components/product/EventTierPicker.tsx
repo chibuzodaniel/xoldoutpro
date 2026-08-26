@@ -6,6 +6,8 @@ import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
+import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
+import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 
 type Tier = { productId: string; name: string; priceKobo: number; isSoldOut: boolean };
 
@@ -25,6 +27,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
   const [giftingProductId, setGiftingProductId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
+  const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
   async function load() {
     const res = await apiFetch(`/api/events/${eventId}/access`);
@@ -62,7 +65,9 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
     setError(null);
     setBusyProductId(productId);
     try {
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId }) });
+      const priceKobo = tiers.find((t) => t.productId === productId)?.priceKobo ?? 0;
+      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, gateway }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.free) {
@@ -71,6 +76,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
         router.push(data.checkoutUrl);
       }
     } catch (err) {
+      if (err instanceof GatewayPickerCancelled) return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusyProductId(null);
@@ -85,7 +91,9 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
     setError(null);
     setGiftingProductId(productId);
     try {
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true }) });
+      const priceKobo = tiers.find((t) => t.productId === productId)?.priceKobo ?? 0;
+      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true, gateway }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.free) {
@@ -94,6 +102,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
         router.push(data.checkoutUrl);
       }
     } catch (err) {
+      if (err instanceof GatewayPickerCancelled) return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setGiftingProductId(null);
@@ -147,6 +156,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
           </div>
         );
       })}
+      <GatewayPickerSheet open={gatewaySheetOpen} onSelect={handleGatewaySelect} onClose={closeGatewaySheet} />
     </div>
   );
 }

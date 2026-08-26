@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
-import { useKeyboardOpen } from "@/lib/useKeyboardOpen";
 import { PublishSheet } from "./PublishSheet";
 
 const UNREAD_POLL_MS = 45000;
@@ -64,7 +63,6 @@ export function BottomNav() {
   const { appUser } = useAuth();
   const [publishOpen, setPublishOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const keyboardOpen = useKeyboardOpen();
 
   // On Socials, the central FAB creates a feed post instead of opening the
   // general "what are you publishing" sheet — it hands off via a query param
@@ -102,18 +100,18 @@ export function BottomNav() {
   }, [appUser, onSocials]);
 
   if (!hasBottomNav(pathname ?? "")) return null;
-  // A Fanbase group's own chat view is otherwise a normal app-shell surface
-  // (tab bar visible like anywhere else) — but it's also the one place the
-  // keyboard opens routinely against a ChatComposer, and the root layout's
-  // h-dvh reflow pushes the *entire* bottom flex stack (this bar included)
-  // up above the keyboard, not just the composer. Rather than hide the tab
-  // bar on this route permanently, only hide it while the keyboard is
-  // actually open, so it's back the moment the field is blurred.
-  if (pathname?.startsWith("/groups/") && keyboardOpen) return null;
 
   return (
     <>
-      <nav className="sticky bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">
+      {/* Reserves the nav's own height in normal flow — the nav itself is
+          `fixed`, pinned to the real/static bottom of the screen (not the
+          h-dvh-reflowing column above), so a keyboard opening anywhere in
+          the app (Fanbase's ChatComposer included) simply overlays on top
+          of it instead of pushing it up the way the reflowing content does.
+          Height is the nav's actual measured rendered height — if its
+          content ever changes, remeasure and update this together with it. */}
+      <div aria-hidden className="h-16 shrink-0" />
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">
         {ITEMS.map((item) =>
           item.isFab ? (
             onSocials ? (

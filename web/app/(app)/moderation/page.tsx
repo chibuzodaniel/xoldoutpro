@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { firebaseAuth } from "@/lib/firebase/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -59,7 +61,7 @@ function slaLabel(slaDueAt: string | null) {
 }
 
 export default function ModerationPage() {
-  const { appUser, loading } = useAuth();
+  const { firebaseUser, appUser, loading } = useAuth();
   const toast = useToast();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -123,7 +125,12 @@ export default function ModerationPage() {
   }
 
   if (loading) return <LoadingSpinner full size="lg" />;
-  if (!appUser?.isModerator) {
+  // /moderation owns its own auth gate (app/(app)/layout.tsx's SELF_GATED) —
+  // a signed-out visitor gets a login form right here, not a bounce through
+  // the consumer /login page.
+  if (!firebaseUser) return <ModeratorLoginForm />;
+  if (!appUser) return <LoadingSpinner full size="lg" />; // firebaseUser exists but the Postgres row hasn't synced yet
+  if (!appUser.isModerator) {
     return (
       <div className="px-4 py-6">
         <h1 className="font-serif text-2xl mb-2">Moderation</h1>
@@ -136,6 +143,8 @@ export default function ModerationPage() {
     <div className="px-4 py-6">
       <h1 className="font-serif text-2xl mb-1">Moderation queue</h1>
       <p className="text-xs text-ink-3 mb-6">Open and in-review reports, soonest SLA first.</p>
+
+      <PlatformStatsPanel />
 
       {appUser.isSuperModerator && <ManageModeratorsPanel />}
       <VerifyCreatorPanel />
@@ -215,7 +224,70 @@ export default function ModerationPage() {
   );
 }
 
-type ModeratorRow = { id: string; handle: string; displayName: string; email: string; isSuperModerator: boolean };
+type PlatformStats = {
+  totalUsers: number;
+  activeUsers: number;
+  deletedUsers: number;
+  newUsers24h: number;
+  newUsers7d: number;
+  newUsers30d: number;
+  totalModerators: number;
+  totalCreators: number;
+};
+
+function StatTile({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
+      <p className="font-serif text-2xl">{value}</p>
+      <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">{label}</p>
+    </div>
+  );
+}
+
+// Explicit ask: "track of users and how the platform is growing" — stat
+// tiles only, no chart, matching the same call the creator-facing
+// /api/analytics made ("the PRD requires the metrics, not a visualization").
+function PlatformStatsPanel() {
+  const [stats, setStats] = useState<PlatformStats | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      const res = await apiFetch("/api/admin/stats");
+      if (!res.ok) return;
+      setStats(await res.json());
+    }
+    load();
+  }, []);
+
+  return (
+    <div className="rounded-lg border border-line-soft p-4 mb-6">
+      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Platform growth</p>
+      {stats === null ? (
+        <p className="text-xs text-ink-3">Loading…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-2 mb-2">
+            <StatTile label="Total users" value={stats.totalUsers} />
+            <StatTile label="Creators" value={stats.totalCreators} />
+            <StatTile label="Moderators" value={stats.totalModerators} />
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <StatTile label="New today" value={stats.newUsers24h} />
+            <StatTile label="New, 7d" value={stats.newUsers7d} />
+            <StatTile label="New, 30d" value={stats.newUsers30d} />
+          </div>
+          {stats.deletedUsers > 0 && (
+            <p className="text-[11px] text-ink-3 mt-2">
+              {stats.activeUsers} active · {stats.deletedUsers} deleted (within recovery window or beyond)
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+type ModeratorRow = { id: string; handle: string; displayName: string; isSuperModerator: boolean };
 
 // Only super-moderators see this — grants/revokes plain isModerator by
 // handle. Doesn't touch isSuperModerator itself; that stays a direct-DB-only
@@ -298,7 +370,6 @@ function ManageModeratorsPanel() {
                   {m.displayName} <span className="text-ink-3">@{m.handle}</span>
                   {m.isSuperModerator && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Super</span>}
                 </p>
-                <p className="text-[11px] text-ink-3">{m.email}</p>
               </div>
               {!m.isSuperModerator && (
                 <button
@@ -882,5 +953,71 @@ function VerificationQueuePanel() {
         </div>
       )}
     </div>
+  );
+}
+
+// /moderation's own login gate (explicit ask: a moderator should be able to
+// go straight here and log in, not get bounced through the consumer /login
+// page first). Deliberately lighter than that page — no Google sign-in, no
+// "create an account" link — moderator accounts are internal staff,
+// provisioned directly in the DB (PRD §3), never self-serve signups.
+// AuthProvider's onAuthStateChanged listener picks up the resulting
+// firebaseUser automatically; this component doesn't need to redirect
+// anywhere itself, ModerationPage just re-renders past this branch once
+// appUser syncs in.
+function ModeratorLoginForm() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!firebaseAuth) return setError("Firebase isn't configured yet. See .env.local.example.");
+    setError(null);
+    setBusy(true);
+    try {
+      await signInWithEmailAndPassword(firebaseAuth, email, password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Log in failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+      <div className="w-full max-w-sm">
+        <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-1">Moderator access</p>
+        <h1 className="font-serif text-2xl mb-6">Moderation dashboard</h1>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <input
+            type="email"
+            required
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
+          />
+          <input
+            type="password"
+            required
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
+          />
+          {error && <p className="text-sm text-red-soft">{error}</p>}
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {busy ? "Logging in…" : "Log in"}
+          </button>
+        </form>
+      </div>
+    </main>
   );
 }

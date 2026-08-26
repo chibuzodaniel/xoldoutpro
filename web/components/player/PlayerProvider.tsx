@@ -364,12 +364,23 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     navigator.mediaSession.playbackState = !current ? "none" : isPlaying ? "playing" : "paused";
   }, [isPlaying, current]);
 
-  const togglePlay = useCallback(() => {
+  // Split out of what used to be one toggle so the Media Session "play" and
+  // "pause" handlers (below) can bind to these directly instead of a shared
+  // isPlaying-branching toggle. That toggle was the actual bug: the OS tells
+  // us unambiguously which button was pressed, but re-deriving "which one do
+  // I mean" from our own isPlaying closure meant a lock-screen tap landing
+  // just before that closure had re-rendered with a fresh isPlaying value
+  // (plausible while backgrounded/locked, where JS scheduling isn't
+  // immediate) could call the wrong half — pressing "play" silently
+  // running audio.pause() on already-paused media, which looks exactly like
+  // the song refusing to resume from outside the app. Both halves below are
+  // unconditional and idempotent (pausing already-paused / playing
+  // already-playing media is a safe no-op), so a stale closure is now
+  // harmless either way.
+  const resumePlayback = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || !current) return;
-    if (isPlaying) {
-      audio.pause();
-    } else if (needsFreshUrlRef.current) {
+    if (needsFreshUrlRef.current) {
       // The loaded <audio> src may be past its signed-URL expiry (see
       // needsFreshUrlRef) — re-fetch via play() instead of resuming in
       // place, which would otherwise silently produce no audio.
@@ -383,7 +394,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         play(current, queue);
       });
     }
-  }, [isPlaying, current, queue, play]);
+  }, [current, queue, play]);
+
+  const pausePlayback = useCallback(() => {
+    audioRef.current?.pause();
+  }, []);
+
+  const togglePlay = useCallback(() => {
+    if (!audioRef.current || !current) return;
+    if (isPlaying) pausePlayback();
+    else resumePlayback();
+  }, [isPlaying, current, pausePlayback, resumePlayback]);
 
   const seek = useCallback(
     (sec: number) => {
@@ -466,12 +487,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // Makes the lock-screen/notification transport controls actually do
   // something, not just display — the exact same functions the in-app
   // player buttons call, so there is only ever one playback implementation.
-  // Re-registered whenever these identities change (isPlaying/queue
-  // position shift them), which is cheap — just reassigning a few handlers.
+  // "play"/"pause" bind to the unconditional resumePlayback/pausePlayback,
+  // not the isPlaying-branching togglePlay — see the comment above
+  // resumePlayback for why. A useful side effect: pausePlayback never
+  // changes identity and resumePlayback only changes when the current
+  // track/queue does (not on every play/pause), so this effect re-runs far
+  // less than it used to, shrinking the window where a lock-screen tap
+  // could land on a stale handler even further.
   useEffect(() => {
     if (!("mediaSession" in navigator)) return;
-    safeSetActionHandler("play", togglePlay);
-    safeSetActionHandler("pause", togglePlay);
+    safeSetActionHandler("play", resumePlayback);
+    safeSetActionHandler("pause", pausePlayback);
     safeSetActionHandler("stop", () => {
       const audio = audioRef.current;
       if (!audio) return;
@@ -505,7 +531,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       safeSetActionHandler("seekforward", null);
       safeSetActionHandler("seekto", null);
     };
-  }, [togglePlay, previous, next, seek]);
+  }, [resumePlayback, pausePlayback, previous, next, seek]);
 
   // Safety net for cases the audio element's own events might miss syncing
   // promptly around a background/foreground transition (locking/unlocking

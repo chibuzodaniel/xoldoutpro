@@ -12,7 +12,9 @@ export async function GET(req: NextRequest) {
     await requireSuperModerator(req);
     const moderators = await db.user.findMany({
       where: { isModerator: true },
-      select: { id: true, handle: true, displayName: true, email: true, isSuperModerator: true },
+      // email deliberately excluded — moderators managing this list only
+      // need name/handle/Super status, not each other's contact info.
+      select: { id: true, handle: true, displayName: true, isSuperModerator: true },
       orderBy: { displayName: "asc" },
     });
     return NextResponse.json({ moderators });

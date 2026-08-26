@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { recordRefund } from "@/lib/commerce/ledger";
-import { initiateRefund } from "@/lib/flutterwave";
+import { initiateRefund as initiateFlutterwaveRefund } from "@/lib/flutterwave";
+import { initiateRefund as initiateMonnifyRefund } from "@/lib/monnify";
 import { createNotification } from "@/lib/notifications/create";
 
 function formatNaira(kobo: number) {
@@ -74,7 +75,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
           continue;
         }
         try {
-          await initiateRefund(payment.providerTransactionId, payment.amountKobo);
+          if (payment.processor === "monnify") {
+            await initiateMonnifyRefund(payment.providerTransactionId, payment.amountKobo);
+          } else {
+            await initiateFlutterwaveRefund(payment.providerTransactionId, payment.amountKobo);
+          }
         } catch (err) {
           refundFailures.push({ orderId: ent.orderId, reason: err instanceof Error ? err.message : "Refund call failed" });
           continue;

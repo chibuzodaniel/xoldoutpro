@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
+import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 
 type AccessTrack = {
   id: string;
@@ -46,6 +48,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   const [busy, setBusy] = useState(false);
   const [gifting, setGifting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
   async function load() {
     const res = await apiFetch(`/api/products/${productId}/access`);
@@ -70,7 +73,8 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     setError(null);
     setBusy(true);
     try {
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId }) });
+      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, gateway }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.free) {
@@ -79,6 +83,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
         router.push(data.checkoutUrl);
       }
     } catch (err) {
+      if (err instanceof GatewayPickerCancelled) return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
@@ -93,7 +98,8 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     setError(null);
     setGifting(true);
     try {
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true }) });
+      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true, gateway }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.free) {
@@ -102,6 +108,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
         router.push(data.checkoutUrl);
       }
     } catch (err) {
+      if (err instanceof GatewayPickerCancelled) return;
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setGifting(false);
@@ -198,6 +205,8 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
           You own this. Playable offline once downloaded to your Library.
         </p>
       )}
+
+      <GatewayPickerSheet open={gatewaySheetOpen} onSelect={handleGatewaySelect} onClose={closeGatewaySheet} />
     </div>
   );
 }
