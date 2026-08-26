@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
@@ -42,6 +42,40 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short" });
 }
 
+const DOUBLE_TAP_WINDOW_MS = 300;
+
+// Fires once per double-tap-to-like: pops in at the tap point, then flies
+// down into the like button and fades out — the Instagram/X-style
+// confirmation that the double-tap actually registered. Positioned via
+// `position: fixed` (viewport coordinates from the tap/click event and the
+// button's getBoundingClientRect), so it isn't clipped by the image
+// container's own `overflow-hidden`. Two-step transform (base position on
+// mount, "flying" position one frame later) is what makes the CSS
+// transition actually animate instead of snapping straight to the end state.
+function FlyingHeart({ startX, startY, dx, dy, onDone }: { startX: number; startY: number; dx: number; dy: number; onDone: () => void }) {
+  const [flying, setFlying] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setFlying(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <span
+      onTransitionEnd={onDone}
+      className="fixed z-50 text-4xl pointer-events-none transition-all duration-700 ease-out"
+      style={{
+        left: startX,
+        top: startY,
+        transform: flying ? `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.35)` : "translate(-50%, -50%) scale(1.2)",
+        opacity: flying ? 0 : 1,
+      }}
+    >
+      ❤️
+    </span>
+  );
+}
+
 export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (postId: string) => void }) {
   const { appUser } = useAuth();
   const toast = useToast();
@@ -54,6 +88,9 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [commentBody, setCommentBody] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const [flyingHeart, setFlyingHeart] = useState<{ key: number; startX: number; startY: number; dx: number; dy: number } | null>(null);
+  const lastTapRef = useRef(0);
+  const likeButtonRef = useRef<HTMLButtonElement>(null);
 
   async function toggleComments() {
     const next = !commentsOpen;
@@ -122,6 +159,33 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
     }
   }
 
+  // Double-tap on the photo (or, for a text-only post, the body) toggles
+  // like the same as tapping the heart button — Instagram/X-style gesture.
+  // A second double-tap unlikes, matching the explicit ask (unlike
+  // Instagram, which only ever likes on double-tap and needs the button for
+  // the reverse). Manual timestamp-based detection rather than
+  // `onDoubleClick` so touch taps and desktop clicks behave identically and
+  // this can capture the tap coordinates for the fly-to-button animation.
+  function handleDoubleTapLike(e: React.MouseEvent) {
+    const now = Date.now();
+    const isDoubleTap = now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS;
+    lastTapRef.current = isDoubleTap ? 0 : now;
+    if (!isDoubleTap) return;
+
+    // Only the like transition gets the flying heart — double-tapping an
+    // already-liked post to unlike it stays silent, same as tapping the
+    // button to unlike never shows one either.
+    if (!liked) {
+      const btnRect = likeButtonRef.current?.getBoundingClientRect();
+      if (btnRect) {
+        const endX = btnRect.left + btnRect.width / 2;
+        const endY = btnRect.top + btnRect.height / 2;
+        setFlyingHeart({ key: Date.now(), startX: e.clientX, startY: e.clientY, dx: endX - e.clientX, dy: endY - e.clientY });
+      }
+    }
+    toggleLike();
+  }
+
   return (
     <div className="rounded-2xl border border-red/15 bg-red/10 px-4 py-4">
       <div className="flex items-center gap-2.5 mb-2.5">
@@ -155,16 +219,23 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
           )}
         </div>
       </div>
-      <p className="text-sm text-ink-2 whitespace-pre-wrap mb-3">
+      <p
+        className="text-sm text-ink-2 whitespace-pre-wrap mb-3"
+        onClick={post.imageUrl ? undefined : handleDoubleTapLike}
+      >
         <Linkified text={post.body} linkClassName="underline text-red-soft" />
       </p>
       {post.imageUrl && (
-        <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-3 bg-surface-2">
+        <div
+          onClick={handleDoubleTapLike}
+          className="relative w-full aspect-square rounded-lg overflow-hidden mb-3 bg-surface-2 select-none"
+        >
           <Image src={post.imageUrl} alt="" fill sizes="100vw" className="object-cover" />
         </div>
       )}
       <div className="flex items-center gap-4">
         <button
+          ref={likeButtonRef}
           type="button"
           onClick={toggleLike}
           className={`flex items-center gap-1.5 text-xs ${liked ? "text-red-soft" : "text-ink-3"}`}
@@ -223,6 +294,17 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
             </button>
           </form>
         </div>
+      )}
+
+      {flyingHeart && (
+        <FlyingHeart
+          key={flyingHeart.key}
+          startX={flyingHeart.startX}
+          startY={flyingHeart.startY}
+          dx={flyingHeart.dx}
+          dy={flyingHeart.dy}
+          onDone={() => setFlyingHeart(null)}
+        />
       )}
     </div>
   );
