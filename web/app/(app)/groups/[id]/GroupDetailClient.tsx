@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -52,7 +52,11 @@ export function GroupDetailClient({ id }: { id: string }) {
   const [myRole, setMyRole] = useState<"ADMIN" | "MEMBER" | null>(null);
   const [joinRequestStatus, setJoinRequestStatus] = useState<"PENDING" | "APPROVED" | "REJECTED" | null>(null);
   const [messages, setMessages] = useState<ChatMessageData[] | null>(null);
+  const [readWatermark, setReadWatermark] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<ChatMessageData | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const hasPositionedRef = useRef(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [joining, setJoining] = useState(false);
   const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
@@ -84,9 +88,37 @@ export function GroupDetailClient({ id }: { id: string }) {
   useEffect(() => {
     if (myRole === null) return;
     apiFetch(`/api/groups/${id}/posts`)
-      .then((res) => (res.ok ? res.json() : { posts: [] }))
-      .then((data) => setMessages(data.posts));
+      .then((res) => (res.ok ? res.json() : { posts: [], readWatermark: null }))
+      .then((data) => {
+        setMessages(data.posts);
+        setReadWatermark(data.readWatermark ?? null);
+      });
   }, [id, myRole]);
+
+  // Runs once, right after the first real message list renders: opens the
+  // thread scrolled to the first message newer than readWatermark (the
+  // member's prior lastReadAt/joinedAt, from the API — see
+  // GET /api/groups/[id]/posts) so unread messages start right at the top of
+  // the viewport and reading continues downward from there. No unread —
+  // readWatermark newer than every message, or unknown — opens at the
+  // bottom instead, same as any other chat. useLayoutEffect so this happens
+  // before paint, not as a visible jump after the top briefly flashes.
+  useLayoutEffect(() => {
+    if (hasPositionedRef.current || !messages || messages.length === 0) return;
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const firstUnread = readWatermark
+      ? messages.find((m) => new Date(m.createdAt).getTime() > new Date(readWatermark).getTime())
+      : undefined;
+
+    if (firstUnread) {
+      messageRefs.current.get(firstUnread.id)?.scrollIntoView({ block: "start" });
+    } else {
+      container.scrollTop = container.scrollHeight;
+    }
+    hasPositionedRef.current = true;
+  }, [messages, readWatermark]);
 
   async function handleJoin() {
     // A shared group link is often opened signed-out — without this, the
@@ -276,21 +308,28 @@ export function GroupDetailClient({ id }: { id: string }) {
               overflow to stick against, which a thread shorter than the
               screen never has, so the composer just sat wherever the last
               message happened to end instead of at the bottom. */}
-          <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-4 py-4">
+          <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-4 py-4">
             {messages === null ? (
               <LoadingSpinner full size="md" />
             ) : messages.length === 0 ? (
               <p className="text-sm text-ink-3">No messages yet — say something.</p>
             ) : (
               messages.map((m) => (
-                <ChatMessage
+                <div
                   key={m.id}
-                  message={m}
-                  isMine={m.author.id === appUser?.id}
-                  onReply={setReplyingTo}
-                  canDelete={m.author.id === appUser?.id || myRole === "ADMIN"}
-                  onDeleted={(messageId) => setMessages((cur) => cur?.filter((msg) => msg.id !== messageId) ?? null)}
-                />
+                  ref={(el) => {
+                    if (el) messageRefs.current.set(m.id, el);
+                    else messageRefs.current.delete(m.id);
+                  }}
+                >
+                  <ChatMessage
+                    message={m}
+                    isMine={m.author.id === appUser?.id}
+                    onReply={setReplyingTo}
+                    canDelete={m.author.id === appUser?.id || myRole === "ADMIN"}
+                    onDeleted={(messageId) => setMessages((cur) => cur?.filter((msg) => msg.id !== messageId) ?? null)}
+                  />
+                </div>
               ))
             )}
           </div>

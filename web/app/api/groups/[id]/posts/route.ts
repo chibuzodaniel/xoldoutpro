@@ -54,6 +54,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
     if (!membership) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
+    // Captured before the update below overwrites it — the client uses this
+    // watermark to scroll to the first message newer than it (unread) rather
+    // than always opening at the bottom, same "unread since" the Fanbase
+    // list's badge count is computed from.
+    const readWatermark = membership.lastReadAt ?? membership.joinedAt;
+
     // Fire-and-forget: opening the thread is what clears its Fanbase-list
     // unread badge (GET /api/groups reads this back), same "viewing marks
     // read" pattern as the notification bell.
@@ -76,6 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     return NextResponse.json({
       posts: posts.map((p) => serialize(p, p._count.likes, p._count.comments, p.likes.length > 0, user.id)),
+      readWatermark,
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
