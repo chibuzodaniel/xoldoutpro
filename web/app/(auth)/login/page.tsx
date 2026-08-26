@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
+import { signInWithEmailAndPassword, signInWithPopup, sendPasswordResetEmail } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
@@ -26,6 +26,11 @@ function LoginForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deletedHandle, setDeletedHandle] = useState<string | null>(null);
+  const [mode, setMode] = useState<"login" | "reset">("login");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -45,6 +50,35 @@ function LoginForm() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function handleResetPassword(e: React.FormEvent) {
+    e.preventDefault();
+    if (!firebaseAuth) return setResetError("Firebase isn't configured yet. See .env.local.example.");
+    setResetError(null);
+    setResetBusy(true);
+    try {
+      await sendPasswordResetEmail(firebaseAuth, resetEmail);
+      setResetSent(true);
+    } catch (err) {
+      // Doesn't distinguish "no account with that email" from success — the
+      // generic post-submit message covers both, so this page never confirms
+      // or denies whether an email is registered.
+      if (err instanceof Error && "code" in err && err.code === "auth/user-not-found") {
+        setResetSent(true);
+      } else {
+        setResetError(err instanceof Error ? err.message : "Could not send a reset link");
+      }
+    } finally {
+      setResetBusy(false);
+    }
+  }
+
+  function backToLogin() {
+    setMode("login");
+    setResetEmail("");
+    setResetError(null);
+    setResetSent(false);
   }
 
   async function handleGoogle() {
@@ -72,7 +106,49 @@ function LoginForm() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/xoldout-logo-transparent.png" alt="XOLDOUT" className="h-10 w-auto mb-8" />
 
-        {deletedHandle ? (
+        {mode === "reset" ? (
+          <>
+            <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Reset password</p>
+            {resetSent ? (
+              <>
+                <div className="rounded-lg border border-line-soft bg-surface px-4 py-4 mb-4">
+                  <p className="text-sm font-semibold mb-1">Check your email</p>
+                  <p className="text-sm text-ink-3">
+                    If an account exists for {resetEmail}, we&apos;ve sent a link to reset the password.
+                  </p>
+                </div>
+                <button type="button" onClick={backToLogin} className="text-sm text-red-soft">
+                  Back to log in
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-sm text-ink-3 mb-6">Enter your email and we&apos;ll send you a link to reset your password.</p>
+                <form onSubmit={handleResetPassword} className="flex flex-col gap-3">
+                  <input
+                    type="email"
+                    required
+                    placeholder="Email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
+                  />
+                  {resetError && <p className="text-sm text-red-soft">{resetError}</p>}
+                  <button
+                    type="submit"
+                    disabled={resetBusy}
+                    className="mt-2 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                  >
+                    {resetBusy ? "Sending…" : "Send reset link"}
+                  </button>
+                </form>
+                <button type="button" onClick={backToLogin} className="mt-4 text-sm text-ink-3">
+                  Back to log in
+                </button>
+              </>
+            )}
+          </>
+        ) : deletedHandle ? (
           <>
             <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-6">Account deleted</p>
             <div className="rounded-lg border border-red-soft bg-red/10 px-4 py-4 mb-4">
@@ -109,6 +185,16 @@ function LoginForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
               />
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("reset");
+                  setResetEmail(email);
+                }}
+                className="self-end text-xs text-ink-3"
+              >
+                Forgot password?
+              </button>
               {error && <p className="text-sm text-red-soft">{error}</p>}
               <button
                 type="submit"
