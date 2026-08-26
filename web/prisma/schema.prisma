@@ -255,8 +255,11 @@ enum GroupPostPermission {
   ALL_MEMBERS
 }
 
-// Default CREATOR_ONLY (PRD §11: "An artist should opt into moderation load
-// deliberately rather than inherit it the day their group is created").
+// Default ALL_MEMBERS — a new Fanbase is open for everyone to post/message in
+// until the creator/an admin locks it down to ADMINS or CREATOR_ONLY via the
+// Manage Group sheet. (Supersedes the original PRD §11 CREATOR_ONLY default;
+// product call 2026-08-26 to favor an open-by-default group over pre-opting
+// owners into moderation load.)
 model FanbaseGroup {
   id             String              @id @default(cuid())
   creatorId      String
@@ -265,7 +268,7 @@ model FanbaseGroup {
   description    String?
   coverImageUrl  String?
   visibility     GroupVisibility     @default(REQUEST_TO_JOIN)
-  postPermission GroupPostPermission @default(CREATOR_ONLY)
+  postPermission GroupPostPermission @default(ALL_MEMBERS)
   createdAt      DateTime            @default(now())
 
   // Verification criteria are undecided (same PRD §18 gap as User.isVerified)
@@ -300,6 +303,10 @@ model Membership {
   userId   String
   role     MembershipRole @default(MEMBER)
   joinedAt DateTime       @default(now())
+  // Null until the member ever opens the group's chat — the Fanbase list's
+  // unread count is posts newer than max(lastReadAt, joinedAt), bumped to
+  // now() whenever GET /api/groups/[id]/posts is called for this membership.
+  lastReadAt DateTime?
 
   group FanbaseGroup @relation(fields: [groupId], references: [id])
   user  User         @relation(fields: [userId], references: [id])

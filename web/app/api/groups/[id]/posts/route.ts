@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push/send";
+import { parseMentions } from "@/lib/groups/mentions";
 
 const authorSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } as const;
 const replyToSelect = { select: { id: true, body: true, author: { select: { displayName: true } } } } as const;
@@ -52,6 +53,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
     if (!membership) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+
+    // Fire-and-forget: opening the thread is what clears its Fanbase-list
+    // unread badge (GET /api/groups reads this back), same "viewing marks
+    // read" pattern as the notification bell.
+    db.membership
+      .update({ where: { groupId_userId: { groupId: id, userId: user.id } }, data: { lastReadAt: new Date() } })
+      .catch(() => {});
 
     const posts = await db.post.findMany({
       where: { groupId: id },
@@ -120,11 +128,43 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       include: { author: authorSelect, replyTo: replyToSelect, poll: { include: { votes: true } } },
     });
 
-    const otherMembers = await db.membership.findMany({ where: { groupId: id, userId: { not: user.id } }, select: { userId: true } });
-    sendPushToUsers(
-      otherMembers.map((m) => m.userId),
-      { title: group.name, body: `${user.displayName}: ${body.slice(0, 100)}`, url: `/groups/${id}` },
-    );
+    const otherMembers = await db.membership.findMany({
+      where: { groupId: id, userId: { not: user.id } },
+      select: { userId: true, user: { select: { handle: true } } },
+    });
+
+    // @all/@username is an admin "get their attention" tool (per spec) — a
+    // regular member typing "@all" still renders as a chip client-side, but
+    // doesn't get this escalated push treatment.
+    const isAdminSender = membership?.role === "ADMIN" || group.creatorId === user.id;
+    const { mentionsAll, handles } = isAdminSender ? parseMentions(body) : { mentionsAll: false, handles: [] as string[] };
+
+    if (isAdminSender && mentionsAll) {
+      sendPushToUsers(
+        otherMembers.map((m) => m.userId),
+        { title: `📣 ${group.name}`, body: `${user.displayName} needs everyone's attention: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+      );
+    } else if (isAdminSender && handles.length > 0) {
+      const mentioned = otherMembers.filter((m) => handles.includes(m.user.handle.toLowerCase()));
+      const rest = otherMembers.filter((m) => !mentioned.includes(m));
+      if (mentioned.length > 0) {
+        sendPushToUsers(
+          mentioned.map((m) => m.userId),
+          { title: `${user.displayName} mentioned you in ${group.name}`, body: body.slice(0, 100), url: `/groups/${id}` },
+        );
+      }
+      if (rest.length > 0) {
+        sendPushToUsers(
+          rest.map((m) => m.userId),
+          { title: group.name, body: `${user.displayName}: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+        );
+      }
+    } else {
+      sendPushToUsers(
+        otherMembers.map((m) => m.userId),
+        { title: group.name, body: `${user.displayName}: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+      );
+    }
 
     return NextResponse.json({ post: serialize(post, 0, 0, false, user.id) });
   } catch (err) {

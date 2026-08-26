@@ -16,7 +16,23 @@ function ShareIcon() {
 // ExpandedPlayer, generalized for any product detail page — `path` is
 // relative (e.g. `/r/${id}`), resolved against location.origin at share time
 // since these pages are Server Components and can't read window themselves.
-export function ShareButton({ title, text, path, className = "text-ink-3" }: { title: string; text: string; path: string; className?: string }) {
+//
+// A solid, labeled pill rather than a bare icon: this is a D2F platform, so
+// getting a fan to reshare a product is worth more real estate than a report
+// button, not the same visual weight as one (product call 2026-08-26).
+export function ShareButton({
+  title,
+  text,
+  path,
+  label = "Share to Fans",
+  className = "bg-red text-white",
+}: {
+  title: string;
+  text: string;
+  path: string;
+  label?: string;
+  className?: string;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function handleShare() {
@@ -39,8 +55,14 @@ export function ShareButton({ title, text, path, className = "text-ink-3" }: { t
   }
 
   return (
-    <button type="button" onClick={handleShare} aria-label="Share" className={`shrink-0 ${className}`}>
-      {copied ? <span className="text-[11px]">Copied</span> : <ShareIcon />}
+    <button
+      type="button"
+      onClick={handleShare}
+      aria-label={label}
+      className={`shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold ${className}`}
+    >
+      <ShareIcon />
+      {copied ? "Copied" : label}
     </button>
   );
 }

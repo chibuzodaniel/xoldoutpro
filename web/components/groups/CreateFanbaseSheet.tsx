@@ -1,29 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { uploadImage } from "@/lib/uploadImage";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 type Props = { open: boolean; onClose: () => void; onCreated: (groupId: string) => void };
 
-// Matches the "Create Fanbase" reference exactly: avatar preview, name,
+// Matches the "Create Fanbase" reference exactly: avatar preview (tap to
+// upload/crop, same flow as changing a group's photo post-creation), name,
 // optional description, a fixed privacy notice (no visibility toggle — every
 // Fanbase created here is request-to-join, full stop).
 export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const [photoKey, setPhotoKey] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function reset() {
     setName("");
     setDescription("");
+    setPhotoFile(null);
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    setPhotoPreviewUrl(null);
+    setPhotoKey(null);
     setError(null);
   }
 
   function handleClose() {
     reset();
     onClose();
+  }
+
+  async function handlePhotoConfirm(cropped: File) {
+    setPhotoFile(null);
+    setUploadingPhoto(true);
+    try {
+      const key = await uploadImage(cropped, "avatar");
+      if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+      setPhotoPreviewUrl(URL.createObjectURL(cropped));
+      setPhotoKey(key);
+    } catch {
+      setError("Couldn't upload that photo. Try again.");
+    } finally {
+      setUploadingPhoto(false);
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -35,7 +62,12 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
     try {
       const res = await apiFetch("/api/groups", {
         method: "POST",
-        body: JSON.stringify({ name: trimmed, description: description.trim() || undefined, visibility: "REQUEST_TO_JOIN" }),
+        body: JSON.stringify({
+          name: trimmed,
+          description: description.trim() || undefined,
+          visibility: "REQUEST_TO_JOIN",
+          coverImageKey: photoKey ?? undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not create Fanbase");
@@ -76,11 +108,45 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
         <h1 className="font-serif text-2xl mb-5">Create Fanbase</h1>
 
         <div className="flex justify-center mb-5">
-          <div
-            className={`h-20 w-20 rounded-full bg-gradient-to-br ${AVATAR_GRADIENTS[0]} flex items-center justify-center text-2xl font-semibold text-white/90`}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingPhoto}
+            aria-label="Add a group photo"
+            className={`relative h-20 w-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-semibold text-white/90 ${
+              photoPreviewUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[0]}`
+            }`}
           >
-            {(name.trim() || "?").slice(0, 1).toUpperCase()}
-          </div>
+            {photoPreviewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- object URL preview, not worth Next/Image's remote-loader setup
+              <img src={photoPreviewUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              (name.trim() || "?").slice(0, 1).toUpperCase()
+            )}
+            {uploadingPhoto && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              </span>
+            )}
+            {!photoPreviewUrl && !uploadingPhoto && (
+              <span className="absolute -bottom-0.5 -right-0.5 h-6 w-6 rounded-full bg-red border-2 border-surface flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="h-3 w-3 text-white" fill="none" stroke="currentColor" strokeWidth="2.4">
+                  <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+                </svg>
+              </span>
+            )}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) setPhotoFile(file);
+              e.target.value = "";
+            }}
+          />
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -124,6 +190,18 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
           </button>
         </form>
       </div>
+
+      {photoFile && (
+        <ImageCropModal
+          file={photoFile}
+          aspect={1}
+          cropShape="round"
+          outputWidth={512}
+          outputHeight={512}
+          onCancel={() => setPhotoFile(null)}
+          onConfirm={handlePhotoConfirm}
+        />
+      )}
     </div>
   );
 }

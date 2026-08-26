@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { Linkified } from "@/components/ui/Linkified";
 import { useToast } from "@/components/ui/ToastProvider";
+import { MENTION_SPLIT_PATTERN } from "@/lib/groups/mentions";
 
 export type ChatMessageData = {
   id: string;
@@ -21,6 +22,26 @@ export type ChatMessageData = {
 function initials(name: string) {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+// "@all"/"@handle" render as a highlighted chip in-line — an admin calling
+// out the whole group (or one member) should be visually unmissable the way
+// it is in every reference chat app, not just plain text.
+function MentionedBody({ text }: { text: string }) {
+  const parts = text.split(MENTION_SPLIT_PATTERN);
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <span key={i} className="font-semibold text-amber">
+            {part}
+          </span>
+        ) : (
+          <Linkified key={i} text={part} />
+        ),
+      )}
+    </>
+  );
 }
 
 function timeAgo(iso: string) {
@@ -154,7 +175,7 @@ export function ChatMessage({
           className={`select-none rounded-2xl px-3.5 py-2.5 ${isMine ? "bg-red text-white" : "bg-surface-2 text-ink"}`}
         >
           <p className="text-sm whitespace-pre-wrap">
-            <Linkified text={message.body} />
+            <MentionedBody text={message.body} />
           </p>
           {message.imageUrl && (
             <div className="rounded-lg overflow-hidden mt-2 max-w-[220px]">

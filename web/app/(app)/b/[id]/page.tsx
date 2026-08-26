@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 
 // Public product data — cache and revalidate in the background instead of
@@ -55,7 +56,8 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
   return (
     <div className="pb-10">
       <div className="relative aspect-square w-full bg-surface-2">
-        {cover && <Image src={cover} alt={product.title} fill sizes="100vw" priority className="object-cover" />}
+        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
+        {cover && <Image src={cover} alt={product.title} fill sizes="100vw" priority unoptimized className="object-cover" />}
       </div>
 
       <div className="px-4 pt-4">
@@ -68,6 +70,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
             <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
               {product.creator.displayName}
             </Link>
+            <PublishedByYou creatorId={product.creatorId} />
           </div>
           <div className="flex items-center gap-3 shrink-0 pt-1">
             <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/b/${product.id}`} />

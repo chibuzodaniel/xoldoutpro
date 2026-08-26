@@ -10,6 +10,8 @@ export type FanbaseRowData = {
   visibility: "OPEN" | "REQUEST_TO_JOIN";
   memberCount: number;
   lastActivityAt: string | null;
+  lastMessage: { senderName: string; body: string } | null;
+  unreadCount: number;
   joinRequestPending: boolean;
   isVerified: boolean;
   creator: { displayName: string; isVerified?: boolean };
@@ -25,43 +27,85 @@ function timeAgo(iso: string) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function Avatar({ group, index }: { group: FanbaseRowData; index: number }) {
+  return (
+    <div className="relative shrink-0">
+      <div
+        className={`relative h-12 w-12 rounded-full overflow-hidden flex items-center justify-center text-sm font-semibold text-white/90 ${
+          group.coverImageUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]}`
+        }`}
+      >
+        {group.coverImageUrl ? (
+          <Image src={group.coverImageUrl} alt={group.name} fill sizes="48px" className="object-cover" />
+        ) : (
+          group.name.slice(0, 1).toUpperCase()
+        )}
+      </div>
+      {group.visibility === "REQUEST_TO_JOIN" && (
+        <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-surface border border-line-soft flex items-center justify-center">
+          <svg viewBox="0 0 24 24" className="h-2 w-2" fill="none" stroke="currentColor" strokeWidth="2.4">
+            <rect x="5" y="10" width="14" height="10" rx="2" />
+            <path d="M8 10V7a4 4 0 118 0v3" />
+          </svg>
+        </span>
+      )}
+    </div>
+  );
+}
+
 // Round avatar + lock badge + name + subtext + right-aligned action —
 // matches the Fanbase list reference exactly (not a card grid: this is the
 // one list surface in the app that's deliberately rows, not tiles, because
 // that's what the reference shows).
+//
+// `preview` switches to the WhatsApp-style chat-list layout (last message +
+// sender, unread count, last-message time) for rows where the viewer is
+// already a member — Discover has no thread to preview, so it keeps the
+// plain subtitle+action layout instead.
 export function FanbaseRow({
   group,
   index,
   subtitle,
   action,
+  preview = false,
 }: {
   group: FanbaseRowData;
   index: number;
   subtitle: string;
   action?: React.ReactNode;
+  preview?: boolean;
 }) {
+  if (preview) {
+    return (
+      <Link href={`/groups/${group.id}`} className="flex items-center gap-3 py-3">
+        <Avatar group={group} index={index} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between gap-2">
+            <p className="flex items-center gap-1 text-sm font-semibold min-w-0">
+              <span className="line-clamp-1">{group.name}</span>
+              {group.isVerified && <VerifiedBadge />}
+            </p>
+            {group.lastActivityAt && <span className="text-[11px] text-ink-3 shrink-0">{timeAgo(group.lastActivityAt)}</span>}
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-0.5">
+            <p className="text-xs text-ink-3 line-clamp-1 flex-1">
+              {group.lastMessage ? `${group.lastMessage.senderName}: ${group.lastMessage.body}` : subtitle}
+            </p>
+            {group.unreadCount > 0 && (
+              <span className="shrink-0 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red px-1 text-[10px] font-bold text-white">
+                {group.unreadCount > 99 ? "99+" : group.unreadCount}
+              </span>
+            )}
+          </div>
+        </div>
+      </Link>
+    );
+  }
+
   return (
     <div className="flex items-center gap-3 py-3">
-      <Link href={`/groups/${group.id}`} className="relative shrink-0">
-        <div
-          className={`relative h-12 w-12 rounded-full overflow-hidden flex items-center justify-center text-sm font-semibold text-white/90 ${
-            group.coverImageUrl ? "bg-surface-2" : `bg-gradient-to-br ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]}`
-          }`}
-        >
-          {group.coverImageUrl ? (
-            <Image src={group.coverImageUrl} alt={group.name} fill sizes="48px" className="object-cover" />
-          ) : (
-            group.name.slice(0, 1).toUpperCase()
-          )}
-        </div>
-        {group.visibility === "REQUEST_TO_JOIN" && (
-          <span className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-surface border border-line-soft flex items-center justify-center">
-            <svg viewBox="0 0 24 24" className="h-2 w-2" fill="none" stroke="currentColor" strokeWidth="2.4">
-              <rect x="5" y="10" width="14" height="10" rx="2" />
-              <path d="M8 10V7a4 4 0 118 0v3" />
-            </svg>
-          </span>
-        )}
+      <Link href={`/groups/${group.id}`}>
+        <Avatar group={group} index={index} />
       </Link>
       <Link href={`/groups/${group.id}`} className="min-w-0 flex-1">
         <p className="flex items-center gap-1 text-sm font-semibold">

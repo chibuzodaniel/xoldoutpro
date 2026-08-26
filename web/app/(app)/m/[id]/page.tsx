@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { MerchPurchaseForm } from "@/components/product/MerchPurchaseForm";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 
 // Public product data — cache and revalidate in the background instead of
@@ -57,7 +58,10 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
     <div className="pb-10">
       <div className="relative aspect-square w-full bg-surface-2">
         {primaryImage && (
-          <Image src={primaryImage} alt={product.title} fill sizes="100vw" priority className="object-cover" />
+          // Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`.
+          // The gallery images below are raw, uncropped uploads (merchItem.galleryImageUrls
+          // has no ladder), so those still need the optimizer's real resizing — left as-is.
+          <Image src={primaryImage} alt={product.title} fill sizes="100vw" priority unoptimized className="object-cover" />
         )}
       </div>
 
@@ -81,6 +85,7 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
             <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
               {product.creator.displayName}
             </Link>
+            <PublishedByYou creatorId={product.creatorId} />
           </div>
           <div className="flex items-center gap-3 shrink-0 pt-1">
             <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/m/${product.id}`} />

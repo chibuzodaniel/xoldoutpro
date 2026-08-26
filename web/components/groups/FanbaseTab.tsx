@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { FanbaseRow, timeAgo, type FanbaseRowData } from "./FanbaseRow";
+import { FanbaseRow, type FanbaseRowData } from "./FanbaseRow";
 import { CreateFanbaseSheet } from "./CreateFanbaseSheet";
 
 type Group = FanbaseRowData & { creatorId: string };
@@ -96,7 +96,13 @@ export function FanbaseTab() {
       ) : (
         <div className="flex flex-col divide-y divide-line-soft mb-4">
           {owned.map((g, i) => (
-            <FanbaseRow key={g.id} group={g} index={i} subtitle={`${g.memberCount} member${g.memberCount === 1 ? "" : "s"} · You own this`} />
+            <FanbaseRow
+              key={g.id}
+              group={g}
+              index={i}
+              preview
+              subtitle={`${g.memberCount} member${g.memberCount === 1 ? "" : "s"} · You own this`}
+            />
           ))}
         </div>
       )}
@@ -111,15 +117,8 @@ export function FanbaseTab() {
               key={g.id}
               group={g}
               index={i}
-              subtitle={`${g.memberCount} member${g.memberCount === 1 ? "" : "s"} · ${g.lastActivityAt ? `Active ${timeAgo(g.lastActivityAt)}` : "No activity yet"}`}
-              action={
-                <a
-                  href={`/groups/${g.id}`}
-                  className="shrink-0 rounded-lg bg-red px-4 py-1.5 text-xs font-semibold text-white"
-                >
-                  Enter
-                </a>
-              }
+              preview
+              subtitle={`${g.memberCount} member${g.memberCount === 1 ? "" : "s"}`}
             />
           ))}
         </div>
