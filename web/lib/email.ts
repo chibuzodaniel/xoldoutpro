@@ -11,12 +11,13 @@ export function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
-export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+/** Returns whether the email actually went out — callers that need to tell a user "sent" vs. "something went wrong" check this instead of assuming success. */
+export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) {
     console.log(`[email] RESEND_API_KEY/EMAIL_FROM not configured — skipping "${subject}" to ${to}`);
-    return;
+    return false;
   }
   try {
     const res = await fetch(RESEND_API_URL, {
@@ -26,9 +27,12 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
     });
     if (!res.ok) {
       console.error("[email] Resend send failed", res.status, await res.text().catch(() => ""));
+      return false;
     }
+    return true;
   } catch (err) {
     console.error("[email] Resend send threw", err);
+    return false;
   }
 }
 
@@ -202,7 +206,7 @@ export async function sendDigestEmail(input: {
 
 // Second factor for /moderation — same account/inbox as a moderator's
 // regular XOLDOUT login, just this one extra step that route requires.
-export async function sendModeratorOtpEmail(input: { to: string; displayName: string; code: string }) {
+export async function sendModeratorOtpEmail(input: { to: string; displayName: string; code: string }): Promise<boolean> {
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#111111;">
       <h1 style="font-size:20px;">Your moderation dashboard code</h1>
@@ -211,7 +215,7 @@ export async function sendModeratorOtpEmail(input: { to: string; displayName: st
       <p style="color:#999999;font-size:12px;">This code expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
     </div>
   `;
-  await sendEmail({ to: input.to, subject: `${input.code} is your moderation dashboard code`, html });
+  return sendEmail({ to: input.to, subject: `${input.code} is your moderation dashboard code`, html });
 }
 
 const RECOVERY_WINDOW_DAYS = 45;
@@ -220,7 +224,7 @@ const RECOVERY_WINDOW_DAYS = 45;
 // /recoveraccount/[handle], where signing back in as this account within
 // the window clears User.deletedAt. After the window, self-service recovery
 // closes and only a moderator can restore the account.
-export async function sendAccountDeletedEmail(input: { to: string; displayName: string; recoveryUrl: string }) {
+export async function sendAccountDeletedEmail(input: { to: string; displayName: string; recoveryUrl: string }): Promise<boolean> {
   const html = `
     <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;color:#111111;">
       <h1 style="font-size:20px;">Your XOLDOUT account has been deleted</h1>
@@ -239,5 +243,5 @@ export async function sendAccountDeletedEmail(input: { to: string; displayName: 
       </p>
     </div>
   `;
-  await sendEmail({ to: input.to, subject: "Your XOLDOUT account has been deleted", html });
+  return sendEmail({ to: input.to, subject: "Your XOLDOUT account has been deleted", html });
 }

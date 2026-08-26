@@ -6,6 +6,7 @@ import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = { open: boolean; onClose: () => void; handle: string };
 
@@ -15,6 +16,7 @@ type Props = { open: boolean; onClose: () => void; handle: string };
 // just the word DELETE, so it can't be cleared by muscle memory alone.
 export function DeleteAccountSheet({ open, onClose, handle }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const requiredText = `DELETE ${handle}`;
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -44,6 +46,8 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
         setError(typeof data.error === "string" ? data.error : "Couldn't delete your account");
         return;
       }
+      if (data.emailSent) toast.success("Recovery email sent.");
+      else toast.error("Account deleted, but the recovery email couldn't be confirmed — check spam.");
       setDone(true);
     } finally {
       setSubmitting(false);

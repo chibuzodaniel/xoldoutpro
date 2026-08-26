@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
   try {
     const { user } = await requireModerator(req);
     const code = await issueModeratorOtp(user.id);
-    await sendModeratorOtpEmail({ to: user.email, displayName: user.displayName, code });
-    return NextResponse.json({ ok: true });
+    const emailSent = await sendModeratorOtpEmail({ to: user.email, displayName: user.displayName, code });
+    return NextResponse.json({ ok: true, emailSent });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error(err);

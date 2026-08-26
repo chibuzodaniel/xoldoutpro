@@ -89,13 +89,13 @@ export async function DELETE(req: NextRequest) {
       .revokeRefreshTokens(decoded.uid)
       .catch((err) => console.error("[account-delete] revokeRefreshTokens failed", err));
 
-    await sendAccountDeletedEmail({
+    const emailSent = await sendAccountDeletedEmail({
       to: user.email,
       displayName: user.displayName,
       recoveryUrl: `${SITE_URL}/recoveraccount/${user.handle}`,
     });
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, emailSent });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });

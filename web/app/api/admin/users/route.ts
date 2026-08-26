@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 5; // explicit ask: compact list, max 5 rows on screen at once, paginated
 
 // Explicit ask: "moderators should be able to see the list of users in
 // their dashboard" — a searchable, paginated directory. Unlike

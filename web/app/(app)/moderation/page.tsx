@@ -324,10 +324,12 @@ function UsersListPanel() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState<UsersPage | null>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- standard debounced-fetch-on-input-change pattern
     setLoading(true);
+    setExpandedId(null); // clears a stale expanded row when the query/filter/page changes underneath it
     const handle = setTimeout(async () => {
       const params = new URLSearchParams({ page: String(page) });
       if (q.trim()) params.set("q", q.trim());
@@ -373,25 +375,37 @@ function UsersListPanel() {
       ) : (
         <>
           <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-            {data.users.map((u) => (
-              <div key={u.id} className="flex items-center justify-between gap-3 py-2.5">
-                <div className="min-w-0">
-                  <p className="text-sm truncate">
-                    {u.displayName} <span className="text-ink-3">@{u.handle}</span>
-                    {u.isVerified && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Verified</span>}
-                    {u.isModerator && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-ink-3">Mod</span>}
-                    {u.deletedAt && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Deleted</span>}
-                  </p>
-                  <p className="text-[11px] text-ink-3 truncate">
-                    {u.email} · joined {new Date(u.createdAt).toLocaleDateString("en-NG")} · {u.listingCount} listing
-                    {u.listingCount === 1 ? "" : "s"}
-                  </p>
+            {data.users.map((u) => {
+              const expanded = expandedId === u.id;
+              return (
+                <div key={u.id}>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expanded ? null : u.id)}
+                    className="w-full flex items-center justify-between gap-3 py-2.5 text-left"
+                  >
+                    <p className="text-sm truncate min-w-0">
+                      {u.displayName} <span className="text-ink-3">@{u.handle}</span>
+                      {u.isVerified && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Verified</span>}
+                      {u.isModerator && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-ink-3">Mod</span>}
+                      {u.deletedAt && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Deleted</span>}
+                    </p>
+                    <span className="text-ink-3 shrink-0">{expanded ? "▾" : "›"}</span>
+                  </button>
+                  {expanded && (
+                    <div className="flex items-center justify-between gap-3 pb-3">
+                      <p className="text-[11px] text-ink-3 truncate">
+                        {u.email} · joined {new Date(u.createdAt).toLocaleDateString("en-NG")} · {u.listingCount} listing
+                        {u.listingCount === 1 ? "" : "s"}
+                      </p>
+                      <Link href={`/u/${u.handle}`} className="text-xs font-semibold shrink-0">
+                        View
+                      </Link>
+                    </div>
+                  )}
                 </div>
-                <Link href={`/u/${u.handle}`} className="text-xs font-semibold shrink-0">
-                  View
-                </Link>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {data.totalPages > 1 && (
             <div className="flex items-center justify-between mt-3">
@@ -425,9 +439,13 @@ function UsersListPanel() {
 type ModeratorRow = { id: string; handle: string; displayName: string; isSuperModerator: boolean };
 
 // Only super-moderators see this — grants/revokes plain isModerator by
-// handle. Doesn't touch isSuperModerator itself; that stays a direct-DB-only
-// flag, same reasoning as why the very first moderator has to be set that
-// way too (PRD §3: internal staff, not a self-serve promotion chain).
+// handle, and (explicit ask) lets an existing super-moderator promote/demote
+// other moderators to/from super-moderator too. The very first
+// super-moderator still has to be set directly in the DB (PRD §3: internal
+// staff, not a self-serve chain from nothing) — this only manages who else
+// gets that status once at least one exists. POST /api/admin/moderators
+// itself refuses to demote the last remaining super-moderator, so this UI
+// can't lock everyone out even if the confirm step below is skipped.
 function ManageModeratorsPanel() {
   const toast = useToast();
   const [handle, setHandle] = useState("");
@@ -472,6 +490,28 @@ function ManageModeratorsPanel() {
     }
   }
 
+  async function setSuperStatus(targetHandle: string, isSuperModerator: boolean) {
+    if (isSuperModerator) {
+      const ok = window.confirm(`Make @${targetHandle} a super-moderator? They'll be able to promote/demote other moderators too.`);
+      if (!ok) return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/moderators", {
+        method: "POST",
+        body: JSON.stringify({ handle: targetHandle, isSuperModerator }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not update");
+      toast.success(`@${targetHandle} is ${isSuperModerator ? "now a super-moderator" : "no longer a super-moderator"}.`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="rounded-lg border border-line-soft p-4 mb-6">
       <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Manage moderators</p>
@@ -506,16 +546,26 @@ function ManageModeratorsPanel() {
                   {m.isSuperModerator && <span className="ml-1.5 text-[10px] uppercase tracking-widest text-red-soft">Super</span>}
                 </p>
               </div>
-              {!m.isSuperModerator && (
+              <div className="flex items-center gap-3 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setModeratorStatus(m.handle, false)}
+                  onClick={() => setSuperStatus(m.handle, !m.isSuperModerator)}
                   disabled={busy}
-                  className="text-xs text-red-soft font-semibold disabled:opacity-40 shrink-0"
+                  className="text-xs font-semibold text-ink-3 disabled:opacity-40"
                 >
-                  Revoke
+                  {m.isSuperModerator ? "Remove super" : "Make super"}
                 </button>
-              )}
+                {!m.isSuperModerator && (
+                  <button
+                    type="button"
+                    onClick={() => setModeratorStatus(m.handle, false)}
+                    disabled={busy}
+                    className="text-xs text-red-soft font-semibold disabled:opacity-40"
+                  >
+                    Revoke
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -1164,50 +1214,38 @@ function maskEmail(email: string) {
   return `${visible}${"•".repeat(Math.max(1, name.length - visible.length))}@${domain}`;
 }
 
-// The step-up factor on top of ModeratorLoginForm's email/password — a
-// fresh 6-digit code is requested (and emailed) the instant this mounts,
-// i.e. every time useModeratorSession's 60s inactivity window has lapsed
-// and ModerationPage falls back to this branch. onVerified marks the
-// session valid for another 60s of activity (see useModeratorSession) and
-// hands control back to ModerationPage.
+// The step-up factor on top of ModeratorLoginForm's email/password. Explicit
+// ask: a code is only ever emailed when the moderator actively asks for one
+// (the "Send code" button, or "Resend code" after) — not automatically the
+// instant this mounts, which would fire a fresh email every single time the
+// 60s inactivity window (useModeratorSession) lapses and bounces someone
+// back here, even if they just glance away and come straight back. onVerified
+// marks the session valid for another 60s of activity and hands control back
+// to ModerationPage.
 function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: () => void }) {
+  const toast = useToast();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState(false);
-  const [justSent, setJustSent] = useState(false);
+  const [sent, setSent] = useState(false);
 
   async function requestCode() {
     setSending(true);
     setError(null);
-    setJustSent(false);
     try {
       const res = await apiFetch("/api/admin/otp/request", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error("Could not send a code — try again");
-      setJustSent(true);
+      setSent(true);
+      if (data.emailSent) toast.success(`Code sent to ${maskEmail(email)}.`);
+      else toast.error("Couldn't confirm the code email went out — check spam, or resend.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send a code");
     } finally {
       setSending(false);
     }
   }
-
-  useEffect(() => {
-    async function initialSend() {
-      setSending(true);
-      setError(null);
-      try {
-        const res = await apiFetch("/api/admin/otp/request", { method: "POST" });
-        if (!res.ok) throw new Error("Could not send a code — try again");
-        setJustSent(true);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Could not send a code");
-      } finally {
-        setSending(false);
-      }
-    }
-    initialSend();
-  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -1226,14 +1264,33 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
     }
   }
 
+  if (!sent) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+        <div className="w-full max-w-sm">
+          <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-1">Verify it&apos;s you</p>
+          <h1 className="font-serif text-2xl mb-2">One more step</h1>
+          <p className="text-sm text-ink-3 mb-6">We&apos;ll email a 6-digit code to {maskEmail(email)}.</p>
+          {error && <p className="text-sm text-red-soft mb-3">{error}</p>}
+          <button
+            type="button"
+            onClick={requestCode}
+            disabled={sending}
+            className="w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {sending ? "Sending…" : "Send code"}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="flex flex-1 flex-col items-center justify-center px-6 py-16">
       <div className="w-full max-w-sm">
         <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-1">Verify it&apos;s you</p>
         <h1 className="font-serif text-2xl mb-2">Enter your code</h1>
-        <p className="text-sm text-ink-3 mb-6">
-          {sending ? "Sending a code…" : `We sent a 6-digit code to ${maskEmail(email)}.`}
-        </p>
+        <p className="text-sm text-ink-3 mb-6">We sent a 6-digit code to {maskEmail(email)}.</p>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
@@ -1248,7 +1305,6 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
             className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.4em] outline-none transition-colors duration-150 focus:border-red"
           />
           {error && <p className="text-sm text-red-soft">{error}</p>}
-          {justSent && !error && <p className="text-xs text-green">Code sent.</p>}
           <button
             type="submit"
             disabled={busy || code.length !== 6}
