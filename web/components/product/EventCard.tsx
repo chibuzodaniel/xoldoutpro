@@ -30,7 +30,8 @@ export function EventCard({ event }: { event: EventCardData }) {
   return (
     <Link href={`/e/${event.id}`} className="block w-full group">
       <div className="aspect-square w-full rounded-lg bg-surface-2 overflow-hidden relative">
-        {cover && <Image src={cover} alt={event.title} fill sizes="33vw" className="object-cover" />}
+        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
+        {cover && <Image src={cover} alt={event.title} fill sizes="33vw" unoptimized className="object-cover" />}
 
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
           {formatDate(event.startsAt)}

@@ -22,7 +22,8 @@ export function MiniPlayer() {
       <button onClick={() => setExpanded(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
         <div className="relative h-9 w-9 rounded bg-surface-2 shrink-0 overflow-hidden">
           {current.artworkUrl && (
-            <Image src={current.artworkUrl} alt={current.title} fill sizes="36px" className="object-cover" />
+            // Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`.
+            <Image src={current.artworkUrl} alt={current.title} fill sizes="36px" unoptimized className="object-cover" />
           )}
           {/* Small brand watermark on the artwork corner — the mini bar has
               no spare vertical room for a "Playing from XOLDOUT" text line

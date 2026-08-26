@@ -48,7 +48,8 @@ export function EntitlementCard({ entitlement }: { entitlement: EntitlementCardD
   return (
     <Link href={hrefFor(product)} className="block w-full">
       <div className="relative aspect-square w-full rounded-lg bg-surface-2 overflow-hidden">
-        {imageUrl && <Image src={imageUrl} alt={product.title} fill sizes="33vw" className="object-cover" />}
+        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
+        {imageUrl && <Image src={imageUrl} alt={product.title} fill sizes="33vw" unoptimized className="object-cover" />}
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{product.title}</p>
       <p className="text-[12px] text-ink-3 line-clamp-1">{subtitleFor(product)}</p>
