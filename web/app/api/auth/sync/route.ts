@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireFirebaseUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generateUniqueHandle } from "@/lib/handle";
+import { sendWelcomeEmail } from "@/lib/email";
+
+const SITE_URL = "https://www.xoldout.app";
 
 /**
  * Called by the client immediately after a Firebase sign-in/sign-up.
@@ -35,6 +38,12 @@ export async function POST(req: NextRequest) {
         avatarUrl: (decoded.picture as string | undefined) ?? null,
       },
     });
+
+    // Fire-and-forget — a stalled/failed welcome email should never block
+    // the sign-up response the client is waiting on to move to onboarding.
+    void sendWelcomeEmail({ to: user.email, profileUrl: `${SITE_URL}/onboarding` }).catch((err) =>
+      console.error("welcome email failed", err),
+    );
 
     return NextResponse.json({ user, needsOnboarding: true });
   } catch (err) {

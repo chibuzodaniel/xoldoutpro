@@ -1,19 +1,33 @@
 import { db } from "@/lib/db";
 import { confirmStock, releaseReservation } from "@/lib/commerce/stock";
-import { recordSale } from "@/lib/commerce/ledger";
+import { recordSale, getWalletBalances, COMMISSION_RATE } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
-import { sendOrderConfirmationEmail } from "@/lib/email";
+import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificationEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications/create";
+
+const SITE_URL = "https://www.xoldout.app";
 
 function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
+
+// Same per-type routing every browsing surface uses (ProductCard.tsx's
+// hrefFor) — duplicated here rather than imported since that one is a
+// client component; this is the one server-side spot that needs it, for the
+// payment-failed email's "try again" link back to the thing that didn't sell.
+function productHref(product: { id: string; type: string; ticketTier: { eventId: string } | null }) {
+  if (product.type === "BEAT") return `/b/${product.id}`;
+  if (product.type === "MERCH") return `/m/${product.id}`;
+  if (product.type === "EVENT" && product.ticketTier) return `/e/${product.ticketTier.eventId}`;
+  return `/r/${product.id}`;
 }
 
 type PaymentForConfirm = {
   id: string;
   orderId: string;
   amountKobo: number;
+  processor: string;
   order: { buyerId: string; isGift: boolean; items: { productId: string }[] };
 };
 
@@ -55,10 +69,25 @@ export async function finalizePayment(
   if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
     await releaseReservation(productId);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
+
+    const [buyer, failedProduct] = await Promise.all([
+      db.user.findUnique({ where: { id: payment.order.buyerId } }),
+      db.product.findUnique({ where: { id: productId }, include: { ticketTier: true } }),
+    ]);
+    if (buyer && failedProduct) {
+      void sendPaymentFailedEmail({
+        to: buyer.email,
+        productTitle: failedProduct.title,
+        priceKobo: payment.amountKobo,
+        orderId: payment.orderId,
+        retryUrl: `${SITE_URL}${productHref(failedProduct)}`,
+      }).catch((err) => console.error("payment failed email failed", err));
+    }
+
     return { alreadyProcessed: false, success: false };
   }
 
-  const product = await db.product.findUniqueOrThrow({ where: { id: productId } });
+  const product = await db.product.findUniqueOrThrow({ where: { id: productId }, include: { creator: true } });
 
   let checkInCode: string | null = null;
   await db.$transaction(async (tx) => {
@@ -83,8 +112,9 @@ export async function finalizePayment(
     await recordSale(tx, { sellerId: product.creatorId, orderId: payment.orderId, grossKobo: payment.amountKobo });
   });
 
+  const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });
+
   if (!payment.order.isGift) {
-    const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });
     if (buyer) {
       void sendOrderConfirmationEmail({
         to: buyer.email,
@@ -92,6 +122,7 @@ export async function finalizePayment(
         orderId: payment.orderId,
         productTitle: product.title,
         priceKobo: payment.amountKobo,
+        processor: payment.processor,
         ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
       }).catch((err) => console.error("order confirmation email failed", err));
     }
@@ -110,6 +141,17 @@ export async function finalizePayment(
       body: `${product.title} · ${formatNaira(payment.amountKobo)}`,
       url: "/wallet",
     });
+
+    const { availableKobo, pendingKobo } = await getWalletBalances(product.creatorId);
+    const netKobo = payment.amountKobo - Math.round(payment.amountKobo * COMMISSION_RATE);
+    void sendSaleNotificationEmail({
+      to: product.creator.email,
+      productTitle: product.title,
+      buyerHandle: buyer?.handle ?? "a fan",
+      netAmountKobo: netKobo,
+      walletBalanceKobo: availableKobo + pendingKobo,
+      walletUrl: `${SITE_URL}/wallet`,
+    }).catch((err) => console.error("sale notification email failed", err));
   }
 
   return { alreadyProcessed: false, success: true };
