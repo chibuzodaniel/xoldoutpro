@@ -16,6 +16,11 @@ export async function GET(req: NextRequest) {
     const discover = req.nextUrl.searchParams.get("discover") === "1";
     const q = req.nextUrl.searchParams.get("q")?.trim();
 
+    // createdAt here is a pre-filter, not the final order — with more than
+    // 50 candidates the newest 50 *groups* is the closest cheap proxy for
+    // "most recently active" without a raw SQL join; re-sorted below by
+    // actual last-message time once that's known (explicit ask: latest
+    // activity first, WhatsApp-style, not latest-created).
     const groups = await db.fanbaseGroup.findMany({
       where: {
         ...(discover ? {} : { memberships: { some: { userId: user.id } } }),
@@ -44,6 +49,15 @@ export async function GET(req: NextRequest) {
         })
       : [];
     const lastMessageByGroup = new Map(lastMessages.map((m) => [m.groupId, m]));
+
+    // Most-recent-activity first: a group's last message time if it has one,
+    // else when the group itself was created (a brand-new, message-less
+    // group still needs a defined position, not to sort last unconditionally).
+    groups.sort((a, b) => {
+      const aTime = (lastMessageByGroup.get(a.id)?.createdAt ?? a.createdAt).getTime();
+      const bTime = (lastMessageByGroup.get(b.id)?.createdAt ?? b.createdAt).getTime();
+      return bTime - aTime;
+    });
 
     // Unread = messages newer than the later of (last time this member opened
     // the chat, the day they joined) — a never-opened membership shouldn't

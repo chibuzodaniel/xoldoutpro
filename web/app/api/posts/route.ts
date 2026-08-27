@@ -2,26 +2,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { fetchForYouSignals, scoreForYou } from "@/lib/socials/forYouRanking";
 
 const authorSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } as const;
 
-// Two modes, both non-group announcement posts:
+// Two modes, both non-group announcement posts, both strictly newest-first
+// (explicit ask: recency takes priority over any ranking) — what
+// distinguishes them is the candidate *pool*, not the order:
 //
-// "following" (default) — strictly creators you follow, plus your own
-// posts, newest-first. No play/like/purchase-based expansion — that pool
-// blurred the distinction between this tab and For You, so it was pulled
-// out entirely.
+// "following" (default) — strictly creators you follow, plus your own posts.
 //
 // "forYou" (?feed=forYou) — genuine discovery, no pool restriction at all:
 // every public post from every creator except your own is eligible,
-// regardless of any prior relationship. What changes is *order*, not the
-// pool: candidates are ranked by affinity to the viewer (follows, likes,
-// plays, purchases, network proximity, shared tags — see
-// lib/socials/forYouRanking.ts) plus a recency factor, so a brand-new post
-// from an unrelated creator still surfaces rather than being filtered out.
-// PostCard's inline Follow button is what lets a viewer act on something
-// they discover here.
+// regardless of any prior relationship, so a brand-new post from an
+// unrelated creator surfaces rather than being filtered out. PostCard's
+// inline Follow button is what lets a viewer act on something they
+// discover here. (An affinity-based ranking for this pool used to reorder
+// it — lib/socials/forYouRanking.ts, kept but unused since this pass —
+// superseded by the newest-first requirement.)
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
@@ -34,41 +31,19 @@ export async function GET(req: NextRequest) {
     const following = follows.map((f) => f.followed);
     const followedIds = new Set(following.map((f) => f.id));
 
-    // Wider candidate pool than the 50 actually returned, purely so ranking
-    // has something to reorder among — the public "50 posts, no pagination"
-    // contract (DECISIONS.md) is unchanged, just which 50 win and their order.
-    const candidatePosts = await db.post.findMany({
+    const posts = await db.post.findMany({
       where: {
         groupId: null,
         ...(forYou ? { authorId: { not: user.id } } : { authorId: { in: [...followedIds, user.id] } }),
       },
       orderBy: { createdAt: "desc" },
-      take: forYou ? 150 : 50,
+      take: 50,
       include: {
         author: authorSelect,
         _count: { select: { likes: true, comments: true } },
         likes: { where: { userId: user.id }, select: { userId: true } },
       },
     });
-
-    let posts = candidatePosts;
-    if (forYou && candidatePosts.length > 0) {
-      const authorIds = [...new Set(candidatePosts.map((p) => p.authorId))];
-      const [signals, authorTagRows] = await Promise.all([
-        fetchForYouSignals(user.id, [...followedIds]),
-        db.user.findMany({ where: { id: { in: authorIds } }, select: { id: true, tags: true } }),
-      ]);
-      const tagsByAuthor = new Map(authorTagRows.map((a) => [a.id, a.tags]));
-
-      const ranked = scoreForYou(
-        candidatePosts.map((p) => ({ ...p, authorTags: tagsByAuthor.get(p.authorId) })),
-        signals,
-        [...followedIds],
-      );
-      posts = ranked.slice(0, 50);
-    } else {
-      posts = candidatePosts.slice(0, 50);
-    }
 
     return NextResponse.json({
       following,
