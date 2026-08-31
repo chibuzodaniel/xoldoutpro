@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { initializePayment as initializeFlutterwavePayment } from "@/lib/flutterwave";
 import { initializePayment as initializeMonnifyPayment } from "@/lib/monnify";
+import { initializePayment as initializeBachsPayment } from "@/lib/bachs";
 import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
@@ -24,9 +25,12 @@ const bodySchema = z.object({
   shipping: shippingSchema.optional(),
   isGift: z.boolean().optional(),
   // Buyer-selected checkout processor — ignored for free (₦0) orders, which
-  // never reach a processor at all. Flutterwave stays the default so any
-  // client that hasn't been updated to send this keeps working unchanged.
-  gateway: z.enum(["flutterwave", "monnify"]).default("flutterwave"),
+  // never reach a processor at all. Bachs is the default (and, per
+  // GatewayPickerSheet.tsx, the only buyer-visible option right now):
+  // Flutterwave and Monnify's merchant accounts are still pending approval,
+  // so a client that hasn't been updated to send this should land on the
+  // processor that's actually live.
+  gateway: z.enum(["flutterwave", "monnify", "bachs"]).default("bachs"),
 });
 
 export async function POST(req: NextRequest) {
@@ -161,13 +165,22 @@ export async function POST(req: NextRequest) {
               redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
               title: product.title,
             })
-          : await initializeFlutterwavePayment({
-              txRef: order.id,
-              amountKobo,
-              customerEmail: buyer.email,
-              redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
-              title: product.title,
-            });
+          : gateway === "bachs"
+            ? await initializeBachsPayment({
+                txRef: order.id,
+                amountKobo,
+                customerEmail: buyer.email,
+                customerName: buyer.displayName,
+                redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+                title: product.title,
+              })
+            : await initializeFlutterwavePayment({
+                txRef: order.id,
+                amountKobo,
+                customerEmail: buyer.email,
+                redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+                title: product.title,
+              });
 
       return NextResponse.json({ orderId: order.id, checkoutUrl }, { status: 201 });
     } catch (err) {

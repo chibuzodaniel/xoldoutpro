@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { recordRefund } from "@/lib/commerce/ledger";
 import { initiateRefund as initiateFlutterwaveRefund } from "@/lib/flutterwave";
 import { initiateRefund as initiateMonnifyRefund } from "@/lib/monnify";
+import { initiateRefund as initiateBachsRefund } from "@/lib/bachs";
 import { createNotification } from "@/lib/notifications/create";
 
 function formatNaira(kobo: number) {
@@ -77,6 +78,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         try {
           if (payment.processor === "monnify") {
             await initiateMonnifyRefund(payment.providerTransactionId, payment.amountKobo);
+          } else if (payment.processor === "bachs") {
+            await initiateBachsRefund(payment.providerTransactionId, payment.amountKobo);
           } else {
             await initiateFlutterwaveRefund(payment.providerTransactionId, payment.amountKobo);
           }

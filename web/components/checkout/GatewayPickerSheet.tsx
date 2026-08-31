@@ -1,6 +1,6 @@
 "use client";
 
-import type { Gateway } from "@/lib/useGatewayCheckout";
+import { ENABLED_GATEWAYS, type Gateway } from "@/lib/useGatewayCheckout";
 
 type Props = {
   open: boolean;
@@ -8,13 +8,24 @@ type Props = {
   onClose: () => void;
 };
 
-const OPTIONS: { value: Gateway; label: string; description: string }[] = [
-  { value: "flutterwave", label: "Flutterwave", description: "Card, bank transfer, USSD" },
-  { value: "monnify", label: "Monnify", description: "Card, bank transfer" },
-];
+// Every gateway's label/description, including Flutterwave and Monnify —
+// pending merchant-account approval and missing API keys (DECISIONS.md), not
+// deleted. The visible list is filtered down to ENABLED_GATEWAYS so this
+// file can't drift out of sync with useGatewayCheckout.ts's own idea of
+// what's actually usable; re-adding either later is a one-line change to
+// that array, not this one.
+const LABELS: Record<Gateway, { label: string; description: string }> = {
+  bachs: { label: "Bachs", description: "Card, bank transfer" },
+  flutterwave: { label: "Flutterwave", description: "Card, bank transfer, USSD" },
+  monnify: { label: "Monnify", description: "Card, bank transfer" },
+};
+
+const OPTIONS = ENABLED_GATEWAYS.map((value) => ({ value, ...LABELS[value] }));
 
 // Bottom sheet, same shape as ReportSheet — dims the page behind it rather
-// than covering it, closes on backdrop click.
+// than covering it, closes on backdrop click. In practice this never opens
+// today: useGatewayCheckout's pickGateway() only shows it when
+// ENABLED_GATEWAYS holds more than one entry.
 export function GatewayPickerSheet({ open, onSelect, onClose }: Props) {
   return (
     <div
