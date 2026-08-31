@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { usePlayer } from "./PlayerProvider";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 function formatTime(sec: number) {
   if (!Number.isFinite(sec)) return "0:00";
@@ -197,10 +198,7 @@ export function ExpandedPlayer() {
 
       <div className="flex-1 flex flex-col px-6 pb-8 overflow-y-auto">
         <div className="relative aspect-square w-full max-w-sm mx-auto rounded-2xl bg-surface-2 overflow-hidden mb-6">
-          {current.artworkUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={current.artworkUrl} alt={current.title} className="h-full w-full object-cover" />
-          )}
+          <FallbackImg src={current.artworkUrl} alt={current.title} className="h-full w-full object-cover" fallback={null} />
           <div className="absolute inset-x-0 bottom-4 flex items-end justify-center gap-[3px] h-5">
             {WAVEFORM_HEIGHTS.map((h, i) => (
               <span

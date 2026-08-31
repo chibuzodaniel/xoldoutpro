@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 
@@ -57,7 +57,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
     <div className="pb-10">
       <div className="relative aspect-square w-full bg-surface-2">
         {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
-        {cover && <Image src={cover} alt={product.title} fill sizes="100vw" priority unoptimized className="object-cover" />}
+        <ArtworkImage src={cover} alt={product.title} sizes="100vw" priority unoptimized className="object-cover" />
       </div>
 
       <div className="px-4 pt-4">

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type CatalogProduct = {
   id: string;
@@ -216,10 +217,7 @@ export default function MerchCatalogPage() {
               <div key={p.id} className="py-3">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded bg-surface-2 shrink-0 overflow-hidden">
-                    {image && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={image} alt={p.title} className="h-full w-full object-cover" />
-                    )}
+                    <FallbackImg src={image} alt={p.title} className="h-full w-full object-cover" fallback={null} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <Link href={`/m/${p.id}`} className="text-sm font-semibold line-clamp-1">

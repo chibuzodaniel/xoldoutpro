@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type Collection = { id: string; name: string; itemCount: number; covers: string[] };
 
@@ -17,8 +18,17 @@ function CollectionCard({ collection }: { collection: Collection }) {
           collection.covers
             .slice(0, 4)
             .map((url, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img key={i} src={url} alt="" className={`h-full w-full object-cover ${collection.covers.length === 1 ? "col-span-2 row-span-2" : ""}`} />
+              // A grid cell here needs to keep occupying its slot even if the
+              // image fails, so it falls back to a plain surface fill rather
+              // than nothing (unlike other FallbackImg call sites) — an
+              // empty cell risks collapsing this 2x2 grid's row sizing.
+              <FallbackImg
+                key={i}
+                src={url}
+                alt=""
+                className={`h-full w-full object-cover ${collection.covers.length === 1 ? "col-span-2 row-span-2" : ""}`}
+                fallback={<div className={`h-full w-full bg-surface-2 ${collection.covers.length === 1 ? "col-span-2 row-span-2" : ""}`} />}
+              />
             ))
         ) : (
           <div className="col-span-2 row-span-2" />

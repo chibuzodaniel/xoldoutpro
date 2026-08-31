@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { MerchPurchaseForm } from "@/components/product/MerchPurchaseForm";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 
@@ -57,19 +57,17 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
   return (
     <div className="pb-10">
       <div className="relative aspect-square w-full bg-surface-2">
-        {primaryImage && (
-          // Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`.
-          // The gallery images below are raw, uncropped uploads (merchItem.galleryImageUrls
-          // has no ladder), so those still need the optimizer's real resizing — left as-is.
-          <Image src={primaryImage} alt={product.title} fill sizes="100vw" priority unoptimized className="object-cover" />
-        )}
+        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`.
+            The gallery images below are raw, uncropped uploads (merchItem.galleryImageUrls
+            has no ladder), so those still need the optimizer's real resizing — left as-is. */}
+        <ArtworkImage src={primaryImage} alt={product.title} sizes="100vw" priority unoptimized className="object-cover" />
       </div>
 
       {gallery.length > 0 && (
         <div className="flex gap-2 px-4 py-3 overflow-x-auto">
           {gallery.map((url) => (
             <div key={url} className="relative h-16 w-16 rounded-lg overflow-hidden bg-surface-2 shrink-0">
-              <Image src={url} alt={product.title} fill sizes="64px" className="object-cover" />
+              <ArtworkImage src={url} alt={product.title} sizes="64px" className="object-cover" />
             </div>
           ))}
         </div>

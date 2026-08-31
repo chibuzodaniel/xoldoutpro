@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { EventTierPicker } from "@/components/product/EventTierPicker";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 
@@ -60,7 +60,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
     <div className="pb-10">
       <div className="relative aspect-[4/3] w-full bg-surface-2">
         {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
-        {cover && <Image src={cover} alt={event.title} fill sizes="100vw" priority unoptimized className="object-cover" />}
+        <ArtworkImage src={cover} alt={event.title} sizes="100vw" priority unoptimized className="object-cover" />
       </div>
 
       <div className="px-4 pt-4">

@@ -8,6 +8,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { CreatePostSheet } from "@/components/social/CreatePostSheet";
 import { PostCard, type FeedPost } from "@/components/social/PostCard";
 import { FanbaseTab } from "@/components/groups/FanbaseTab";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type FollowedCreator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
@@ -113,10 +114,7 @@ function SocialsPageInner() {
               {following.map((creator) => (
                 <Link key={creator.id} href={`/u/${creator.handle}`} className="flex flex-col items-center gap-1 shrink-0 w-14">
                   <div className="h-12 w-12 rounded-full bg-surface-2 overflow-hidden">
-                    {creator.avatarUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={creator.avatarUrl} alt={creator.displayName} className="h-full w-full object-cover" />
-                    )}
+                    <FallbackImg src={creator.avatarUrl} alt={creator.displayName} className="h-full w-full object-cover" fallback={null} />
                   </div>
                   <span className="text-[11px] text-ink-3 line-clamp-1 text-center">{creator.displayName}</span>
                 </Link>

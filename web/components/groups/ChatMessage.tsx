@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { Linkified } from "@/components/ui/Linkified";
 import { useToast } from "@/components/ui/ToastProvider";
 import { MENTION_SPLIT_PATTERN } from "@/lib/groups/mentions";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 export type ChatMessageData = {
   id: string;
@@ -179,8 +180,7 @@ export function ChatMessage({
           </p>
           {message.imageUrl && (
             <div className="rounded-lg overflow-hidden mt-2 max-w-[220px]">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={message.imageUrl} alt="" className="w-full object-cover" />
+              <FallbackImg src={message.imageUrl} alt="" className="w-full object-cover" fallback={null} />
             </div>
           )}
           <PollBlock messageId={message.id} poll={poll} onVoted={setPoll} />

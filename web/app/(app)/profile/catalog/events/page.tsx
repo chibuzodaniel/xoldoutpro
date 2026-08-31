@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type CatalogTier = {
   productId: string;
@@ -250,10 +251,7 @@ export default function EventCatalogPage() {
               <div key={ev.id} className="py-3">
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded bg-surface-2 shrink-0 overflow-hidden">
-                    {cover && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={cover} alt={ev.title} className="h-full w-full object-cover" />
-                    )}
+                    <FallbackImg src={cover} alt={ev.title} className="h-full w-full object-cover" fallback={null} />
                   </div>
                   <div className="flex-1 min-w-0">
                     <Link href={`/e/${ev.id}`} className="text-sm font-semibold line-clamp-1">

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type Creator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
@@ -56,12 +57,12 @@ export default function SearchPage() {
             {creators.map((c) => (
               <Link key={c.id} href={`/u/${c.handle}`} className="flex items-center gap-3 py-2.5">
                 <div className="h-9 w-9 rounded-full bg-surface-2 overflow-hidden flex items-center justify-center shrink-0">
-                  {c.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.avatarUrl} alt={c.displayName} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="font-serif text-sm text-ink-3">{c.displayName.slice(0, 1).toUpperCase()}</span>
-                  )}
+                  <FallbackImg
+                    src={c.avatarUrl}
+                    alt={c.displayName}
+                    className="h-full w-full object-cover"
+                    fallback={<span className="font-serif text-sm text-ink-3">{c.displayName.slice(0, 1).toUpperCase()}</span>}
+                  />
                 </div>
                 <div>
                   <p className="text-sm font-semibold">{c.displayName}</p>

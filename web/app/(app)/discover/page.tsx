@@ -5,6 +5,7 @@ import { EventCard } from "@/components/product/EventCard";
 import { AppHeader } from "@/components/nav/AppHeader";
 import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -156,10 +157,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       {hero && (
         <Link href={`/r/${hero.id}`} className="block relative mx-4 mb-6 rounded-xl overflow-hidden aspect-[4/5]">
           <div className="absolute inset-0 bg-surface-2">
-            {heroArt && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={heroArt} alt={hero.title} className="h-full w-full object-cover" />
-            )}
+            <FallbackImg src={heroArt} alt={hero.title} className="h-full w-full object-cover" fallback={null} />
           </div>
           <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-black/40" />
 
@@ -287,12 +285,12 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length]
                   }`}
                 >
-                  {c.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={c.avatarUrl} alt={c.displayName} className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="font-serif text-base text-white">{c.displayName.slice(0, 1).toUpperCase()}</span>
-                  )}
+                  <FallbackImg
+                    src={c.avatarUrl}
+                    alt={c.displayName}
+                    className="h-full w-full object-cover"
+                    fallback={<span className="font-serif text-base text-white">{c.displayName.slice(0, 1).toUpperCase()}</span>}
+                  />
                 </div>
                 <span className="text-[10.5px] font-medium text-ink-2 line-clamp-1 text-center">{c.displayName}</span>
                 <span className="text-[10px] text-ink-3">{c._count.followers}</span>

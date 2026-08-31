@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -10,6 +9,7 @@ import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { FollowButton } from "@/components/profile/FollowButton";
 import { Linkified } from "@/components/ui/Linkified";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ArtworkImage } from "@/components/ui/ArtworkImage";
 
 export type FeedPost = {
   id: string;
@@ -190,9 +190,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
     <div className="rounded-2xl border border-red/15 bg-red/10 px-4 py-4">
       <div className="flex items-center gap-2.5 mb-2.5">
         <Link href={`/u/${post.author.handle}`} className="relative h-8 w-8 rounded-full bg-surface-2 overflow-hidden shrink-0">
-          {post.author.avatarUrl && (
-            <Image src={post.author.avatarUrl} alt={post.author.displayName} fill sizes="32px" className="object-cover" />
-          )}
+          <ArtworkImage src={post.author.avatarUrl} alt={post.author.displayName} sizes="32px" className="object-cover" />
         </Link>
         <div className="min-w-0 flex-1">
           <Link href={`/u/${post.author.handle}`} className="flex items-center gap-1 text-sm font-semibold">
@@ -230,7 +228,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
           onClick={handleDoubleTapLike}
           className="relative w-full aspect-square rounded-lg overflow-hidden mb-3 bg-surface-2 select-none"
         >
-          <Image src={post.imageUrl} alt="" fill sizes="100vw" className="object-cover" />
+          <ArtworkImage src={post.imageUrl} alt="" sizes="100vw" className="object-cover" />
         </div>
       )}
       <div className="flex items-center gap-4">
@@ -262,9 +260,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
             comments.map((c) => (
               <div key={c.id} className="flex gap-2">
                 <Link href={`/u/${c.author.handle}`} className="relative h-6 w-6 rounded-full bg-surface-2 overflow-hidden shrink-0">
-                  {c.author.avatarUrl && (
-                    <Image src={c.author.avatarUrl} alt={c.author.displayName} fill sizes="24px" className="object-cover" />
-                  )}
+                  <ArtworkImage src={c.author.avatarUrl} alt={c.author.displayName} sizes="24px" className="object-cover" />
                 </Link>
                 <div className="min-w-0">
                   <p className="text-xs">

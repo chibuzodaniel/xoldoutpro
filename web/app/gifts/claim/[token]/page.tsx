@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type GiftPreview = {
   status: "PENDING" | "CLAIMED" | "EXPIRED" | "REFUNDED";
@@ -78,10 +79,7 @@ export default function ClaimGiftPage({ params }: { params: Promise<{ token: str
         <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-4">You&apos;ve got a gift</p>
 
         <div className="h-40 w-40 rounded-lg bg-surface-2 overflow-hidden mx-auto mb-5">
-          {art && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={art} alt={gift.product.title} className="h-full w-full object-cover" />
-          )}
+          <FallbackImg src={art} alt={gift.product.title} className="h-full w-full object-cover" fallback={null} />
         </div>
 
         <h1 className="font-serif text-2xl mb-2">{gift.product.title}</h1>

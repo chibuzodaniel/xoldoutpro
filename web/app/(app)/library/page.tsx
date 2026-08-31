@@ -11,6 +11,7 @@ import { CollectionsTab } from "@/components/library/CollectionsTab";
 import { GiftsTab } from "@/components/library/GiftsTab";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type LibraryTrack = {
   id: string;
@@ -224,10 +225,7 @@ function LibraryPageInner() {
                         const tile = (
                           <button key={e.id} type="button" onClick={() => handleTileTap(e)} className="text-left">
                             <div className="relative aspect-square rounded-lg bg-surface-2 overflow-hidden mb-2">
-                              {tileArt && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img src={tileArt} alt={e.product.title} className="h-full w-full object-cover" />
-                              )}
+                              <FallbackImg src={tileArt} alt={e.product.title} className="h-full w-full object-cover" fallback={null} />
                               {isPlaying && (
                                 <span className="absolute bottom-2 right-2 h-6 w-6 rounded-full bg-red flex items-center justify-center">
                                   <svg viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
@@ -389,14 +387,12 @@ function MerchLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntit
   return (
     <div className="flex items-center gap-3">
       <div className="h-11 w-11 rounded bg-surface-2 overflow-hidden shrink-0">
-        {merchImageUrl(entitlement.product.merchItem, "64") && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={merchImageUrl(entitlement.product.merchItem, "64")!}
-            alt={entitlement.product.title}
-            className="h-full w-full object-cover"
-          />
-        )}
+        <FallbackImg
+          src={merchImageUrl(entitlement.product.merchItem, "64")}
+          alt={entitlement.product.title}
+          className="h-full w-full object-cover"
+          fallback={null}
+        />
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold line-clamp-1">{entitlement.product.title}</p>

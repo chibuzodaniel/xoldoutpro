@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { usePlayer } from "./PlayerProvider";
 import { useKeyboardOpen } from "@/lib/useKeyboardOpen";
+import { ArtworkImage } from "@/components/ui/ArtworkImage";
 
 export function MiniPlayer() {
   const { current, isPlaying, togglePlay, setExpanded, loading } = usePlayer();
@@ -21,10 +21,8 @@ export function MiniPlayer() {
     <div className="flex items-center gap-3 border-t border-line bg-surface px-3 py-2">
       <button onClick={() => setExpanded(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
         <div className="relative h-9 w-9 rounded bg-surface-2 shrink-0 overflow-hidden">
-          {current.artworkUrl && (
-            // Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`.
-            <Image src={current.artworkUrl} alt={current.title} fill sizes="36px" unoptimized className="object-cover" />
-          )}
+          {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
+          <ArtworkImage src={current.artworkUrl} alt={current.title} sizes="36px" unoptimized className="object-cover" />
           {/* Small brand watermark on the artwork corner — the mini bar has
               no spare vertical room for a "Playing from XOLDOUT" text line
               (it's persistent across every screen), unlike the expanded

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 type GiftProduct = {
   id: string;
@@ -48,10 +49,7 @@ function GiftCard({ children, product }: { children: React.ReactNode; product: G
   return (
     <div className="rounded-lg border border-line-soft p-2.5 flex gap-3">
       <div className="h-14 w-14 rounded bg-surface-2 overflow-hidden shrink-0">
-        {art && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={art} alt={product.title} className="h-full w-full object-cover" />
-        )}
+        <FallbackImg src={art} alt={product.title} className="h-full w-full object-cover" fallback={null} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold line-clamp-1">{product.title}</p>

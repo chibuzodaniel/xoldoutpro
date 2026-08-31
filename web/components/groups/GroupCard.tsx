@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FallbackImg } from "@/components/ui/FallbackImg";
 
 export type GroupCardData = {
   id: string;
@@ -16,10 +17,7 @@ export function GroupCard({ group }: { group: GroupCardData }) {
   return (
     <Link href={`/groups/${group.id}`} className="block w-full">
       <div className="aspect-square w-full rounded-lg bg-surface-2 overflow-hidden relative">
-        {group.coverImageUrl && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={group.coverImageUrl} alt={group.name} className="h-full w-full object-cover" />
-        )}
+        <FallbackImg src={group.coverImageUrl} alt={group.name} className="h-full w-full object-cover" fallback={null} />
         {group.visibility === "REQUEST_TO_JOIN" && (
           <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white flex items-center gap-1">
             <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="none" stroke="currentColor" strokeWidth="2">

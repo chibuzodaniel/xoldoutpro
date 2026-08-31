@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { ArtworkImage } from "@/components/ui/ArtworkImage";
 
 export type ProductCardData = {
   id: string;
@@ -61,12 +61,10 @@ export function ProductCard({ product }: { product: ProductCardData }) {
   return (
     <Link href={hrefFor(product)} className="block w-full group">
       <div className="aspect-square w-full rounded-lg bg-surface-2 overflow-hidden relative">
-        {imageUrl && (
-          // Already the right size (server-generated ladder rung, lib/images.ts) — `unoptimized`
-          // skips Vercel's Image Optimization pipeline, which would otherwise re-transform this
-          // one already-correct 256px image into up to 8 more deviceSizes variants per card.
-          <Image src={imageUrl} alt={product.title} fill sizes="33vw" unoptimized className="object-cover" />
-        )}
+        {/* Already the right size (server-generated ladder rung, lib/images.ts) — `unoptimized`
+            skips Vercel's Image Optimization pipeline, which would otherwise re-transform this
+            one already-correct 256px image into up to 8 more deviceSizes variants per card. */}
+        <ArtworkImage src={imageUrl} alt={product.title} sizes="33vw" unoptimized className="object-cover" />
 
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
           {categoryLabelFor(product)}
