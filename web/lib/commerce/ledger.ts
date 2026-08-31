@@ -12,6 +12,16 @@ export { COMMISSION_RATE };
 // (DECISIONS.md). Only recordSale reads COMMISSION_RATE — recordRefund
 // below reverses whatever was actually charged on a given order, not
 // today's rate, so past sales made under an old rate stay correct.
+//
+// Explicit ask, 2026-08-31, "for now": the hold itself is deactivated —
+// recordSale below no longer sets a future availableAt, so a sale is
+// withdrawable the moment it lands (still subject to the ₦1,000 minimum
+// in lib/commerce/constants.ts). This constant, and the date-math that used
+// it, are left in place rather than deleted so re-enabling the hold later
+// is the one-line revert noted at that call site, not a rebuild. The
+// takedown/gift-expiry reversal path (recordRefund, below) is unrelated to
+// this and unchanged — that's a moderation safety mechanism, not the
+// withdrawal-timing policy this toggles.
 export const SETTLEMENT_WINDOW_DAYS = 7;
 
 /**
@@ -25,7 +35,11 @@ export async function recordSale(
   tx: Prisma.TransactionClient,
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
-  const availableAt = new Date(Date.now() + SETTLEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+  // Settlement hold deactivated for launch (see SETTLEMENT_WINDOW_DAYS's own
+  // comment) — revert to
+  // `new Date(Date.now() + SETTLEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)`
+  // to bring the 7-day hold back.
+  const availableAt: Date | null = null;
   const commissionKobo = Math.round(args.grossKobo * COMMISSION_RATE);
 
   await tx.walletLedgerEntry.createMany({
@@ -35,7 +49,7 @@ export async function recordSale(
         orderId: args.orderId,
         amountKobo: args.grossKobo,
         kind: "SALE_CREDIT",
-        status: "PENDING",
+        status: availableAt ? "PENDING" : "AVAILABLE",
         availableAt,
       },
       {
@@ -43,7 +57,7 @@ export async function recordSale(
         orderId: args.orderId,
         amountKobo: -commissionKobo,
         kind: "COMMISSION_FEE",
-        status: "PENDING",
+        status: availableAt ? "PENDING" : "AVAILABLE",
         availableAt,
       },
     ],

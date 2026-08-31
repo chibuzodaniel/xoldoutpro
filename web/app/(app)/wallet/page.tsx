@@ -71,9 +71,12 @@ export default function WalletPage() {
         </div>
       </div>
 
+      {/* Explicit ask, 2026-08-31, "for now": the 7-day settlement hold is
+          off (lib/commerce/ledger.ts's recordSale), so a sale is
+          withdrawable immediately — copy updated to match. Revert this
+          alongside that file's own revert note if the hold comes back. */}
       <p className="text-[12px] text-ink-3 mb-6">
-        Pending becomes available 7 days after a sale, matching the refund window. Once it&apos;s available, it&apos;s
-        yours to withdraw.
+        Your earnings are available to withdraw right away — no waiting period.
       </p>
 
       <Link
