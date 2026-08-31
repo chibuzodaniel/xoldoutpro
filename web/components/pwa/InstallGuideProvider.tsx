@@ -22,7 +22,15 @@ function isStandalone() {
   );
 }
 
-const InstallGuideContext = createContext<{ open: () => void } | null>(null);
+const InstallGuideContext = createContext<{
+  open: () => void;
+  // True only where a real native install prompt exists to trigger (Chrome/
+  // Edge-family browsers that fired beforeinstallprompt — never iOS Safari,
+  // which has no programmatic install API at all; that platform's only path
+  // is the manual Share-sheet steps the sheet itself shows).
+  canInstall: boolean;
+  promptInstall: () => Promise<void>;
+} | null>(null);
 
 export function useInstallGuide() {
   const ctx = useContext(InstallGuideContext);
@@ -93,7 +101,9 @@ export function InstallGuideProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <InstallGuideContext.Provider value={{ open: () => setSheetOpen(true) }}>
+    <InstallGuideContext.Provider
+      value={{ open: () => setSheetOpen(true), canInstall: Boolean(deferredPrompt), promptInstall: handleInstallClick }}
+    >
       {children}
       <InstallSheet
         open={sheetOpen}
