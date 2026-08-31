@@ -10,6 +10,7 @@ import { uploadImage } from "@/lib/uploadImage";
 import { enablePush, disablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
@@ -131,12 +132,7 @@ export default function EditProfilePage() {
 
   return (
     <div className="pb-10">
-      <div className="flex items-center gap-3 px-4 h-12 border-b border-line-soft mb-6">
-        <button onClick={() => router.back()} className="text-xl text-ink-2" aria-label="Back">
-          ‹
-        </button>
-        <h1 className="font-serif text-xl">Settings</h1>
-      </div>
+      <BackHeader title="Settings" />
 
       <form onSubmit={handleSubmit} className="px-4 flex flex-col gap-8 max-w-sm mx-auto">
         <div className="flex flex-col gap-4">

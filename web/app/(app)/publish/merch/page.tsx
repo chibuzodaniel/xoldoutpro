@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 export default function UploadMerchPage() {
   const router = useRouter();
@@ -98,8 +99,9 @@ export default function UploadMerchPage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto pb-24">
-      <h1 className="font-serif text-2xl mb-6">Add Merchandise</h1>
+    <div className="pb-24">
+      <BackHeader title="Add Merchandise" />
+      <div className="px-4 max-w-lg mx-auto">
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
@@ -288,6 +290,7 @@ export default function UploadMerchPage() {
           {submitting ? "Publishing…" : "Publish"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type WalletData = {
   availableKobo: number;
@@ -38,16 +39,17 @@ export default function WalletPage() {
 
   if (!data) {
     return (
-      <div className="px-4 py-6">
-        <h1 className="font-serif text-2xl mb-6">Wallet</h1>
+      <div>
+        <BackHeader title="Wallet" />
         <LoadingSpinner full size="md" />
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="font-serif text-2xl mb-6">Wallet</h1>
+    <div className="pb-6">
+      <BackHeader title="Wallet" />
+      <div className="px-4">
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-3">
         <p className="text-[11px] uppercase tracking-widest text-ink-3">Available</p>
@@ -116,6 +118,7 @@ export default function WalletPage() {
             ))}
           </div>
         )}
+      </div>
       </div>
     </div>
   );

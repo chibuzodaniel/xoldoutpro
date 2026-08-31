@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type Bank = { code: string; name: string };
 type PayoutAccount = {
@@ -62,8 +63,9 @@ export default function PayoutAccountsPage() {
   }
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="font-serif text-2xl mb-6">Payout accounts</h1>
+    <div className="pb-6">
+      <BackHeader title="Payout accounts" />
+      <div className="px-4">
 
       {accounts && accounts.length > 0 && (
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-8">
@@ -121,6 +123,7 @@ export default function PayoutAccountsPage() {
           {busy ? "Verifying…" : "Verify and add"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

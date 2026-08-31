@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type TierDraft = { localId: string; name: string; priceNaira: string; hasCap: boolean; capValue: string };
 
@@ -101,8 +102,9 @@ export default function CreateEventPage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto pb-24">
-      <h1 className="font-serif text-2xl mb-6">Create Event</h1>
+    <div className="pb-24">
+      <BackHeader title="Create Event" />
+      <div className="px-4 max-w-lg mx-auto">
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
@@ -301,6 +303,7 @@ export default function CreateEventPage() {
           {submitting ? "Publishing…" : "Publish"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

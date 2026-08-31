@@ -7,6 +7,7 @@ import { uploadVerificationDocument } from "@/lib/uploadVerificationDocument";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useToast } from "@/components/ui/ToastProvider";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type VerificationType = "IDENTITY" | "SELLER" | "CREATOR" | "OFFICIAL" | "BUSINESS" | "FANBASE";
 type ApplicationStatus =
@@ -151,8 +152,9 @@ export default function VerificationPage() {
   const availableTypes = (Object.keys(TYPE_META) as VerificationType[]).filter((t) => !nonTerminalTypes.has(t));
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto pb-24">
-      <h1 className="font-serif text-2xl mb-1">Get Verified</h1>
+    <div className="pb-24">
+      <BackHeader title="Get Verified" />
+      <div className="px-4 max-w-lg mx-auto">
       <p className="text-xs text-ink-3 mb-6">
         Apply for a verification badge. Criteria vary by badge type; every application is reviewed by a moderator.
       </p>
@@ -222,6 +224,7 @@ export default function VerificationPage() {
           </button>
         )
       )}
+      </div>
     </div>
   );
 }

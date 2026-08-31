@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type ScanResult = { ok: true; tierName?: string; buyer?: string } | { ok: false; error: string };
 
@@ -14,7 +15,6 @@ type BarcodeDetectorLike = { detect: (source: CanvasImageSource) => Promise<{ ra
 
 export default function EventCheckInPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [cameraSupported, setCameraSupported] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -94,14 +94,10 @@ export default function EventCheckInPage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-sm mx-auto">
-      <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.back()} className="text-xl text-ink-2" aria-label="Back">
-          ‹
-        </button>
-        <h1 className="font-serif text-xl">Check in tickets</h1>
-      </div>
-      {eventTitle && <p className="text-xs text-ink-3 -mt-4 mb-6">{eventTitle}</p>}
+    <div className="pb-6 max-w-sm mx-auto">
+      <BackHeader title="Check in tickets" />
+      <div className="px-4">
+        {eventTitle && <p className="text-xs text-ink-3 -mt-3 mb-6">{eventTitle}</p>}
 
       {cameraSupported && (
         <div className="mb-6">
@@ -135,22 +131,23 @@ export default function EventCheckInPage() {
         </button>
       </div>
 
-      {result && (
-        <div
-          className={`rounded-lg border p-4 text-sm ${
-            result.ok ? "border-green/40 text-green" : "border-red/40 text-red-soft"
-          }`}
-        >
-          {result.ok ? (
-            <>
-              Checked in{result.buyer ? ` ${result.buyer}` : ""}
-              {result.tierName ? ` · ${result.tierName}` : ""}
-            </>
-          ) : (
-            result.error
-          )}
-        </div>
-      )}
+        {result && (
+          <div
+            className={`rounded-lg border p-4 text-sm ${
+              result.ok ? "border-green/40 text-green" : "border-red/40 text-red-soft"
+            }`}
+          >
+            {result.ok ? (
+              <>
+                Checked in{result.buyer ? ` ${result.buyer}` : ""}
+                {result.tierName ? ` · ${result.tierName}` : ""}
+              </>
+            ) : (
+              result.error
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

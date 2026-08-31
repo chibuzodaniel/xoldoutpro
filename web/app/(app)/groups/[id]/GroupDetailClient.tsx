@@ -206,6 +206,9 @@ export function GroupDetailClient({ id }: { id: string }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-3 px-4 py-3 border-b border-line-soft shrink-0">
+        <button type="button" onClick={() => router.back()} className="text-xl text-ink-2 shrink-0" aria-label="Back">
+          ‹
+        </button>
         <div className="relative shrink-0">
           <button
             type="button"

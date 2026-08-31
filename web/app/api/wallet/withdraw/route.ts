@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getWalletBalances } from "@/lib/commerce/ledger";
+import { MINIMUM_WITHDRAWAL_KOBO } from "@/lib/commerce/constants";
 import { initiatePayout } from "@/lib/bachs";
 import { createNotification } from "@/lib/notifications/create";
 
@@ -37,6 +38,10 @@ export async function POST(req: NextRequest) {
         { error: "This bank account needs to be re-added before you can withdraw to it." },
         { status: 400 },
       );
+    }
+
+    if (amountKobo < MINIMUM_WITHDRAWAL_KOBO) {
+      return NextResponse.json({ error: `The minimum withdrawal is ${formatNaira(MINIMUM_WITHDRAWAL_KOBO)}` }, { status: 400 });
     }
 
     const { availableKobo } = await getWalletBalances(user.id);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type ProductStat = {
   id: string;
@@ -52,9 +53,10 @@ export default function AnalyticsPage() {
   const returningPct = totals.totalCustomers > 0 ? Math.round((totals.returningCustomers / totals.totalCustomers) * 100) : null;
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="font-serif text-2xl mb-1">Analytics</h1>
-      <p className="text-xs text-ink-3 mb-6">How your work is performing. No money here — see Wallet for that.</p>
+    <div className="pb-6">
+      <BackHeader title="Analytics" />
+      <div className="px-4">
+        <p className="text-xs text-ink-3 mb-6">How your work is performing. No money here — see Wallet for that.</p>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
@@ -110,6 +112,7 @@ export default function AnalyticsPage() {
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 }

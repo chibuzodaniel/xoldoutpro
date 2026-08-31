@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useToast } from "@/components/ui/ToastProvider";
 import { GrowthChart } from "@/components/moderation/GrowthChart";
 import { useModeratorSession } from "@/lib/useModeratorSession";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type ReportRow = {
   id: string;
@@ -147,8 +148,9 @@ export default function ModerationPage() {
   if (!otpVerified) return <ModeratorOtpForm email={appUser.email} onVerified={markVerified} />;
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="font-serif text-2xl mb-1">Moderation queue</h1>
+    <div className="pb-6">
+      <BackHeader title="Moderation queue" />
+      <div className="px-4">
       <p className="text-xs text-ink-3 mb-6">Open and in-review reports, soonest SLA first.</p>
 
       <PlatformStatsPanel />
@@ -229,6 +231,7 @@ export default function ModerationPage() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

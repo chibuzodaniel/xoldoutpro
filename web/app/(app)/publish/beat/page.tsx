@@ -7,6 +7,7 @@ import { uploadImage } from "@/lib/uploadImage";
 import { uploadAndIngestAudio } from "@/lib/uploadAudio";
 import { WaveformScrubber } from "@/components/upload/WaveformScrubber";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type AudioState = {
   status: "idle" | "uploading" | "ready" | "error";
@@ -145,8 +146,9 @@ export default function UploadBeatPage() {
   }
 
   return (
-    <div className="px-4 py-6 max-w-lg mx-auto pb-24">
-      <h1 className="font-serif text-2xl mb-6">Upload Beat</h1>
+    <div className="pb-24">
+      <BackHeader title="Upload Beat" />
+      <div className="px-4 max-w-lg mx-auto">
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         <div className="flex flex-col gap-1">
@@ -443,6 +445,7 @@ export default function UploadBeatPage() {
           {submitting ? "Publishing…" : "Publish"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

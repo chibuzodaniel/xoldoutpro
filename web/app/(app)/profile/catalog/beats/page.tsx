@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type CatalogProduct = {
   id: string;
@@ -138,13 +139,16 @@ export default function BeatCatalogPage() {
   }
 
   return (
-    <div className="px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-serif text-2xl">Beats</h1>
-        <Link href="/publish/beat" className="text-xs text-red-soft font-semibold">
-          + New beat
-        </Link>
-      </div>
+    <div className="pb-6">
+      <BackHeader
+        title="Beats"
+        action={
+          <Link href="/publish/beat" className="text-xs text-red-soft font-semibold shrink-0">
+            + New beat
+          </Link>
+        }
+      />
+      <div className="px-4">
 
       {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
@@ -204,6 +208,7 @@ export default function BeatCatalogPage() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

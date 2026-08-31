@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type CatalogTier = {
   productId: string;
@@ -227,13 +228,16 @@ export default function EventCatalogPage() {
   }
 
   return (
-    <div className="px-4 py-6">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="font-serif text-2xl">Events</h1>
-        <Link href="/publish/event" className="text-xs text-red-soft font-semibold">
-          + New event
-        </Link>
-      </div>
+    <div className="pb-6">
+      <BackHeader
+        title="Events"
+        action={
+          <Link href="/publish/event" className="text-xs text-red-soft font-semibold shrink-0">
+            + New event
+          </Link>
+        }
+      />
+      <div className="px-4">
 
       {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
@@ -300,6 +304,7 @@ export default function EventCatalogPage() {
           })}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { MINIMUM_WITHDRAWAL_KOBO } from "@/lib/commerce/constants";
+import { BackHeader } from "@/components/ui/BackHeader";
 
 type PayoutAccount = { id: string; bankName: string; accountNumber: string; accountName: string; isDefault: boolean };
 
@@ -49,6 +51,7 @@ export default function WithdrawPage() {
     setError(null);
     if (!payoutAccountId) return setError("Add a payout account first");
     if (!amountKobo || amountKobo <= 0) return setError("Enter an amount");
+    if (amountKobo < MINIMUM_WITHDRAWAL_KOBO) return setError(`The minimum withdrawal is ${naira(MINIMUM_WITHDRAWAL_KOBO)}`);
     if (availableKobo !== null && amountKobo > availableKobo) return setError("Amount exceeds available balance");
 
     setBusy(true);
@@ -69,27 +72,31 @@ export default function WithdrawPage() {
 
   if (accounts.length === 0 && availableKobo !== null) {
     return (
-      <div className="px-4 py-6">
-        <h1 className="font-serif text-2xl mb-4">Withdraw</h1>
+      <div className="pb-6">
+        <BackHeader title="Withdraw" />
+        <div className="px-4">
         <p className="text-sm text-ink-3 mb-4">Add a payout account before you can withdraw.</p>
         <Link href="/wallet/payout-accounts" className="text-sm text-red-soft font-semibold">
           Add payout account →
         </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="font-serif text-2xl mb-2">Withdraw</h1>
-      <p className="text-sm text-ink-3 mb-6">{availableKobo !== null ? `${naira(availableKobo)} available` : "Loading…"}</p>
+    <div className="pb-6">
+      <BackHeader title="Withdraw" />
+      <div className="px-4">
+      <p className="text-sm text-ink-3 mb-1">{availableKobo !== null ? `${naira(availableKobo)} available` : "Loading…"}</p>
+      <p className="text-[12px] text-ink-3 mb-6">Minimum withdrawal: {naira(MINIMUM_WITHDRAWAL_KOBO)}</p>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex items-center gap-2">
           <span className="text-lg text-ink-3">₦</span>
           <input
             type="number"
-            min={0}
+            min={MINIMUM_WITHDRAWAL_KOBO / 100}
             step="0.01"
             value={amountNaira}
             onChange={(e) => setAmountNaira(e.target.value)}
@@ -145,6 +152,7 @@ export default function WithdrawPage() {
           {busy ? "Sending…" : "Withdraw"}
         </button>
       </form>
+      </div>
     </div>
   );
 }

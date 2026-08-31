@@ -61,6 +61,9 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
 
   return (
     <div className="px-4 py-6">
+      <button type="button" onClick={() => router.back()} className="text-xl text-ink-2 mb-3" aria-label="Back">
+        ‹
+      </button>
       {editing ? (
         <div className="flex gap-2 mb-1">
           <input
