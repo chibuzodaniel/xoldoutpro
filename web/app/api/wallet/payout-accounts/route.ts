@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { resolveAccount } from "@/lib/flutterwave";
+import { resolveAccount, createPayoutDestination } from "@/lib/bachs";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,15 +22,23 @@ const bodySchema = z.object({
 });
 
 // PRD §13: "Account verification with name matching at the time an account
-// is added, not at withdrawal time." Flutterwave's resolve endpoint returns
-// the bank's name for the account — that becomes accountName, never
-// something the user types themselves.
+// is added, not at withdrawal time." Bachs's resolve endpoint returns the
+// bank's name for the account — that becomes accountName, never something
+// the user types themselves. Beyond resolving, Bachs also requires
+// registering the account as a payout destination before anything can be
+// withdrawn to it (lib/bachs.ts) — done here, once, at add-time, so
+// withdraw doesn't have to register on every single payout.
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
     const { accountNumber, bankCode, bankName } = bodySchema.parse(await req.json());
 
     const resolved = await resolveAccount(accountNumber, bankCode);
+    const destination = await createPayoutDestination({
+      accountNumber: resolved.accountNumber,
+      bankCode,
+      label: `${resolved.accountName} — ${bankName}`,
+    });
 
     const existingCount = await db.payoutAccount.count({ where: { userId: user.id } });
     const account = await db.payoutAccount.create({
@@ -42,6 +50,8 @@ export async function POST(req: NextRequest) {
         accountName: resolved.accountName,
         isDefault: existingCount === 0,
         verifiedAt: new Date(),
+        payoutDestinationId: destination.id,
+        payoutDestinationUsable: destination.isUsable,
       },
     });
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
-import { getNigerianBanks } from "@/lib/flutterwave";
+import { getNigerianBanks } from "@/lib/bachs";
 
 let cache: { banks: { code: string; name: string }[]; fetchedAt: number } | null = null;
 const CACHE_MS = 60 * 60 * 1000; // bank list changes essentially never

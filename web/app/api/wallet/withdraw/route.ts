@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getWalletBalances } from "@/lib/commerce/ledger";
-import { initiateTransfer } from "@/lib/flutterwave";
+import { initiatePayout } from "@/lib/bachs";
 import { createNotification } from "@/lib/notifications/create";
 
 function formatNaira(kobo: number) {
@@ -18,8 +18,8 @@ const bodySchema = z.object({
 // PRD §13: fee disclosed before confirmation (0 — platform absorbs it, per
 // DECISIONS.md), net receivable always shown, amount can never exceed
 // available balance. The debit is recorded immediately on initiation, not
-// when Flutterwave finishes the transfer, so the same available balance can
-// never be withdrawn twice while a transfer is in flight.
+// when Bachs finishes the payout, so the same available balance can never
+// be withdrawn twice while one is in flight.
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
@@ -28,6 +28,15 @@ export async function POST(req: NextRequest) {
     const account = await db.payoutAccount.findUnique({ where: { id: payoutAccountId } });
     if (!account || account.userId !== user.id) {
       return NextResponse.json({ error: "Payout account not found" }, { status: 404 });
+    }
+    // A row added under the old Flutterwave flow (or one still under Bachs's
+    // own review — see lib/bachs.ts's createPayoutDestination) has no usable
+    // Bachs destination to pay out to yet.
+    if (!account.payoutDestinationId || !account.payoutDestinationUsable) {
+      return NextResponse.json(
+        { error: "This bank account needs to be re-added before you can withdraw to it." },
+        { status: 400 },
+      );
     }
 
     const { availableKobo } = await getWalletBalances(user.id);
@@ -55,16 +64,14 @@ export async function POST(req: NextRequest) {
     });
 
     try {
-      const transfer = await initiateTransfer({
-        reference: payout.id,
-        accountNumber: account.accountNumber,
-        bankCode: account.bankCode,
+      const transfer = await initiatePayout({
+        destinationId: account.payoutDestinationId,
         amountKobo: netKobo,
-        narration: "XOLDOUT payout",
+        reference: payout.id,
       });
-      await db.payout.update({ where: { id: payout.id }, data: { processorRef: String(transfer.id) } });
+      await db.payout.update({ where: { id: payout.id }, data: { processorRef: transfer.id } });
     } catch (err) {
-      // Transfer failed to even initiate — reverse the debit so the funds
+      // Payout failed to even initiate — reverse the debit so the funds
       // aren't stuck in limbo, and mark the payout FAILED.
       console.error(err);
       await db.$transaction([

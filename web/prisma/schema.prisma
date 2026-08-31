@@ -20,34 +20,34 @@ datasource db {
 // on first sign-in and mirrors the Firebase UID; no password is stored here.
 
 model User {
-  id          String   @id @default(cuid())
-  firebaseUid String   @unique
-  email       String   @unique
-  handle      String   @unique
-  displayName String
-  bio         String?
-  avatarUrl   String?
-  coverUrl    String?
-  tags        String[] @default([])
-  socialLinks Json     @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
+  id                       String                  @id @default(cuid())
+  firebaseUid              String                  @unique
+  email                    String                  @unique
+  handle                   String                  @unique
+  displayName              String
+  bio                      String?
+  avatarUrl                String?
+  coverUrl                 String?
+  tags                     String[]                @default([])
+  socialLinks              Json                    @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
   // Defaults on for new signups (onboarding calls enablePush() once the
   // profile step completes, which is what actually requests the browser's
   // notification permission — this column alone is just the stored
   // preference). Existing users who signed up before this default flipped
   // keep whatever they'd already set; the toggle in Edit Profile still lets
   // anyone turn it off.
-  pushEnabled Boolean  @default(true)
-  fcmTokens   String[] @default([]) // Firebase Cloud Messaging push tokens
+  pushEnabled              Boolean                 @default(true)
+  fcmTokens                String[]                @default([]) // Firebase Cloud Messaging push tokens
   // Drives the in-app unread badge on the Socials nav tab (distinct from
   // push — this counts activity while the app itself is open) — null until
   // the user's first-ever Socials visit, treated as "everything" from then on.
-  socialsLastSeenAt DateTime?
-  isModerator Boolean  @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
+  socialsLastSeenAt        DateTime?
+  isModerator              Boolean                 @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
   // A super-moderator can additionally promote/demote other moderators from
   // the moderation dashboard (ManageModeratorsPanel) — the first one still
   // has to be set directly in the DB, same as isModerator itself, but from
   // there on out further moderators can be assigned/removed through the UI.
-  isSuperModerator Boolean @default(false)
+  isSuperModerator         Boolean                 @default(false)
   // Master "has a checkmark" flag — unchanged from its original PRD §12/§18
   // meaning and still moderator-togglable directly (POST /api/admin/verify)
   // for backward compatibility with every existing <VerifiedBadge> call
@@ -56,25 +56,25 @@ model User {
   // suspension/revocation clears verificationBadges but leaves this alone,
   // since other things, like the old moderator toggle, may still want it
   // on) and records which specific badge(s) were actually granted.
-  isVerified  Boolean  @default(false)
+  isVerified               Boolean                 @default(false)
   // Specific badges actually granted through VerificationApplication
   // approvals — distinct from isVerified so the UI can show e.g. "Seller
   // Verified" instead of just a bare checkmark. A plain array (matching
   // `tags`' convention elsewhere on this model) rather than a join table:
   // membership only ever needs "is type X currently granted," never its
   // own per-badge relations.
-  verificationBadges VerificationBadgeType[] @default([])
+  verificationBadges       VerificationBadgeType[] @default([])
   // Set the first time the 50-valid-sales milestone notification/modal is
   // shown, so it doesn't re-trigger on every visit — see
   // lib/verification/eligibility.ts.
   salesMilestoneNotifiedAt DateTime?
-  createdAt   DateTime @default(now())
+  createdAt                DateTime                @default(now())
   // Defaults on for new signups, same as pushEnabled — user can turn it off
   // from the profile toggle. Weekly/monthly/yearly best-seller digest emails
   // (lib/email.ts sendDigestEmail, cron at /api/internal/send-digests).
   // Existing users' values are untouched by this default (Prisma column
   // defaults only apply to new rows) — only new signups start opted in.
-  emailDigestSubscribed Boolean @default(true)
+  emailDigestSubscribed    Boolean                 @default(true)
   // Lets a signed-out recipient unsubscribe straight from the email footer
   // without an auth flow — a per-user secret, not the user's own id (which
   // would let anyone unsubscribe anyone by guessing/scraping ids). Optional
@@ -82,7 +82,7 @@ model User {
   // Prisma-level default: db push can't backfill a required unique default
   // onto existing rows in one step, and every user needs a digest sent to
   // them at least once before the token is ever actually used anyway.
-  unsubscribeToken      String? @unique
+  unsubscribeToken         String?                 @unique
   // Soft delete: set by DELETE /api/me once the user confirms via the
   // "type DELETE <handle>" flow (components/profile/DeleteAccountSheet).
   // Real user rows are never hard-deleted — nothing in the schema cascades
@@ -91,7 +91,7 @@ model User {
   // scrubs PII (email/handle/displayName/avatar/bio/tags/socialLinks) and
   // disables the Firebase Auth account; requireUser() rejects any request
   // once this is set, even for a still-unexpired ID token.
-  deletedAt             DateTime?
+  deletedAt                DateTime?
 
   payoutAccounts PayoutAccount[]
   ledgerEntries  WalletLedgerEntry[]
@@ -139,10 +139,17 @@ model PayoutAccount {
   bankCode      String
   bankName      String
   accountNumber String
-  accountName   String // returned by Flutterwave account-resolve, must match at add-time
+  accountName   String // returned by the processor's account-resolve call, must match at add-time
   isDefault     Boolean   @default(false)
   verifiedAt    DateTime?
   createdAt     DateTime  @default(now())
+
+  // Bachs requires a registered "payout destination" to pay out to, unlike
+  // Flutterwave's flat per-call transfer API (lib/bachs.ts) — set when this
+  // account is added. A row from before the Bachs payout switch has neither
+  // and can't withdraw until the creator re-adds the bank account.
+  payoutDestinationId     String?
+  payoutDestinationUsable Boolean @default(false)
 
   payouts Payout[]
 
@@ -186,16 +193,16 @@ model TrackPlay {
 // layer, not by this model, the same way Report reasons are.
 
 model Post {
-  id        String   @id @default(cuid())
+  id        String        @id @default(cuid())
   authorId  String
-  author    User     @relation("PostsAuthored", fields: [authorId], references: [id])
+  author    User          @relation("PostsAuthored", fields: [authorId], references: [id])
   groupId   String?
   group     FanbaseGroup? @relation(fields: [groupId], references: [id])
   replyToId String? // group chat quote-reply (image9 reference) — null for MVP announcement posts
-  replyTo   Post?    @relation("PostReplies", fields: [replyToId], references: [id])
+  replyTo   Post?         @relation("PostReplies", fields: [replyToId], references: [id])
   body      String
   imageUrl  String?
-  createdAt DateTime @default(now())
+  createdAt DateTime      @default(now())
 
   likes    PostLike[]
   comments Comment[]
@@ -276,18 +283,18 @@ model FanbaseGroup {
   // evidence. Unlike User verification, a group owner can self-serve *request*
   // one (verificationRequestedAt), since "apply for verification" was an
   // explicit ask; a moderator still has to actually flip isVerified.
-  isVerified              Boolean   @default(false)
+  isVerified              Boolean                @default(false)
   verificationRequestedAt DateTime?
   // Set alongside isVerified when a FANBASE-type VerificationApplication is
   // approved — distinguishes an officially-authorized fanbase from one
   // just recognized as a genuine community without proof of authorization
   // (spec: "do not automatically assume every fanbase is officially
   // endorsed"). Null until an application targeting this group is approved.
-  verificationBadgeType VerificationBadgeType?
+  verificationBadgeType   VerificationBadgeType?
 
-  memberships  Membership[]
-  joinRequests JoinRequest[]
-  posts        Post[]
+  memberships              Membership[]
+  joinRequests             JoinRequest[]
+  posts                    Post[]
   verificationApplications VerificationApplication[]
 
   @@index([creatorId])
@@ -299,10 +306,10 @@ enum MembershipRole {
 }
 
 model Membership {
-  groupId  String
-  userId   String
-  role     MembershipRole @default(MEMBER)
-  joinedAt DateTime       @default(now())
+  groupId    String
+  userId     String
+  role       MembershipRole @default(MEMBER)
+  joinedAt   DateTime       @default(now())
   // Null until the member ever opens the group's chat — the Fanbase list's
   // unread count is posts newer than max(lastReadAt, joinedAt), bumped to
   // now() whenever GET /api/groups/[id]/posts is called for this membership.
@@ -683,21 +690,21 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                String        @id @default(cuid())
-  orderId           String        @unique
-  order             Order         @relation(fields: [orderId], references: [id])
-  processor         String        @default("flutterwave")
-  processorRef      String        @unique // tx_ref; webhook idempotency key
+  id                    String        @id @default(cuid())
+  orderId               String        @unique
+  order                 Order         @relation(fields: [orderId], references: [id])
+  processor             String        @default("flutterwave")
+  processorRef          String        @unique // tx_ref; webhook idempotency key
   // Flutterwave's own numeric transaction id (verifyTransaction()'s `id`) —
   // distinct from processorRef/tx_ref, which is ours. The refund endpoint
   // (POST /transactions/{id}/refund) takes this one, not the tx_ref, so it
   // has to be captured at webhook time or a refund has nothing to call.
   providerTransactionId String?
-  status            PaymentStatus @default(INITIATED)
-  amountKobo        Int
-  webhookReceivedAt DateTime?
-  rawPayload        Json?
-  createdAt         DateTime      @default(now())
+  status                PaymentStatus @default(INITIATED)
+  amountKobo            Int
+  webhookReceivedAt     DateTime?
+  rawPayload            Json?
+  createdAt             DateTime      @default(now())
 }
 
 // The header bell — deliberately transactional/money-related only (a sale
@@ -907,11 +914,11 @@ enum VerificationAuditAction {
 // (Postgres partial unique indexes aren't expressible in Prisma's schema
 // language without raw SQL — see lib/verification/applications.ts).
 model VerificationApplication {
-  id     String                         @id @default(cuid())
+  id     String                        @id @default(cuid())
   userId String
-  user   User                           @relation("VerificationApplicant", fields: [userId], references: [id])
+  user   User                          @relation("VerificationApplicant", fields: [userId], references: [id])
   type   VerificationType
-  status VerificationApplicationStatus  @default(DRAFT)
+  status VerificationApplicationStatus @default(DRAFT)
 
   // Only set for type FANBASE — the group being verified, as opposed to the
   // applicant themselves (who's the group's creator/owner, checked at the
@@ -947,20 +954,20 @@ model VerificationApplication {
   eligibilitySnapshot Json?
 
   submittedAt           DateTime?
-  reviewedAt             DateTime?
-  reviewedBy             String?
-  reviewer               User?     @relation("VerificationReviewer", fields: [reviewedBy], references: [id])
-  approvedAt             DateTime?
-  rejectedAt             DateTime?
-  rejectionReason        String? // user-facing
-  additionalInfoRequest  String? // user-facing, set when status = MORE_INFO_REQUIRED
-  internalNotes          String? // moderator-only, never exposed to the applicant
-  grantedBadgeType       VerificationBadgeType? // set on approval; see comment above the enum block
-  expiresAt              DateTime?
-  revokedAt               DateTime?
-  revokedReason            String?
-  suspendedAt              DateTime?
-  suspendedReason          String?
+  reviewedAt            DateTime?
+  reviewedBy            String?
+  reviewer              User?                  @relation("VerificationReviewer", fields: [reviewedBy], references: [id])
+  approvedAt            DateTime?
+  rejectedAt            DateTime?
+  rejectionReason       String? // user-facing
+  additionalInfoRequest String? // user-facing, set when status = MORE_INFO_REQUIRED
+  internalNotes         String? // moderator-only, never exposed to the applicant
+  grantedBadgeType      VerificationBadgeType? // set on approval; see comment above the enum block
+  expiresAt             DateTime?
+  revokedAt             DateTime?
+  revokedReason         String?
+  suspendedAt           DateTime?
+  suspendedReason       String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -990,14 +997,14 @@ model VerificationDocument {
 }
 
 model VerificationAuditLog {
-  id            String                   @id @default(cuid())
+  id            String                  @id @default(cuid())
   applicationId String
-  application   VerificationApplication  @relation(fields: [applicationId], references: [id])
+  application   VerificationApplication @relation(fields: [applicationId], references: [id])
   actorId       String
-  actor         User                     @relation("VerificationAuditActor", fields: [actorId], references: [id])
+  actor         User                    @relation("VerificationAuditActor", fields: [actorId], references: [id])
   action        VerificationAuditAction
   metadata      Json?
-  createdAt     DateTime                 @default(now())
+  createdAt     DateTime                @default(now())
 
   @@index([applicationId, createdAt])
 }
