@@ -97,32 +97,51 @@ select {
   animation: spin-breathe 1.8s ease-in-out infinite;
 }
 
-@keyframes toast-slide-in {
-  from {
-    transform: translateX(120%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+/* react-toastify (components/ui/ToastProvider.tsx) — restyled from the
+   library's default light-card look to this app's dark surface + red/green
+   accents, matching the hand-rolled toast it replaced. Timing/position/icons
+   are set via ToastContainer/toast() props in that file; this is colors and
+   shape only. Every selector below is scoped under .Toastify__toast-container
+   (rather than the bare .Toastify__toast* classes ReactToastify.css itself
+   uses) purely to win the cascade on specificity — Next doesn't guarantee
+   this file loads after the library's own stylesheet, so source order can't
+   be relied on; a two-class selector beats the library's one-class
+   selectors regardless of order. */
+.Toastify__toast-container {
+  padding: 0;
+  width: auto;
+  max-width: 24rem;
 }
 
-@keyframes toast-slide-out {
-  from {
-    transform: translateX(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateX(120%);
-    opacity: 0;
-  }
+.Toastify__toast-container .Toastify__toast {
+  min-height: unset;
+  border-radius: 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
+  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  padding: 0.625rem 1rem;
+  margin-bottom: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.animate-toast-in {
-  animation: toast-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+.Toastify__toast-container .Toastify__toast-body {
+  padding: 0;
+  margin: 0;
+  gap: 0.5rem;
 }
 
-.animate-toast-out {
-  animation: toast-slide-out 0.2s ease-in forwards;
+.Toastify__toast-container .Toastify__toast--error {
+  border-color: color-mix(in srgb, var(--red) 30%, transparent);
+  background: color-mix(in srgb, var(--red) 15%, var(--surface) 85%);
+  color: var(--red-soft);
+}
+
+.Toastify__toast-container .Toastify__toast--success {
+  border-color: color-mix(in srgb, var(--green) 30%, transparent);
+  background: color-mix(in srgb, var(--green) 15%, var(--surface) 85%);
+  color: var(--green);
 }

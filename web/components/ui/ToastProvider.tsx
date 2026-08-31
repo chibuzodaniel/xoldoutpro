@@ -1,25 +1,15 @@
 "use client";
 
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { ToastContainer, Slide, toast, type ToastOptions } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-type ToastKind = "error" | "success";
-type ToastItem = { id: number; kind: ToastKind; message: string; leaving: boolean };
-
-type ToastContextValue = {
-  error: (message: string) => void;
-  success: (message: string) => void;
-};
-
-const ToastContext = createContext<ToastContextValue | null>(null);
-
-// The exit animation (globals.css .animate-toast-out) needs to actually play
-// before the DOM node disappears — removing straight from the array on the
-// dismiss timeout would just snap it out. So dismissal is two steps: flip
-// `leaving` (starts the CSS animation) then, one animation-duration later,
-// drop it from the array for real.
-const EXIT_MS = 200;
-
-const KIND_ICON: Record<ToastKind, React.ReactNode> = {
+// react-toastify replaces the hand-rolled toast stack this file used to
+// implement directly (stacking, auto-dismiss, click-to-dismiss, slide
+// animation all come from the library now); app/globals.css's
+// `.Toastify__toast` overrides restyle its default look to this app's dark
+// surface + red/green accents. Same icons and 4s duration as before, for
+// visual parity with the toasts this replaced.
+const ICONS = {
   success: (
     <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2">
       <circle cx="12" cy="12" r="9" />
@@ -34,56 +24,28 @@ const KIND_ICON: Record<ToastKind, React.ReactNode> = {
   ),
 };
 
-// Top-right stack, sliding in/out from the right edge — a proper toast
-// rather than the previous plain fade. Auto-dismisses after 4s. Kept
-// intentionally simple — one shared stack, no queueing/priority — since
-// this is meant to replace "the action silently did nothing" everywhere,
-// not to be a rich notification center.
-export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const nextId = useRef(0);
+const BASE_OPTIONS: ToastOptions = {
+  autoClose: 4000,
+  hideProgressBar: true,
+  closeButton: false,
+};
 
-  const dismiss = useCallback((id: number) => {
-    setToasts((cur) => cur.map((t) => (t.id === id ? { ...t, leaving: true } : t)));
-    setTimeout(() => setToasts((cur) => cur.filter((t) => t.id !== id)), EXIT_MS);
-  }, []);
-
-  const push = useCallback(
-    (kind: ToastKind, message: string) => {
-      const id = nextId.current++;
-      setToasts((cur) => [...cur, { id, kind, message, leaving: false }]);
-      setTimeout(() => dismiss(id), 4000);
-    },
-    [dismiss],
-  );
-
-  const error = useCallback((message: string) => push("error", message), [push]);
-  const success = useCallback((message: string) => push("success", message), [push]);
-
-  return (
-    <ToastContext.Provider value={{ error, success }}>
-      {children}
-      <div className="fixed top-4 right-4 z-[60] flex flex-col items-end gap-2 pointer-events-none">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            role="status"
-            onClick={() => dismiss(t.id)}
-            className={`pointer-events-auto flex max-w-sm items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium shadow-lg backdrop-blur cursor-pointer ${
-              t.leaving ? "animate-toast-out" : "animate-toast-in"
-            } ${t.kind === "error" ? "border-red/30 bg-red/15 text-red-soft" : "border-green/30 bg-green/15 text-green"}`}
-          >
-            {KIND_ICON[t.kind]}
-            {t.message}
-          </div>
-        ))}
-      </div>
-    </ToastContext.Provider>
-  );
+// Kept as a hook — rather than every call site importing `toast` from
+// react-toastify directly — purely so the nine existing `useToast()` call
+// sites needed zero changes when this swapped from a hand-rolled
+// context-based implementation to react-toastify underneath.
+export function useToast() {
+  return {
+    error: (message: string) => toast.error(message, { ...BASE_OPTIONS, icon: ICONS.error }),
+    success: (message: string) => toast.success(message, { ...BASE_OPTIONS, icon: ICONS.success }),
+  };
 }
 
-export function useToast(): ToastContextValue {
-  const ctx = useContext(ToastContext);
-  if (!ctx) throw new Error("useToast must be used within a ToastProvider");
-  return ctx;
+export function ToastProvider({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      {children}
+      <ToastContainer position="top-right" transition={Slide} />
+    </>
+  );
 }

@@ -26,6 +26,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "react-easy-crop": "^6.2.3",
+    "react-toastify": "^11.1.0",
     "sharp": "^0.35.3",
     "zod": "^4.4.3"
   },
