@@ -289,7 +289,7 @@ export async function sendPaymentFailedEmail(input: {
 // Fired from finalizePayment's success branch, alongside the existing
 // in-app SALE notification — the first time a creator gets an *email* the
 // moment they make a sale, not just an in-app badge. Shows the net amount
-// actually credited (gross minus the 15% commission, lib/commerce/ledger.ts
+// actually credited (gross minus the platform commission, lib/commerce/ledger.ts
 // COMMISSION_RATE), since that's what "added to your wallet" honestly means —
 // showing the gross price here would overstate it.
 export async function sendSaleNotificationEmail(input: {

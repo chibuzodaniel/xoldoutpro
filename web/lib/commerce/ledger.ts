@@ -1,10 +1,13 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 
-// DECISIONS.md: 15% commission, fee absorbed by the platform (not passed to
-// the artist as a separate withdrawal fee), 7-day pending->available window
-// tied to the same-length refund window.
-export const COMMISSION_RATE = 0.15;
+// DECISIONS.md: 12% commission (was 15% at launch, updated 2026-08-31), fee
+// absorbed by the platform (not passed to the artist as a separate
+// withdrawal fee), 7-day pending->available window tied to the
+// same-length refund window. Only recordSale reads this — recordRefund
+// below reverses whatever was actually charged on a given order, not this
+// current value, so past sales made under the old rate stay correct.
+export const COMMISSION_RATE = 0.12;
 export const SETTLEMENT_WINDOW_DAYS = 7;
 
 /**
@@ -51,12 +54,26 @@ export async function recordSale(
  * settlement window — a seller holding funds from a reversed sale owes them
  * back now, not in 7 days. Used by the copyright takedown path (PRD §14):
  * "a takedown path plus a way to reverse the associated payout."
+ *
+ * Reverses whatever commission was *actually* charged on this specific
+ * order — looked up from the COMMISSION_FEE entry recordSale created for
+ * it — rather than recomputing from the current COMMISSION_RATE. The rate
+ * can change between when a sale settles and when it's later refunded or
+ * taken down; recomputing from whatever the rate happens to be *now* would
+ * silently over- or under-reverse a sale made under a different rate. Both
+ * call sites only invoke this when `payment` exists on the order, and
+ * recordSale (which always creates this entry alongside SALE_CREDIT, in
+ * the same transaction) is the only path that ever produces a paid order —
+ * so this entry existing isn't optional to handle, it's guaranteed.
  */
 export async function recordRefund(
   tx: Prisma.TransactionClient,
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
-  const commissionKobo = Math.round(args.grossKobo * COMMISSION_RATE);
+  const commissionEntry = await tx.walletLedgerEntry.findFirstOrThrow({
+    where: { orderId: args.orderId, kind: "COMMISSION_FEE" },
+  });
+  const commissionKobo = -commissionEntry.amountKobo;
   const netKobo = args.grossKobo - commissionKobo;
 
   await tx.walletLedgerEntry.create({
