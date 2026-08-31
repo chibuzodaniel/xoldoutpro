@@ -8,6 +8,7 @@ import { uploadAndIngestAudio } from "@/lib/uploadAudio";
 import { TrackUploader, type TrackDraft, effectivePreviewLength } from "@/components/upload/TrackUploader";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 function newTrack(): TrackDraft {
   return {
@@ -26,6 +27,7 @@ type ReleaseType = "SINGLE" | "EP" | "ALBUM";
 
 export default function UploadMusicPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [releaseType, setReleaseType] = useState<ReleaseType>("SINGLE");
   const [title, setTitle] = useState("");
@@ -41,7 +43,6 @@ export default function UploadMusicPage() {
   const [artworkCropFile, setArtworkCropFile] = useState<File | null>(null);
 
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -77,7 +78,6 @@ export default function UploadMusicPage() {
   async function handleArtworkSelected(file: File) {
     setArtworkPreview(URL.createObjectURL(file));
     setArtworkUploading(true);
-    setError(null);
     try {
       const key = await uploadImage(file, "artwork");
       const res = await apiFetch("/api/uploads/artwork/finalize", { method: "POST", body: JSON.stringify({ key }) });
@@ -85,7 +85,7 @@ export default function UploadMusicPage() {
       const data = await res.json();
       setArtworkLadder(data.artworkLadder);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Artwork upload failed");
+      toast.error(err instanceof Error ? err.message : "Artwork upload failed");
     } finally {
       setArtworkUploading(false);
     }
@@ -95,17 +95,16 @@ export default function UploadMusicPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
 
-    if (!artworkLadder) return setError("Add artwork before publishing");
-    if (tracks.some((t) => t.status !== "ready")) return setError("Every track needs to finish uploading first");
-    if (releaseType === "SINGLE" && tracks.length !== 1) return setError("A single needs exactly one track");
+    if (!artworkLadder) return toast.error("Add artwork before publishing");
+    if (tracks.some((t) => t.status !== "ready")) return toast.error("Every track needs to finish uploading first");
+    if (releaseType === "SINGLE" && tracks.length !== 1) return toast.error("A single needs exactly one track");
 
     const priceKobo = isFree ? 0 : Math.round(parseFloat(priceNaira || "0") * 100);
-    if (!isFree && (!priceNaira || priceKobo <= 0)) return setError("Set a price, or mark this release free");
+    if (!isFree && (!priceNaira || priceKobo <= 0)) return toast.error("Set a price, or mark this release free");
     const cap = hasCap ? parseInt(capValue, 10) : null;
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
-      return setError("Enter a valid limited quantity");
+      return toast.error("Enter a valid limited quantity");
     }
 
     setSubmitting(true);
@@ -141,7 +140,7 @@ export default function UploadMusicPage() {
       }
       router.push("/profile/catalog");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -324,8 +323,6 @@ export default function UploadMusicPage() {
             />
           ))}
         </div>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <button
           type="submit"

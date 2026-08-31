@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Tier = { productId: string; name: string; priceKobo: number; isSoldOut: boolean };
 
@@ -20,12 +21,12 @@ function formatNaira(kobo: number) {
 
 export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Tier[] }) {
   const router = useRouter();
+  const toast = useToast();
   const { firebaseUser } = useAuth();
   const [access, setAccess] = useState<Record<string, AccessTier> | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [giftingProductId, setGiftingProductId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
@@ -62,7 +63,6 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
       router.push("/login");
       return;
     }
-    setError(null);
     setBusyProductId(productId);
     try {
       const priceKobo = tiers.find((t) => t.productId === productId)?.priceKobo ?? 0;
@@ -77,7 +77,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusyProductId(null);
     }
@@ -88,7 +88,6 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
       router.push("/login");
       return;
     }
-    setError(null);
     setGiftingProductId(productId);
     try {
       const priceKobo = tiers.find((t) => t.productId === productId)?.priceKobo ?? 0;
@@ -103,7 +102,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setGiftingProductId(null);
     }
@@ -114,7 +113,6 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
 
   return (
     <div className="flex flex-col gap-3">
-      {error && <p className="text-sm text-red-soft">{error}</p>}
       {tiers.map((tier) => {
         const tierAccess = access[tier.productId];
         if (tierAccess?.entitled) {

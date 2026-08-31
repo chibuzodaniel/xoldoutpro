@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 import { getCroppedImageBlob, type PixelCrop } from "@/lib/cropImage";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = {
   file: File;
@@ -25,7 +26,7 @@ export function ImageCropModal({ file, aspect, cropShape = "rect", outputWidth, 
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<PixelCrop | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const onCropComplete = useCallback((_area: Area, areaPixels: Area) => {
     setCroppedAreaPixels(areaPixels);
@@ -34,14 +35,13 @@ export function ImageCropModal({ file, aspect, cropShape = "rect", outputWidth, 
   async function handleConfirm() {
     if (!croppedAreaPixels) return;
     setBusy(true);
-    setError(null);
     try {
       const blob = await getCroppedImageBlob(imageSrc, croppedAreaPixels, outputWidth, outputHeight, file.type);
       const cropped = new File([blob], file.name, { type: file.type });
       URL.revokeObjectURL(imageSrc);
       onConfirm(cropped);
     } catch {
-      setError("Could not crop image");
+      toast.error("Could not crop image");
     } finally {
       setBusy(false);
     }
@@ -81,8 +81,6 @@ export function ImageCropModal({ file, aspect, cropShape = "rect", outputWidth, 
             className="flex-1 accent-red"
           />
         </div>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <div className="flex gap-3">
           <button

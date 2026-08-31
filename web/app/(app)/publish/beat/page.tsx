@@ -8,10 +8,10 @@ import { uploadAndIngestAudio } from "@/lib/uploadAudio";
 import { WaveformScrubber } from "@/components/upload/WaveformScrubber";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type AudioState = {
   status: "idle" | "uploading" | "ready" | "error";
-  error?: string;
   durationSec?: number;
   peaks?: number[];
   audioMasterKey?: string;
@@ -26,6 +26,7 @@ function effectivePreviewLength(durationSec: number, length: 30 | 50 | "custom",
 
 export default function UploadBeatPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -48,7 +49,6 @@ export default function UploadBeatPage() {
   const [previewLengthCustomSec, setPreviewLengthCustomSec] = useState(30);
   const [previewStartSec, setPreviewStartSec] = useState(0);
 
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function addTag() {
@@ -74,14 +74,14 @@ export default function UploadBeatPage() {
       setPreviewLengthCustomSec(Math.min(30, result.durationSec));
       setPreviewStartSec(result.previewDefaults.start);
     } catch (err) {
-      setAudio({ status: "error", error: err instanceof Error ? err.message : "Upload failed" });
+      setAudio({ status: "error" });
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     }
   }
 
   async function handleCoverSelected(file: File) {
     setCoverPreview(URL.createObjectURL(file));
     setCoverUploading(true);
-    setError(null);
     try {
       const key = await uploadImage(file, "artwork");
       const res = await apiFetch("/api/uploads/artwork/finalize", { method: "POST", body: JSON.stringify({ key }) });
@@ -89,7 +89,7 @@ export default function UploadBeatPage() {
       const data = await res.json();
       setCoverImageLadder(data.artworkLadder);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cover upload failed");
+      toast.error(err instanceof Error ? err.message : "Cover upload failed");
     } finally {
       setCoverUploading(false);
     }
@@ -97,18 +97,17 @@ export default function UploadBeatPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
 
-    if (!coverImageLadder) return setError("Add a cover image before publishing");
+    if (!coverImageLadder) return toast.error("Add a cover image before publishing");
     if (audio.status !== "ready" || !audio.durationSec || !audio.peaks) {
-      return setError("Upload the beat's audio file first");
+      return toast.error("Upload the beat's audio file first");
     }
 
     const priceKobo = isFree ? 0 : Math.round(parseFloat(priceNaira || "0") * 100);
-    if (!isFree && (!priceNaira || priceKobo <= 0)) return setError("Set a price, or mark this beat free");
+    if (!isFree && (!priceNaira || priceKobo <= 0)) return toast.error("Set a price, or mark this beat free");
     const cap = hasCap ? parseInt(capValue, 10) : null;
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
-      return setError("Enter a valid limited quantity");
+      return toast.error("Enter a valid limited quantity");
     }
 
     const length = effectivePreviewLength(audio.durationSec, previewLength, previewLengthCustomSec);
@@ -139,7 +138,7 @@ export default function UploadBeatPage() {
       }
       router.push("/profile/catalog/beats");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -373,18 +372,15 @@ export default function UploadBeatPage() {
             )}
             {audio.status === "uploading" && <p className="text-xs text-ink-3">Uploading and processing…</p>}
             {audio.status === "error" && (
-              <div>
-                <p className="text-xs text-red-soft mb-2">{audio.error}</p>
-                <input
-                  type="file"
-                  accept="audio/mpeg,audio/wav,audio/x-wav,audio/wave,.mp3,.wav"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) handleAudioSelected(file);
-                  }}
-                  className="text-xs text-ink-2"
-                />
-              </div>
+              <input
+                type="file"
+                accept="audio/mpeg,audio/wav,audio/x-wav,audio/wave,.mp3,.wav"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleAudioSelected(file);
+                }}
+                className="text-xs text-ink-2"
+              />
             )}
             {audio.status === "ready" && audio.peaks && audio.durationSec !== undefined && (
               <div className="flex flex-col gap-3">
@@ -434,8 +430,6 @@ export default function UploadBeatPage() {
             )}
           </div>
         </div>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <button
           type="submit"

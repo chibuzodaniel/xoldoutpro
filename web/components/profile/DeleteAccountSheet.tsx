@@ -21,12 +21,10 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
   const [input, setInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setInput("");
     setDone(false);
-    setError(null);
   }
 
   function handleClose() {
@@ -38,12 +36,11 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
   async function handleSubmit() {
     if (input !== requiredText) return;
     setSubmitting(true);
-    setError(null);
     try {
       const res = await apiFetch("/api/me", { method: "DELETE", body: JSON.stringify({ confirmation: input }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Couldn't delete your account");
+        toast.error(typeof data.error === "string" ? data.error : "Couldn't delete your account");
         return;
       }
       if (data.emailSent) toast.success("Recovery email sent.");
@@ -115,7 +112,6 @@ export function DeleteAccountSheet({ open, onClose, handle }: Props) {
               spellCheck={false}
               className="w-full rounded-lg border border-line-soft bg-transparent px-3 py-3 text-sm outline-none focus:border-red mb-3"
             />
-            {error && <p className="text-xs text-red-soft mb-3">{error}</p>}
             <button
               type="button"
               onClick={handleSubmit}

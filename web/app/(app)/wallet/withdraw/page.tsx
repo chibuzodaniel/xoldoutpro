@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { MINIMUM_WITHDRAWAL_KOBO } from "@/lib/commerce/constants";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type PayoutAccount = { id: string; bankName: string; accountNumber: string; accountName: string; isDefault: boolean };
 
@@ -15,12 +16,12 @@ function naira(kobo: number) {
 
 export default function WithdrawPage() {
   const router = useRouter();
+  const toast = useToast();
   const [availableKobo, setAvailableKobo] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<PayoutAccount[]>([]);
   const [payoutAccountId, setPayoutAccountId] = useState("");
   const [amountNaira, setAmountNaira] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -48,11 +49,10 @@ export default function WithdrawPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    if (!payoutAccountId) return setError("Add a payout account first");
-    if (!amountKobo || amountKobo <= 0) return setError("Enter an amount");
-    if (amountKobo < MINIMUM_WITHDRAWAL_KOBO) return setError(`The minimum withdrawal is ${naira(MINIMUM_WITHDRAWAL_KOBO)}`);
-    if (availableKobo !== null && amountKobo > availableKobo) return setError("Amount exceeds available balance");
+    if (!payoutAccountId) return toast.error("Add a payout account first");
+    if (!amountKobo || amountKobo <= 0) return toast.error("Enter an amount");
+    if (amountKobo < MINIMUM_WITHDRAWAL_KOBO) return toast.error(`The minimum withdrawal is ${naira(MINIMUM_WITHDRAWAL_KOBO)}`);
+    if (availableKobo !== null && amountKobo > availableKobo) return toast.error("Amount exceeds available balance");
 
     setBusy(true);
     try {
@@ -64,7 +64,7 @@ export default function WithdrawPage() {
       if (!res.ok) throw new Error(data.error ?? "Could not start withdrawal");
       router.push("/wallet");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -141,8 +141,6 @@ export default function WithdrawPage() {
             <span className="font-serif">{naira(netKobo)}</span>
           </div>
         </div>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <button
           type="submit"

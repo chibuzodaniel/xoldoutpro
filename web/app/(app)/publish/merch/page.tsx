@@ -6,9 +6,11 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export default function UploadMerchPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -26,13 +28,11 @@ export default function UploadMerchPage() {
   const [galleryPreviews, setGalleryPreviews] = useState<string[]>([]);
   const [galleryUploading, setGalleryUploading] = useState(false);
 
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleImageSelected(file: File) {
     setImagePreview(URL.createObjectURL(file));
     setImageUploading(true);
-    setError(null);
     try {
       const key = await uploadImage(file, "artwork");
       const res = await apiFetch("/api/uploads/artwork/finalize", { method: "POST", body: JSON.stringify({ key }) });
@@ -40,7 +40,7 @@ export default function UploadMerchPage() {
       const data = await res.json();
       setImageLadder(data.artworkLadder);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Photo upload failed");
+      toast.error(err instanceof Error ? err.message : "Photo upload failed");
     } finally {
       setImageUploading(false);
     }
@@ -54,16 +54,15 @@ export default function UploadMerchPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
 
-    if (!imageLadder) return setError("Add a product photo before publishing");
+    if (!imageLadder) return toast.error("Add a product photo before publishing");
 
     const priceKobo = Math.round(parseFloat(priceNaira || "0") * 100);
-    if (!priceNaira || priceKobo <= 0) return setError("Set a price");
+    if (!priceNaira || priceKobo <= 0) return toast.error("Set a price");
     const shippingFeeKobo = Math.round(parseFloat(shippingFeeNaira || "0") * 100);
     const cap = hasCap ? parseInt(capValue, 10) : null;
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
-      return setError("Enter a valid limited quantity");
+      return toast.error("Enter a valid limited quantity");
     }
 
     setSubmitting(true);
@@ -92,7 +91,7 @@ export default function UploadMerchPage() {
       }
       router.push("/profile/catalog/merch");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -279,8 +278,6 @@ export default function UploadMerchPage() {
         <p className="text-[10.5px] text-ink-3">
           You ship this yourself once an order comes in — mark it shipped from your catalog once it&apos;s on its way.
         </p>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <button
           type="submit"

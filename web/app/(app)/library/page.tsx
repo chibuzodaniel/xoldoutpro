@@ -12,6 +12,7 @@ import { GiftsTab } from "@/components/library/GiftsTab";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type LibraryTrack = {
   id: string;
@@ -82,6 +83,7 @@ export default function LibraryPage() {
 
 function LibraryPageInner() {
   const player = usePlayer();
+  const toast = useToast();
   const initialTab = useSearchParams().get("tab");
   const [tab, setTab] = useState<LibraryTab>(
     TAB_KEYS.includes(initialTab as LibraryTab) ? (initialTab as LibraryTab) : "purchased",
@@ -89,7 +91,6 @@ function LibraryPageInner() {
   const [entitlements, setEntitlements] = useState<LibraryEntitlement[] | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [collectingId, setCollectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -111,7 +112,6 @@ function LibraryPageInner() {
   }, [refreshDownloadState]);
 
   async function handleDownload(entitlement: LibraryEntitlement, track: LibraryTrack) {
-    setError(null);
     setBusyTrackId(track.id);
     try {
       await downloadTrackForOffline({
@@ -124,7 +124,7 @@ function LibraryPageInner() {
       });
       setDownloaded((cur) => ({ ...cur, [track.id]: true }));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
+      toast.error(err instanceof Error ? err.message : "Download failed");
     } finally {
       setBusyTrackId(null);
     }
@@ -199,8 +199,6 @@ function LibraryPageInner() {
 
       {tab === "purchased" && (
         <>
-          {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
-
           {entitlements === null ? (
             <LoadingSpinner full size="md" />
           ) : entitlements.length === 0 ? (

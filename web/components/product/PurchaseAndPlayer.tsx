@@ -7,6 +7,7 @@ import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvide
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type AccessTrack = {
   id: string;
@@ -41,13 +42,13 @@ function formatTime(sec: number) {
 export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo, isSoldOut }: Props) {
   const router = useRouter();
   const player = usePlayer();
+  const toast = useToast();
   const { firebaseUser } = useAuth();
   const [entitled, setEntitled] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [tracks, setTracks] = useState<AccessTrack[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [gifting, setGifting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
   async function load() {
@@ -70,7 +71,6 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       router.push("/login");
       return;
     }
-    setError(null);
     setBusy(true);
     try {
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
@@ -84,7 +84,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -95,7 +95,6 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       router.push("/login");
       return;
     }
-    setError(null);
     setGifting(true);
     try {
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
@@ -109,7 +108,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setGifting(false);
     }
@@ -155,7 +154,6 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
           </button>
         )}
       </div>
-      {error && <p className="text-sm text-red-soft mb-3">{error}</p>}
 
       <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
         {(tracks ?? []).map((track) => {

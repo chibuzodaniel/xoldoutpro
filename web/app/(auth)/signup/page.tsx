@@ -11,6 +11,8 @@ import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
+import { useToast } from "@/components/ui/ToastProvider";
+import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 import Link from "next/link";
 
 function CheckCircleIcon() {
@@ -54,10 +56,10 @@ function ChevronIcon({ open, className = "text-ink-3" }: { open: boolean; classN
 
 export default function SignupPage() {
   const router = useRouter();
+  const toast = useToast();
   const installGuide = useInstallGuide();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deletedHandle, setDeletedHandle] = useState<string | null>(null);
   // Explicit ask: this page shouldn't need scrolling at all — collapsed by
@@ -80,23 +82,21 @@ export default function SignupPage() {
 
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseAuth) return setError("Firebase isn't configured yet. See .env.local.example.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet. See .env.local.example.");
     setBusy(true);
     try {
       const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password);
       if (email) await updateProfile(cred.user, { displayName: email.split("@")[0] });
       router.push("/onboarding");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-up failed");
+      toast.error(friendlyFirebaseError(err, "Sign-up failed"));
     } finally {
       setBusy(false);
     }
   }
 
   async function handleGoogle() {
-    if (!firebaseAuth) return setError("Firebase isn't configured yet. See .env.local.example.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet. See .env.local.example.");
     setBusy(true);
     try {
       await signInWithPopup(firebaseAuth, googleProvider);
@@ -111,7 +111,7 @@ export default function SignupPage() {
       }
       router.push("/onboarding");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed");
+      toast.error(friendlyFirebaseError(err, "Google sign-in failed"));
     } finally {
       setBusy(false);
     }
@@ -188,7 +188,6 @@ export default function SignupPage() {
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
-          {error && <p className="text-xs text-red-soft">{error}</p>}
           <button
             type="submit"
             disabled={busy}

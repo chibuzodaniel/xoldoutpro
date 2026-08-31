@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Bank = { code: string; name: string };
 type PayoutAccount = {
@@ -14,12 +15,12 @@ type PayoutAccount = {
 };
 
 export default function PayoutAccountsPage() {
+  const toast = useToast();
   const [accounts, setAccounts] = useState<PayoutAccount[] | null>(null);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [bankCode, setBankCode] = useState("");
   const [accountNumber, setAccountNumber] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function loadAccounts() {
     const res = await apiFetch("/api/wallet/payout-accounts");
@@ -37,7 +38,6 @@ export default function PayoutAccountsPage() {
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const bank = banks.find((b) => b.code === bankCode);
@@ -51,7 +51,7 @@ export default function PayoutAccountsPage() {
       setBankCode("");
       await loadAccounts();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -114,7 +114,6 @@ export default function PayoutAccountsPage() {
           inputMode="numeric"
           className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
         />
-        {error && <p className="text-sm text-red-soft">{error}</p>}
         <button
           type="submit"
           disabled={busy || !bankCode || accountNumber.length !== 10}

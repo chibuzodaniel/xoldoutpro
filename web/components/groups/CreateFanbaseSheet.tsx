@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = { open: boolean; onClose: () => void; onCreated: (groupId: string) => void };
 
@@ -13,6 +14,7 @@ type Props = { open: boolean; onClose: () => void; onCreated: (groupId: string) 
 // optional description, a fixed privacy notice (no visibility toggle — every
 // Fanbase created here is request-to-join, full stop).
 export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
+  const toast = useToast();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -20,7 +22,6 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
   const [photoKey, setPhotoKey] = useState<string | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function reset() {
@@ -30,7 +31,6 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
     if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
     setPhotoPreviewUrl(null);
     setPhotoKey(null);
-    setError(null);
   }
 
   function handleClose() {
@@ -47,7 +47,7 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
       setPhotoPreviewUrl(URL.createObjectURL(cropped));
       setPhotoKey(key);
     } catch {
-      setError("Couldn't upload that photo. Try again.");
+      toast.error("Couldn't upload that photo. Try again.");
     } finally {
       setUploadingPhoto(false);
     }
@@ -58,7 +58,6 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
     const trimmed = name.trim();
     if (!trimmed) return;
     setSubmitting(true);
-    setError(null);
     try {
       const res = await apiFetch("/api/groups", {
         method: "POST",
@@ -74,7 +73,7 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
       reset();
       onCreated(data.group.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -178,8 +177,6 @@ export function CreateFanbaseSheet({ open, onClose, onCreated }: Props) {
             </svg>
             <p className="text-xs text-ink-3">Private by default — fans must request to join, and you approve every member.</p>
           </div>
-
-          {error && <p className="text-xs text-red-soft">{error}</p>}
 
           <button
             type="submit"

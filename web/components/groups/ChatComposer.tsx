@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import type { ChatMessageData } from "./ChatMessage";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = {
   groupId: string;
@@ -19,12 +20,12 @@ type Props = {
 // row, with an optional "replying to X" strip above it that clears once you
 // send or dismiss it.
 export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Props) {
+  const toast = useToast();
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [pollMode, setPollMode] = useState(false);
   const [options, setOptions] = useState(["", ""]);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function updateOption(i: number, value: string) {
@@ -37,10 +38,9 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
     if (!trimmed) return;
     const pollOptions = pollMode ? options.map((o) => o.trim()).filter(Boolean) : undefined;
     if (pollMode && (!pollOptions || pollOptions.length < 2)) {
-      setError("Add at least two poll options");
+      toast.error("Add at least two poll options");
       return;
     }
-    setError(null);
     setSubmitting(true);
     try {
       let imageUrl: string | undefined;
@@ -68,7 +68,7 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
       setOptions(["", ""]);
       onClearReply();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -130,8 +130,6 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
           </div>
         </div>
       )}
-
-      {error && <p className="text-xs text-red-soft mb-2">{error}</p>}
 
       <form onSubmit={handleSubmit} className="flex items-center gap-2">
         <input

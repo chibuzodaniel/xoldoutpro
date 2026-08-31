@@ -7,6 +7,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type CatalogProduct = {
   id: string;
@@ -33,13 +34,12 @@ function ProductEditor({ product, onSaved }: { product: CatalogProduct; onSaved:
   const [priceNaira, setPriceNaira] = useState(String(product.priceKobo / 100));
   const [capValue, setCapValue] = useState(product.stockPolicy?.cap != null ? String(product.stockPolicy.cap) : "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const hasCap = product.stockPolicy?.cap != null;
   const sold = product.stockPolicy?.sold ?? 0;
 
   async function handleSave() {
-    setError(null);
     const priceKobo = Math.round(parseFloat(priceNaira || "0") * 100);
     const body: { title?: string; description?: string; priceKobo?: number; cap?: number } = {};
     if (title.trim() && title !== product.title) body.title = title.trim();
@@ -60,7 +60,7 @@ function ProductEditor({ product, onSaved }: { product: CatalogProduct; onSaved:
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -112,14 +112,13 @@ function ProductEditor({ product, onSaved }: { product: CatalogProduct; onSaved:
       </div>
       {hasCap && <p className="text-[11px] text-ink-3">Cap can only be lowered, never below units already sold.</p>}
       <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after publishing.</p>
-      {error && <p className="text-[11px] text-red-soft">{error}</p>}
     </div>
   );
 }
 
 export default function CatalogPage() {
+  const toast = useToast();
   const [products, setProducts] = useState<CatalogProduct[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
   async function load() {
@@ -138,7 +137,7 @@ export default function CatalogPage() {
     }
     const res = await apiFetch(`/api/releases/${id}`, { method: "DELETE" });
     if (res.ok) load();
-    else setError("Could not delete release");
+    else toast.error("Could not delete release");
   }
 
   return (
@@ -152,8 +151,6 @@ export default function CatalogPage() {
         }
       />
       <div className="px-4">
-
-      {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
       {products === null ? (
         <LoadingSpinner full size="md" />

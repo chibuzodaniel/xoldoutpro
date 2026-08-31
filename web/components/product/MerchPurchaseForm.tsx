@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = { productId: string; priceKobo: number; shippingFeeKobo: number; isSoldOut: boolean };
 
@@ -40,13 +41,13 @@ const STATUS_LABEL: Record<Fulfillment["status"], string> = {
 export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSoldOut }: Props) {
   const totalKobo = priceKobo + shippingFeeKobo;
   const router = useRouter();
+  const toast = useToast();
   const { firebaseUser } = useAuth();
   const [entitled, setEntitled] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [fulfillment, setFulfillment] = useState<Fulfillment | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
   const [recipientName, setRecipientName] = useState("");
@@ -81,7 +82,6 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const gateway = totalKobo > 0 ? await pickGateway() : undefined;
@@ -110,7 +110,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -212,8 +212,6 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
           {formatNairaPlain(priceKobo)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
         </p>
       )}
-
-      {error && <p className="text-sm text-red-soft">{error}</p>}
 
       <button
         type="submit"

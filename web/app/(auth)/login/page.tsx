@@ -7,6 +7,8 @@ import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
 import { apiFetch } from "@/lib/api";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
+import { useToast } from "@/components/ui/ToastProvider";
+import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -19,24 +21,22 @@ export default function LoginPage() {
 
 function LoginForm() {
   const router = useRouter();
+  const toast = useToast();
   // A gift claim link redirects here when signed out (?next=/gifts/claim/...)
   // so login lands the user back on the flow they came from, not /discover.
   const next = useSearchParams().get("next") || "/discover";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deletedHandle, setDeletedHandle] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "reset">("login");
   const [resetEmail, setResetEmail] = useState("");
-  const [resetError, setResetError] = useState<string | null>(null);
   const [resetBusy, setResetBusy] = useState(false);
   const [resetSent, setResetSent] = useState(false);
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseAuth) return setError("Firebase isn't configured yet. See .env.local.example.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet. See .env.local.example.");
     setBusy(true);
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
@@ -47,7 +47,7 @@ function LoginForm() {
       }
       router.push(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Log in failed");
+      toast.error(friendlyFirebaseError(err, "Log in failed"));
     } finally {
       setBusy(false);
     }
@@ -55,7 +55,6 @@ function LoginForm() {
 
   async function handleResetPassword(e: React.FormEvent) {
     e.preventDefault();
-    setResetError(null);
     setResetBusy(true);
     try {
       // Server generates the reset link and sends its own branded email via
@@ -66,8 +65,8 @@ function LoginForm() {
       const res = await apiFetch("/api/auth/reset-password", { method: "POST", body: JSON.stringify({ email: resetEmail }) });
       if (!res.ok) throw new Error("Could not send a reset link");
       setResetSent(true);
-    } catch (err) {
-      setResetError(err instanceof Error ? err.message : "Could not send a reset link");
+    } catch {
+      toast.error("Could not send a reset link");
     } finally {
       setResetBusy(false);
     }
@@ -76,13 +75,11 @@ function LoginForm() {
   function backToLogin() {
     setMode("login");
     setResetEmail("");
-    setResetError(null);
     setResetSent(false);
   }
 
   async function handleGoogle() {
-    if (!firebaseAuth) return setError("Firebase isn't configured yet. See .env.local.example.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet. See .env.local.example.");
     setBusy(true);
     try {
       await signInWithPopup(firebaseAuth, googleProvider);
@@ -93,7 +90,7 @@ function LoginForm() {
       }
       router.push(next);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed");
+      toast.error(friendlyFirebaseError(err, "Google sign-in failed"));
     } finally {
       setBusy(false);
     }
@@ -132,7 +129,6 @@ function LoginForm() {
                     onChange={(e) => setResetEmail(e.target.value)}
                     className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
                   />
-                  {resetError && <p className="text-sm text-red-soft">{resetError}</p>}
                   <button
                     type="submit"
                     disabled={resetBusy}
@@ -194,7 +190,6 @@ function LoginForm() {
               >
                 Forgot password?
               </button>
-              {error && <p className="text-sm text-red-soft">{error}</p>}
               <button
                 type="submit"
                 disabled={busy}

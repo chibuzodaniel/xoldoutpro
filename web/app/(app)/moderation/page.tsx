@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
+import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -69,7 +70,6 @@ export default function ModerationPage() {
   const { verified: otpVerified, markVerified } = useModeratorSession();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await apiFetch("/api/reports");
@@ -103,7 +103,6 @@ export default function ModerationPage() {
       if (!ok) return;
     }
     setBusyId(id);
-    setError(null);
     try {
       const res = await apiFetch(`/api/reports/${id}`, { method: "PATCH", body: JSON.stringify({ action }) });
       if (!res.ok) {
@@ -122,7 +121,7 @@ export default function ModerationPage() {
       }
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusyId(null);
     }
@@ -162,8 +161,6 @@ export default function ModerationPage() {
       <VerifyGroupPanel />
       <VerificationQueuePanel />
       <RestoreAccountPanel />
-
-      {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
       {reports === null ? (
         <LoadingSpinner full size="md" />
@@ -580,23 +577,22 @@ function ManageModeratorsPanel() {
 // PRD §18: verification criteria are undecided — this is deliberately a
 // blunt handle-lookup toggle, not a review workflow with evidence/criteria.
 function VerifyCreatorPanel() {
+  const toast = useToast();
   const [handle, setHandle] = useState("");
   const [result, setResult] = useState<{ handle: string; isVerified: boolean } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function toggle(verified: boolean) {
     const trimmed = handle.trim().replace(/^@/, "");
     if (!trimmed) return;
     setBusy(true);
-    setError(null);
     try {
       const res = await apiFetch("/api/admin/verify", { method: "POST", body: JSON.stringify({ handle: trimmed, verified }) });
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not update");
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -632,7 +628,6 @@ function VerifyCreatorPanel() {
           Unverify
         </button>
       </div>
-      {error && <p className="text-xs text-red-soft">{error}</p>}
       {result && (
         <p className="text-xs text-ink-3">
           @{result.handle} is now {result.isVerified ? "verified" : "not verified"}.
@@ -646,16 +641,15 @@ function VerifyCreatorPanel() {
 // closed (see /api/account/recover) — no deadline check on this endpoint,
 // a moderator can restore at any point after.
 function RestoreAccountPanel() {
+  const toast = useToast();
   const [handle, setHandle] = useState("");
   const [result, setResult] = useState<{ handle: string } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function restore() {
     const trimmed = handle.trim().replace(/^@/, "");
     if (!trimmed) return;
     setBusy(true);
-    setError(null);
     setResult(null);
     try {
       const res = await apiFetch("/api/admin/restore-account", { method: "POST", body: JSON.stringify({ handle: trimmed }) });
@@ -663,7 +657,7 @@ function RestoreAccountPanel() {
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not restore");
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -691,7 +685,6 @@ function RestoreAccountPanel() {
           Restore
         </button>
       </div>
-      {error && <p className="text-xs text-red-soft">{error}</p>}
       {result && <p className="text-xs text-ink-3">@{result.handle} has been restored.</p>}
     </div>
   );
@@ -707,11 +700,11 @@ type PendingGroup = {
 // Mirrors VerifyCreatorPanel above, plus a queue of groups that actually
 // applied — a moderator otherwise has no way to know which names to look up.
 function VerifyGroupPanel() {
+  const toast = useToast();
   const [pending, setPending] = useState<PendingGroup[] | null>(null);
   const [name, setName] = useState("");
   const [result, setResult] = useState<{ name: string; isVerified: boolean } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const res = await apiFetch("/api/admin/verify-group");
@@ -738,7 +731,6 @@ function VerifyGroupPanel() {
 
   async function toggle(groupName: string, verified: boolean) {
     setBusy(groupName);
-    setError(null);
     try {
       const res = await apiFetch("/api/admin/verify-group", { method: "POST", body: JSON.stringify({ name: groupName, verified }) });
       const data = await res.json();
@@ -746,7 +738,7 @@ function VerifyGroupPanel() {
       setResult(data);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(null);
     }
@@ -818,7 +810,6 @@ function VerifyGroupPanel() {
           Unverify
         </button>
       </div>
-      {error && <p className="text-xs text-red-soft">{error}</p>}
       {result && (
         <p className="text-xs text-ink-3">
           &quot;{result.name}&quot; is now {result.isVerified ? "verified" : "not verified"}.
@@ -1154,20 +1145,19 @@ function VerificationQueuePanel() {
 // anywhere itself, ModerationPage just re-renders past this branch once
 // appUser syncs in.
 function ModeratorLoginForm() {
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseAuth) return setError("Firebase isn't configured yet. See .env.local.example.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet. See .env.local.example.");
     setBusy(true);
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Log in failed");
+      toast.error(friendlyFirebaseError(err, "Log in failed"));
     } finally {
       setBusy(false);
     }
@@ -1196,7 +1186,6 @@ function ModeratorLoginForm() {
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
-          {error && <p className="text-sm text-red-soft">{error}</p>}
           <button
             type="submit"
             disabled={busy}
@@ -1228,14 +1217,12 @@ function maskEmail(email: string) {
 function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: () => void }) {
   const toast = useToast();
   const [code, setCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
   async function requestCode() {
     setSending(true);
-    setError(null);
     try {
       const res = await apiFetch("/api/admin/otp/request", { method: "POST" });
       const data = await res.json().catch(() => ({}));
@@ -1244,7 +1231,7 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
       if (data.emailSent) toast.success(`Code sent to ${maskEmail(email)}.`);
       else toast.error("Couldn't confirm the code email went out — check spam, or resend.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send a code");
+      toast.error(err instanceof Error ? err.message : "Could not send a code");
     } finally {
       setSending(false);
     }
@@ -1252,7 +1239,6 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const res = await apiFetch("/api/admin/otp/verify", { method: "POST", body: JSON.stringify({ code }) });
@@ -1260,7 +1246,7 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Invalid code");
       onVerified();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Invalid code");
+      toast.error(err instanceof Error ? err.message : "Invalid code");
       setCode("");
     } finally {
       setBusy(false);
@@ -1274,7 +1260,6 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
           <p className="text-[12px] tracking-[0.22em] uppercase text-red font-semibold mb-1">Verify it&apos;s you</p>
           <h1 className="font-serif text-2xl mb-2">One more step</h1>
           <p className="text-sm text-ink-3 mb-6">We&apos;ll email a 6-digit code to {maskEmail(email)}.</p>
-          {error && <p className="text-sm text-red-soft mb-3">{error}</p>}
           <button
             type="button"
             onClick={requestCode}
@@ -1307,7 +1292,6 @@ function ModeratorOtpForm({ email, onVerified }: { email: string; onVerified: ()
             onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
             className="rounded-lg border border-line bg-surface px-4 py-3 text-center text-lg tracking-[0.4em] outline-none transition-colors duration-150 focus:border-red"
           />
-          {error && <p className="text-sm text-red-soft">{error}</p>}
           <button
             type="submit"
             disabled={busy || code.length !== 6}

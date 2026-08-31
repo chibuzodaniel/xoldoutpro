@@ -8,6 +8,7 @@ import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { PhotoActionSheet } from "./PhotoActionSheet";
 import { PhotoViewerModal } from "./PhotoViewerModal";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Kind = "avatar" | "cover";
 
@@ -37,16 +38,15 @@ type Props = {
 export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, className, children }: Props) {
   const { appUser, refreshAppUser } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const isOwner = appUser?.id === targetUserId;
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function openFilePicker() {
-    setError(null);
     fileInputRef.current?.click();
   }
 
@@ -62,7 +62,6 @@ export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, class
   async function handleCropConfirm(cropped: File) {
     setPendingFile(null);
     setUploading(true);
-    setError(null);
     try {
       const key = await uploadImage(cropped, kind);
       const res = await apiFetch(`/api/me/${kind}`, { method: "POST", body: JSON.stringify({ key }) });
@@ -70,7 +69,7 @@ export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, class
       await refreshAppUser();
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      toast.error(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -78,14 +77,13 @@ export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, class
 
   async function handleRemove() {
     setUploading(true);
-    setError(null);
     try {
       const res = await apiFetch(`/api/me/${kind}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Could not delete photo");
       await refreshAppUser();
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
+      toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
       setUploading(false);
     }
@@ -154,16 +152,6 @@ export function ClickablePhoto({ targetUserId, kind, photoUrl, alt, label, class
           onCancel={() => setPendingFile(null)}
           onConfirm={handleCropConfirm}
         />
-      )}
-
-      {error && (
-        <div
-          role="alert"
-          onClick={() => setError(null)}
-          className="fixed inset-x-4 bottom-24 z-50 rounded-lg bg-red px-4 py-3 text-center text-sm text-white"
-        >
-          {error}
-        </div>
       )}
     </>
   );

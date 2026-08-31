@@ -293,14 +293,12 @@ function ApplicationForm({
   const [documents, setDocuments] = useState(application.documents);
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const needsIdentityDoc = application.type === "IDENTITY" || application.type === "BUSINESS";
   const docSlots = DOCUMENT_SLOTS[application.type] ?? [];
 
   async function saveDraft(): Promise<boolean> {
     setSaving(true);
-    setError(null);
     try {
       const res = await apiFetch(`/api/verification/applications/${application.id}`, {
         method: "PATCH",
@@ -321,7 +319,7 @@ function ApplicationForm({
       onChange(data.application);
       return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
       return false;
     } finally {
       setSaving(false);
@@ -330,7 +328,6 @@ function ApplicationForm({
 
   async function handleSubmit() {
     setSubmitting(true);
-    setError(null);
     try {
       const savedOk = await saveDraft();
       if (!savedOk) return;
@@ -341,7 +338,7 @@ function ApplicationForm({
       toast.success("Application submitted for review.");
       onBack();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -491,8 +488,6 @@ function ApplicationForm({
           </div>
         )}
       </fieldset>
-
-      {error && <p className="text-sm text-red-soft mt-4">{error}</p>}
 
       {editable && (
         <div className="flex gap-2 mt-6">

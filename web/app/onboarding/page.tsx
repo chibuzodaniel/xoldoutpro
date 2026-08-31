@@ -8,11 +8,13 @@ import { uploadImage } from "@/lib/uploadImage";
 import { enablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const toast = useToast();
   const { firebaseUser, appUser, loading, refreshAppUser } = useAuth();
   const installGuide = useInstallGuide();
 
@@ -23,7 +25,6 @@ export default function OnboardingPage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [cropFile, setCropFile] = useState<File | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -53,7 +54,6 @@ export default function OnboardingPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const patchRes = await apiFetch("/api/me", {
@@ -81,7 +81,7 @@ export default function OnboardingPage() {
       // Edit Profile.
       void enablePush().catch(() => {});
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -199,8 +199,6 @@ export default function OnboardingPage() {
               ))}
             </div>
           </div>
-
-          {error && <p className="text-sm text-red-soft">{error}</p>}
 
           <button
             type="submit"

@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
+import { useToast } from "@/components/ui/ToastProvider";
+import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 import Link from "next/link";
 
 export default function ResetPasswordPage() {
@@ -12,16 +14,6 @@ export default function ResetPasswordPage() {
       <ResetPasswordForm />
     </Suspense>
   );
-}
-
-function friendlyError(err: unknown): string {
-  const code = err instanceof Error && "code" in err ? String((err as { code: unknown }).code) : null;
-  if (code === "auth/expired-action-code") return "This link has expired. Request a new one.";
-  if (code === "auth/invalid-action-code") return "This link has already been used or is invalid. Request a new one.";
-  if (code === "auth/user-disabled") return "This account has been disabled.";
-  if (code === "auth/user-not-found") return "This link is no longer valid. Request a new one.";
-  if (code === "auth/weak-password") return "Choose a stronger password (at least 6 characters).";
-  return "Something went wrong. Request a new link.";
 }
 
 // Handles the reset link's oobCode ourselves instead of letting it resolve
@@ -40,12 +32,12 @@ function friendlyError(err: unknown): string {
 // that route the emailed link here instead of Firebase's hosted page.
 function ResetPasswordForm() {
   const router = useRouter();
+  const toast = useToast();
   const oobCode = useSearchParams().get("oobCode");
   const [status, setStatus] = useState<"verifying" | "ready" | "invalid" | "success">("verifying");
   const [email, setEmail] = useState<string | null>(null);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -60,24 +52,24 @@ function ResetPasswordForm() {
         setStatus("ready");
       })
       .catch((err) => {
-        setError(friendlyError(err));
+        toast.error(friendlyFirebaseError(err, "This link is invalid or has expired."));
         setStatus("invalid");
       });
     /* eslint-enable react-hooks/set-state-in-effect */
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast identity is stable, oobCode is the only real dependency
   }, [oobCode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!firebaseAuth || !oobCode) return;
-    setError(null);
-    if (password !== confirmPassword) return setError("Passwords don't match");
+    if (password !== confirmPassword) return toast.error("Passwords don't match");
 
     setBusy(true);
     try {
       await confirmPasswordReset(firebaseAuth, oobCode, password);
       setStatus("success");
     } catch (err) {
-      setError(friendlyError(err));
+      toast.error(friendlyFirebaseError(err, "Could not reset your password"));
     } finally {
       setBusy(false);
     }
@@ -95,7 +87,7 @@ function ResetPasswordForm() {
         {status === "invalid" && (
           <>
             <div className="rounded-lg border border-red-soft bg-red/10 px-4 py-4 mb-4">
-              <p className="text-sm">{error ?? "This link is invalid."}</p>
+              <p className="text-sm">This link is invalid or has expired. Request a new one.</p>
             </div>
             <Link href="/login" className="text-sm text-red-soft font-semibold">
               Back to log in
@@ -125,7 +117,6 @@ function ResetPasswordForm() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
               />
-              {error && <p className="text-sm text-red-soft">{error}</p>}
               <button
                 type="submit"
                 disabled={busy}

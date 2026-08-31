@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import type { FeedPost } from "./PostCard";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const MAX_LEN = 500;
 
@@ -14,11 +15,11 @@ export function PostComposer({
   onPosted: (post: FeedPost) => void;
   className?: string;
 }) {
+  const toast = useToast();
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileSelected(file: File) {
@@ -41,7 +42,6 @@ export function PostComposer({
     e.preventDefault();
     const trimmed = body.trim();
     if (!trimmed) return;
-    setError(null);
     setSubmitting(true);
     try {
       let imageUrl: string | null = null;
@@ -63,7 +63,7 @@ export function PostComposer({
       setBody("");
       clearImage();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -92,7 +92,6 @@ export function PostComposer({
           </button>
         </div>
       )}
-      {error && <p className="text-xs text-red-soft mt-2">{error}</p>}
       <div className="flex items-center justify-between mt-2">
         <label className="text-ink-3">
           <input

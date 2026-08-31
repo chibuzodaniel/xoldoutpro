@@ -6,13 +6,15 @@ import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
+import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 
 export default function RecoverAccountPage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = use(params);
   const router = useRouter();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [recovered, setRecovered] = useState(false);
 
@@ -21,13 +23,12 @@ export default function RecoverAccountPage({ params }: { params: Promise<{ handl
   // call after that succeeds, since /api/account/recover still has to check
   // the 45-day window server-side regardless of who's asking.
   async function recover() {
-    setError(null);
     setBusy(true);
     try {
       const res = await apiFetch("/api/account/recover", { method: "POST" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(typeof data.error === "string" ? data.error : "Couldn't recover this account");
+        toast.error(typeof data.error === "string" ? data.error : "Couldn't recover this account");
         return;
       }
       setRecovered(true);
@@ -39,27 +40,25 @@ export default function RecoverAccountPage({ params }: { params: Promise<{ handl
 
   async function handleEmailLogin(e: React.FormEvent) {
     e.preventDefault();
-    if (!firebaseAuth) return setError("Firebase isn't configured yet.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet.");
     setBusy(true);
     try {
       await signInWithEmailAndPassword(firebaseAuth, email, password);
       await recover();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Log in failed");
+      toast.error(friendlyFirebaseError(err, "Log in failed"));
       setBusy(false);
     }
   }
 
   async function handleGoogle() {
-    if (!firebaseAuth) return setError("Firebase isn't configured yet.");
-    setError(null);
+    if (!firebaseAuth) return toast.error("Firebase isn't configured yet.");
     setBusy(true);
     try {
       await signInWithPopup(firebaseAuth, googleProvider);
       await recover();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Google sign-in failed");
+      toast.error(friendlyFirebaseError(err, "Google sign-in failed"));
       setBusy(false);
     }
   }
@@ -103,7 +102,6 @@ export default function RecoverAccountPage({ params }: { params: Promise<{ handl
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
-          {error && <p className="text-sm text-red-soft">{error}</p>}
           <button
             type="submit"
             disabled={busy}

@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type TierDraft = { localId: string; name: string; priceNaira: string; hasCap: boolean; capValue: string };
 
@@ -15,6 +16,7 @@ function newTier(name = ""): TierDraft {
 
 export default function CreateEventPage() {
   const router = useRouter();
+  const toast = useToast();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -30,7 +32,6 @@ export default function CreateEventPage() {
 
   const [tiers, setTiers] = useState<TierDraft[]>([newTier("General")]);
 
-  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTier(localId: string, patch: Partial<TierDraft>) {
@@ -40,7 +41,6 @@ export default function CreateEventPage() {
   async function handleCoverSelected(file: File) {
     setCoverPreview(URL.createObjectURL(file));
     setCoverUploading(true);
-    setError(null);
     try {
       const key = await uploadImage(file, "artwork");
       const res = await apiFetch("/api/uploads/artwork/finalize", { method: "POST", body: JSON.stringify({ key }) });
@@ -48,7 +48,7 @@ export default function CreateEventPage() {
       const data = await res.json();
       setCoverImageLadder(data.artworkLadder);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Cover upload failed");
+      toast.error(err instanceof Error ? err.message : "Cover upload failed");
     } finally {
       setCoverUploading(false);
     }
@@ -56,21 +56,20 @@ export default function CreateEventPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
 
-    if (!coverImageLadder) return setError("Add a cover image before publishing");
-    if (!startsAt) return setError("Set a start date and time");
-    if (!isVirtual && !venue.trim()) return setError("Add a venue, or mark this a virtual event");
-    if (tiers.length === 0) return setError("Add at least one ticket tier");
+    if (!coverImageLadder) return toast.error("Add a cover image before publishing");
+    if (!startsAt) return toast.error("Set a start date and time");
+    if (!isVirtual && !venue.trim()) return toast.error("Add a venue, or mark this a virtual event");
+    if (tiers.length === 0) return toast.error("Add at least one ticket tier");
 
     const parsedTiers: { name: string; priceKobo: number; cap: number | null }[] = [];
     for (const t of tiers) {
-      if (!t.name.trim()) return setError("Every tier needs a name");
+      if (!t.name.trim()) return toast.error("Every tier needs a name");
       const priceKobo = Math.round(parseFloat(t.priceNaira || "0") * 100);
-      if (!t.priceNaira || priceKobo < 0) return setError(`Set a price for "${t.name}", or 0 for free`);
+      if (!t.priceNaira || priceKobo < 0) return toast.error(`Set a price for "${t.name}", or 0 for free`);
       const cap = t.hasCap ? parseInt(t.capValue, 10) : null;
       if (t.hasCap && (!t.capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
-        return setError(`Enter a valid quantity for "${t.name}"`);
+        return toast.error(`Enter a valid quantity for "${t.name}"`);
       }
       parsedTiers.push({ name: t.name.trim(), priceKobo, cap });
     }
@@ -95,7 +94,7 @@ export default function CreateEventPage() {
       }
       router.push("/profile/catalog/events");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -292,8 +291,6 @@ export default function CreateEventPage() {
             </div>
           ))}
         </div>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <button
           type="submit"

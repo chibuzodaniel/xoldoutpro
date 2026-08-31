@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
 
 export type ReportReason = "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST";
 export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE";
@@ -27,17 +28,16 @@ export function ReportSheet({
   title = "Report",
   detailsPlaceholder = "Add any detail that might help (optional)",
 }: Props) {
+  const toast = useToast();
   const [reason, setReason] = useState<ReportReason | null>(null);
   const [details, setDetails] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   function reset() {
     setReason(null);
     setDetails("");
     setDone(false);
-    setError(null);
   }
 
   function handleClose() {
@@ -48,7 +48,6 @@ export function ReportSheet({
   async function handleSubmit() {
     if (!reason) return;
     setSubmitting(true);
-    setError(null);
     try {
       const res = await apiFetch("/api/reports", {
         method: "POST",
@@ -60,7 +59,7 @@ export function ReportSheet({
       }
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setSubmitting(false);
     }
@@ -115,7 +114,6 @@ export function ReportSheet({
               rows={3}
               className="w-full resize-none rounded-lg border border-line-soft bg-transparent p-3 text-sm placeholder:text-ink-3 focus:outline-none mb-3"
             />
-            {error && <p className="text-xs text-red-soft mb-3">{error}</p>}
             <button
               type="button"
               onClick={handleSubmit}

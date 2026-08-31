@@ -7,6 +7,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type CatalogTier = {
   productId: string;
@@ -44,14 +45,13 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
   const [priceNaira, setPriceNaira] = useState(String(tier.product.priceKobo / 100));
   const [capValue, setCapValue] = useState(tier.product.stockPolicy?.cap != null ? String(tier.product.stockPolicy.cap) : "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const hasCap = tier.product.stockPolicy?.cap != null;
   const sold = tier.product.stockPolicy?.sold ?? 0;
   const editable = isWithinEditWindow(tier.product.publishedAt);
 
   async function handleSave() {
-    setError(null);
     const priceKobo = Math.round(parseFloat(priceNaira || "0") * 100);
     const body: { name?: string; priceKobo?: number; cap?: number } = {};
     if (name.trim() && name !== tier.name) body.name = name.trim();
@@ -74,7 +74,7 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -134,7 +134,6 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
       </div>
       <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after this tier went live.</p>
       {hasCap && <p className="text-[11px] text-ink-3">Cap can only be lowered, never below tickets already sold.</p>}
-      {error && <p className="text-[11px] text-red-soft">{error}</p>}
     </div>
   );
 }
@@ -144,10 +143,9 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
   const [description, setDescription] = useState(event.description);
   const [venue, setVenue] = useState(event.venue ?? "");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   async function handleSave() {
-    setError(null);
     const body: { title?: string; description?: string; venue?: string } = {};
     if (title.trim() && title !== event.title) body.title = title.trim();
     if (description !== event.description) body.description = description;
@@ -163,7 +161,7 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
       }
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -198,14 +196,13 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
         </button>
       </div>
       <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after publishing.</p>
-      {error && <p className="text-[11px] text-red-soft">{error}</p>}
     </div>
   );
 }
 
 export default function EventCatalogPage() {
+  const toast = useToast();
   const [events, setEvents] = useState<CatalogEvent[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [managingId, setManagingId] = useState<string | null>(null);
 
   async function load() {
@@ -224,7 +221,7 @@ export default function EventCatalogPage() {
     }
     const res = await apiFetch(`/api/events/${id}`, { method: "DELETE" });
     if (res.ok) load();
-    else setError("Could not delete event");
+    else toast.error("Could not delete event");
   }
 
   return (
@@ -238,8 +235,6 @@ export default function EventCatalogPage() {
         }
       />
       <div className="px-4">
-
-      {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
       {events === null ? (
         <LoadingSpinner full size="md" />

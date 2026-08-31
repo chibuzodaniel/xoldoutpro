@@ -7,6 +7,7 @@ import { usePlayer } from "@/components/player/PlayerProvider";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = {
   productId: string;
@@ -37,12 +38,12 @@ function formatTime(sec: number) {
 export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl, durationSec, priceKobo, isSoldOut }: Props) {
   const router = useRouter();
   const player = usePlayer();
+  const toast = useToast();
   const { firebaseUser } = useAuth();
   const [entitled, setEntitled] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [gifting, setGifting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
   const isThisTrack = player.current?.trackId === productId && player.current?.kind === "beat";
@@ -74,14 +75,13 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   }
 
   async function handleDownload() {
-    setError(null);
     try {
       const res = await apiFetch(`/api/beats/${productId}/audio-url`);
       if (!res.ok) throw new Error("Could not get download link");
       const data = await res.json();
       window.location.href = data.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Download failed");
+      toast.error(err instanceof Error ? err.message : "Download failed");
     }
   }
 
@@ -90,7 +90,6 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       router.push("/login");
       return;
     }
-    setError(null);
     setBusy(true);
     try {
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
@@ -104,7 +103,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -115,7 +114,6 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       router.push("/login");
       return;
     }
-    setError(null);
     setGifting(true);
     try {
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
@@ -129,7 +127,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       }
     } catch (err) {
       if (err instanceof GatewayPickerCancelled) return;
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setGifting(false);
     }
@@ -159,7 +157,6 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
           </button>
         )}
       </div>
-      {error && <p className="text-sm text-red-soft mb-3">{error}</p>}
 
       <div className="flex items-center justify-between rounded-lg border border-line bg-surface px-4 py-3">
         <button

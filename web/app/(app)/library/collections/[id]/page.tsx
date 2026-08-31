@@ -5,19 +5,20 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EntitlementCard, type EntitlementCardData } from "@/components/library/EntitlementCard";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type Item = { entitlement: EntitlementCardData; addedAt: string };
 
 export default function CollectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const toast = useToast();
 
   const [name, setName] = useState<string | null>(null);
   const [items, setItems] = useState<Item[] | null>(null);
   const [editing, setEditing] = useState(false);
   const [draftName, setDraftName] = useState("");
   const [removing, setRemoving] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch(`/api/collections/${id}`)
@@ -47,11 +48,10 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
 
   async function handleRemoveItem(entitlementId: string) {
     setRemoving(entitlementId);
-    setError(null);
     try {
       const res = await apiFetch(`/api/collections/${id}/items/${entitlementId}`, { method: "DELETE" });
       if (res.ok) setItems((cur) => cur?.filter((i) => i.entitlement.id !== entitlementId) ?? null);
-      else setError("Could not remove item");
+      else toast.error("Could not remove item");
     } finally {
       setRemoving(null);
     }
@@ -99,8 +99,6 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
           Delete collection
         </button>
       </div>
-
-      {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
       {items.length === 0 ? (
         <p className="text-sm text-ink-3">Nothing here yet — add items from the Purchased tab in Library.</p>

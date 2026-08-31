@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { useToast } from "@/components/ui/ToastProvider";
 
 type GiftPreview = {
   status: "PENDING" | "CLAIMED" | "EXPIRED" | "REFUNDED";
@@ -28,11 +29,11 @@ function artUrl(product: GiftPreview["product"]) {
 export default function ClaimGiftPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
   const router = useRouter();
+  const toast = useToast();
   const { firebaseUser, loading: authLoading } = useAuth();
 
   const [gift, setGift] = useState<GiftPreview | null | "not_found">(null);
   const [claiming, setClaiming] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetch(`/api/gifts/claim/${token}`)
@@ -46,14 +47,13 @@ export default function ClaimGiftPage({ params }: { params: Promise<{ token: str
       return;
     }
     setClaiming(true);
-    setError(null);
     try {
       const res = await apiFetch(`/api/gifts/claim/${token}`, { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not claim this gift");
       router.push(`/r/${data.productId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setClaiming(false);
     }
@@ -84,8 +84,6 @@ export default function ClaimGiftPage({ params }: { params: Promise<{ token: str
 
         <h1 className="font-serif text-2xl mb-2">{gift.product.title}</h1>
         <p className="text-sm text-ink-3 mb-8">from {gift.giver.displayName}</p>
-
-        {error && <p className="text-sm text-red-soft mb-4">{error}</p>}
 
         {alreadyClaimed ? (
           <p className="text-sm text-ink-3">This gift has already been claimed.</p>

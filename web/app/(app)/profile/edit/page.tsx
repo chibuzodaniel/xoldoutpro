@@ -11,11 +11,13 @@ import { enablePush, disablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { useToast } from "@/components/ui/ToastProvider";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
 export default function EditProfilePage() {
   const router = useRouter();
+  const toast = useToast();
   const { appUser, refreshAppUser } = useAuth();
 
   const [handle, setHandle] = useState(appUser?.handle ?? "");
@@ -33,7 +35,6 @@ export default function EditProfilePage() {
   const [pushBusy, setPushBusy] = useState(false);
   const [digestSubscribed, setDigestSubscribed] = useState(appUser?.emailDigestSubscribed ?? false);
   const [digestBusy, setDigestBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
 
@@ -63,7 +64,6 @@ export default function EditProfilePage() {
 
   async function handleTogglePush() {
     setPushBusy(true);
-    setError(null);
     try {
       if (pushEnabled) {
         await disablePush();
@@ -71,7 +71,7 @@ export default function EditProfilePage() {
       } else {
         const result = await enablePush();
         if (!result.ok) {
-          setError(result.error);
+          toast.error(result.error);
         } else {
           setPushEnabled(true);
         }
@@ -94,7 +94,6 @@ export default function EditProfilePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
     setBusy(true);
     try {
       const cleanLinks = socialLinks.filter((l) => l.url.trim().length > 0);
@@ -117,7 +116,7 @@ export default function EditProfilePage() {
       await refreshAppUser();
       router.push("/profile");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -314,8 +313,6 @@ export default function EditProfilePage() {
             </button>
           )}
         </div>
-
-        {error && <p className="text-sm text-red-soft">{error}</p>}
 
         <button
           type="submit"
