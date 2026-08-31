@@ -1,13 +1,17 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+// Imported from the client-safe constants file (single source of truth —
+// see that file's own comment), not defined here, so the wallet page can
+// quote the same number in its own copy without duplicating it. Re-exported
+// too, so every existing `from "@/lib/commerce/ledger"` import of
+// COMMISSION_RATE elsewhere in the app keeps working unchanged.
+import { COMMISSION_RATE } from "@/lib/commerce/constants";
+export { COMMISSION_RATE };
 
-// DECISIONS.md: 12% commission (was 15% at launch, updated 2026-08-31), fee
-// absorbed by the platform (not passed to the artist as a separate
-// withdrawal fee), 7-day pending->available window tied to the
-// same-length refund window. Only recordSale reads this — recordRefund
-// below reverses whatever was actually charged on a given order, not this
-// current value, so past sales made under the old rate stay correct.
-export const COMMISSION_RATE = 0.12;
+// 7-day pending->available window, tied to the same-length refund window
+// (DECISIONS.md). Only recordSale reads COMMISSION_RATE — recordRefund
+// below reverses whatever was actually charged on a given order, not
+// today's rate, so past sales made under an old rate stay correct.
 export const SETTLEMENT_WINDOW_DAYS = 7;
 
 /**

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { COMMISSION_RATE } from "@/lib/commerce/constants";
 
 type WalletData = {
   availableKobo: number;
@@ -51,10 +52,13 @@ export default function WalletPage() {
       <BackHeader title="Wallet" />
       <div className="px-4">
 
-      <div className="rounded-xl border border-line bg-surface p-4 mb-3">
+      <div className="rounded-xl border border-line bg-surface p-4 mb-1">
         <p className="text-[11px] uppercase tracking-widest text-ink-3">Available</p>
         <p className="font-serif text-3xl">{naira(data.availableKobo)}</p>
       </div>
+      <p className="text-[11px] text-ink-3 mb-3">
+        Totals shown are after our {Math.round(COMMISSION_RATE * 100)}% platform fee on each sale.
+      </p>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="rounded-xl border border-line bg-surface p-3">
