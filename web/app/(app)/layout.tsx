@@ -27,18 +27,26 @@ function isPublicPath(pathname: string) {
 export default function AppShellLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { firebaseUser, appUser, loading, needsOnboarding } = useAuth();
+  const { firebaseUser, appUser, loading, needsOnboarding, isNewVisitor } = useAuth();
   const isPublic = isPublicPath(pathname ?? "");
   const isSelfGated = SELF_GATED.has(pathname ?? "");
 
   useEffect(() => {
     if (loading || isPublic || isSelfGated) return;
     if (!firebaseUser) {
-      router.replace("/login");
+      // Explicit ask, "for now": a first-time (never signed in this tab)
+      // visitor lands here from something other than a normal login
+      // attempt — most plausibly a shared link to a gated page (a Fanbase
+      // group invite, a collection) — so register them instead of showing
+      // a login form with nothing to log into. A signed-out *returning*
+      // visitor (isNewVisitor false — they've signed in this tab before,
+      // or this isn't their tab's first pageview) still goes to /login,
+      // unchanged.
+      router.replace(isNewVisitor ? "/signup" : "/login");
     } else if (needsOnboarding) {
       router.replace("/onboarding");
     }
-  }, [loading, firebaseUser, needsOnboarding, router, isPublic, isSelfGated]);
+  }, [loading, firebaseUser, needsOnboarding, router, isPublic, isSelfGated, isNewVisitor]);
 
   if (loading) {
     return <LoadingSpinner full size="lg" />;

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
@@ -32,9 +32,38 @@ type AuthState = {
   loading: boolean;
   needsOnboarding: boolean;
   refreshAppUser: () => Promise<void>;
+  // True exactly once per tab, for a visitor who has never signed in this
+  // session and whose very first pageview this tab is (see isFirstLoadThisTab
+  // below) — i.e. plausibly "just clicked a shared link," not "reloaded a
+  // page mid-session" or "logged out a moment ago." Explicit ask, "for now":
+  // consumers use this to send a first-time visitor to /signup instead of
+  // /login on a route that isn't meant to be browsed signed-out. Computed
+  // once here (the one place that owns both the auth-state stream and the
+  // per-tab "have we checked yet" flag) and read wherever a redirect
+  // decision needs it — app/(app)/layout.tsx's existing gate, and
+  // NewVisitorGate.tsx for the one public route outside that layout
+  // ( /u/[handle] ) — rather than each duplicating this computation.
+  isNewVisitor: boolean;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
+
+// sessionStorage (tab-scoped, cleared only when the tab closes — survives a
+// same-tab reload) is what distinguishes "just arrived" from "already
+// browsing": a share link almost always opens in a fresh tab, and a signed-
+// out visitor reloading a page they were already looking at shouldn't get
+// treated as a brand-new one just for pressing refresh.
+const FIRST_LOAD_KEY = "xoldout-visited";
+
+function isFirstLoadThisTab() {
+  try {
+    if (sessionStorage.getItem(FIRST_LOAD_KEY)) return false;
+    sessionStorage.setItem(FIRST_LOAD_KEY, "1");
+    return true;
+  } catch {
+    return false; // storage unavailable (private mode, etc.) — fail open
+  }
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -43,6 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [isNewVisitor, setIsNewVisitor] = useState(false);
+  // Once true for the life of this tab, isNewVisitor can never become true —
+  // a signed-out callback after a real sign-in (a deliberate logout, most
+  // obviously) is not "a new visitor," regardless of exactly when it fires
+  // relative to that flow's own router.push("/login").
+  const hasSignedInRef = useRef(false);
 
   const syncAppUser = useCallback(async () => {
     const res = await apiFetch("/api/auth/sync", { method: "POST" });
@@ -78,17 +113,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return onAuthStateChanged(firebaseAuth, async (user) => {
       setFirebaseUser(user);
       if (user) {
+        hasSignedInRef.current = true;
         await syncAppUser();
       } else {
         setAppUser(null);
         setNeedsOnboarding(false);
+        if (!hasSignedInRef.current && isFirstLoadThisTab()) {
+          setIsNewVisitor(true);
+        }
       }
       setLoading(false);
     });
   }, [syncAppUser]);
 
   return (
-    <AuthContext.Provider value={{ firebaseUser, appUser, loading, needsOnboarding, refreshAppUser: syncAppUser }}>
+    <AuthContext.Provider value={{ firebaseUser, appUser, loading, needsOnboarding, refreshAppUser: syncAppUser, isNewVisitor }}>
       {children}
     </AuthContext.Provider>
   );

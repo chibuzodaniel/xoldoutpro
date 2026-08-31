@@ -7,6 +7,7 @@ import { ProductCard, type ProductCardData } from "@/components/product/ProductC
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { buildOgMetadata } from "@/lib/og";
+import { NewVisitorGate } from "@/components/auth/NewVisitorGate";
 
 const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = [
   { types: ["RELEASE", "BEAT"], label: "Music & Beats" },
@@ -87,6 +88,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   return (
     <div className="pb-8">
+      <NewVisitorGate />
       <ClickablePhoto
         targetUserId={user.id}
         kind="cover"
