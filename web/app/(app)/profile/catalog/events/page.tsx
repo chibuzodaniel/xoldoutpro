@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
+import { uploadImage } from "@/lib/uploadImage";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -40,40 +41,83 @@ function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 }
 
-function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: CatalogTier; onSaved: () => void }) {
-  const [name, setName] = useState(tier.name);
-  const [priceNaira, setPriceNaira] = useState(String(tier.product.priceKobo / 100));
-  const [capValue, setCapValue] = useState(tier.product.stockPolicy?.cap != null ? String(tier.product.stockPolicy.cap) : "");
+// Tiers are frozen once created — a buyer's receipt should always match
+// what they saw at purchase, so the only mutation left is pulling one off
+// sale entirely (see the API's DELETE). Changing a price or adding stock
+// happens by adding a new tier instead (NewTierForm below).
+function TierRow({ eventId, tier, onDeleted }: { eventId: string; tier: CatalogTier; onDeleted: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const hasCap = tier.product.stockPolicy?.cap != null;
+  const sold = tier.product.stockPolicy?.sold ?? 0;
+
+  async function handleDelete() {
+    if (!confirm(`Take "${tier.name}" off sale? Anyone who already bought this tier keeps their ticket — this is not a refund.`)) {
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/events/${eventId}/tiers/${tier.productId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not delete tier");
+      }
+      toast.success("Tier removed from sale.");
+      onDeleted();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between py-3">
+      <div>
+        <span className="text-xs font-semibold">{tier.name}</span>
+        <p className="text-[11px] text-ink-3">
+          {formatNaira(tier.product.priceKobo)} · {sold} sold{hasCap ? ` of ${tier.product.stockPolicy?.cap}` : ""}
+        </p>
+      </div>
+      <button onClick={handleDelete} disabled={busy} className="text-[11px] text-ink-3 uppercase tracking-widest disabled:opacity-50">
+        {busy ? "Removing…" : "Delete"}
+      </button>
+    </div>
+  );
+}
+
+function NewTierForm({ eventId, onAdded }: { eventId: string; onAdded: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [priceNaira, setPriceNaira] = useState("");
+  const [hasCap, setHasCap] = useState(false);
+  const [capValue, setCapValue] = useState("");
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
-  const hasCap = tier.product.stockPolicy?.cap != null;
-  const sold = tier.product.stockPolicy?.sold ?? 0;
-  const editable = isWithinEditWindow(tier.product.publishedAt);
-
-  async function handleSave() {
+  async function handleAdd() {
+    if (!name.trim()) return toast.error("Give the tier a name");
     const priceKobo = Math.round(parseFloat(priceNaira || "0") * 100);
-    const body: { name?: string; priceKobo?: number; cap?: number } = {};
-    if (name.trim() && name !== tier.name) body.name = name.trim();
-    if (!Number.isNaN(priceKobo) && priceKobo !== tier.product.priceKobo) body.priceKobo = priceKobo;
-    if (hasCap) {
-      const cap = parseInt(capValue, 10);
-      if (Number.isInteger(cap) && cap !== tier.product.stockPolicy?.cap) body.cap = cap;
-    }
-    if (Object.keys(body).length === 0) return;
+    if (!priceNaira || Number.isNaN(priceKobo) || priceKobo < 0) return toast.error("Set a price, or 0 for free");
+    const cap = hasCap ? parseInt(capValue, 10) : null;
+    if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) return toast.error("Enter a valid quantity");
 
     setBusy(true);
     try {
-      const res = await apiFetch(`/api/events/${eventId}/tiers/${tier.productId}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
+      const res = await apiFetch(`/api/events/${eventId}/tiers`, {
+        method: "POST",
+        body: JSON.stringify({ name: name.trim(), priceKobo, cap }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(typeof data.error === "string" ? data.error : "Could not save tier");
+        throw new Error(typeof data.error === "string" ? data.error : "Could not add tier");
       }
-      toast.success("Tier saved.");
-      onSaved();
+      toast.success("Tier added.");
+      setName("");
+      setPriceNaira("");
+      setHasCap(false);
+      setCapValue("");
+      setOpen(false);
+      onAdded();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -81,27 +125,22 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
     }
   }
 
-  if (!editable) {
+  if (!open) {
     return (
-      <div className="flex items-center justify-between py-3">
-        <span className="text-xs font-semibold">{tier.name}</span>
-        <span className="text-[11px] text-ink-3">
-          {formatNaira(tier.product.priceKobo)} · {sold} sold · editing closed
-        </span>
-      </div>
+      <button onClick={() => setOpen(true)} className="py-3 text-xs text-red-soft font-semibold text-left">
+        + Add tier
+      </button>
     );
   }
 
   return (
     <div className="flex flex-col gap-2 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="flex-1 rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold outline-none transition-colors duration-150 focus:border-red"
-        />
-        <span className="text-[11px] text-ink-3 shrink-0">{sold} sold</span>
-      </div>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Tier name (e.g. Early Bird)"
+        className="rounded-lg border border-line bg-surface px-2 py-1.5 text-xs font-semibold outline-none transition-colors duration-150 focus:border-red"
+      />
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
           <span className="text-xs text-ink-3">₦</span>
@@ -111,30 +150,39 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
             step="1"
             value={priceNaira}
             onChange={(e) => setPriceNaira(e.target.value)}
+            placeholder="0 for free"
             className="w-24 rounded-lg border border-line bg-surface px-2 py-1.5 text-xs outline-none transition-colors duration-150 focus:border-red"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => setHasCap((v) => !v)}
+          className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors duration-150 ${
+            hasCap ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2"
+          }`}
+        >
+          {hasCap ? "Limited" : "Unlimited"}
+        </button>
         {hasCap && (
           <input
             type="number"
-            min={sold}
+            min={1}
             step="1"
             value={capValue}
             onChange={(e) => setCapValue(e.target.value)}
+            placeholder="e.g. 100"
             className="w-20 rounded-lg border border-line bg-surface px-2 py-1.5 text-xs outline-none transition-colors duration-150 focus:border-red"
-            aria-label="Cap"
           />
         )}
-        <button
-          onClick={handleSave}
-          disabled={busy}
-          className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-        >
-          {busy ? "Saving…" : "Save"}
+      </div>
+      <div className="flex items-center gap-2">
+        <button onClick={handleAdd} disabled={busy} className="rounded-lg bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+          {busy ? "Adding…" : "Add tier"}
+        </button>
+        <button onClick={() => setOpen(false)} className="text-xs text-ink-3">
+          Cancel
         </button>
       </div>
-      <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after this tier went live.</p>
-      {hasCap && <p className="text-[11px] text-ink-3">Cap can only be lowered, never below tickets already sold.</p>}
     </div>
   );
 }
@@ -146,11 +194,34 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
+  const currentCover = (event.coverImageLadder as Record<string, string> | undefined)?.["1024"];
+  const [coverPreview, setCoverPreview] = useState<string | null>(currentCover ?? null);
+  const [coverImageLadder, setCoverImageLadder] = useState<Record<string, string> | null>(null);
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [coverCropFile, setCoverCropFile] = useState<File | null>(null);
+
+  async function handleCoverSelected(file: File) {
+    setCoverPreview(URL.createObjectURL(file));
+    setCoverUploading(true);
+    try {
+      const key = await uploadImage(file, "artwork");
+      const res = await apiFetch("/api/uploads/artwork/finalize", { method: "POST", body: JSON.stringify({ key }) });
+      if (!res.ok) throw new Error("Could not process cover image");
+      const data = await res.json();
+      setCoverImageLadder(data.artworkLadder);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Cover upload failed");
+    } finally {
+      setCoverUploading(false);
+    }
+  }
+
   async function handleSave() {
-    const body: { title?: string; description?: string; venue?: string } = {};
+    const body: { title?: string; description?: string; venue?: string; coverImageLadder?: Record<string, string> } = {};
     if (title.trim() && title !== event.title) body.title = title.trim();
     if (description !== event.description) body.description = description;
     if (venue !== (event.venue ?? "")) body.venue = venue;
+    if (coverImageLadder) body.coverImageLadder = coverImageLadder;
     if (Object.keys(body).length === 0) return;
 
     setBusy(true);
@@ -161,6 +232,7 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
         throw new Error(typeof data.error === "string" ? data.error : "Could not save");
       }
       toast.success("Event saved.");
+      setCoverImageLadder(null);
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -171,6 +243,40 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
 
   return (
     <div className="flex flex-col gap-2 pb-3 mb-1 border-b border-line-soft">
+      <div className="relative h-24 w-24">
+        <label className="flex h-24 w-24 items-center justify-center rounded-lg border border-dashed border-line bg-surface cursor-pointer overflow-hidden">
+          {coverPreview ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={coverPreview} alt="Cover preview" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-[10px] text-ink-3 text-center px-1">Add cover</span>
+          )}
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) setCoverCropFile(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        {coverUploading && <p className="text-[10px] text-ink-3 mt-1">Processing…</p>}
+        {coverCropFile && (
+          <ImageCropModal
+            file={coverCropFile}
+            aspect={1}
+            outputWidth={1024}
+            outputHeight={1024}
+            onCancel={() => setCoverCropFile(null)}
+            onConfirm={(cropped) => {
+              setCoverCropFile(null);
+              handleCoverSelected(cropped);
+            }}
+          />
+        )}
+      </div>
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -197,7 +303,6 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
           {busy ? "Saving…" : "Save"}
         </button>
       </div>
-      <p className="text-[11px] text-ink-3">Editing closes {EDIT_WINDOW_HOURS} hours after publishing.</p>
     </div>
   );
 }
@@ -286,17 +391,12 @@ export default function EventCatalogPage() {
                 </div>
                 {isManaging && (
                   <div className="mt-2 ml-[52px] pl-3 border-l border-line-soft flex flex-col">
-                    {isWithinEditWindow(ev.publishedAt) ? (
-                      <EventEditor event={ev} onSaved={load} />
-                    ) : (
-                      <p className="text-[11px] text-ink-3 pb-3 mb-1 border-b border-line-soft">
-                        Editing this event&apos;s details closed {EDIT_WINDOW_HOURS} hours after it went live.
-                      </p>
-                    )}
+                    <EventEditor event={ev} onSaved={load} />
                     <div className="flex flex-col divide-y divide-line-soft">
                       {ev.tiers.map((tier) => (
-                        <TierEditor key={tier.productId} eventId={ev.id} tier={tier} onSaved={load} />
+                        <TierRow key={tier.productId} eventId={ev.id} tier={tier} onDeleted={load} />
                       ))}
+                      <NewTierForm eventId={ev.id} onAdded={load} />
                     </div>
                   </div>
                 )}

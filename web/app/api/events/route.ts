@@ -80,7 +80,13 @@ export async function GET(req: NextRequest) {
     const { user } = await requireUser(req);
     const events = await db.event.findMany({
       where: { creatorId: user.id },
-      include: { tiers: { include: { product: { include: { stockPolicy: true } } }, orderBy: { order: "asc" } } },
+      include: {
+        tiers: {
+          where: { product: { status: { not: "DELETED" } } },
+          include: { product: { include: { stockPolicy: true } } },
+          orderBy: { order: "asc" },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ events });

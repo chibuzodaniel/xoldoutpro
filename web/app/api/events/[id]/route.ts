@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 
 const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   venue: z.string().max(200).optional(),
+  coverImageLadder: z.record(z.string(), z.string()).optional(),
 });
 
 async function loadOwned(id: string, userId: string) {
@@ -25,14 +25,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const event = await loadOwned(id, user.id);
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (event.status === "DELETED") return NextResponse.json({ error: "Event is deleted" }, { status: 409 });
-    if (!isWithinEditWindow(event.publishedAt)) {
-      return NextResponse.json({ error: `Editing closes ${EDIT_WINDOW_HOURS} hours after an event goes live` }, { status: 403 });
-    }
 
+    // Unlike Release/Beat/Merch, an event's own details have no edit-window
+    // cutoff — what a buyer is owed is the live show, not the listing as it
+    // read at purchase time, so venue/description/cover can change right up
+    // until the event happens. Ticket tiers are the part that's frozen once
+    // sold against (see the tiers/[tierId] route) — this route never touches them.
     const updated = await db.event.update({
       where: { id },
-      data: { title: body.title, description: body.description, venue: body.venue },
-      include: { tiers: { include: { product: { include: { stockPolicy: true } } } } },
+      data: { title: body.title, description: body.description, venue: body.venue, coverImageLadder: body.coverImageLadder },
+      include: {
+        tiers: {
+          where: { product: { status: { not: "DELETED" } } },
+          include: { product: { include: { stockPolicy: true } } },
+          orderBy: { order: "asc" },
+        },
+      },
     });
 
     return NextResponse.json({ event: updated });
