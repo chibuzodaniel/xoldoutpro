@@ -130,8 +130,13 @@ export function GroupDetailClient({ id }: { id: string }) {
     setJoining(true);
     try {
       const res = await apiFetch(`/api/groups/${id}/join`, { method: "POST" });
-      if (res.ok) await load();
-      else toast.error("Couldn't join this Fanbase. Try again.");
+      if (res.ok) {
+        const data = await res.json();
+        await load();
+        toast.success(data.status === "JOINED" ? "You've joined." : "Request sent — the creator will review it.");
+      } else {
+        toast.error("Couldn't join this Fanbase. Try again.");
+      }
     } finally {
       setJoining(false);
     }
@@ -166,6 +171,7 @@ export function GroupDetailClient({ id }: { id: string }) {
       if (res.ok) {
         const data = await res.json();
         setGroup((cur) => (cur ? { ...cur, coverImageUrl: data.coverImageUrl } : cur));
+        toast.success("Group photo updated.");
       } else {
         toast.error("Couldn't update the group photo. Try again.");
       }
@@ -181,6 +187,7 @@ export function GroupDetailClient({ id }: { id: string }) {
       const res = await apiFetch(`/api/groups/${id}/photo`, { method: "DELETE" });
       if (res.ok) {
         setGroup((cur) => (cur ? { ...cur, coverImageUrl: null } : cur));
+        toast.success("Group photo deleted.");
       } else {
         toast.error("Couldn't delete the group photo. Try again.");
       }
@@ -192,8 +199,12 @@ export function GroupDetailClient({ id }: { id: string }) {
   async function handleLeave() {
     if (!window.confirm("Leave this group?")) return;
     const res = await apiFetch(`/api/groups/${id}/join`, { method: "DELETE" });
-    if (res.ok) await load();
-    else toast.error("Couldn't leave this group. Try again.");
+    if (res.ok) {
+      await load();
+      toast.success("You've left the group.");
+    } else {
+      toast.error("Couldn't leave this group. Try again.");
+    }
   }
 
   if (group === null) return <LoadingSpinner full size="lg" />;

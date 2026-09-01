@@ -729,6 +729,7 @@ enum NotificationKind {
   ORDER_PAID
   PAYOUT_INITIATED
   PAYOUT_FAILED
+  PAYOUT_PAID
   REFUND
 }
 

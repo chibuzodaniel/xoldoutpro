@@ -65,6 +65,7 @@ export default function WithdrawPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start withdrawal");
+      toast.success("Withdrawal started — you'll be notified once it's sent.");
       router.push("/wallet");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

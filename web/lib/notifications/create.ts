@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 
-type NotificationKind = "SALE" | "ORDER_PAID" | "PAYOUT_INITIATED" | "PAYOUT_FAILED" | "REFUND";
+type NotificationKind = "SALE" | "ORDER_PAID" | "PAYOUT_INITIATED" | "PAYOUT_FAILED" | "PAYOUT_PAID" | "REFUND";
 
 // The header bell's data source — transactional/money events only. Deliberately
 // separate from lib/push/send.ts (device push) and lib/socials/unread.ts (the

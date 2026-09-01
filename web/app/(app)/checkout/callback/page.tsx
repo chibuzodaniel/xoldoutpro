@@ -6,6 +6,7 @@ import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type OrderStatus = "PENDING" | "PAID" | "REFUNDED" | "FAILED";
 
@@ -233,10 +234,7 @@ function CheckoutCallbackInner() {
         </>
       ) : (status === "LOADING" || status === "PENDING") && !timedOut ? (
         <>
-          <span className="relative flex h-16 w-16 items-center justify-center">
-            <span className="absolute inset-0 rounded-full bg-red/20 blur-xl" aria-hidden />
-            <span className="relative h-16 w-16 animate-spin rounded-full border-[3px] border-red/25 border-t-red" aria-hidden />
-          </span>
+          <LoadingSpinner size="lg" />
 
           <div>
             <h1 className="font-serif text-3xl mb-1">Confirming Payment</h1>
@@ -263,10 +261,7 @@ function CheckoutCallbackInner() {
         </>
       ) : status === "LOADING" || status === "PENDING" ? (
         <>
-          <span className="relative flex h-16 w-16 items-center justify-center">
-            <span className="absolute inset-0 rounded-full bg-red/10 blur-xl" aria-hidden />
-            <span className="relative h-16 w-16 animate-spin rounded-full border-[3px] border-red/15 border-t-red/60" aria-hidden />
-          </span>
+          <LoadingSpinner size="lg" />
 
           <div>
             <h1 className="font-serif text-3xl mb-1">Still processing</h1>

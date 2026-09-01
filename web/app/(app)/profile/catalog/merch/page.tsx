@@ -76,6 +76,7 @@ function ProductEditor({ product, onSaved }: { product: CatalogProduct; onSaved:
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not save");
       }
+      toast.success("Saved.");
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -175,8 +176,12 @@ export default function MerchCatalogPage() {
       return;
     }
     const res = await apiFetch(`/api/merch/${id}`, { method: "DELETE" });
-    if (res.ok) loadProducts();
-    else toast.error("Could not delete listing");
+    if (res.ok) {
+      loadProducts();
+      toast.success("Listing deleted.");
+    } else {
+      toast.error("Could not delete listing");
+    }
   }
 
   async function handleMarkShipped(orderId: string) {
@@ -184,8 +189,12 @@ export default function MerchCatalogPage() {
       method: "PATCH",
       body: JSON.stringify({ status: "SHIPPED", trackingInfo: trackingDrafts[orderId] || undefined }),
     });
-    if (res.ok) loadOrders();
-    else toast.error("Could not update order");
+    if (res.ok) {
+      loadOrders();
+      toast.success("Marked as shipped.");
+    } else {
+      toast.error("Could not update order");
+    }
   }
 
   return (

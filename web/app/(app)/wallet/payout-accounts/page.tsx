@@ -51,6 +51,7 @@ export default function PayoutAccountsPage() {
       setAccountNumber("");
       setBankCode("");
       await loadAccounts();
+      toast.success("Payout account added.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -61,6 +62,7 @@ export default function PayoutAccountsPage() {
   async function handleSetDefault(id: string) {
     await apiFetch(`/api/wallet/payout-accounts/${id}`, { method: "PATCH" });
     await loadAccounts();
+    toast.success("Default payout account updated.");
   }
 
   return (

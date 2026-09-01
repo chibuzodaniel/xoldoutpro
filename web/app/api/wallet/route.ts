@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
         where: { userId: user.id },
         orderBy: { createdAt: "desc" },
         take: 20,
-        include: { payoutAccount: { select: { bankName: true, accountNumber: true } } },
+        include: { payoutAccount: { select: { bankName: true, accountNumber: true, accountName: true } } },
       }),
     ]);
 

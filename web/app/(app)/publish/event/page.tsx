@@ -92,6 +92,7 @@ export default function CreateEventPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not publish event");
       }
+      toast.success("Event published.");
       router.push("/profile/catalog/events");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

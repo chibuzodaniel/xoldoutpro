@@ -37,13 +37,21 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
     if (res.ok) {
       setName(trimmed);
       setEditing(false);
+      toast.success("Collection renamed.");
+    } else {
+      toast.error("Could not rename collection");
     }
   }
 
   async function handleDeleteCollection() {
     if (!window.confirm("Delete this collection? What's inside stays in your Library — this only removes the grouping.")) return;
     const res = await apiFetch(`/api/collections/${id}`, { method: "DELETE" });
-    if (res.ok) router.push("/library");
+    if (res.ok) {
+      toast.success("Collection deleted.");
+      router.push("/library");
+    } else {
+      toast.error("Could not delete collection");
+    }
   }
 
   async function handleRemoveItem(entitlementId: string) {

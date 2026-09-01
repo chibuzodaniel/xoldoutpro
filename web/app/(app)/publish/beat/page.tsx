@@ -140,6 +140,7 @@ export default function UploadBeatPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not publish beat");
       }
+      toast.success("Beat published.");
       router.push("/profile/catalog/beats");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

@@ -54,8 +54,10 @@ export function ManageGroupSheet({
     setDeletingGroup(true);
     try {
       const res = await apiFetch(`/api/groups/${groupId}`, { method: "DELETE" });
-      if (res.ok) onDeleted();
-      else {
+      if (res.ok) {
+        toast.success("Fanbase deleted.");
+        onDeleted();
+      } else {
         setDeletingGroup(false);
         toast.error("Couldn't delete this Fanbase. Try again.");
       }
@@ -93,21 +95,33 @@ export function ManageGroupSheet({
 
   async function respond(requestId: string, action: "approve" | "reject") {
     const res = await apiFetch(`/api/groups/${groupId}/join-requests/${requestId}`, { method: "PATCH", body: JSON.stringify({ action }) });
-    if (res.ok) setRequests((cur) => cur?.filter((r) => r.id !== requestId) ?? null);
-    else toast.error("Couldn't update this request. Try again.");
+    if (res.ok) {
+      setRequests((cur) => cur?.filter((r) => r.id !== requestId) ?? null);
+      toast.success(action === "approve" ? "Request approved." : "Request declined.");
+    } else {
+      toast.error("Couldn't update this request. Try again.");
+    }
   }
 
   async function setRole(userId: string, role: "ADMIN" | "MEMBER") {
     const res = await apiFetch(`/api/groups/${groupId}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ role }) });
-    if (res.ok) setMembers((cur) => cur?.map((m) => (m.userId === userId ? { ...m, role } : m)) ?? null);
-    else toast.error("Couldn't update this member. Try again.");
+    if (res.ok) {
+      setMembers((cur) => cur?.map((m) => (m.userId === userId ? { ...m, role } : m)) ?? null);
+      toast.success(role === "ADMIN" ? "Now an admin." : "Admin removed.");
+    } else {
+      toast.error("Couldn't update this member. Try again.");
+    }
   }
 
   async function removeMember(userId: string) {
     if (!window.confirm("Remove this member from the group?")) return;
     const res = await apiFetch(`/api/groups/${groupId}/members/${userId}`, { method: "DELETE" });
-    if (res.ok) setMembers((cur) => cur?.filter((m) => m.userId !== userId) ?? null);
-    else toast.error("Couldn't remove this member. Try again.");
+    if (res.ok) {
+      setMembers((cur) => cur?.filter((m) => m.userId !== userId) ?? null);
+      toast.success("Member removed.");
+    } else {
+      toast.error("Couldn't remove this member. Try again.");
+    }
   }
 
   async function updateSetting(patch: { postPermission?: string; visibility?: string }) {

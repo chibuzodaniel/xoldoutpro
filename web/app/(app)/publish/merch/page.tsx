@@ -89,6 +89,7 @@ export default function UploadMerchPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not publish listing");
       }
+      toast.success("Listing published.");
       router.push("/profile/catalog/merch");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

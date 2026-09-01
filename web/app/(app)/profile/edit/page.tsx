@@ -115,6 +115,7 @@ export default function EditProfilePage() {
         await apiFetch("/api/me/cover", { method: "POST", body: JSON.stringify({ key }) });
       }
       await refreshAppUser();
+      toast.success("Profile saved.");
       router.push("/profile");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

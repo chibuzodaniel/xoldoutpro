@@ -220,3 +220,19 @@ export async function initiatePayout(args: { destinationId: string; amountKobo: 
   });
   return data;
 }
+
+export type VerifiedPayout = {
+  status: "pending" | "processing" | "completed" | "failed";
+  failureReason: string | null;
+};
+
+/**
+ * Authoritative payout check, same role as verifyTransaction above for
+ * collections: the payout.paid/payout.failed webhook body is only ever used
+ * to know which withdrawal_id to look up here, never trusted directly for
+ * the actual status.
+ */
+export async function getPayout(withdrawalId: string): Promise<VerifiedPayout> {
+  const data = await bachs<{ status: string; failure_reason: string | null }>(`/v1/payouts/${withdrawalId}`);
+  return { status: data.status as VerifiedPayout["status"], failureReason: data.failure_reason };
+}

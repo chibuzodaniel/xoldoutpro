@@ -55,6 +55,7 @@ function ProductEditor({ product, onSaved }: { product: CatalogProduct; onSaved:
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not save");
       }
+      toast.success("Saved.");
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -133,8 +134,12 @@ export default function BeatCatalogPage() {
       return;
     }
     const res = await apiFetch(`/api/beats/${id}`, { method: "DELETE" });
-    if (res.ok) load();
-    else toast.error("Could not delete beat");
+    if (res.ok) {
+      load();
+      toast.success("Beat deleted.");
+    } else {
+      toast.error("Could not delete beat");
+    }
   }
 
   return (

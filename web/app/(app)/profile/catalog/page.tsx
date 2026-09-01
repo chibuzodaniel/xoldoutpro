@@ -58,6 +58,7 @@ function ProductEditor({ product, onSaved }: { product: CatalogProduct; onSaved:
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not save");
       }
+      toast.success("Saved.");
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -136,8 +137,12 @@ export default function CatalogPage() {
       return;
     }
     const res = await apiFetch(`/api/releases/${id}`, { method: "DELETE" });
-    if (res.ok) load();
-    else toast.error("Could not delete release");
+    if (res.ok) {
+      load();
+      toast.success("Release deleted.");
+    } else {
+      toast.error("Could not delete release");
+    }
   }
 
   return (

@@ -138,6 +138,7 @@ export default function UploadMusicPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not publish release");
       }
+      toast.success("Release published.");
       router.push("/profile/catalog");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");

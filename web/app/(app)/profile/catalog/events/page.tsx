@@ -72,6 +72,7 @@ function TierEditor({ eventId, tier, onSaved }: { eventId: string; tier: Catalog
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not save tier");
       }
+      toast.success("Tier saved.");
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -159,6 +160,7 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not save");
       }
+      toast.success("Event saved.");
       onSaved();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -220,8 +222,12 @@ export default function EventCatalogPage() {
       return;
     }
     const res = await apiFetch(`/api/events/${id}`, { method: "DELETE" });
-    if (res.ok) load();
-    else toast.error("Could not delete event");
+    if (res.ok) {
+      load();
+      toast.success("Event deleted.");
+    } else {
+      toast.error("Could not delete event");
+    }
   }
 
   return (
