@@ -11,6 +11,8 @@ function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 }
 
+class InsufficientBalanceError extends Error {}
+
 const bodySchema = z.object({
   amountKobo: z.number().int().positive(),
   payoutAccountId: z.string().min(1),
@@ -44,29 +46,43 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `The minimum withdrawal is ${formatNaira(MINIMUM_WITHDRAWAL_KOBO)}` }, { status: 400 });
     }
 
-    const { availableKobo } = await getWalletBalances(user.id);
-    if (amountKobo > availableKobo) {
-      return NextResponse.json({ error: "Amount exceeds available balance" }, { status: 400 });
-    }
-
     const feeKobo = 0; // platform absorbs the withdrawal fee (DECISIONS.md)
     const netKobo = amountKobo - feeKobo;
 
-    const payout = await db.$transaction(async (tx) => {
-      const created = await tx.payout.create({
-        data: { userId: user.id, amountKobo, feeKobo, netKobo, payoutAccountId, status: "PROCESSING" },
+    let payout;
+    try {
+      payout = await db.$transaction(async (tx) => {
+        // Serializes concurrent withdrawal attempts for this same user —
+        // there's no mutable balance row to lock (money is a ledger, never
+        // a balance column), so a Postgres advisory lock keyed on the user
+        // id stands in for one. Without this, two withdrawals fired near
+        // simultaneously could both read the same pre-debit balance below
+        // and both pass the check before either debit lands.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`;
+
+        const { availableKobo } = await getWalletBalances(user.id, tx);
+        if (amountKobo > availableKobo) throw new InsufficientBalanceError();
+
+        const created = await tx.payout.create({
+          data: { userId: user.id, amountKobo, feeKobo, netKobo, payoutAccountId, status: "PROCESSING" },
+        });
+        await tx.walletLedgerEntry.create({
+          data: {
+            userId: user.id,
+            amountKobo: -amountKobo,
+            kind: "PAYOUT_DEBIT",
+            status: "AVAILABLE",
+            payoutId: created.id,
+          },
+        });
+        return created;
       });
-      await tx.walletLedgerEntry.create({
-        data: {
-          userId: user.id,
-          amountKobo: -amountKobo,
-          kind: "PAYOUT_DEBIT",
-          status: "AVAILABLE",
-          payoutId: created.id,
-        },
-      });
-      return created;
-    });
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        return NextResponse.json({ error: "Amount exceeds available balance" }, { status: 400 });
+      }
+      throw err;
+    }
 
     try {
       const transfer = await initiatePayout({

@@ -111,14 +111,20 @@ export async function recordRefund(
 // correct the instant the settlement window elapses — no dependency on a
 // sweep job having run recently. Entries with no availableAt (payout debits,
 // which take effect immediately) count as available right away.
-export async function getWalletBalances(userId: string) {
+//
+// Accepts an optional transaction client so a caller that needs to check
+// the balance and then write a debit atomically (withdraw route) can run
+// both inside the same `db.$transaction` — see that route for why this
+// matters (a plain sequential check-then-write has a race window two
+// near-simultaneous withdrawals could both slip through).
+export async function getWalletBalances(userId: string, client: Prisma.TransactionClient | typeof db = db) {
   const now = new Date();
   const [available, pending] = await Promise.all([
-    db.walletLedgerEntry.aggregate({
+    client.walletLedgerEntry.aggregate({
       where: { userId, OR: [{ availableAt: null }, { availableAt: { lte: now } }] },
       _sum: { amountKobo: true },
     }),
-    db.walletLedgerEntry.aggregate({
+    client.walletLedgerEntry.aggregate({
       where: { userId, availableAt: { gt: now } },
       _sum: { amountKobo: true },
     }),
