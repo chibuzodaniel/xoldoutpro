@@ -2,12 +2,26 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getWalletBalances } from "@/lib/commerce/ledger";
+import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 
 // PRD §1.2/§13: all currency figures live in Wallet, nowhere else. This is
 // the only endpoint in the app that returns a Naira amount.
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
+
+    // Self-healing fallback for when Bachs's payout.paid/payout.failed
+    // webhook never reaches us (delivery failure, misconfigured endpoint,
+    // etc.) — every load of this page double-checks any payout still
+    // in-flight directly against Bachs, so a completed transfer doesn't
+    // stay stuck on "Processing" forever waiting on a webhook that already
+    // didn't show up. Best-effort: a Bachs hiccup here must never break the
+    // wallet page, so failures are swallowed, not surfaced.
+    const inFlight = await db.payout.findMany({ where: { userId: user.id, status: { in: ["PENDING", "PROCESSING"] } } });
+    await Promise.allSettled(
+      inFlight.map((payout) => reconcilePayout(payout).catch((err) => console.error("wallet reconcilePayout", payout.id, err))),
+    );
+
     const { availableKobo, pendingKobo } = await getWalletBalances(user.id);
 
     const [earned, withdrawn, categoryBreakdown, payouts] = await Promise.all([

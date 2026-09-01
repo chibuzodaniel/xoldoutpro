@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyTransaction, getPayout } from "@/lib/bachs";
+import { verifyTransaction } from "@/lib/bachs";
 import { finalizePayment } from "@/lib/commerce/confirmPayment";
-import { createNotification } from "@/lib/notifications/create";
+import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 
 export const runtime = "nodejs";
 
@@ -22,10 +22,6 @@ const COLLECTION_EVENT_TYPES = new Set(["collection.succeeded", "collection.fail
 // covers a payout Bachs rejected immediately) never reversed the creator's
 // debit, silently losing their money.
 const PAYOUT_EVENT_TYPES = new Set(["payout.paid", "payout.failed"]);
-
-function formatNaira(kobo: number) {
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
-}
 
 /**
  * Same trust model as the Flutterwave/Monnify webhooks (PRD §16): Bachs
@@ -117,7 +113,8 @@ export async function POST(req: NextRequest) {
  * the payout — falling back to `data.withdrawal_id` (stored as
  * `Payout.processorRef`) for the rare case reference came back null. Like
  * the collection handler above, the webhook body only identifies which
- * payout to check; getPayout() is the authoritative status.
+ * payout to check; reconcilePayout() re-derives the authoritative status
+ * from Bachs directly rather than trusting the event body.
  */
 async function handlePayoutEvent(body: { type: string; data?: { withdrawal_id?: string; reference?: string } }) {
   const withdrawalId = body.data?.withdrawal_id;
@@ -131,46 +128,11 @@ async function handlePayoutEvent(body: { type: string; data?: { withdrawal_id?: 
   });
   if (!payout) return NextResponse.json({ error: "Unknown payout" }, { status: 404 });
 
-  let verified;
   try {
-    verified = await getPayout(withdrawalId ?? payout.processorRef!);
+    await reconcilePayout(payout);
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Could not verify payout" }, { status: 502 });
   }
-
-  if (verified.status === "completed") {
-    // Guarded so a duplicate delivery of the same event is a no-op, not a
-    // second notification.
-    const claim = await db.payout.updateMany({ where: { id: payout.id, status: { not: "PAID" } }, data: { status: "PAID" } });
-    if (claim.count > 0) {
-      await createNotification(payout.userId, {
-        kind: "PAYOUT_PAID",
-        title: "Withdrawal sent",
-        body: `${formatNaira(payout.netKobo)} has been delivered to your bank.`,
-        url: "/wallet",
-      });
-    }
-  } else if (verified.status === "failed") {
-    // Distinct from the withdraw route's own initiate-failure catch (which
-    // only covers Bachs rejecting the payout immediately, before this
-    // webhook path exists at all): this is Bachs accepting the payout, then
-    // the bank-side transfer itself failing later — the debit already
-    // landed and has to be reversed here, or the creator's money would be
-    // silently lost (debited, never delivered, never refunded).
-    const claim = await db.payout.updateMany({ where: { id: payout.id, status: { not: "FAILED" } }, data: { status: "FAILED" } });
-    if (claim.count > 0) {
-      await db.walletLedgerEntry.create({
-        data: { userId: payout.userId, amountKobo: payout.amountKobo, kind: "PAYOUT_DEBIT", status: "AVAILABLE", payoutId: payout.id },
-      });
-      await createNotification(payout.userId, {
-        kind: "PAYOUT_FAILED",
-        title: "Withdrawal failed",
-        body: `${formatNaira(payout.netKobo)} could not be delivered — your balance has been restored.`,
-        url: "/wallet",
-      });
-    }
-  }
-
   return NextResponse.json({ ok: true });
 }
