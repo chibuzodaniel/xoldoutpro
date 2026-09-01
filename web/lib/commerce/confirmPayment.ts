@@ -124,6 +124,7 @@ export async function finalizePayment(
         priceKobo: payment.amountKobo,
         processor: payment.processor,
         ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
+        productType: product.type,
       }).catch((err) => console.error("order confirmation email failed", err));
     }
     await createNotification(payment.order.buyerId, {

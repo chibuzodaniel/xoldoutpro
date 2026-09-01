@@ -116,6 +116,10 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
           priceKobo={product.priceKobo}
           isSoldOut={isSoldOut}
         />
+
+        <Link href="/legal/terms#beat-licenses" className="mt-4 block text-center text-[11px] text-ink-3 underline">
+          View license terms
+        </Link>
       </div>
     </div>
   );

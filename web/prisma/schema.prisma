@@ -92,6 +92,10 @@ model User {
   // disables the Firebase Auth account; requireUser() rejects any request
   // once this is set, even for a still-unexpired ID token.
   deletedAt                DateTime?
+  // Set the first time this user publishes a beat and checks the
+  // ownership/producer-agreement box (POST /api/beats) — never re-asked
+  // after that, unlike Beat.ownershipConfirmedAt below, which is per-beat.
+  producerAgreementAcceptedAt DateTime?
 
   payoutAccounts PayoutAccount[]
   ledgerEntries  WalletLedgerEntry[]
@@ -511,6 +515,10 @@ model Beat {
   bpm              Int?
   musicalKey       String?
   tags             String[] @default([])
+  // Set at publish time once the producer checks the ownership/rights
+  // confirmation box (POST /api/beats) — required per beat, unlike
+  // User.producerAgreementAcceptedAt above, which is a one-time acceptance.
+  ownershipConfirmedAt DateTime?
 }
 
 // StockPolicy is intentionally separate from Product: cap/sold/reserved

@@ -188,6 +188,10 @@ type OrderConfirmationInput = {
   // reaches one. Only ever "flutterwave" or "monnify" (Payment.processor).
   processor?: string;
   ticket?: TicketInfo | null;
+  // Adds a one-line license disclosure for a beat purchase specifically
+  // (Stage 2 of the beat-licensing work, DECISIONS.md) — every other
+  // product type is unaffected.
+  productType?: "RELEASE" | "BEAT" | "MERCH" | "EVENT";
 };
 
 // Fire-and-forget from every place an order actually settles: the free-
@@ -231,6 +235,18 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
     ...(input.processor ? [{ label: "Processor", value: escapeHtml(input.processor[0].toUpperCase() + input.processor.slice(1)) }] : []),
   ];
 
+  const licenseHtml =
+    input.productType === "BEAT"
+      ? `
+    <tr><td style="padding:0 40px 32px;text-align:center;">
+      <p style="margin:0;color:${C.label};font-size:12px;line-height:18px;">
+        This purchase includes a non-exclusive commercial-use license.
+        <a href="https://www.xoldout.app/legal/terms#beat-licenses" style="color:${C.red};">Full license terms</a>
+      </p>
+    </td></tr>
+  `
+      : "";
+
   const body = `
     <tr><td style="padding:44px 40px 0;text-align:center;">
       ${iconCircle("&#10003;", C.green)}
@@ -240,6 +256,7 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
     </td></tr>
     <tr><td style="padding:0 40px 32px;">${receiptCard(C.green, rows)}</td></tr>
     ${ticketHtml}
+    ${licenseHtml}
     <tr><td style="padding:0 40px 40px;text-align:center;">${button("https://www.xoldout.app/library", "Go to Library", "white")}</td></tr>
   `;
 

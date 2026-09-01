@@ -71,13 +71,22 @@ export default function TermsOfServicePage() {
             listing for a second pressing, but an old cap is never reopened.
           </p>
 
-          <h2>4. Beat licenses</h2>
+          <h2 id="beat-licenses">4. Beat licenses</h2>
           <p>
             A beat purchase grants a single, non-exclusive license to use that beat commercially — in recordings,
             performances, and monetized streaming — for as long as you own the entitlement. It does not transfer
             copyright in the beat itself: the producer keeps ownership and may continue selling the same beat to
             other buyers unless a listing explicitly says otherwise. You may not resell, redistribute, or re-license
             the beat file itself as a standalone product.
+          </p>
+          <p>
+            <strong>Producer Agreement.</strong> Before publishing a beat, a producer must confirm they own it, or
+            have the rights to license it, and that any samples used have been cleared for commercial use — XOLDOUT
+            relies on this confirmation and does not independently verify it. By publishing, a producer authorizes
+            XOLDOUT to list and promote the beat, collect payment on their behalf, deduct the platform commission,
+            pay out the remainder, issue the license described above to buyers, and — if a valid copyright claim is
+            upheld (Section 7) — remove the listing and refund affected buyers. A producer who publishes a beat they
+            don&apos;t have the rights to is solely responsible for any resulting claim.
           </p>
 
           <h2>5. Selling on XOLDOUT</h2>

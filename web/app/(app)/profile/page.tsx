@@ -10,6 +10,7 @@ import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 import { SalesMilestoneSheet } from "@/components/profile/SalesMilestoneSheet";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const FEEDBACK_REASONS = [
   { value: "BUG" as const, label: "Something's broken" },
@@ -79,7 +80,7 @@ export default function ProfilePage() {
       .then(setStats);
   }, [appUser]);
 
-  if (!appUser) return null;
+  if (!appUser) return <LoadingSpinner full size="lg" />;
 
   return (
     <div className="pb-8">

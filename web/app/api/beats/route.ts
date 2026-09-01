@@ -22,6 +22,12 @@ const createSchema = z
     bpm: z.number().int().positive().optional(),
     musicalKey: z.string().max(10).optional(),
     tags: z.array(z.string().max(24)).max(8).default([]),
+    // Required every publish, even for a returning producer — this is a
+    // per-beat ownership/rights confirmation, not the one-time Producer
+    // Agreement acceptance below (User.producerAgreementAcceptedAt).
+    ownershipConfirmed: z.literal(true, {
+      message: "You must confirm you own or have the rights to license this beat before publishing.",
+    }),
   })
   .refine((b) => b.previewEndSec > b.previewStartSec, { message: "previewEndSec must exceed previewStartSec" })
   .refine((b) => b.previewEndSec <= b.durationSec, { message: "preview window exceeds beat duration" });
@@ -58,12 +64,22 @@ export async function POST(req: NextRequest) {
               bpm: body.bpm,
               musicalKey: body.musicalKey,
               tags: body.tags,
+              ownershipConfirmedAt: new Date(),
             },
           },
           stockPolicy: { create: { cap: body.cap } },
         },
         include: { beat: true, stockPolicy: true },
       });
+
+      // One-time — only set on the very first beat a producer ever
+      // publishes; every later publish still requires the per-beat
+      // ownershipConfirmedAt above, but the agreement itself is accepted once.
+      await tx.user.updateMany({
+        where: { id: user.id, producerAgreementAcceptedAt: null },
+        data: { producerAgreementAcceptedAt: new Date() },
+      });
+
       return created;
     });
 

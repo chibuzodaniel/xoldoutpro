@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { MINIMUM_WITHDRAWAL_KOBO } from "@/lib/commerce/constants";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type PayoutAccount = { id: string; bankName: string; accountNumber: string; accountName: string; isDefault: boolean };
 
@@ -22,6 +23,7 @@ export default function WithdrawPage() {
   const [payoutAccountId, setPayoutAccountId] = useState("");
   const [amountNaira, setAmountNaira] = useState("");
   const [busy, setBusy] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -35,6 +37,7 @@ export default function WithdrawPage() {
         setAccounts(list);
         setPayoutAccountId(list.find((a: PayoutAccount) => a.isDefault)?.id ?? list[0]?.id ?? "");
       }
+      setLoaded(true);
     }
     load();
   }, []);
@@ -70,7 +73,9 @@ export default function WithdrawPage() {
     }
   }
 
-  if (accounts.length === 0 && availableKobo !== null) {
+  if (!loaded) return <LoadingSpinner full size="lg" />;
+
+  if (accounts.length === 0) {
     return (
       <div className="pb-6">
         <BackHeader title="Withdraw" />

@@ -12,6 +12,7 @@ import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
@@ -127,7 +128,7 @@ export default function EditProfilePage() {
     router.push("/login");
   }
 
-  if (!appUser) return null;
+  if (!appUser) return <LoadingSpinner full size="lg" />;
 
   return (
     <div className="pb-10">

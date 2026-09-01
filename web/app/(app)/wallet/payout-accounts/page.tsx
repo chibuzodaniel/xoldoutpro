@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type Bank = { code: string; name: string };
 type PayoutAccount = {
@@ -66,6 +67,8 @@ export default function PayoutAccountsPage() {
     <div className="pb-6">
       <BackHeader title="Payout accounts" />
       <div className="px-4">
+
+      {accounts === null && <LoadingSpinner full size="md" />}
 
       {accounts && accounts.length > 0 && (
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-8">

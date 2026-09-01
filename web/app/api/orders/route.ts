@@ -131,6 +131,7 @@ export async function POST(req: NextRequest) {
             productTitle: product.title,
             priceKobo: 0,
             ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
+            productType: product.type,
           }).catch((err) => console.error("order confirmation email failed", err));
         }
 

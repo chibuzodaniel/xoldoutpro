@@ -9,6 +9,7 @@ import { WaveformScrubber } from "@/components/upload/WaveformScrubber";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import Link from "next/link";
 
 type AudioState = {
   status: "idle" | "uploading" | "ready" | "error";
@@ -48,6 +49,7 @@ export default function UploadBeatPage() {
   const [previewLength, setPreviewLength] = useState<30 | 50 | "custom">(30);
   const [previewLengthCustomSec, setPreviewLengthCustomSec] = useState(30);
   const [previewStartSec, setPreviewStartSec] = useState(0);
+  const [ownershipConfirmed, setOwnershipConfirmed] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -109,6 +111,7 @@ export default function UploadBeatPage() {
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
       return toast.error("Enter a valid limited quantity");
     }
+    if (!ownershipConfirmed) return toast.error("Confirm you own or have the rights to license this beat first");
 
     const length = effectivePreviewLength(audio.durationSec, previewLength, previewLengthCustomSec);
 
@@ -129,6 +132,7 @@ export default function UploadBeatPage() {
         bpm: bpm ? parseInt(bpm, 10) : undefined,
         musicalKey: musicalKey || undefined,
         tags,
+        ownershipConfirmed,
       };
 
       const res = await apiFetch("/api/beats", { method: "POST", body: JSON.stringify(payload) });
@@ -431,9 +435,25 @@ export default function UploadBeatPage() {
           </div>
         </div>
 
+        <label className="flex items-start gap-2.5 rounded-lg border border-line-soft p-3 text-xs text-ink-2">
+          <input
+            type="checkbox"
+            checked={ownershipConfirmed}
+            onChange={(e) => setOwnershipConfirmed(e.target.checked)}
+            className="mt-0.5 shrink-0"
+          />
+          <span>
+            I own this beat, or have the rights to license it — including any samples used — and agree to XOLDOUT&apos;s{" "}
+            <Link href="/legal/terms" className="text-red-soft font-semibold">
+              Producer Agreement
+            </Link>
+            .
+          </span>
+        </label>
+
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || !ownershipConfirmed}
           className="rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
           {submitting ? "Publishing…" : "Publish"}

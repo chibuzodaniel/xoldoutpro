@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type Creator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
@@ -48,7 +49,7 @@ export default function SearchPage() {
         />
       </div>
 
-      {loading && <p className="text-sm text-ink-3">Searching…</p>}
+      {loading && <LoadingSpinner size="sm" />}
 
       {!queryTooShort && creators.length > 0 && (
         <div className="mb-7">
