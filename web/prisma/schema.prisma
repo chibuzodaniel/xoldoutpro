@@ -546,6 +546,10 @@ model Entitlement {
   order     Order     @relation(fields: [orderId], references: [id])
   createdAt DateTime  @default(now())
   revokedAt DateTime? // set only by a refund
+  // Long-press "Pin" action (Library) — pinned items sort first. A
+  // timestamp rather than a boolean, matching this schema's convention
+  // elsewhere, so "most recently pinned first" is free without extra state.
+  pinnedAt  DateTime?
 
   checkIn         TicketCheckIn?
   collectionItems CollectionItem[]

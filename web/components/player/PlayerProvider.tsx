@@ -45,6 +45,10 @@ type PlayerState = {
   // anywhere to go; Release playback passes the full tracklist so skip
   // controls have real siblings to move through.
   play: (track: PlayableTrack, queue?: PlayableTrack[]) => void;
+  // Inserts after whatever's currently playing rather than replacing the
+  // queue — see the implementation's own comment for why this differs from
+  // play().
+  playNext: (tracks: PlayableTrack[]) => void;
   togglePlay: () => void;
   seek: (sec: number) => void;
   cycleRepeat: () => void;
@@ -191,6 +195,30 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     playRef.current = play;
   }, [play]);
+
+  // Long-press "Play next" (Library) — inserts without touching whatever's
+  // already playing, unlike play() which always replaces the queue and
+  // starts fresh. Falls back to a normal play() when nothing's playing yet,
+  // since "next" has no meaning with an empty queue. Tracks already present
+  // later in the queue aren't duplicated.
+  const playNext = useCallback(
+    (tracks: PlayableTrack[]) => {
+      if (tracks.length === 0) return;
+      const { current: cur, queueIndex: idx } = guardRef.current;
+      if (!cur) {
+        play(tracks[0], tracks);
+        return;
+      }
+      setQueue((currentQueue) => {
+        const existingIds = new Set(currentQueue.map((t) => t.trackId));
+        const toInsert = tracks.filter((t) => !existingIds.has(t.trackId));
+        if (toInsert.length === 0) return currentQueue;
+        const insertAt = idx + 1;
+        return [...currentQueue.slice(0, insertAt), ...toInsert, ...currentQueue.slice(insertAt)];
+      });
+    },
+    [play],
+  );
 
   useEffect(() => {
     const audio = new Audio();
@@ -584,6 +612,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         volume,
         remoteSupported,
         play,
+        playNext,
         togglePlay,
         seek,
         cycleRepeat,
