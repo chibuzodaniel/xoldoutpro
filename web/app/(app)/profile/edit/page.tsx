@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signOut } from "firebase/auth";
 import { useAuth, type SocialLink } from "@/components/auth/AuthProvider";
 import { firebaseAuth } from "@/lib/firebase/client";
@@ -326,6 +327,14 @@ export default function EditProfilePage() {
       </form>
 
       <div className="px-4 max-w-sm mx-auto mt-8">
+        <Link
+          href="/verification"
+          className="flex items-center justify-between rounded-lg border border-line px-4 py-3.5 text-sm font-semibold mb-8"
+        >
+          {appUser.isVerified ? "Verification" : "Get verified"}
+          <span className="text-ink-3">›</span>
+        </Link>
+
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
         <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
           <div>

@@ -701,4 +701,25 @@ User was testing a real withdrawal (still showing "Processing" — expected, giv
 - **Also added live auto-refresh**: while the detail sheet is open on a `PROCESSING` payout, it polls `GET /api/wallet` every 10s and re-derives the displayed payout from the refreshed list — so if the new payout-completion webhook (previous entry) flips it to `PAID`/`FAILED` while the user is sitting on the sheet, it updates in place rather than requiring a close-and-reopen. Polling stops the instant the sheet closes or the status leaves `PROCESSING` (checked via a cleanup-guarded `useEffect`, not a page-wide interval).
 - `WalletPage`'s selected-payout state changed from holding a snapshot object to holding just the `id`, re-deriving the actual `Payout` object from `data.payouts` on every render — necessary for the auto-refresh to actually show new data; a snapshot would've frozen the sheet's contents at whatever it looked like when first opened.
 - **Verified**: `tsc --noEmit`/`eslint --max-warnings=0` clean.
+- Committed (`ae7e18f`), pushed, deployed.
+
+## Payout history: status tabs + collapse past 5 (2026-09-01)
+
+Explicit ask: filter payout history by status, show a max of 5 per tab, collapse the rest behind a toggle.
+
+- Tabs are built dynamically from whatever statuses actually appear in the fetched payouts (`STATUS_TAB_ORDER` filtered against `data.payouts`), always led by an "All" tab — so a creator who's never had a failed payout doesn't see an empty "Failed" tab cluttering the row. Falls back to "All" if the currently-selected tab's status stops having any payouts (e.g. the one FAILED payout gets reconciled away) rather than showing a permanently-empty tab.
+- Switching tabs resets back to the first 5 (`selectStatusFilter` clears `historyExpanded`) — "5 max, expand for more" restarts per tab rather than staying expanded across an unrelated filter change.
+- **Known pre-existing limit, not addressed by this change**: `GET /api/wallet` only ever fetches a creator's most recent 20 payouts (`take: 20`). A creator with more than 20 total won't have older ones reachable by any tab — this ask was specifically about presentation (tabs + collapse) of what's already fetched, not about paginating past that server-side cap; flagging in case that becomes the next ask.
+- **Verified**: `tsc --noEmit`/`eslint --max-warnings=0` clean.
+- Committed, pushed.
+
+## Profile page: verification CTA + top-row icon consolidation (2026-09-01)
+
+Series of small, explicit UI asks on `/profile`, applied one at a time as the user reviewed each on the local dev server.
+
+- **"Get Verified" pill next to the username** — a non-verified user now sees a pulsing pill (`Get Verified`, linking to `/verification`) right next to their display name, replacing where `VerifiedBadge` renders once they are verified. Intended to actually prompt action, unlike the old plain list row.
+- **Settings (`/profile/edit`) gained its own "Verification"/"Get verified" row**, placed above the Push Notifications section — added after the old profile-page list row was removed, so a verified user (who only sees a static checkmark next to their name, no link) still has a path back to `/verification`.
+- **Top icon row reorganized**, in the order asked for: Insights and Wallet are both icon+label pills (Wallet replaces what used to be a dead, unlinked decorative shield icon); Install app, Send feedback, and Settings are icon-only buttons. All five now live in the one row next to the avatar; the old "Wallet"/"Install app"/"Send feedback" rows further down the page were removed once each moved up, and the trailing list (which only ever held those two rows plus a moderator-only link) is now conditionally rendered — only shown at all when `appUser.isModerator`, since otherwise it was an empty bordered box with nothing in it.
+- **Flagged, not fixed**: five items (2 pills + 3 icons) in one row next to the avatar may crowd on narrow phone widths — asked the user to check after refreshing rather than guessing at a breakpoint fix.
+- **Verified**: `tsc --noEmit`/`eslint --max-warnings=0` clean after every step.
 - **Not committed yet** — awaiting the user's go-ahead.

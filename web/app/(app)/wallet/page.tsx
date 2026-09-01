@@ -177,9 +177,19 @@ function PayoutDetailSheet({
   );
 }
 
+const HISTORY_PAGE_SIZE = 5;
+const STATUS_TAB_ORDER = ["PROCESSING", "PAID", "FAILED", "PENDING"];
+
 export default function WalletPage() {
   const [data, setData] = useState<WalletData | null>(null);
   const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+
+  function selectStatusFilter(status: string) {
+    setStatusFilter(status);
+    setHistoryExpanded(false); // switching tabs re-collapses back to the first 5, same as opening the page fresh
+  }
 
   useEffect(() => {
     async function load() {
@@ -273,26 +283,86 @@ export default function WalletPage() {
         {data.payouts.length === 0 ? (
           <p className="text-sm text-ink-3">No payouts yet.</p>
         ) : (
-          <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-            {data.payouts.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => setSelectedPayoutId(p.id)}
-                className="flex items-center justify-between py-2.5 text-sm text-left w-full"
-              >
-                <div>
-                  <p>{naira(p.netKobo)}</p>
-                  <p className="text-[11px] text-ink-3">
-                    {p.payoutAccount.bankName} ···{p.payoutAccount.accountNumber.slice(-4)}
-                  </p>
-                </div>
-                <span className={`text-[11px] uppercase tracking-widest font-semibold ${statusMeta(p.status).className}`}>
-                  {statusMeta(p.status).label}
-                </span>
-              </button>
-            ))}
-          </div>
+          <>
+            {(() => {
+              const presentStatuses = STATUS_TAB_ORDER.filter((s) => data.payouts.some((p) => p.status === s));
+              const tabs = ["ALL", ...presentStatuses];
+              // A status the current filter points at can disappear entirely
+              // (e.g. the only FAILED payout gets refunded/reclassified) —
+              // fall back to ALL rather than showing an empty tab forever.
+              const activeFilter = tabs.includes(statusFilter) ? statusFilter : "ALL";
+              const filtered = activeFilter === "ALL" ? data.payouts : data.payouts.filter((p) => p.status === activeFilter);
+              const visible = historyExpanded ? filtered : filtered.slice(0, HISTORY_PAGE_SIZE);
+              const hiddenCount = filtered.length - visible.length;
+
+              return (
+                <>
+                  {tabs.length > 1 && (
+                    <div className="flex items-center gap-2 mb-3 overflow-x-auto">
+                      {tabs.map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => selectStatusFilter(t)}
+                          className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                            activeFilter === t
+                              ? "border-red text-red-soft bg-red/10"
+                              : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
+                          }`}
+                        >
+                          {t === "ALL" ? "All" : statusMeta(t).label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {filtered.length === 0 ? (
+                    <p className="text-sm text-ink-3">Nothing here.</p>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+                      {visible.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setSelectedPayoutId(p.id)}
+                          className="flex items-center justify-between py-2.5 text-sm text-left w-full"
+                        >
+                          <div>
+                            <p>{naira(p.netKobo)}</p>
+                            <p className="text-[11px] text-ink-3">
+                              {p.payoutAccount.bankName} ···{p.payoutAccount.accountNumber.slice(-4)}
+                            </p>
+                          </div>
+                          <span className={`text-[11px] uppercase tracking-widest font-semibold ${statusMeta(p.status).className}`}>
+                            {statusMeta(p.status).label}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {hiddenCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setHistoryExpanded(true)}
+                      className="mt-3 w-full text-center text-xs font-semibold text-red-soft"
+                    >
+                      Show {hiddenCount} more
+                    </button>
+                  )}
+                  {historyExpanded && filtered.length > HISTORY_PAGE_SIZE && (
+                    <button
+                      type="button"
+                      onClick={() => setHistoryExpanded(false)}
+                      className="mt-3 w-full text-center text-xs font-semibold text-ink-3"
+                    >
+                      Show less
+                    </button>
+                  )}
+                </>
+              );
+            })()}
+          </>
         )}
       </div>
       </div>
