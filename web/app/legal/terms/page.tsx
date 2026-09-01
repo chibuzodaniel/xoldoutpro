@@ -55,14 +55,14 @@ export default function TermsOfServicePage() {
           </ul>
           <p>
             We investigate reports of infringing or abusive content and may remove it, take down the associated
-            listing, or suspend the responsible account, as described in Section 6.
+            listing, or suspend the responsible account, as described in Section 7.
           </p>
 
           <h2>3. Buying on XOLDOUT</h2>
           <p>
             Prices are shown in Nigerian Naira and paid through our payment processor, Bachs. Once a purchase
             completes, you get a permanent entitlement to that release, beat, or ticket — purchases of digital goods
-            are final, except where a listing is taken down for a valid copyright claim (Section 6), in which case
+            are final, except where a listing is taken down for a valid copyright claim (Section 7), in which case
             you&apos;re refunded automatically. Physical merchandise is shipped by the seller directly; contact them
             (or XOLDOUT support, if unresponsive) about shipping issues.
           </p>
@@ -71,7 +71,16 @@ export default function TermsOfServicePage() {
             listing for a second pressing, but an old cap is never reopened.
           </p>
 
-          <h2>4. Selling on XOLDOUT</h2>
+          <h2>4. Beat licenses</h2>
+          <p>
+            A beat purchase grants a single, non-exclusive license to use that beat commercially — in recordings,
+            performances, and monetized streaming — for as long as you own the entitlement. It does not transfer
+            copyright in the beat itself: the producer keeps ownership and may continue selling the same beat to
+            other buyers unless a listing explicitly says otherwise. You may not resell, redistribute, or re-license
+            the beat file itself as a standalone product.
+          </p>
+
+          <h2>5. Selling on XOLDOUT</h2>
           <p>
             You&apos;re responsible for the accuracy of everything you list — pricing, availability, and, for
             physical merchandise, actually shipping what was ordered. XOLDOUT takes a <strong>{COMMISSION_PERCENT}%
@@ -84,14 +93,14 @@ export default function TermsOfServicePage() {
             corresponding amount is deducted from your wallet.
           </p>
 
-          <h2>5. Verification badges</h2>
+          <h2>6. Verification badges</h2>
           <p>
             Verification badges (Identity, Seller, Creator, Official, Business, Fanbase) are optional and reviewed by
             XOLDOUT moderators. Approval isn&apos;t guaranteed, and a badge may be suspended or revoked if the
             information behind it turns out to be false or the account violates these Terms.
           </p>
 
-          <h2>6. Reports, moderation, and enforcement</h2>
+          <h2>7. Reports, moderation, and enforcement</h2>
           <p>
             Anyone can report content or an account for violating these Terms. We review reports and may, at our
             discretion: dismiss the report, remove content, take down a listing and refund affected buyers (for
@@ -99,26 +108,26 @@ export default function TermsOfServicePage() {
             don&apos;t guarantee any particular outcome or timeline.
           </p>
 
-          <h2>7. Fanbase groups</h2>
+          <h2>8. Fanbase groups</h2>
           <p>
             Fanbase groups are private, request-to-join communities. Group creators are responsible for who they
             admit and what happens in their group, subject to these Terms and XOLDOUT&apos;s moderation.
           </p>
 
-          <h2>8. Account deletion</h2>
+          <h2>9. Account deletion</h2>
           <p>
             You can delete your account at any time from Edit Profile. This signs you out of every device
             immediately. You have 45 days to recover it by signing back in; after that it becomes permanently
             disabled and can only be restored by a XOLDOUT moderator.
           </p>
 
-          <h2>9. Termination</h2>
+          <h2>10. Termination</h2>
           <p>
             We may suspend or terminate your access to the Service if you violate these Terms, misuse the Service,
             or where required by law. You may stop using the Service, and delete your account, at any time.
           </p>
 
-          <h2>10. Disclaimers and limitation of liability</h2>
+          <h2>11. Disclaimers and limitation of liability</h2>
           <p>
             The Service is provided &quot;as is.&quot; We don&apos;t guarantee it will be uninterrupted, error-free,
             or that any particular sale, payout, or verification outcome will occur. To the fullest extent permitted
@@ -126,17 +135,17 @@ export default function TermsOfServicePage() {
             the Service.
           </p>
 
-          <h2>11. Changes to these Terms</h2>
+          <h2>12. Changes to these Terms</h2>
           <p>
             We may update these Terms as the Service changes. If we make a material change, we&apos;ll update the
             effective date above and, where appropriate, notify you. Continuing to use the Service after a change
             means you accept the updated Terms.
           </p>
 
-          <h2>12. Governing law</h2>
+          <h2>13. Governing law</h2>
           <p>These Terms are governed by the laws of the Federal Republic of Nigeria.</p>
 
-          <h2>13. Contact us</h2>
+          <h2>14. Contact us</h2>
           <p>
             Questions about these Terms? Email us at <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
           </p>

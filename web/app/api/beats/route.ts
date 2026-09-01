@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { generatePreviewClip } from "@/lib/audio/generatePreviewClip";
+
+export const maxDuration = 120; // trimming a real preview clip (ffmpeg), mirrors the ingest route's own limit
 
 const createSchema = z
   .object({
@@ -28,6 +31,10 @@ export async function POST(req: NextRequest) {
     const { user } = await requireUser(req);
     const body = createSchema.parse(await req.json());
 
+    // Cut before the DB write, not inside the transaction below — this is
+    // R2 + ffmpeg I/O that shouldn't hold a database connection open.
+    const previewAudioKey = await generatePreviewClip(user.id, body.audioStreamKey, body.previewStartSec, body.previewEndSec);
+
     const product = await db.$transaction(async (tx) => {
       const created = await tx.product.create({
         data: {
@@ -43,6 +50,7 @@ export async function POST(req: NextRequest) {
               coverImageLadder: body.coverImageLadder,
               audioMasterUrl: body.audioMasterKey,
               audioStreamUrl: body.audioStreamKey,
+              previewAudioUrl: previewAudioKey,
               waveformPeaksUrl: body.waveformPeaksKey,
               durationSec: body.durationSec,
               previewStartSec: body.previewStartSec,

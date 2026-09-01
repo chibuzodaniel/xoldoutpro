@@ -8,7 +8,9 @@ import { presignDownload } from "@/lib/storage/r2";
 // master file, not just an unrestricted stream of the same preview
 // rendition — a beat purchase is a license to the actual file, not just
 // unlocked in-app playback. Signed-out visitors can preview too (entitled
-// forced false, so they only ever get the trimmed stream, never the master).
+// forced false), and — see that route's own comment for the fuller story —
+// now only ever get `previewAudioUrl`, a real short clip physically trimmed
+// at publish time, never the full-length stream or the master.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await getOptionalUser(req);
@@ -38,12 +40,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ url, entitled: true, previewStartSec: null, previewEndSec: null });
     }
 
-    const url = await presignDownload(product.beat.audioStreamUrl, 300);
+    // Rows published before previewAudioUrl existed fall back to the old
+    // (unsafe) full-stream behavior until backfilled — see
+    // /api/internal/backfill-preview-clips.
+    const usingRealPreviewClip = Boolean(product.beat.previewAudioUrl);
+    const keyToSign = product.beat.previewAudioUrl ?? product.beat.audioStreamUrl;
+    const url = await presignDownload(keyToSign, 300);
     return NextResponse.json({
       url,
       entitled: false,
-      previewStartSec: product.beat.previewStartSec,
-      previewEndSec: product.beat.previewEndSec,
+      previewStartSec: usingRealPreviewClip ? 0 : product.beat.previewStartSec,
+      previewEndSec: usingRealPreviewClip
+        ? product.beat.previewEndSec - product.beat.previewStartSec
+        : product.beat.previewEndSec,
     });
   } catch (err) {
     console.error(err);

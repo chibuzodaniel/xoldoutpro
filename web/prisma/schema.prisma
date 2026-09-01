@@ -481,7 +481,8 @@ model Track {
   title            String
   description      String?
   audioMasterUrl   String // original upload, retained for download entitlement
-  audioStreamUrl   String? // transcoded streaming rendition; null until worker finishes
+  audioStreamUrl   String? // transcoded full-length rendition; only ever served to an entitled listener
+  previewAudioUrl  String? // real server-trimmed clip covering only [previewStartSec, previewEndSec) — the only thing a non-entitled request can ever receive. Null on rows published before this existed; those fall back to audioStreamUrl until backfilled (see /api/internal/backfill-preview-clips)
   waveformPeaksUrl String? // server-generated peak JSON; null until worker finishes
   previewStartSec  Float
   previewEndSec    Float
@@ -493,14 +494,16 @@ model Track {
 
 // A beat purchase grants a single flat license (buyout-style — full
 // commercial rights forever, DECISIONS.md); no lease/exclusive tiers.
-// Reuses the same audio pipeline as Track: audioStreamUrl is the pre-purchase
-// preview rendition, audioMasterUrl is what presignDownload serves after buy.
+// Reuses the same audio pipeline as Track: previewAudioUrl (a real trimmed
+// clip, not the full track) is what a non-buyer hears, audioMasterUrl is
+// what presignDownload serves after buy.
 model Beat {
   productId        String   @id
   product          Product  @relation(fields: [productId], references: [id])
   coverImageLadder Json
   audioMasterUrl   String
   audioStreamUrl   String?
+  previewAudioUrl  String? // see Track.previewAudioUrl's comment — same fallback story for pre-existing rows
   waveformPeaksUrl String?
   previewStartSec  Float
   previewEndSec    Float
