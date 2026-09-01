@@ -1,0 +1,22 @@
+name: Sweep expired checkout holds
+
+# Vercel's Hobby plan only allows a once/day cron, far less often than the
+# ~10-minute stock-hold release the PRD calls for (see
+# web/app/api/internal/sweep-holds/route.ts's own comment) — this workflow
+# fills that gap by hitting the same endpoint every 10 minutes instead,
+# using a secret dedicated to this purpose (EXTERNAL_CRON_SECRET) so
+# Vercel's own daily cron and CRON_SECRET are untouched.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call sweep-holds endpoint
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${{ secrets.EXTERNAL_CRON_SECRET }}" \
+            https://www.xoldout.app/api/internal/sweep-holds

@@ -16,15 +16,19 @@ const HOLD_MINUTES = 10;
  * (Vercel's own convention: an env var of that exact name gets auto-attached
  * as `Authorization: Bearer`).
  *
- * Known gap: the Hobby plan caps crons at once/day, so this currently runs
- * far less often than the ~10-minute target — an abandoned hold can sit for
- * up to 24h instead of ~10min before its stock is released. Fix by moving
- * to Pro (unlocks per-minute schedules) or an external scheduler hitting
- * this same URL more often; the secret check doesn't care which triggers it.
+ * Fixed: the Hobby plan caps Vercel's own crons at once/day, far less often
+ * than the ~10-minute target — an abandoned hold could sit for up to 24h
+ * instead of ~10min before its stock was released. Rather than wait on a
+ * Pro-plan upgrade, a GitHub Actions workflow (.github/workflows/
+ * sweep-holds.yml) now hits this same URL every 10 minutes using a second,
+ * purpose-built secret (EXTERNAL_CRON_SECRET) — kept separate from
+ * CRON_SECRET so Vercel's own daily cron (and its auto-attached bearer
+ * token) needed no changes.
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const validSecrets = [process.env.CRON_SECRET, process.env.EXTERNAL_CRON_SECRET].filter(Boolean);
+  if (!validSecrets.some((secret) => authHeader === `Bearer ${secret}`)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
