@@ -29,7 +29,14 @@ async function bachs<T>(path: string, init?: RequestInit): Promise<T> {
   });
   const body = await res.json();
   if (!res.ok) {
-    throw new Error(`Bachs error (${path}): ${body?.error?.message ?? body?.message ?? res.statusText}`);
+    // The full body is logged (not just a guessed .error.message/.message
+    // field) because a real failure on /v1/payouts came back with neither —
+    // whatever shape Bachs actually used for that error was silently
+    // swallowed into a bare "Bad Request" (res.statusText), with nothing to
+    // diagnose from. Stringify defensively since `body` is untyped JSON.
+    const message = body?.error?.message ?? body?.message ?? res.statusText;
+    console.error(`Bachs error (${path}) — full response body:`, JSON.stringify(body));
+    throw new Error(`Bachs error (${path}): ${message}`);
   }
   return body;
 }
