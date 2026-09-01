@@ -6,6 +6,7 @@ import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { useToast } from "@/components/ui/ToastProvider";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Link from "next/link";
 
 export default function ResetPasswordPage() {
@@ -99,8 +100,7 @@ function ResetPasswordForm() {
           <>
             {email && <p className="text-sm text-ink-3 mb-6">Set a new password for {email}.</p>}
             <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-              <input
-                type="password"
+              <PasswordInput
                 required
                 minLength={6}
                 placeholder="New password"
@@ -108,8 +108,7 @@ function ResetPasswordForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
               />
-              <input
-                type="password"
+              <PasswordInput
                 required
                 minLength={6}
                 placeholder="Confirm new password"

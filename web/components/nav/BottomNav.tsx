@@ -55,6 +55,7 @@ const NO_NAV_EXACT = new Set(["/login", "/signup", "/onboarding", "/unsubscribe"
 function hasBottomNav(pathname: string) {
   if (NO_NAV_EXACT.has(pathname)) return false;
   if (pathname.startsWith("/u/")) return false;
+  if (pathname.startsWith("/legal/")) return false;
   return true;
 }
 

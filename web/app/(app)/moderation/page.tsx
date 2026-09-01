@@ -5,6 +5,7 @@ import Link from "next/link";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -1178,8 +1179,7 @@ function ModeratorLoginForm() {
             onChange={(e) => setEmail(e.target.value)}
             className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
-          <input
-            type="password"
+          <PasswordInput
             required
             placeholder="Password"
             value={password}

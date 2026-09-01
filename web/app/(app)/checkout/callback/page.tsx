@@ -33,6 +33,14 @@ function formatOrderDate(iso: string) {
 
 const PENDING_STEPS = ["Processing payment…", "Verifying with bank", "Payment confirmation"];
 
+// If the webhook that actually confirms payment (PRD §16) is slow or never
+// arrives, the buyer shouldn't be stuck watching a spinner forever — after
+// this long, swap to a message that lets them leave the page instead of
+// silently trusting it'll resolve. Polling itself keeps running in the
+// background regardless, so a late webhook still flips the page to PAID/
+// FAILED on its own if the buyer stays.
+const CONFIRMATION_TIMEOUT_MS = 45_000;
+
 function OrderDetailsCard({ reference, date, method }: { reference: string | null; date: string | null; method: string | null }) {
   if (!reference && !date && !method) return null;
   const rows = [
@@ -138,10 +146,15 @@ function CheckoutCallbackInner() {
   const [paymentDate, setPaymentDate] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [timedOut, setTimedOut] = useState(false);
+  const noOrder = !orderId;
 
   useEffect(() => {
     if (!orderId) return;
     let cancelled = false;
+    const timeoutId = setTimeout(() => {
+      if (!cancelled) setTimedOut(true);
+    }, CONFIRMATION_TIMEOUT_MS);
 
     async function poll() {
       const res = await apiFetch(`/api/orders/${orderId}`);
@@ -184,6 +197,7 @@ function CheckoutCallbackInner() {
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, [orderId]);
 
@@ -204,7 +218,20 @@ function CheckoutCallbackInner() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-16 text-center gap-5">
-      {status === "LOADING" || status === "PENDING" ? (
+      {noOrder ? (
+        <>
+          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red/15 text-red-soft">
+            <WarningIcon />
+          </span>
+          <div>
+            <h1 className="font-serif text-3xl mb-1">Order not found</h1>
+            <p className="text-sm text-ink-3">We couldn&apos;t find an order to confirm. Check your library — the purchase may have already gone through.</p>
+          </div>
+          <button onClick={() => router.push("/library")} className="rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white">
+            Go to Library
+          </button>
+        </>
+      ) : (status === "LOADING" || status === "PENDING") && !timedOut ? (
         <>
           <span className="relative flex h-16 w-16 items-center justify-center">
             <span className="absolute inset-0 rounded-full bg-red/20 blur-xl" aria-hidden />
@@ -232,6 +259,38 @@ function CheckoutCallbackInner() {
                 </div>
               ))}
             </div>
+          </div>
+        </>
+      ) : status === "LOADING" || status === "PENDING" ? (
+        <>
+          <span className="relative flex h-16 w-16 items-center justify-center">
+            <span className="absolute inset-0 rounded-full bg-red/10 blur-xl" aria-hidden />
+            <span className="relative h-16 w-16 animate-spin rounded-full border-[3px] border-red/15 border-t-red/60" aria-hidden />
+          </span>
+
+          <div>
+            <h1 className="font-serif text-3xl mb-1">Still processing</h1>
+            <p className="text-sm text-ink-3">
+              This is taking longer than usual. It&apos;ll finish confirming in the background — you don&apos;t need to stay on
+              this page.
+            </p>
+          </div>
+
+          {priceKobo > 0 && <p className="font-serif text-3xl font-semibold">{formatNaira(priceKobo)}</p>}
+
+          <OrderDetailsCard reference={reference} date={paymentDate} method={paymentMethod} />
+
+          <div className="flex flex-col items-center gap-3 w-full max-w-xs mt-1">
+            <button onClick={() => router.push("/library")} className="w-full rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white">
+              Check my Library
+            </button>
+            <button
+              onClick={() => setSupportOpen(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-line px-6 py-3 text-sm font-semibold text-ink-2"
+            >
+              <SupportIcon />
+              Contact Support
+            </button>
           </div>
         </>
       ) : status === "PAID" ? (
@@ -343,19 +402,19 @@ function CheckoutCallbackInner() {
               Contact Support
             </button>
           </div>
-
-          {productId && (
-            <ReportSheet
-              open={supportOpen}
-              onClose={() => setSupportOpen(false)}
-              targetType="PRODUCT"
-              targetId={productId}
-              reasons={[{ value: "BUG", label: "Payment issue" }]}
-              title="Contact Support"
-              detailsPlaceholder={`Tell us what happened with order ${reference ?? orderId}`}
-            />
-          )}
         </>
+      )}
+
+      {productId && (
+        <ReportSheet
+          open={supportOpen}
+          onClose={() => setSupportOpen(false)}
+          targetType="PRODUCT"
+          targetId={productId}
+          reasons={[{ value: "BUG", label: "Payment issue" }]}
+          title="Contact Support"
+          detailsPlaceholder={`Tell us what happened with order ${reference ?? orderId}`}
+        />
       )}
     </div>
   );

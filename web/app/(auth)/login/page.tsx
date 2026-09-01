@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import { useToast } from "@/components/ui/ToastProvider";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -172,8 +173,7 @@ function LoginForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
               />
-              <input
-                type="password"
+              <PasswordInput
                 required
                 placeholder="Password"
                 value={password}

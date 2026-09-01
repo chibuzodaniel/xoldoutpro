@@ -13,6 +13,7 @@ import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import Link from "next/link";
 
 function CheckCircleIcon() {
@@ -179,8 +180,7 @@ export default function SignupPage() {
             onChange={(e) => setEmail(e.target.value)}
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
-          <input
-            type="password"
+          <PasswordInput
             required
             minLength={6}
             placeholder="Password"
@@ -270,7 +270,17 @@ export default function SignupPage() {
           )}
         </div>
 
-        <p className="mt-4 text-[11px] text-ink-3">Join thousands of artists building their empire with Xoldout.</p>
+        <p className="mt-4 text-[11px] text-ink-3">
+          By signing up, you agree to our{" "}
+          <Link href="/legal/terms" className="text-red-soft font-semibold">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/legal/privacy" className="text-red-soft font-semibold">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </div>
     </main>
   );
