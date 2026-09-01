@@ -46,8 +46,57 @@ function statusMeta(status: string) {
   return STATUS_META[status] ?? { label: status, className: "text-ink-3" };
 }
 
-function PayoutDetailSheet({ payout, onClose }: { payout: Payout | null; onClose: () => void }) {
+// Bachs documents no delivery SLA for a payout — showing a countdown to a
+// promised time we don't actually have would just be a lie that stalls at
+// 0:00 if the bank takes longer. Elapsed time is the one thing about this
+// that's always true, so that's what ticks — paired with a live poll so the
+// sheet updates in place the moment the real status actually changes,
+// instead of the visitor having to close and reopen it to find out.
+function ElapsedTimer({ since }: { since: string }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const elapsedSec = Math.max(0, Math.floor((now - new Date(since).getTime()) / 1000));
+  const h = Math.floor(elapsedSec / 3600);
+  const m = Math.floor((elapsedSec % 3600) / 60);
+  const s = elapsedSec % 60;
+  const label = h > 0 ? `${h}h ${m}m` : m > 0 ? `${m}m ${s}s` : `${s}s`;
+
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-xl border border-line bg-surface p-4 mb-5">
+      <span className="relative flex h-2 w-2 shrink-0">
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber opacity-75" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-amber" />
+      </span>
+      <span className="font-mono text-sm text-ink-2">Processing for {label}</span>
+    </div>
+  );
+}
+
+function PayoutDetailSheet({
+  payout,
+  onClose,
+  onRefresh,
+}: {
+  payout: Payout | null;
+  onClose: () => void;
+  onRefresh: () => void;
+}) {
   const status = payout ? statusMeta(payout.status) : null;
+
+  // Polls while this specific sheet is open on a still-in-flight payout —
+  // stops the moment it closes or the status leaves PROCESSING, so this
+  // never runs as a background drain on/off the wallet page.
+  useEffect(() => {
+    if (!payout || payout.status !== "PROCESSING") return;
+    const id = setInterval(onRefresh, 10_000);
+    return () => clearInterval(id);
+  }, [payout, onRefresh]);
+
   return (
     <div
       className={`fixed inset-0 z-50 flex items-end transition-colors duration-300 ${
@@ -106,7 +155,12 @@ function PayoutDetailSheet({ payout, onClose }: { payout: Payout | null; onClose
               </p>
             )}
             {payout.status === "PROCESSING" && (
-              <p className="text-xs text-ink-3 mb-5">Your bank usually receives this within a few minutes to a few hours.</p>
+              <>
+                <ElapsedTimer since={payout.createdAt} />
+                <p className="text-xs text-ink-3 mb-5 -mt-3">
+                  Usually a few minutes to a few hours — this updates on its own once it&apos;s sent.
+                </p>
+              </>
             )}
 
             <button
@@ -125,7 +179,7 @@ function PayoutDetailSheet({ payout, onClose }: { payout: Payout | null; onClose
 
 export default function WalletPage() {
   const [data, setData] = useState<WalletData | null>(null);
-  const [selectedPayout, setSelectedPayout] = useState<Payout | null>(null);
+  const [selectedPayoutId, setSelectedPayoutId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -134,6 +188,17 @@ export default function WalletPage() {
     }
     load();
   }, []);
+
+  // Re-derived from `data` on every render rather than kept as its own
+  // snapshot — see the polling effect in PayoutDetailSheet below, which
+  // needs this object to actually change (not just the sheet's open/closed
+  // state) once a background refresh picks up a status change.
+  const selectedPayout = data?.payouts.find((p) => p.id === selectedPayoutId) ?? null;
+
+  async function refreshWallet() {
+    const res = await apiFetch("/api/wallet");
+    if (res.ok) setData(await res.json());
+  }
 
   if (!data) {
     return (
@@ -213,7 +278,7 @@ export default function WalletPage() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setSelectedPayout(p)}
+                onClick={() => setSelectedPayoutId(p.id)}
                 className="flex items-center justify-between py-2.5 text-sm text-left w-full"
               >
                 <div>
@@ -232,7 +297,7 @@ export default function WalletPage() {
       </div>
       </div>
 
-      <PayoutDetailSheet payout={selectedPayout} onClose={() => setSelectedPayout(null)} />
+      <PayoutDetailSheet payout={selectedPayout} onClose={() => setSelectedPayoutId(null)} onRefresh={refreshWallet} />
     </div>
   );
 }
