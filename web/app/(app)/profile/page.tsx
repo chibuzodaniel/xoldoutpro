@@ -142,30 +142,6 @@ export default function ProfilePage() {
               </svg>
               Wallet
             </Link>
-            <button
-              type="button"
-              onClick={installGuide.open}
-              className="h-8 w-8 rounded-lg border border-line flex items-center justify-center text-ink-2"
-              aria-label="Install app"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
-                <path d="M12 3v12m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" strokeLinecap="round" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setFeedbackOpen(true)}
-              className="h-8 w-8 rounded-lg border border-line flex items-center justify-center text-ink-2"
-              aria-label="Send feedback"
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4">
-                <path d="M21 11.5a8.5 8.5 0 01-8.5 8.5c-1.2 0-2.3-.25-3.3-.7L4 20l.9-4.5A8.5 8.5 0 1121 11.5z" strokeLinecap="round" strokeLinejoin="round" />
-                <circle cx="8.5" cy="11.5" r="0.9" fill="currentColor" stroke="none" />
-                <circle cx="12" cy="11.5" r="0.9" fill="currentColor" stroke="none" />
-                <circle cx="15.5" cy="11.5" r="0.9" fill="currentColor" stroke="none" />
-              </svg>
-            </button>
             <Link
               href="/profile/edit"
               className="h-8 w-8 rounded-lg border border-line flex items-center justify-center text-ink-2"
@@ -225,6 +201,33 @@ export default function ProfilePage() {
         </div>
 
         {appUser.bio && <p className="text-sm text-ink-2 mb-6 max-w-md">{appUser.bio}</p>}
+
+        <div className="flex items-center gap-2 mb-6">
+          <button
+            type="button"
+            onClick={installGuide.open}
+            className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-3.5 w-3.5">
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" strokeLinecap="round" />
+            </svg>
+            Install app
+          </button>
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-3.5 w-3.5">
+              <path d="M21 11.5a8.5 8.5 0 01-8.5 8.5c-1.2 0-2.3-.25-3.3-.7L4 20l.9-4.5A8.5 8.5 0 1121 11.5z" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="8.5" cy="11.5" r="0.9" fill="currentColor" stroke="none" />
+              <circle cx="12" cy="11.5" r="0.9" fill="currentColor" stroke="none" />
+              <circle cx="15.5" cy="11.5" r="0.9" fill="currentColor" stroke="none" />
+            </svg>
+            Send feedback
+          </button>
+        </div>
 
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Your Catalog</h2>
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-6">
