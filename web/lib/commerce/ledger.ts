@@ -5,13 +5,13 @@ import { db } from "@/lib/db";
 // quote the same number in its own copy without duplicating it. Re-exported
 // too, so every existing `from "@/lib/commerce/ledger"` import of
 // COMMISSION_RATE elsewhere in the app keeps working unchanged.
-import { COMMISSION_RATE } from "@/lib/commerce/constants";
-export { COMMISSION_RATE };
+import { COMMISSION_RATE, commissionRateFor } from "@/lib/commerce/constants";
+export { COMMISSION_RATE, commissionRateFor };
 
 // 7-day pending->available window, tied to the same-length refund window
-// (DECISIONS.md). Only recordSale reads COMMISSION_RATE — recordRefund
-// below reverses whatever was actually charged on a given order, not
-// today's rate, so past sales made under an old rate stay correct.
+// (DECISIONS.md). Only recordSale reads commissionRateFor()/COMMISSION_RATE —
+// recordRefund below reverses whatever was actually charged on a given order,
+// not today's rate, so past sales made under an old rate (or type) stay correct.
 //
 // Explicit ask, 2026-08-31, "for now": the hold itself is deactivated —
 // recordSale below no longer sets a future availableAt, so a sale is
@@ -33,14 +33,14 @@ export const SETTLEMENT_WINDOW_DAYS = 7;
  */
 export async function recordSale(
   tx: Prisma.TransactionClient,
-  args: { sellerId: string; orderId: string; grossKobo: number },
+  args: { sellerId: string; orderId: string; grossKobo: number; productType: "RELEASE" | "BEAT" | "EVENT" | "MERCH" },
 ) {
   // Settlement hold deactivated for launch (see SETTLEMENT_WINDOW_DAYS's own
   // comment) — revert to
   // `new Date(Date.now() + SETTLEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)`
   // to bring the 7-day hold back.
   const availableAt: Date | null = null;
-  const commissionKobo = Math.round(args.grossKobo * COMMISSION_RATE);
+  const commissionKobo = Math.round(args.grossKobo * commissionRateFor(args.productType));
 
   await tx.walletLedgerEntry.createMany({
     data: [

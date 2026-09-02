@@ -8,7 +8,8 @@ export const metadata: Metadata = {
 };
 
 // Draft content covering XOLDOUT's actual policies as built this session
-// (12% commission, ₦1,000 minimum withdrawal, sold-out-stays-sold-out caps,
+// (12% commission on music/beats/merch, 5% on ticket sales, ₦1,000 minimum
+// withdrawal, sold-out-stays-sold-out caps,
 // 45-day account recovery, copyright takedown + refund path, Bachs as
 // payment/payout processor). Starting point, not legal advice — have a
 // lawyer review before treating it as final, and fill in a real
@@ -16,6 +17,7 @@ export const metadata: Metadata = {
 const EFFECTIVE_DATE = "September 1, 2026";
 const SUPPORT_EMAIL = "support@xoldout.app";
 const COMMISSION_PERCENT = 12;
+const EVENT_COMMISSION_PERCENT = 5;
 const MIN_WITHDRAWAL_NAIRA = 1000;
 
 export default function TermsOfServicePage() {
@@ -93,7 +95,8 @@ export default function TermsOfServicePage() {
           <p>
             You&apos;re responsible for the accuracy of everything you list — pricing, availability, and, for
             physical merchandise, actually shipping what was ordered. XOLDOUT takes a <strong>{COMMISSION_PERCENT}%
-            commission</strong> on each sale; the remainder is credited to your XOLDOUT wallet.
+            commission</strong> on music, beat, and merchandise sales, and a <strong>{EVENT_COMMISSION_PERCENT}%
+            commission</strong> on ticket sales; the remainder is credited to your XOLDOUT wallet.
           </p>
           <p>
             You can withdraw your wallet balance to a linked bank account at any time, subject to a minimum

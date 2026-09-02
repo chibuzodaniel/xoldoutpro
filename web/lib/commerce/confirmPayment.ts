@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { confirmStock, releaseReservation } from "@/lib/commerce/stock";
-import { recordSale, getWalletBalances, COMMISSION_RATE } from "@/lib/commerce/ledger";
+import { recordSale, getWalletBalances, commissionRateFor } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificationEmail } from "@/lib/email";
@@ -109,7 +109,12 @@ export async function finalizePayment(
       }
     }
     await confirmStock(productId, tx);
-    await recordSale(tx, { sellerId: product.creatorId, orderId: payment.orderId, grossKobo: payment.amountKobo });
+    await recordSale(tx, {
+      sellerId: product.creatorId,
+      orderId: payment.orderId,
+      grossKobo: payment.amountKobo,
+      productType: product.type,
+    });
   });
 
   const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });
@@ -144,7 +149,7 @@ export async function finalizePayment(
     });
 
     const { availableKobo, pendingKobo } = await getWalletBalances(product.creatorId);
-    const netKobo = payment.amountKobo - Math.round(payment.amountKobo * COMMISSION_RATE);
+    const netKobo = payment.amountKobo - Math.round(payment.amountKobo * commissionRateFor(product.type));
     void sendSaleNotificationEmail({
       to: product.creator.email,
       productTitle: product.title,

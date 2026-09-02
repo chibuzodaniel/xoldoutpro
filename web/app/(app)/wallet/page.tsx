@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { BackHeader } from "@/components/ui/BackHeader";
-import { COMMISSION_RATE } from "@/lib/commerce/constants";
+import { COMMISSION_RATE, EVENT_COMMISSION_RATE } from "@/lib/commerce/constants";
 
 type WalletData = {
   availableKobo: number;
@@ -229,7 +229,8 @@ export default function WalletPage() {
         <p className="font-serif text-3xl">{naira(data.availableKobo)}</p>
       </div>
       <p className="text-[11px] text-ink-3 mb-3">
-        Totals shown are after our {Math.round(COMMISSION_RATE * 100)}% platform fee on each sale.
+        Totals shown are after our platform fee — {Math.round(COMMISSION_RATE * 100)}% on music, beats, and merch;{" "}
+        {Math.round(EVENT_COMMISSION_RATE * 100)}% on ticket sales.
       </p>
 
       <div className="grid grid-cols-2 gap-3 mb-6">
