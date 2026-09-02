@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ProfileHeaderRow } from "@/components/profile/ProfileHeaderRow";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
+import { EventCard } from "@/components/product/EventCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { buildOgMetadata } from "@/lib/og";
@@ -68,7 +69,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   const user = await db.user.findUnique({ where: { handle } });
   if (!user) notFound();
 
-  const [catalog, fansCount, salesAgg] = await Promise.all([
+  const [catalog, events, fansCount, salesAgg] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: {
@@ -79,6 +80,14 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
       },
       orderBy: { publishedAt: "desc" },
+    }),
+    // Events are their own model (one Product per ticket tier, not one per
+    // event — DECISIONS.md), so they never come back from the Product query
+    // above and need their own fetch, same shape as Discover's.
+    db.event.findMany({
+      where: { creatorId: user.id, status: "PUBLISHED" },
+      include: { tiers: { select: { product: { select: { priceKobo: true, stockPolicy: true } } } } },
+      orderBy: { startsAt: "asc" },
     }),
     db.follow.count({ where: { followedId: user.id } }),
     db.stockPolicy.aggregate({ where: { product: { creatorId: user.id } }, _sum: { sold: true } }),
@@ -153,8 +162,27 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           </div>
         )}
 
-        {catalog.length > 0 && (
+        {(catalog.length > 0 || events.length > 0) && (
           <div className="mt-2 flex flex-col gap-6">
+            {events.length > 0 && (
+              <div>
+                <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">Events</h2>
+                <div className="grid grid-cols-3 gap-3">
+                  {events.map((ev) => (
+                    <EventCard
+                      key={ev.id}
+                      event={{
+                        id: ev.id,
+                        title: ev.title,
+                        coverImageLadder: ev.coverImageLadder,
+                        startsAt: ev.startsAt,
+                        tiers: ev.tiers.map((t) => ({ priceKobo: t.product.priceKobo, stockPolicy: t.product.stockPolicy })),
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
             {CATALOG_SECTIONS.map(({ types, label }) => {
               const items = catalog.filter((p) => types.includes(p.type));
               if (items.length === 0) return null;
