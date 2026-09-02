@@ -6,7 +6,9 @@ import { apiFetch } from "@/lib/api";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
+import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestInfo } from "@/lib/useGuestCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
+import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = {
@@ -45,6 +47,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   const [busy, setBusy] = useState(false);
   const [gifting, setGifting] = useState(false);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
+  const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
   const isThisTrack = player.current?.trackId === productId && player.current?.kind === "beat";
   const isPlaying = isThisTrack && player.isPlaying;
@@ -86,23 +89,21 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   }
 
   async function handleBuy() {
-    if (!firebaseUser) {
-      router.push("/login");
-      return;
-    }
     setBusy(true);
     try {
+      const guest: GuestInfo | undefined = firebaseUser ? undefined : await pickGuestInfo();
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, gateway }) });
+      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, guest, gateway }) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
+      if (data.customToken) await completeGuestSignIn(data.customToken);
       if (data.free) {
         await loadAccess();
       } else {
         router.push(data.checkoutUrl);
       }
     } catch (err) {
-      if (err instanceof GatewayPickerCancelled) return;
+      if (err instanceof GatewayPickerCancelled || err instanceof GuestInfoCancelled) return;
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
@@ -197,6 +198,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       )}
 
       <GatewayPickerSheet open={gatewaySheetOpen} onSelect={handleGatewaySelect} onClose={closeGatewaySheet} />
+      <GuestInfoSheet open={guestInfoSheetOpen} onSubmit={handleGuestInfoSubmit} onClose={closeGuestInfoSheet} />
     </div>
   );
 }

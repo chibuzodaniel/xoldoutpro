@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
+import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestInfo } from "@/lib/useGuestCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
+import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
 
 type Props = { productId: string; priceKobo: number; shippingFeeKobo: number; isSoldOut: boolean };
@@ -49,6 +51,8 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
+  const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
+  const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
   const totalKobo = priceKobo * quantity + shippingFeeKobo;
 
   const [recipientName, setRecipientName] = useState("");
@@ -72,10 +76,14 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
-  function handleStart() {
+  async function handleStart() {
     if (!firebaseUser) {
-      router.push("/login");
-      return;
+      try {
+        setGuestInfo(await pickGuestInfo());
+      } catch (err) {
+        if (err instanceof GuestInfoCancelled) return;
+        throw err;
+      }
     }
     setShowForm(true);
   }
@@ -91,6 +99,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
           productId,
           quantity,
           gateway,
+          guest: guestInfo ?? undefined,
           shipping: {
             recipientName,
             phone,
@@ -103,6 +112,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
+      if (data.customToken) await completeGuestSignIn(data.customToken);
       if (data.free) {
         await load();
         setShowForm(false);
@@ -157,34 +167,37 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
 
   if (!showForm) {
     return (
-      <div className="flex flex-col gap-2">
-        {pastOrders}
-        <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-lg border border-line shrink-0">
-            <button
-              type="button"
-              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-              disabled={quantity <= 1}
-              aria-label="Fewer"
-              className="w-9 h-full py-3 text-ink-2 disabled:opacity-30"
-            >
-              −
-            </button>
-            <span className="w-6 text-center text-sm font-semibold">{quantity}</span>
-            <button type="button" onClick={() => setQuantity((q) => q + 1)} aria-label="More" className="w-9 h-full py-3 text-ink-2">
-              +
+      <>
+        <div className="flex flex-col gap-2">
+          {pastOrders}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-line shrink-0">
+              <button
+                type="button"
+                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                disabled={quantity <= 1}
+                aria-label="Fewer"
+                className="w-9 h-full py-3 text-ink-2 disabled:opacity-30"
+              >
+                −
+              </button>
+              <span className="w-6 text-center text-sm font-semibold">{quantity}</span>
+              <button type="button" onClick={() => setQuantity((q) => q + 1)} aria-label="More" className="w-9 h-full py-3 text-ink-2">
+                +
+              </button>
+            </div>
+            <button onClick={handleStart} className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white">
+              {formatNaira(priceKobo * quantity)}
             </button>
           </div>
-          <button onClick={handleStart} className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white">
-            {formatNaira(priceKobo * quantity)}
-          </button>
+          {shippingFeeKobo > 0 && (
+            <p className="text-xs text-ink-3">
+              {formatNairaPlain(priceKobo * quantity)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
+            </p>
+          )}
         </div>
-        {shippingFeeKobo > 0 && (
-          <p className="text-xs text-ink-3">
-            {formatNairaPlain(priceKobo * quantity)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
-          </p>
-        )}
-      </div>
+        <GuestInfoSheet open={guestInfoSheetOpen} onSubmit={handleGuestInfoSubmit} onClose={closeGuestInfoSheet} />
+      </>
     );
   }
 
@@ -252,6 +265,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       </button>
       </form>
       <GatewayPickerSheet open={gatewaySheetOpen} onSelect={handleGatewaySelect} onClose={closeGatewaySheet} />
+      <GuestInfoSheet open={guestInfoSheetOpen} onSubmit={handleGuestInfoSubmit} onClose={closeGuestInfoSheet} />
     </>
   );
 }

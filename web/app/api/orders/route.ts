@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser, AuthError } from "@/lib/auth/session";
+import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
 import { initializePayment as initializeFlutterwavePayment } from "@/lib/flutterwave";
@@ -9,6 +9,8 @@ import { initializePayment as initializeBachsPayment } from "@/lib/bachs";
 import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
+import { resolveGuestBuyer, sendGuestAccountSetupEmail } from "@/lib/commerce/guestCheckout";
+import { adminAuth } from "@/lib/firebase/admin";
 
 const shippingSchema = z.object({
   recipientName: z.string().min(1).max(120),
@@ -20,10 +22,20 @@ const shippingSchema = z.object({
   country: z.string().min(1).max(60).default("Nigeria"),
 });
 
+// Collected only when there's no Firebase session at all (guest checkout —
+// "do not force a customer to create an account or log in before
+// purchasing"). Name/email only, matching the doc's own minimal-checkout
+// requirement — no username/password/profile step.
+const guestSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  email: z.string().trim().toLowerCase().email(),
+});
+
 const bodySchema = z.object({
   productId: z.string().min(1),
   shipping: shippingSchema.optional(),
   isGift: z.boolean().optional(),
+  guest: guestSchema.optional(),
   // Ticket/merch group buys (explicit ask). Capped at 20 per checkout — a
   // sane real-world ceiling (matches common ticketing sites' per-order
   // limits), not a stock/business rule; raise it if that turns out too low.
@@ -45,8 +57,32 @@ const MULTI_UNIT_TYPES = new Set(["EVENT", "MERCH"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { user: buyer } = await requireUser(req);
-    const { productId, shipping, isGift = false, quantity, gateway } = bodySchema.parse(await req.json());
+    const { productId, shipping, isGift = false, guest, quantity, gateway } = bodySchema.parse(await req.json());
+
+    // No Firebase session at all → guest checkout: resolve (or silently
+    // create) a real, passwordless account for the email given at checkout,
+    // rather than a bespoke "no account" order shape — see
+    // lib/commerce/guestCheckout.ts for why. A brand-new account gets a
+    // Firebase custom token back in the response so the client can sign the
+    // browser straight into it (components/checkout/GuestInfoSheet.tsx),
+    // landing on the exact same authenticated Library/download pipeline
+    // every other buyer uses.
+    const optionalUser = await getOptionalUser(req);
+    let buyer;
+    let customToken: string | null = null;
+    if (optionalUser) {
+      buyer = optionalUser;
+    } else {
+      if (!guest) {
+        return NextResponse.json({ error: "Sign in, or provide your name and email to continue as a guest" }, { status: 401 });
+      }
+      const { user, isNewAccount } = await resolveGuestBuyer(guest);
+      buyer = user;
+      if (isNewAccount) {
+        customToken = await adminAuth().createCustomToken(user.firebaseUid);
+        void sendGuestAccountSetupEmail(user);
+      }
+    }
 
     // Sellable types are added here as each one's purchase flow ships
     // (Beat/Merch now; Event has its own tier-as-Product purchase path).
@@ -161,7 +197,7 @@ export async function POST(req: NextRequest) {
           }).catch((err) => console.error("order confirmation email failed", err));
         }
 
-        return NextResponse.json({ free: true, orderId: order.id }, { status: 201 });
+        return NextResponse.json({ free: true, orderId: order.id, customToken }, { status: 201 });
       } catch (err) {
         await releaseReservation(productId, quantity);
         throw err;
@@ -209,14 +245,13 @@ export async function POST(req: NextRequest) {
                 title: product.title,
               });
 
-      return NextResponse.json({ orderId: order.id, checkoutUrl }, { status: 201 });
+      return NextResponse.json({ orderId: order.id, checkoutUrl, customToken }, { status: 201 });
     } catch (err) {
       await releaseReservation(productId, quantity);
       console.error(err);
       return NextResponse.json({ error: "Could not start checkout" }, { status: 502 });
     }
   } catch (err) {
-    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
     console.error(err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

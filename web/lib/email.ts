@@ -168,6 +168,29 @@ export async function sendWelcomeEmail(input: { to: string; profileUrl: string }
   return sendEmail({ to: input.to, subject: "Your XOLDOUT account is live.", html: shell(body) });
 }
 
+// ─── 01b · Guest checkout account ────────────────────────────────────────
+// Sent once, right when a guest checkout creates the passwordless account
+// their purchase is held under (lib/commerce/guestCheckout.ts) — this is
+// the guest-checkout flow's account-conversion moment (PRD: "encourage
+// account creation" without blocking access to what was just bought). The
+// buyer is already signed into the browser they checked out on via a
+// Firebase custom token by the time this lands; the only thing missing is a
+// way back in from anywhere else, which is exactly what setting a password
+// gives them.
+export async function sendGuestAccountEmail(input: { to: string; buyerName: string; setPasswordUrl: string }): Promise<boolean> {
+  const body = `
+    <tr><td style="padding:48px 40px 8px;text-align:center;">
+      ${iconCircle("X", C.red)}
+      <div style="color:${C.white};font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:10px;">Your purchase is saved to a XOLDOUT account.</div>
+      <div style="color:${C.body};font-size:14px;line-height:22px;max-width:420px;margin:0 auto 32px;">
+        Hey ${escapeHtml(input.buyerName)} — you're already signed in on the device you checked out on, so there's nothing else to do right now. Set a password whenever you're ready to sign in from anywhere else, follow artists, and see everything you've bought in one library.
+      </div>
+    </td></tr>
+    <tr><td style="padding:0 40px 40px;text-align:center;">${button(input.setPasswordUrl, "Set a password")}</td></tr>
+  `;
+  return sendEmail({ to: input.to, subject: "Your XOLDOUT account is ready", html: shell(body) });
+}
+
 // ─── 02/03 · Order confirmation (paid or free) ──────────────────────────
 type TicketInfo = {
   checkInCode: string;
