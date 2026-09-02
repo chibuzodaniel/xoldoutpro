@@ -783,7 +783,7 @@ Explicit ask: "everything user has uploaded should be available in the users pro
 - **`app/u/[handle]/page.tsx`**: added a second query, `db.event.findMany({ where: { creatorId: user.id, status: "PUBLISHED" }, include: { tiers: ... } })`, run alongside the existing `Product` query. New "Events" section (rendered first, above Music & Beats and Merch) maps each event into `EventCard`, identical shape to Discover's own usage.
 - **Verified live**: seeded a real published event for the test account (throwaway `tsx` script against the local dev DB, deleted after) and confirmed it rendered under a new "Events" heading on `/u/chibuzodaniel71`, alongside the existing sections. Test data cleaned up after.
 - **Verified**: `tsc --noEmit`/`eslint` both clean.
-- Not committed yet — awaiting the user's go-ahead, same standing rule as every other feature.
+- Committed (`4cbce8a`), pushed.
 
 ## Notification tap now opens a detail modal (2026-09-02)
 
@@ -794,7 +794,7 @@ Explicit ask: "when a user click on any notification it should bring up a modal 
 - **Also fixed in passing**: `NotificationsSheet`'s local `NotificationKind` type/`KIND_COLOR` map was missing `PAYOUT_PAID` (added to `lib/notifications/create.ts` earlier this session, in the payout-webhook work) — a `PAYOUT_PAID` notification would have rendered with an `undefined` color class. Added it, plus a new `KIND_LABEL` map (used by the detail sheet's kind badge) covering all six kinds.
 - **`useEffect(() => { if (!open) setSelected(null); ... })` tripped the same `react-hooks/set-state-in-effect` rule** as the Library `loadLibrary` fix earlier this session — same fix, wrapping the call in a locally-defined function (`closeDetail()`) rather than calling `setSelected` directly at the effect body's top level.
 - **Verified**: `tsc --noEmit`/`eslint` both clean. **Not live-tested in the browser** — the local dev DB's connection pool was stuck in the same flaky state noted elsewhere this session (`P1017`/`ConnectionClosed` from the Postgres driver adapter, persisting across a full dev-server restart), and Discover (the only screen mounting the notification bell) wouldn't load. Confidence instead comes from: no new data dependencies (pure client-side state), the identical nested-sheet pattern already working in production as `PayoutDetailSheet`, and the `stopPropagation` bug above being caught by rereading the code rather than by a live click.
-- Not committed yet — awaiting the user's go-ahead, same standing rule as every other feature.
+- Committed (`80442b6`), pushed.
 
 ## Ticket/merch group buys — quantity > 1 per checkout (2026-09-02)
 
@@ -814,5 +814,5 @@ RELEASE/BEAT deliberately stay out of scope — a digital single never had a rea
 - **`lib/email.ts`**: `sendOrderConfirmationEmail`'s `ticket?: TicketInfo | null` became `tickets?: TicketInfo[]` — a group buy's confirmation email now embeds one real QR code image (base64 data URI, not a link) per ticket, not just the first.
 - **Verified live** against the real local dev server (not just reasoning about it): seeded a real event + merch item under a second test account, bought 3 tickets in one checkout as the logged-in test user (three distinct QR codes rendered, stock correctly dropped from 10 to 7), bought 2 shirts in one checkout (stock 10 → 8, fulfillment correctly shows "×2"), confirmed the real order-confirmation email fired (a live `RESEND_API_KEY` is configured locally) rather than just checking the code path. All seeded test data deleted afterward via a throwaway `tsx` script.
 - **Verified**: `tsc --noEmit`/`eslint` both clean across every touched file. The pre-existing `stock.test.ts` concurrency tests intermittently failed against the local `prisma dev` embedded Postgres mid-session (a recurring environment flakiness this session, unrelated to this change — required two full `prisma dev` restarts over the course of this feature) — the non-concurrent tests in that same file passed cleanly both times, and the live browser verification above exercises the exact same code path end-to-end.
-- Migration `20260902080000_ticket_merch_quantity` applied to the local dev DB. **Not yet applied to production** — will run automatically on the next deploy via the existing `prisma migrate deploy` build step.
-- Not committed yet — awaiting the user's go-ahead, same standing rule as every other feature.
+- Migration `20260902080000_ticket_merch_quantity` applied to the local dev DB, and to production via the build step's `prisma migrate deploy`.
+- Committed (`f8dedc1`), pushed, deployed.
