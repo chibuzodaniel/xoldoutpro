@@ -178,17 +178,22 @@ export async function sendWelcomeEmail(input: { to: string; profileUrl: string }
 // way back in from anywhere else, which is exactly what setting a password
 // gives them.
 export async function sendGuestAccountEmail(input: { to: string; buyerName: string; setPasswordUrl: string }): Promise<boolean> {
+  const firstName = input.buyerName.trim().split(" ")[0] || input.buyerName;
   const body = `
     <tr><td style="padding:48px 40px 8px;text-align:center;">
       ${iconCircle("X", C.red)}
-      <div style="color:${C.white};font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:10px;">Your purchase is saved to a XOLDOUT account.</div>
-      <div style="color:${C.body};font-size:14px;line-height:22px;max-width:420px;margin:0 auto 32px;">
-        Hey ${escapeHtml(input.buyerName)} — you're already signed in on the device you checked out on, so there's nothing else to do right now. Set a password whenever you're ready to sign in from anywhere else, follow artists, and see everything you've bought in one library.
+      <div style="color:${C.white};font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:20px;">Your XOLDOUT Purchase Is Saved</div>
+      <div style="color:${C.body};font-size:14px;line-height:22px;max-width:420px;margin:0 auto 32px;text-align:left;">
+        <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)},</p>
+        <p style="margin:0 0 16px;">Your purchase is saved and is available on this device.</p>
+        <p style="margin:0 0 16px;">You can continue using XOLDOUT without doing anything else.</p>
+        <p style="margin:0 0 16px;">Want to access your purchase on other devices? Set a password for your account to view your purchase and all your other purchases anywhere.</p>
+        <p style="margin:0;">Thanks for using XOLDOUT.</p>
       </div>
     </td></tr>
     <tr><td style="padding:0 40px 40px;text-align:center;">${button(input.setPasswordUrl, "Set a password")}</td></tr>
   `;
-  return sendEmail({ to: input.to, subject: "Your XOLDOUT account is ready", html: shell(body) });
+  return sendEmail({ to: input.to, subject: "Your XOLDOUT Purchase Is Saved", html: shell(body) });
 }
 
 // ─── 02/03 · Order confirmation (paid or free) ──────────────────────────
