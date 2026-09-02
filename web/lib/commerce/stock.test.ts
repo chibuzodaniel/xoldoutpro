@@ -109,4 +109,39 @@ describe("stock reservation race", () => {
     const results = await Promise.all(Array.from({ length: 10 }, () => reserveStock(productId)));
     expect(results.every((r) => r.ok)).toBe(true);
   });
+
+  // Ticket/merch group buys (quantity > 1) — the WHERE clause checks the
+  // *whole* requested quantity fits under cap in one atomic UPDATE, so this
+  // has to be all-or-nothing, never a partial reservation.
+  it("reserves a whole quantity at once when it fits under cap", async () => {
+    const productId = await makeCappedProduct(5);
+    const result = await reserveStock(productId, 3);
+    expect(result.ok).toBe(true);
+
+    const policy = await db.stockPolicy.findUniqueOrThrow({ where: { productId } });
+    expect(policy.reserved).toBe(3);
+  });
+
+  it("rejects a quantity that doesn't fully fit, reserving none of it", async () => {
+    const productId = await makeCappedProduct(2);
+    const result = await reserveStock(productId, 3);
+    expect(result.ok).toBe(false);
+
+    const policy = await db.stockPolicy.findUniqueOrThrow({ where: { productId } });
+    expect(policy.reserved).toBe(0);
+  });
+
+  it("confirmStock/releaseReservation move and return the full quantity", async () => {
+    const productId = await makeCappedProduct(5);
+    await reserveStock(productId, 3);
+
+    await confirmStock(productId, 2);
+    let policy = await db.stockPolicy.findUniqueOrThrow({ where: { productId } });
+    expect(policy.sold).toBe(2);
+    expect(policy.reserved).toBe(1);
+
+    await releaseReservation(productId, 1);
+    policy = await db.stockPolicy.findUniqueOrThrow({ where: { productId } });
+    expect(policy.reserved).toBe(0);
+  });
 });

@@ -41,12 +41,13 @@ export async function GET(req: NextRequest) {
   let swept = 0;
   for (const payment of stale) {
     const productId = payment.order.items[0]?.productId;
+    const quantity = payment.order.items[0]?.quantity ?? 1;
     if (!productId) continue;
 
     const claim = await db.payment.updateMany({ where: { id: payment.id, status: "INITIATED" }, data: { status: "FAILED" } });
     if (claim.count === 0) continue; // a webhook won the race in the meantime
 
-    await releaseReservation(productId);
+    await releaseReservation(productId, quantity);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
     swept += 1;
   }

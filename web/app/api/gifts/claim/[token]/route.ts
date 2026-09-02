@@ -44,14 +44,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tok
     if (gift.status !== "PENDING") return NextResponse.json({ error: "This gift has already been claimed" }, { status: 409 });
     if (gift.expiresAt < new Date()) return NextResponse.json({ error: "This gift has expired" }, { status: 410 });
 
-    const existing = await db.entitlement.findUnique({
-      where: { userId_productId: { userId: user.id, productId: gift.productId } },
-    });
-    if (existing && !existing.revokedAt) {
-      return NextResponse.json({ error: "You already own this" }, { status: 409 });
-    }
-
     const product = await db.product.findUniqueOrThrow({ where: { id: gift.productId } });
+
+    // EVENT tickets are the one giftable type someone might reasonably
+    // already own a copy of independently (they bought their own ticket,
+    // then also got gifted one) — RELEASE/BEAT stay single-copy.
+    if (product.type !== "EVENT") {
+      const existing = await db.entitlement.findFirst({ where: { userId: user.id, productId: gift.productId } });
+      if (existing && !existing.revokedAt) {
+        return NextResponse.json({ error: "You already own this" }, { status: 409 });
+      }
+    }
 
     const claimed = await db.$transaction(async (tx) => {
       const claim = await tx.gift.updateMany({

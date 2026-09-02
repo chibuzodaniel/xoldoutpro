@@ -16,32 +16,38 @@ type DbClient = typeof db | Prisma.TransactionClient;
 
 export type ReserveResult = { ok: true } | { ok: false; reason: "SOLD_OUT" };
 
-/** Called at checkout initiation, before payment. Reversed by releaseReservation on failure/timeout. */
-export async function reserveStock(productId: string, client: DbClient = db): Promise<ReserveResult> {
+/**
+ * Called at checkout initiation, before payment. Reversed by releaseReservation
+ * on failure/timeout. `quantity` (ticket/merch group buys) is all-or-nothing —
+ * the WHERE clause checks the *whole* quantity fits under cap in the same
+ * atomic UPDATE, so a request for 3 against 1 remaining unit reserves zero,
+ * never a partial 1.
+ */
+export async function reserveStock(productId: string, quantity = 1, client: DbClient = db): Promise<ReserveResult> {
   const rows = await client.$queryRaw<{ productId: string }[]>`
     UPDATE "StockPolicy"
-    SET "reserved" = "reserved" + 1
-    WHERE "productId" = ${productId} AND ("cap" IS NULL OR "sold" + "reserved" < "cap")
+    SET "reserved" = "reserved" + ${quantity}
+    WHERE "productId" = ${productId} AND ("cap" IS NULL OR "sold" + "reserved" + ${quantity} <= "cap")
     RETURNING "productId"
   `;
   return rows.length > 0 ? { ok: true } : { ok: false, reason: "SOLD_OUT" };
 }
 
 /** Called from the payment-success webhook. Converts a reservation into a sale. */
-export async function confirmStock(productId: string, client: DbClient = db): Promise<void> {
+export async function confirmStock(productId: string, quantity = 1, client: DbClient = db): Promise<void> {
   await client.$executeRaw`
     UPDATE "StockPolicy"
-    SET "sold" = "sold" + 1,
-        "reserved" = GREATEST("reserved" - 1, 0),
-        "soldOutAt" = CASE WHEN "cap" IS NOT NULL AND "sold" + 1 >= "cap" THEN now() ELSE "soldOutAt" END
+    SET "sold" = "sold" + ${quantity},
+        "reserved" = GREATEST("reserved" - ${quantity}, 0),
+        "soldOutAt" = CASE WHEN "cap" IS NOT NULL AND "sold" + ${quantity} >= "cap" THEN now() ELSE "soldOutAt" END
     WHERE "productId" = ${productId}
   `;
 }
 
 /** Called on payment failure, or by the expiry sweep for abandoned checkouts (~10min hold). */
-export async function releaseReservation(productId: string, client: DbClient = db): Promise<void> {
+export async function releaseReservation(productId: string, quantity = 1, client: DbClient = db): Promise<void> {
   await client.$executeRaw`
-    UPDATE "StockPolicy" SET "reserved" = GREATEST("reserved" - 1, 0) WHERE "productId" = ${productId}
+    UPDATE "StockPolicy" SET "reserved" = GREATEST("reserved" - ${quantity}, 0) WHERE "productId" = ${productId}
   `;
 }
 

@@ -11,9 +11,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const product = await db.product.findUnique({ where: { id }, include: { beat: true } });
   if (!product || !product.beat) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const entitlement = user
-    ? await db.entitlement.findUnique({ where: { userId_productId: { userId: user.id, productId: id } } })
-    : null;
+  const entitlement = user ? await db.entitlement.findFirst({ where: { userId: user.id, productId: id } }) : null;
   const entitled = Boolean(entitlement && !entitlement.revokedAt);
 
   return NextResponse.json({

@@ -23,9 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     let entitled = false;
     if (user) {
-      const entitlement = await db.entitlement.findUnique({
-        where: { userId_productId: { userId: user.id, productId: id } },
-      });
+      const entitlement = await db.entitlement.findFirst({ where: { userId: user.id, productId: id } });
       entitled = Boolean((entitlement && !entitlement.revokedAt) || product.creatorId === user.id);
 
       // Fire-and-forget play signal for the Socials "suggested" feed ranking

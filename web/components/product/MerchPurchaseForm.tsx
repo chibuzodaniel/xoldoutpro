@@ -11,13 +11,14 @@ import { useToast } from "@/components/ui/ToastProvider";
 type Props = { productId: string; priceKobo: number; shippingFeeKobo: number; isSoldOut: boolean };
 
 type Fulfillment = {
-  status: "TO_SHIP" | "SHIPPED" | "DELIVERED";
-  recipientName: string;
-  addressLine1: string;
+  quantity: number;
+  status: "TO_SHIP" | "SHIPPED" | "DELIVERED" | null;
+  recipientName: string | null;
+  addressLine1: string | null;
   addressLine2: string | null;
-  city: string;
-  state: string;
-  country: string;
+  city: string | null;
+  state: string | null;
+  country: string | null;
   shippingFeeKobo: number;
   shippedAt: string | null;
   trackingInfo: string | null;
@@ -32,23 +33,23 @@ function formatNaira(kobo: number) {
   return `Buy · ${formatNairaPlain(kobo)}`;
 }
 
-const STATUS_LABEL: Record<Fulfillment["status"], string> = {
+const STATUS_LABEL: Record<NonNullable<Fulfillment["status"]>, string> = {
   TO_SHIP: "Preparing to ship",
   SHIPPED: "Shipped",
   DELIVERED: "Delivered",
 };
 
 export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSoldOut }: Props) {
-  const totalKobo = priceKobo + shippingFeeKobo;
   const router = useRouter();
   const toast = useToast();
   const { firebaseUser } = useAuth();
-  const [entitled, setEntitled] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
-  const [fulfillment, setFulfillment] = useState<Fulfillment | null>(null);
+  const [fulfillments, setFulfillments] = useState<Fulfillment[]>([]);
+  const [quantity, setQuantity] = useState(1);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
+  const totalKobo = priceKobo * quantity + shippingFeeKobo;
 
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
@@ -61,9 +62,8 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     const res = await apiFetch(`/api/merch/${productId}/access`);
     if (!res.ok) return;
     const data = await res.json();
-    setEntitled(data.entitled);
     setIsOwner(data.isOwner);
-    setFulfillment(data.fulfillment);
+    setFulfillments(data.fulfillments ?? []);
   }
 
   useEffect(() => {
@@ -89,6 +89,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
         method: "POST",
         body: JSON.stringify({
           productId,
+          quantity,
           gateway,
           shipping: {
             recipientName,
@@ -105,6 +106,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       if (data.free) {
         await load();
         setShowForm(false);
+        setQuantity(1);
       } else {
         router.push(data.checkoutUrl);
       }
@@ -116,45 +118,72 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     }
   }
 
-  if (entitled) {
+  if (isOwner) return null;
+
+  const pastOrders = fulfillments.length > 0 && (
+    <div className="flex flex-col gap-2">
+      {fulfillments.map((f, i) => (
+        <div key={i} className="rounded-lg border border-line bg-surface p-4">
+          <p className="text-sm font-semibold mb-1">
+            You bought this{f.quantity > 1 ? ` · ×${f.quantity}` : ""}.
+          </p>
+          {f.status && (
+            <>
+              <p className="text-xs text-red-soft font-semibold mb-2">{STATUS_LABEL[f.status]}</p>
+              <p className="text-xs text-ink-3">
+                {f.recipientName} · {f.addressLine1}
+                {f.addressLine2 ? `, ${f.addressLine2}` : ""}, {f.city}, {f.state}
+              </p>
+              <p className="text-xs text-ink-3 mt-1">
+                {formatNairaPlain(priceKobo * f.quantity)}
+                {f.shippingFeeKobo > 0 ? ` + ${formatNairaPlain(f.shippingFeeKobo)} shipping` : ""}
+              </p>
+              {f.trackingInfo && <p className="text-xs text-ink-3 mt-1">Tracking: {f.trackingInfo}</p>}
+            </>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  if (isSoldOut) {
     return (
-      <div className="rounded-lg border border-line bg-surface p-4">
-        <p className="text-sm font-semibold mb-1">You bought this.</p>
-        {fulfillment && (
-          <>
-            <p className="text-xs text-red-soft font-semibold mb-2">{STATUS_LABEL[fulfillment.status]}</p>
-            <p className="text-xs text-ink-3">
-              {fulfillment.recipientName} · {fulfillment.addressLine1}
-              {fulfillment.addressLine2 ? `, ${fulfillment.addressLine2}` : ""}, {fulfillment.city}, {fulfillment.state}
-            </p>
-            <p className="text-xs text-ink-3 mt-1">
-              {formatNairaPlain(priceKobo)}
-              {fulfillment.shippingFeeKobo > 0 ? ` + ${formatNairaPlain(fulfillment.shippingFeeKobo)} shipping` : ""}
-            </p>
-            {fulfillment.trackingInfo && <p className="text-xs text-ink-3 mt-1">Tracking: {fulfillment.trackingInfo}</p>}
-          </>
-        )}
+      <div className="flex flex-col gap-2">
+        {pastOrders}
+        <div className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-3 text-center">Sold out</div>
       </div>
     );
   }
 
-  if (isOwner) return null;
-
   if (!showForm) {
     return (
-      <div>
-        {shippingFeeKobo > 0 && !isSoldOut && (
-          <p className="text-xs text-ink-3 mb-2">
-            {formatNairaPlain(priceKobo)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
+      <div className="flex flex-col gap-2">
+        {pastOrders}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-lg border border-line shrink-0">
+            <button
+              type="button"
+              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              disabled={quantity <= 1}
+              aria-label="Fewer"
+              className="w-9 h-full py-3 text-ink-2 disabled:opacity-30"
+            >
+              −
+            </button>
+            <span className="w-6 text-center text-sm font-semibold">{quantity}</span>
+            <button type="button" onClick={() => setQuantity((q) => q + 1)} aria-label="More" className="w-9 h-full py-3 text-ink-2">
+              +
+            </button>
+          </div>
+          <button onClick={handleStart} className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white">
+            {formatNaira(priceKobo * quantity)}
+          </button>
+        </div>
+        {shippingFeeKobo > 0 && (
+          <p className="text-xs text-ink-3">
+            {formatNairaPlain(priceKobo * quantity)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
           </p>
         )}
-        <button
-          onClick={handleStart}
-          disabled={isSoldOut}
-          className="w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-        >
-          {isSoldOut ? "Sold out" : formatNaira(priceKobo)}
-        </button>
       </div>
     );
   }
@@ -162,6 +191,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   return (
     <>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+        {pastOrders}
         <p className="text-[12px] uppercase tracking-widest text-ink-3">Shipping address</p>
       <input
         value={recipientName}
@@ -209,7 +239,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
 
       {shippingFeeKobo > 0 && (
         <p className="text-xs text-ink-3">
-          {formatNairaPlain(priceKobo)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
+          {formatNairaPlain(priceKobo * quantity)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
         </p>
       )}
 

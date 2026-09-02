@@ -30,9 +30,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     let entitled = false;
     if (user) {
       const productId = track.release.productId;
-      const entitlement = await db.entitlement.findUnique({
-        where: { userId_productId: { userId: user.id, productId } },
-      });
+      const entitlement = await db.entitlement.findFirst({ where: { userId: user.id, productId } });
       entitled = Boolean((entitlement && !entitlement.revokedAt) || track.release.product.creatorId === user.id);
     }
 

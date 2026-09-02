@@ -28,7 +28,7 @@ type PaymentForConfirm = {
   orderId: string;
   amountKobo: number;
   processor: string;
-  order: { buyerId: string; isGift: boolean; items: { productId: string }[] };
+  order: { buyerId: string; isGift: boolean; items: { productId: string; quantity: number }[] };
 };
 
 type VerifiedResult = { id: number | string; status: "successful" | "failed" | string; amountKobo: number };
@@ -64,10 +64,11 @@ export async function finalizePayment(
   if (claim.count === 0) return { alreadyProcessed: true };
 
   const productId = payment.order.items[0]?.productId;
+  const quantity = payment.order.items[0]?.quantity ?? 1;
   if (!productId) throw new Error("Order has no items");
 
   if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
-    await releaseReservation(productId);
+    await releaseReservation(productId, quantity);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
 
     const [buyer, failedProduct] = await Promise.all([
@@ -89,7 +90,9 @@ export async function finalizePayment(
 
   const product = await db.product.findUniqueOrThrow({ where: { id: productId }, include: { creator: true } });
 
-  let checkInCode: string | null = null;
+  // Gifts stay quantity 1 (enforced at order-creation time in /api/orders) —
+  // a gift is a single item for a single claimant, never a group buy.
+  const checkInCodes: string[] = [];
   await db.$transaction(async (tx) => {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
     if (payment.order.isGift) {
@@ -100,15 +103,22 @@ export async function finalizePayment(
         data: { productId, giverId: payment.order.buyerId, orderId: payment.orderId, expiresAt: giftExpiresAt() },
       });
     } else {
-      const entitlement = await tx.entitlement.create({
-        data: { userId: payment.order.buyerId, productId, orderId: payment.orderId },
-      });
-      if (product.type === "EVENT") {
-        const checkIn = await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
-        checkInCode = checkIn.code;
+      // One Entitlement per unit, not one Entitlement holding a quantity —
+      // each ticket needs its own independently-scannable check-in code
+      // (explicit ask), and merch has no reason to differ from that same
+      // shape (Library already renders a flat list of entitlements, so N
+      // rows for N units is exactly right, not a special case to handle).
+      for (let i = 0; i < quantity; i++) {
+        const entitlement = await tx.entitlement.create({
+          data: { userId: payment.order.buyerId, productId, orderId: payment.orderId },
+        });
+        if (product.type === "EVENT") {
+          const checkIn = await tx.ticketCheckIn.create({ data: { entitlementId: entitlement.id } });
+          checkInCodes.push(checkIn.code);
+        }
       }
     }
-    await confirmStock(productId, tx);
+    await confirmStock(productId, quantity, tx);
     await recordSale(tx, {
       sellerId: product.creatorId,
       orderId: payment.orderId,
@@ -128,7 +138,7 @@ export async function finalizePayment(
         productTitle: product.title,
         priceKobo: payment.amountKobo,
         processor: payment.processor,
-        ticket: checkInCode ? await buildTicketInfo(productId, checkInCode) : null,
+        tickets: (await Promise.all(checkInCodes.map((code) => buildTicketInfo(productId, code)))).filter((t) => t !== null),
         productType: product.type,
       }).catch((err) => console.error("order confirmation email failed", err));
     }

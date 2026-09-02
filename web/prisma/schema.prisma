@@ -554,7 +554,13 @@ model Entitlement {
   checkIn         TicketCheckIn?
   collectionItems CollectionItem[]
 
-  @@unique([userId, productId])
+  // Was @@unique([userId, productId]) — dropped so a ticket/merch group buy
+  // (quantity > 1, OrderItem.quantity) can create one Entitlement row per
+  // unit for the same user+product, each with its own TicketCheckIn where it
+  // applies. RELEASE/BEAT stay effectively single-entitlement in practice —
+  // enforced by the orders API's "already own this" guard, not by the DB —
+  // since a digital single never had a reason to be bought twice.
+  @@index([userId, productId])
 }
 
 // User-organised groupings of what they own (PRD §10 Phase 2) — a thin
@@ -695,7 +701,14 @@ model OrderItem {
   order     Order   @relation(fields: [orderId], references: [id])
   productId String
   product   Product @relation(fields: [productId], references: [id])
-  priceKobo Int // snapshot at purchase time, independent of later price edits
+  priceKobo Int // per-unit snapshot at purchase time, independent of later price edits
+  // Ticket/merch group buys (EVENT/MERCH only — RELEASE/BEAT stay quantity 1,
+  // enforced in the orders API, not here). One Entitlement is still created
+  // per unit (see Entitlement's own comment), so each ticket keeps its own
+  // check-in code; this field is what confirmStock/reserveStock act on and
+  // what the total charge (priceKobo * quantity + any flat shipping) is
+  // computed from.
+  quantity  Int     @default(1)
 }
 
 enum PaymentStatus {

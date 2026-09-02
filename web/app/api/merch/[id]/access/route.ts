@@ -12,31 +12,42 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const product = await db.product.findUnique({ where: { id }, include: { merchItem: true } });
   if (!product || !product.merchItem) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const entitlement = user
-    ? await db.entitlement.findUnique({
-        where: { userId_productId: { userId: user.id, productId: id } },
-        include: { order: { include: { merchFulfillment: true } } },
+  // A quantity>1 order creates one Entitlement per unit (see schema comment),
+  // all sharing that order's single MerchOrderFulfillment — grouped back down
+  // to one row per *order* here (not per unit) since that's what the buyer
+  // actually sees: one package, one shipping status, however many units it holds.
+  const entitlements = user
+    ? await db.entitlement.findMany({
+        where: { userId: user.id, productId: id, revokedAt: null },
+        include: { order: { include: { merchFulfillment: true, items: true } } },
+        orderBy: { createdAt: "desc" },
       })
-    : null;
-  const entitled = Boolean(entitlement && !entitlement.revokedAt);
-  const fulfillment = entitlement?.order.merchFulfillment ?? null;
+    : [];
+
+  const fulfillmentsByOrderId = new Map<string, (typeof entitlements)[number]>();
+  for (const ent of entitlements) fulfillmentsByOrderId.set(ent.orderId, ent);
+
+  const fulfillments = Array.from(fulfillmentsByOrderId.values()).map((ent) => {
+    const f = ent.order.merchFulfillment;
+    const quantity = ent.order.items.find((i) => i.productId === id)?.quantity ?? 1;
+    return {
+      quantity,
+      status: f?.status ?? null,
+      recipientName: f?.recipientName ?? null,
+      addressLine1: f?.addressLine1 ?? null,
+      addressLine2: f?.addressLine2 ?? null,
+      city: f?.city ?? null,
+      state: f?.state ?? null,
+      country: f?.country ?? null,
+      shippingFeeKobo: f?.shippingFeeKobo ?? 0,
+      shippedAt: f?.shippedAt ?? null,
+      trackingInfo: f?.trackingInfo ?? null,
+    };
+  });
 
   return NextResponse.json({
-    entitled,
+    entitled: entitlements.length > 0,
     isOwner: user ? product.creatorId === user.id : false,
-    fulfillment: fulfillment
-      ? {
-          status: fulfillment.status,
-          recipientName: fulfillment.recipientName,
-          addressLine1: fulfillment.addressLine1,
-          addressLine2: fulfillment.addressLine2,
-          city: fulfillment.city,
-          state: fulfillment.state,
-          country: fulfillment.country,
-          shippingFeeKobo: fulfillment.shippingFeeKobo,
-          shippedAt: fulfillment.shippedAt,
-          trackingInfo: fulfillment.trackingInfo,
-        }
-      : null,
+    fulfillments,
   });
 }

@@ -15,23 +15,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
   if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // A group buy creates one Entitlement per ticket (see schema comment) —
+  // grouped into a list per tier here so the buyer sees every ticket they
+  // hold, not just the most recent.
   const entitlements = user
     ? await db.entitlement.findMany({
         where: { userId: user.id, productId: { in: event.tiers.map((t) => t.productId) }, revokedAt: null },
         include: { checkIn: true },
+        orderBy: { createdAt: "asc" },
       })
     : [];
-  const byProductId = new Map(entitlements.map((e) => [e.productId, e]));
+  const byProductId = new Map<string, typeof entitlements>();
+  for (const ent of entitlements) {
+    const list = byProductId.get(ent.productId) ?? [];
+    list.push(ent);
+    byProductId.set(ent.productId, list);
+  }
 
   return NextResponse.json({
     isOwner: user ? event.creatorId === user.id : false,
     tiers: event.tiers.map((tier) => {
-      const entitlement = byProductId.get(tier.productId);
+      const owned = byProductId.get(tier.productId) ?? [];
       return {
         productId: tier.productId,
-        entitled: Boolean(entitlement),
-        checkInCode: entitlement?.checkIn?.code ?? null,
-        checkedInAt: entitlement?.checkIn?.checkedInAt ?? null,
+        entitled: owned.length > 0,
+        tickets: owned.map((e) => ({ checkInCode: e.checkIn?.code ?? null, checkedInAt: e.checkIn?.checkedInAt ?? null })),
       };
     }),
   });

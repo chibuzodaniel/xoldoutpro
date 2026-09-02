@@ -187,7 +187,10 @@ type OrderConfirmationInput = {
   // Which processor settled this — omitted for a ₦0 order, which never
   // reaches one. Only ever "flutterwave" or "monnify" (Payment.processor).
   processor?: string;
-  ticket?: TicketInfo | null;
+  // One entry per ticket bought in this order (a group buy gets one
+  // independently-scannable code each, not one code shared across seats) —
+  // empty/omitted for anything that isn't an EVENT purchase.
+  tickets?: TicketInfo[];
   // Adds a one-line license disclosure for a beat purchase specifically
   // (Stage 2 of the beat-licensing work, DECISIONS.md) — every other
   // product type is unaffected.
@@ -201,33 +204,36 @@ type OrderConfirmationInput = {
 export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) {
   const isFree = input.priceKobo === 0;
 
-  let ticketHtml = "";
-  if (input.ticket) {
-    // Generated well above the email's 200x200 display size so a recipient
-    // who pinch-zooms or screenshots-and-zooms the email at the door still
-    // gets a scannable, non-blurry code.
-    const qrDataUrl = await QRCode.toDataURL(input.ticket.checkInCode, { margin: 1, width: 512 });
-    const when = input.ticket.startsAt.toLocaleString("en-NG", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
-    const where = input.ticket.isVirtual ? "Virtual event" : (input.ticket.venue ?? "Venue TBA");
-    ticketHtml = `
+  const ticketHtml = (
+    await Promise.all(
+      (input.tickets ?? []).map(async (ticket) => {
+        // Generated well above the email's 200x200 display size so a
+        // recipient who pinch-zooms or screenshots-and-zooms the email at
+        // the door still gets a scannable, non-blurry code.
+        const qrDataUrl = await QRCode.toDataURL(ticket.checkInCode, { margin: 1, width: 512 });
+        const when = ticket.startsAt.toLocaleString("en-NG", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+          hour: "numeric",
+          minute: "2-digit",
+        });
+        const where = ticket.isVirtual ? "Virtual event" : (ticket.venue ?? "Venue TBA");
+        return `
       <tr><td style="padding:0 40px 32px;">
         <div style="background:${C.boxBg};border-radius:10px;padding:24px;text-align:center;">
           <img src="${qrDataUrl}" width="180" height="180" alt="Ticket QR code" style="background:#ffffff;padding:8px;border-radius:8px;" />
-          <p style="margin:18px 0 4px;color:${C.white};font-size:15px;font-weight:700;">${escapeHtml(input.ticket.eventTitle)}</p>
-          <p style="margin:0 0 4px;color:${C.label};font-size:12px;">${escapeHtml(input.ticket.tierName)} ticket</p>
+          <p style="margin:18px 0 4px;color:${C.white};font-size:15px;font-weight:700;">${escapeHtml(ticket.eventTitle)}</p>
+          <p style="margin:0 0 4px;color:${C.label};font-size:12px;">${escapeHtml(ticket.tierName)} ticket</p>
           <p style="margin:0 0 14px;color:${C.label};font-size:12px;">${escapeHtml(when)} &middot; ${escapeHtml(where)}</p>
           <p style="margin:0;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${C.red};font-weight:700;">Show this QR code at the door</p>
-          <p style="margin:8px 0 0;font-family:${MONO};font-size:11px;color:${C.label};">${escapeHtml(input.ticket.checkInCode)}</p>
+          <p style="margin:8px 0 0;font-family:${MONO};font-size:11px;color:${C.label};">${escapeHtml(ticket.checkInCode)}</p>
         </div>
       </td></tr>
     `;
-  }
+      }),
+    )
+  ).join("");
 
   const rows = [
     { label: "Reference ID", value: escapeHtml(input.orderId), mono: true },
@@ -260,9 +266,16 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
     <tr><td style="padding:0 40px 40px;text-align:center;">${button("https://www.xoldout.app/library", "Go to Library", "white")}</td></tr>
   `;
 
+  const firstTicket = input.tickets?.[0];
+  const ticketSubject = !firstTicket
+    ? null
+    : input.tickets!.length > 1
+      ? `Your ${input.tickets!.length} tickets: ${firstTicket.eventTitle}`
+      : `Your ticket: ${firstTicket.eventTitle}`;
+
   await sendEmail({
     to: input.to,
-    subject: input.ticket ? `Your ticket: ${input.ticket.eventTitle}` : `Order confirmed: ${input.productTitle}`,
+    subject: ticketSubject ?? `Order confirmed: ${input.productTitle}`,
     html: shell(body),
   });
 }

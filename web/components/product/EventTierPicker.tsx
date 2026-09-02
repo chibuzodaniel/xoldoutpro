@@ -12,7 +12,8 @@ import { useToast } from "@/components/ui/ToastProvider";
 
 type Tier = { productId: string; name: string; priceKobo: number; isSoldOut: boolean };
 
-type AccessTier = { productId: string; entitled: boolean; checkInCode: string | null; checkedInAt: string | null };
+type OwnedTicket = { checkInCode: string | null; checkedInAt: string | null };
+type AccessTier = { productId: string; entitled: boolean; tickets: OwnedTicket[] };
 
 function formatNaira(kobo: number) {
   if (kobo === 0) return "Get for free";
@@ -27,6 +28,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
   const [isOwner, setIsOwner] = useState(false);
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
   const [giftingProductId, setGiftingProductId] = useState<string | null>(null);
+  const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
 
@@ -49,14 +51,24 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
   useEffect(() => {
     if (!access) return;
     for (const tier of Object.values(access)) {
-      if (tier.checkInCode && !qrDataUrls[tier.checkInCode]) {
-        QRCode.toDataURL(tier.checkInCode, { margin: 1, width: 512 }).then((url) => {
-          setQrDataUrls((cur) => ({ ...cur, [tier.checkInCode as string]: url }));
-        });
+      for (const ticket of tier.tickets) {
+        if (ticket.checkInCode && !qrDataUrls[ticket.checkInCode]) {
+          QRCode.toDataURL(ticket.checkInCode, { margin: 1, width: 512 }).then((url) => {
+            setQrDataUrls((cur) => ({ ...cur, [ticket.checkInCode as string]: url }));
+          });
+        }
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access]);
+
+  function quantityFor(productId: string) {
+    return quantities[productId] ?? 1;
+  }
+
+  function setQuantity(productId: string, qty: number) {
+    setQuantities((cur) => ({ ...cur, [productId]: Math.max(1, qty) }));
+  }
 
   async function handleBuy(productId: string) {
     if (!firebaseUser) {
@@ -67,7 +79,10 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
     try {
       const priceKobo = tiers.find((t) => t.productId === productId)?.priceKobo ?? 0;
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, gateway }) });
+      const res = await apiFetch("/api/orders", {
+        method: "POST",
+        body: JSON.stringify({ productId, quantity: quantityFor(productId), gateway }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.free) {
@@ -115,41 +130,77 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
     <div className="flex flex-col gap-3">
       {tiers.map((tier) => {
         const tierAccess = access[tier.productId];
-        if (tierAccess?.entitled) {
-          const qr = tierAccess.checkInCode ? qrDataUrls[tierAccess.checkInCode] : null;
-          return (
-            <div key={tier.productId} className="rounded-lg border border-line bg-surface p-4 flex items-center gap-4">
-              {qr && <TicketQrCode qrDataUrl={qr} label={`${tier.name} ticket`} thumbnailClassName="h-20 w-20 rounded bg-white p-1" />}
-              <div>
-                <p className="text-sm font-semibold mb-0.5">{tier.name} ticket</p>
-                <p className="text-xs text-red-soft font-semibold">
-                  {tierAccess.checkedInAt ? "Checked in" : "Show this QR code at the door"}
-                </p>
-              </div>
-            </div>
-          );
-        }
+        const owned = tierAccess?.tickets ?? [];
+        const qty = quantityFor(tier.productId);
+
         return (
-          <div key={tier.productId} className="flex gap-2">
-            <button
-              onClick={() => handleBuy(tier.productId)}
-              disabled={busyProductId === tier.productId || tier.isSoldOut}
-              className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-            >
-              {tier.isSoldOut
-                ? `${tier.name} · Sold out`
-                : busyProductId === tier.productId
-                  ? "Starting checkout…"
-                  : `${tier.name} · ${formatNaira(tier.priceKobo)}`}
-            </button>
+          <div key={tier.productId} className="flex flex-col gap-2">
+            {owned.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {owned.map((ticket, i) => {
+                  const qr = ticket.checkInCode ? qrDataUrls[ticket.checkInCode] : null;
+                  return (
+                    <div key={ticket.checkInCode ?? i} className="rounded-lg border border-line bg-surface p-4 flex items-center gap-4">
+                      {qr && <TicketQrCode qrDataUrl={qr} label={`${tier.name} ticket`} thumbnailClassName="h-20 w-20 rounded bg-white p-1" />}
+                      <div>
+                        <p className="text-sm font-semibold mb-0.5">
+                          {tier.name} ticket{owned.length > 1 ? ` #${i + 1}` : ""}
+                        </p>
+                        <p className="text-xs text-red-soft font-semibold">
+                          {ticket.checkedInAt ? "Checked in" : "Show this QR code at the door"}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {!tier.isSoldOut && (
-              <button
-                onClick={() => handleGift(tier.productId)}
-                disabled={giftingProductId === tier.productId}
-                className="shrink-0 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-2 disabled:opacity-50"
-              >
-                {giftingProductId === tier.productId ? "Starting…" : "Gift"}
-              </button>
+              <div className="flex gap-2">
+                <div className="flex items-center rounded-lg border border-line shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(tier.productId, qty - 1)}
+                    disabled={qty <= 1}
+                    aria-label="Fewer"
+                    className="w-9 h-full py-3 text-ink-2 disabled:opacity-30"
+                  >
+                    −
+                  </button>
+                  <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(tier.productId, qty + 1)}
+                    aria-label="More"
+                    className="w-9 h-full py-3 text-ink-2"
+                  >
+                    +
+                  </button>
+                </div>
+                <button
+                  onClick={() => handleBuy(tier.productId)}
+                  disabled={busyProductId === tier.productId}
+                  className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {busyProductId === tier.productId
+                    ? "Starting checkout…"
+                    : `${tier.name} · ${formatNaira(tier.priceKobo * qty)}`}
+                </button>
+                {qty === 1 && (
+                  <button
+                    onClick={() => handleGift(tier.productId)}
+                    disabled={giftingProductId === tier.productId}
+                    className="shrink-0 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-2 disabled:opacity-50"
+                  >
+                    {giftingProductId === tier.productId ? "Starting…" : "Gift"}
+                  </button>
+                )}
+              </div>
+            )}
+            {tier.isSoldOut && owned.length === 0 && (
+              <div className="rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-3 text-center">
+                {tier.name} · Sold out
+              </div>
             )}
           </div>
         );

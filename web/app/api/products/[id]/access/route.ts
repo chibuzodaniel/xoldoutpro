@@ -15,9 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
   if (!product || !product.release) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const entitlement = user
-    ? await db.entitlement.findUnique({ where: { userId_productId: { userId: user.id, productId: id } } })
-    : null;
+  const entitlement = user ? await db.entitlement.findFirst({ where: { userId: user.id, productId: id } }) : null;
   const entitled = Boolean(entitlement && !entitlement.revokedAt);
 
   return NextResponse.json({

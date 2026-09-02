@@ -33,10 +33,12 @@ export async function GET(req: NextRequest) {
         where: { userId: user.id, kind: "PAYOUT_DEBIT" },
         _sum: { amountKobo: true },
       }),
-      db.orderItem.groupBy({
-        by: ["productId"],
+      // findMany + manual reduce, not groupBy's _sum(priceKobo) — priceKobo
+      // is a per-unit snapshot (ticket/merch group buys), so a straight sum
+      // would undercount any order with quantity > 1.
+      db.orderItem.findMany({
         where: { order: { status: "PAID" }, product: { creatorId: user.id } },
-        _sum: { priceKobo: true },
+        select: { productId: true, priceKobo: true, quantity: true },
       }),
       db.payout.findMany({
         where: { userId: user.id },
@@ -57,7 +59,7 @@ export async function GET(req: NextRequest) {
     const byCategory: Record<string, number> = {};
     for (const row of categoryBreakdown) {
       const type = typeById.get(row.productId) ?? "RELEASE";
-      byCategory[type] = (byCategory[type] ?? 0) + (row._sum.priceKobo ?? 0);
+      byCategory[type] = (byCategory[type] ?? 0) + row.priceKobo * row.quantity;
     }
 
     return NextResponse.json({
