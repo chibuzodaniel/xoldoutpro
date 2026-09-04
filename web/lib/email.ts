@@ -11,8 +11,30 @@ export function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => HTML_ESCAPES[c]);
 }
 
+// Embedded via Resend's `content_id` attachment mechanism (confirmed
+// directly against Resend's own API docs, not assumed) — most email
+// clients, Gmail included, block or strip `data:` URI images in HTML email
+// as a spam/security measure, even though every browser renders them fine.
+// A `cid:` reference to a real base64 attachment is the actual supported
+// way to embed an image inline; a `data:` URI silently renders as blank/
+// white in the inbox instead of erroring, which is what made this easy to
+// ship without noticing — everything looked right when previewed as raw
+// HTML in a browser, only failed once a real client with real filtering
+// actually received it.
+export type EmailAttachment = { filename: string; content: string; content_type?: string; content_id?: string };
+
 /** Returns whether the email actually went out — callers that need to tell a user "sent" vs. "something went wrong" check this instead of assuming success. */
-export async function sendEmail({ to, subject, html }: { to: string; subject: string; html: string }): Promise<boolean> {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  attachments,
+}: {
+  to: string;
+  subject: string;
+  html: string;
+  attachments?: EmailAttachment[];
+}): Promise<boolean> {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!apiKey || !from) {
@@ -23,7 +45,7 @@ export async function sendEmail({ to, subject, html }: { to: string; subject: st
     const res = await fetch(RESEND_API_URL, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ from, to, subject, html }),
+      body: JSON.stringify({ from, to, subject, html, attachments }),
     });
     if (!res.ok) {
       console.error("[email] Resend send failed", res.status, await res.text().catch(() => ""));
@@ -232,13 +254,24 @@ type OrderConfirmationInput = {
 export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) {
   const isFree = input.priceKobo === 0;
 
+  // Embedded as real cid: attachments, not data: URIs — see sendEmail's own
+  // comment for why a data: URI silently renders blank in most real inboxes
+  // despite looking fine in any direct-HTML preview.
+  const ticketAttachments: EmailAttachment[] = [];
   const ticketHtml = (
     await Promise.all(
-      (input.tickets ?? []).map(async (ticket) => {
+      (input.tickets ?? []).map(async (ticket, i) => {
         // Generated well above the email's 200x200 display size so a
         // recipient who pinch-zooms or screenshots-and-zooms the email at
         // the door still gets a scannable, non-blurry code.
-        const qrDataUrl = await QRCode.toDataURL(ticket.checkInCode, { margin: 1, width: 512 });
+        const qrBuffer = await QRCode.toBuffer(ticket.checkInCode, { margin: 1, width: 512 });
+        const contentId = `ticket-qr-${i}`;
+        ticketAttachments.push({
+          filename: `${contentId}.png`,
+          content: qrBuffer.toString("base64"),
+          content_type: "image/png",
+          content_id: contentId,
+        });
         const when = ticket.startsAt.toLocaleString("en-NG", {
           day: "numeric",
           month: "short",
@@ -250,7 +283,7 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
         return `
       <tr><td style="padding:0 40px 32px;">
         <div style="background:${C.boxBg};border-radius:10px;padding:24px;text-align:center;">
-          <img src="${qrDataUrl}" width="180" height="180" alt="Ticket QR code" style="background:#ffffff;padding:8px;border-radius:8px;" />
+          <img src="cid:${contentId}" width="180" height="180" alt="Ticket QR code" style="background:#ffffff;padding:8px;border-radius:8px;" />
           <p style="margin:18px 0 4px;color:${C.white};font-size:15px;font-weight:700;">${escapeHtml(ticket.eventTitle)}</p>
           <p style="margin:0 0 4px;color:${C.label};font-size:12px;">${escapeHtml(ticket.tierName)} ticket</p>
           <p style="margin:0 0 14px;color:${C.label};font-size:12px;">${escapeHtml(when)} &middot; ${escapeHtml(where)}</p>
@@ -305,6 +338,7 @@ export async function sendOrderConfirmationEmail(input: OrderConfirmationInput) 
     to: input.to,
     subject: ticketSubject ?? `Order confirmed: ${input.productTitle}`,
     html: shell(body),
+    attachments: ticketAttachments.length > 0 ? ticketAttachments : undefined,
   });
 }
 

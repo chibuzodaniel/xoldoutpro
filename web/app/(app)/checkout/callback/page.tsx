@@ -141,8 +141,8 @@ function CheckoutCallbackInner() {
   const [productTitle, setProductTitle] = useState<string | null>(null);
   const [priceKobo, setPriceKobo] = useState(0);
   const [eventId, setEventId] = useState<string | null>(null);
-  const [ticket, setTicket] = useState<Ticket | null>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const [reference, setReference] = useState<string | null>(null);
   const [paymentDate, setPaymentDate] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string | null>(null);
@@ -171,21 +171,35 @@ function CheckoutCallbackInner() {
       setPaymentDate(payment?.date ?? order.createdAt);
       setPaymentMethod(payment?.method ?? null);
 
-      // The buyer's actual scannable ticket — shown right here instead of
-      // making them click through to the event page to find it.
-      const ticketEntitlement = (entitlements ?? []).find(
-        (e: { product: { type: string }; checkIn: { code: string } | null }) => e.product.type === "EVENT" && e.checkIn,
+      // The buyer's actual scannable ticket(s) — shown right here instead of
+      // making them click through to the event page to find them. A group
+      // buy (quantity > 1) settles as multiple Entitlement rows sharing this
+      // orderId, each with its own check-in code — every one of them needs
+      // its own QR, not just the first found.
+      type TicketEntitlement = {
+        product: {
+          type: string;
+          ticketTier: { name: string; event: { title: string; venue: string | null; isVirtual: boolean; startsAt: string } };
+        };
+        checkIn: { code: string } | null;
+      };
+      const ticketEntitlements = (entitlements as TicketEntitlement[] | undefined)?.filter(
+        (e) => e.product.type === "EVENT" && e.checkIn,
       );
-      if (ticketEntitlement) {
-        const tier = ticketEntitlement.product.ticketTier;
-        setTicket({
-          checkInCode: ticketEntitlement.checkIn.code,
-          tierName: tier.name,
-          eventTitle: tier.event.title,
-          venue: tier.event.venue,
-          isVirtual: tier.event.isVirtual,
-          startsAt: tier.event.startsAt,
-        });
+      if (ticketEntitlements?.length) {
+        setTickets(
+          ticketEntitlements.map((e) => {
+            const tier = e.product.ticketTier;
+            return {
+              checkInCode: e.checkIn!.code,
+              tierName: tier.name,
+              eventTitle: tier.event.title,
+              venue: tier.event.venue,
+              isVirtual: tier.event.isVirtual,
+              startsAt: tier.event.startsAt,
+            };
+          }),
+        );
       }
 
       if (order.status === "PAID" || order.status === "FAILED") {
@@ -203,9 +217,14 @@ function CheckoutCallbackInner() {
   }, [orderId]);
 
   useEffect(() => {
-    if (!ticket) return;
-    QRCode.toDataURL(ticket.checkInCode, { margin: 1, width: 512 }).then(setQrDataUrl);
-  }, [ticket]);
+    for (const t of tickets) {
+      if (qrDataUrls[t.checkInCode]) continue;
+      QRCode.toDataURL(t.checkInCode, { margin: 1, width: 512 }).then((url) => {
+        setQrDataUrls((cur) => ({ ...cur, [t.checkInCode]: url }));
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickets]);
 
   // Each sellable type gets its own detail route. Event is keyed by
   // Event.id, not the purchased tier's Product.id, so it needs its own field.
@@ -303,29 +322,39 @@ function CheckoutCallbackInner() {
             )}
           </div>
 
-          {ticket ? (
-            <div className="relative w-full max-w-xs rounded-2xl border border-line bg-surface text-left overflow-hidden shadow-[0_0_0_1px_rgba(225,29,72,0.08)]">
-              <div className="p-5 pb-4 text-center">
-                {qrDataUrl && (
-                  <TicketQrCode
-                    qrDataUrl={qrDataUrl}
-                    label={`${ticket.eventTitle} · ${ticket.tierName}`}
-                    thumbnailClassName="mx-auto h-40 w-40 rounded-lg bg-white p-2"
-                  />
-                )}
-              </div>
-              <div className="relative border-t border-dashed border-line-strong px-5 pt-4 pb-5">
-                <span className="absolute -left-3 -top-3 h-6 w-6 rounded-full bg-bg" aria-hidden />
-                <span className="absolute -right-3 -top-3 h-6 w-6 rounded-full bg-bg" aria-hidden />
-                <p className="text-sm font-semibold mb-0.5">{ticket.eventTitle}</p>
-                <p className="text-xs text-ink-3 mb-0.5">{ticket.tierName} ticket</p>
-                <p className="text-xs text-ink-3 mb-3">
-                  {formatEventDate(ticket.startsAt)} · {ticket.isVirtual ? "Virtual" : (ticket.venue ?? "Venue TBA")}
-                </p>
-                <p className="text-[12px] uppercase tracking-widest text-red-soft font-semibold text-center">
-                  Show this QR code at the door
-                </p>
-              </div>
+          {tickets.length > 0 ? (
+            <div className="flex flex-col gap-3 w-full max-w-xs">
+              {tickets.map((t, i) => (
+                <div
+                  key={t.checkInCode}
+                  className="relative w-full rounded-2xl border border-line bg-surface text-left overflow-hidden shadow-[0_0_0_1px_rgba(225,29,72,0.08)]"
+                >
+                  <div className="p-5 pb-4 text-center">
+                    {qrDataUrls[t.checkInCode] && (
+                      <TicketQrCode
+                        qrDataUrl={qrDataUrls[t.checkInCode]}
+                        label={`${t.eventTitle} · ${t.tierName}`}
+                        thumbnailClassName="mx-auto h-40 w-40 rounded-lg bg-white p-2"
+                      />
+                    )}
+                  </div>
+                  <div className="relative border-t border-dashed border-line-strong px-5 pt-4 pb-5">
+                    <span className="absolute -left-3 -top-3 h-6 w-6 rounded-full bg-bg" aria-hidden />
+                    <span className="absolute -right-3 -top-3 h-6 w-6 rounded-full bg-bg" aria-hidden />
+                    <p className="text-sm font-semibold mb-0.5">
+                      {t.eventTitle}
+                      {tickets.length > 1 ? ` · ticket ${i + 1} of ${tickets.length}` : ""}
+                    </p>
+                    <p className="text-xs text-ink-3 mb-0.5">{t.tierName} ticket</p>
+                    <p className="text-xs text-ink-3 mb-3">
+                      {formatEventDate(t.startsAt)} · {t.isVirtual ? "Virtual" : (t.venue ?? "Venue TBA")}
+                    </p>
+                    <p className="text-[12px] uppercase tracking-widest text-red-soft font-semibold text-center">
+                      Show this QR code at the door
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             productTitle && (
@@ -349,7 +378,7 @@ function CheckoutCallbackInner() {
               onClick={() => router.push(productHref() ?? "/library")}
               className="rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white"
             >
-              {ticket ? "Go to event" : "Go to release"}
+              {tickets.length > 0 ? "Go to event" : "Go to release"}
             </button>
             <button onClick={() => router.push("/discover")} className="text-xs text-ink-3 font-semibold">
               Keep browsing
