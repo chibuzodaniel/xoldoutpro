@@ -26,6 +26,7 @@ export function buildOgMetadata({
       description,
       url: path,
       siteName: "XOLDOUT",
+      type: "website",
       images: imageUrl ? [{ url: imageUrl }] : undefined,
     },
     twitter: {
