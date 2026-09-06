@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { ProductCard } from "@/components/product/ProductCard";
@@ -6,11 +7,14 @@ import { AppHeader } from "@/components/nav/AppHeader";
 import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { buildDiscoverMetadata } from "@/lib/og";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
 // background instead of forcing a fresh render every time.
 export const revalidate = 20;
+
+export const metadata: Metadata = buildDiscoverMetadata();
 
 const cardInclude = {
   creator: { select: { handle: true, displayName: true } },

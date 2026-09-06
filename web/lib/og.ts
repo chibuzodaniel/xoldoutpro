@@ -36,3 +36,21 @@ export function buildOgMetadata({
     },
   };
 }
+
+// The root URL (`/`, which immediately redirects to `/discover` —
+// app/page.tsx) and `/discover` itself previously carried no metadata of
+// their own, so a shared link to either one fell all the way back to the
+// root layout's bare title/description with no image at all — the one
+// static asset close enough to a "site" preview image, since there's no
+// dedicated 1200x630 OG banner yet (this is a square 1080x1080 crop/pad in
+// most unfurl previews, not the ideal aspect ratio — swap in a real banner
+// here if one gets designed later). Shared by both files rather than
+// duplicated so they can never drift apart.
+export function buildDiscoverMetadata(): Metadata {
+  return buildOgMetadata({
+    title: "XOLDOUT — Where music actually sells out",
+    description: "Discover music, beats, merch, and tickets from independent artists. Fans buy, fans own, creators get paid.",
+    imageUrl: "/xoldout-icon.jpeg",
+    path: "/discover",
+  });
+}
