@@ -167,6 +167,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const heroCap = hero?.stockPolicy?.cap ?? null;
   const heroSold = hero?.stockPolicy?.sold ?? 0;
   const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
+  // Only true when `hero` actually won on weekly sales (as opposed to the
+  // newest-release fallback used when nothing's sold yet) — the stockPolicy
+  // "sold" count above is lifetime, so it can't be reused for this.
+  const heroWeeklySold = hero?.id === weeklyTopSellerId ? (weeklyTopSellers[0]?._count.productId ?? 0) : 0;
   const newReleasesBelowHero = newReleases.filter((p) => p.id !== hero?.id);
 
   return (
@@ -185,7 +189,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             {(hero.release?.releaseType ?? "single").toLowerCase()}
           </span>
           <span className="absolute left-3 top-10 rounded-full bg-red px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-            New Release
+            {heroWeeklySold > 0 ? "Top Seller This Week" : "New Release"}
           </span>
 
           <div className="absolute inset-0 flex items-center justify-center">
@@ -204,6 +208,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 <span className="text-xs font-semibold text-red-soft">
                   {heroSoldOut ? "Sold out" : `${heroRemaining} of ${heroCap} left`}
                 </span>
+              ) : heroWeeklySold > 0 ? (
+                <span className="text-xs font-semibold text-red-soft">{heroWeeklySold} sold this week</span>
               ) : (
                 <span className="text-xs text-white/60">{heroSold} sold</span>
               )}
@@ -223,19 +229,19 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               </Link>
             )}
           </div>
-          <div className="flex gap-3">
-            <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
+          <div className="flex items-stretch gap-3">
+            <div className="grid grid-cols-2 gap-3 flex-1 min-w-0 content-start">
               {newReleasesBelowHero.slice(0, 3).map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}
             </div>
 
             {weeklyTopCreators.length > 0 && (
-              <div className="w-24 shrink-0">
+              <div className="flex w-24 shrink-0 flex-col">
                 <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-3 leading-tight">
                   Top This Week
                 </p>
-                <div className="no-scrollbar flex max-h-[420px] flex-col gap-4 overflow-y-auto">
+                <div className="flex flex-1 flex-col justify-between gap-4">
                   {weeklyTopCreators.slice(0, 3).map((c, i) => (
                     <Link key={c.id} href={`/u/${c.handle}`} className="block">
                       <div className="relative h-[76px] w-16 mb-1.5">
