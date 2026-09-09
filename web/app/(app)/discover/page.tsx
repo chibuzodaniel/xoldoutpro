@@ -223,7 +223,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         <section className="px-4 mb-7">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft">New Release</h3>
-            {newReleasesBelowHero.length > 3 && (
+            {newReleasesBelowHero.length > 4 && (
               <Link href="/discover?type=RELEASE" className="text-[11px] font-semibold text-red-soft">
                 View all ›
               </Link>
@@ -231,7 +231,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
           <div className="flex items-stretch gap-3">
             <div className="grid grid-cols-2 gap-3 flex-1 min-w-0 content-start">
-              {newReleasesBelowHero.slice(0, 3).map((p) => (
+              {newReleasesBelowHero.slice(0, 4).map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}
             </div>
