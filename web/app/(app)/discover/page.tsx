@@ -8,6 +8,7 @@ import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { buildDiscoverMetadata } from "@/lib/og";
+import { getWeeklyTopCreators } from "@/lib/discover/weeklyTopCreators";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -107,7 +108,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  const [newReleases, weeklyTopSellers, weeklySales, topBeats, upcomingEvents, merchItems, creators] = await Promise.all([
+  const [newReleases, weeklyTopSellers, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators] = await Promise.all([
     db.product.findMany({
       where: { type: "RELEASE", status: "PUBLISHED" },
       include: cardInclude,
@@ -125,15 +126,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
       orderBy: { _count: { productId: "desc" } },
       take: 1,
     }),
-    // Entitlement has no creatorId of its own (only productId), so ranking
-    // creators means aggregating in JS below rather than a single groupBy —
-    // fine at this scale, and avoids denormalizing creatorId onto Entitlement
-    // for one discover-page widget. Covers every product type, not just
-    // releases, since a creator's week isn't just their music sales.
-    db.entitlement.findMany({
-      where: { createdAt: { gte: oneWeekAgo }, revokedAt: null },
-      select: { product: { select: { creatorId: true } } },
-    }),
+    // Fetches 10 so the "View all" link on /discover/top-creators (which
+    // re-fetches its own, larger list) only appears once there's actually
+    // more than the 3 shown here.
+    getWeeklyTopCreators(10),
     db.product.findMany({
       where: { type: "BEAT", status: "PUBLISHED" },
       include: cardInclude,
@@ -172,36 +168,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const heroSold = hero?.stockPolicy?.sold ?? 0;
   const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
   const newReleasesBelowHero = newReleases.filter((p) => p.id !== hero?.id);
-
-  const salesByCreatorId = new Map<string, number>();
-  for (const e of weeklySales) {
-    salesByCreatorId.set(e.product.creatorId, (salesByCreatorId.get(e.product.creatorId) ?? 0) + 1);
-  }
-  const topCreatorIdsByWeeklySales = [...salesByCreatorId.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10)
-    .map(([id]) => id);
-  const weeklyTopSellingCreators =
-    topCreatorIdsByWeeklySales.length > 0
-      ? await db.user.findMany({
-          where: { id: { in: topCreatorIdsByWeeklySales } },
-          select: { id: true, handle: true, displayName: true, avatarUrl: true },
-        })
-      : [];
-  // Preserve rank order (findMany's `in` doesn't) and fall back to the
-  // most-followed creators when nothing sold this week (e.g. right after
-  // launch) so the rail isn't just empty. Either branch carries a `metric`
-  // string so the rail always has something to show under the name.
-  const weeklyTopCreators =
-    topCreatorIdsByWeeklySales.length > 0
-      ? topCreatorIdsByWeeklySales
-          .map((id) => {
-            const c = weeklyTopSellingCreators.find((c) => c.id === id);
-            if (!c) return null;
-            return { ...c, metric: `${salesByCreatorId.get(id) ?? 0} sold` };
-          })
-          .filter((c): c is NonNullable<typeof c> => c !== null)
-      : creators.slice(0, 10).map((c) => ({ ...c, metric: `${c._count.followers} followers` }));
 
   return (
     <div className="pb-8">
@@ -249,10 +215,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       {newReleasesBelowHero.length > 0 && (
         <section className="px-4 mb-7">
-          <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft mb-3">New Release</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft">New Release</h3>
+            {newReleasesBelowHero.length > 3 && (
+              <Link href="/discover?type=RELEASE" className="text-[11px] font-semibold text-red-soft">
+                View all ›
+              </Link>
+            )}
+          </div>
           <div className="flex gap-3">
             <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
-              {newReleasesBelowHero.map((p) => (
+              {newReleasesBelowHero.slice(0, 3).map((p) => (
                 <ProductCard key={p.id} product={p} />
               ))}
             </div>
@@ -263,7 +236,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   Top This Week
                 </p>
                 <div className="no-scrollbar flex max-h-[420px] flex-col gap-4 overflow-y-auto">
-                  {weeklyTopCreators.map((c, i) => (
+                  {weeklyTopCreators.slice(0, 3).map((c, i) => (
                     <Link key={c.id} href={`/u/${c.handle}`} className="block">
                       <div className="relative h-[76px] w-16 mb-1.5">
                         <span
@@ -294,6 +267,14 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     </Link>
                   ))}
                 </div>
+                {weeklyTopCreators.length > 3 && (
+                  <Link
+                    href="/discover/top-creators"
+                    className="mt-3 block text-center text-[9px] font-semibold text-red-soft"
+                  >
+                    View all ›
+                  </Link>
+                )}
               </div>
             )}
           </div>
