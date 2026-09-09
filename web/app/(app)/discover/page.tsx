@@ -104,22 +104,35 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const [newReleases, sellingOutNow, topBeats, upcomingEvents, merchItems, creators] = await Promise.all([
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+
+  const [newReleases, weeklyTopSellers, weeklySales, topBeats, upcomingEvents, merchItems, creators] = await Promise.all([
     db.product.findMany({
       where: { type: "RELEASE", status: "PUBLISHED" },
       include: cardInclude,
       orderBy: { publishedAt: "desc" },
       take: 12,
     }),
-    db.product.findMany({
-      where: {
-        type: "RELEASE",
-        status: "PUBLISHED",
-        stockPolicy: { cap: { not: null }, soldOutAt: null },
-      },
-      include: cardInclude,
-      orderBy: { stockPolicy: { sold: "desc" } },
-      take: 12,
+    // "Sales for the week" = confirmed, non-refunded entitlements (one row
+    // per unit sold — see Entitlement's own comment) created in the last 7
+    // days, grouped by product. Falls back to the newest release below when
+    // nothing has sold yet in that window (e.g. right after launch).
+    db.entitlement.groupBy({
+      by: ["productId"],
+      where: { createdAt: { gte: oneWeekAgo }, revokedAt: null, product: { type: "RELEASE", status: "PUBLISHED" } },
+      _count: { productId: true },
+      orderBy: { _count: { productId: "desc" } },
+      take: 1,
+    }),
+    // Entitlement has no creatorId of its own (only productId), so ranking
+    // creators means aggregating in JS below rather than a single groupBy —
+    // fine at this scale, and avoids denormalizing creatorId onto Entitlement
+    // for one discover-page widget. Covers every product type, not just
+    // releases, since a creator's week isn't just their music sales.
+    db.entitlement.findMany({
+      where: { createdAt: { gte: oneWeekAgo }, revokedAt: null },
+      select: { product: { select: { creatorId: true } } },
     }),
     db.product.findMany({
       where: { type: "BEAT", status: "PUBLISHED" },
@@ -141,17 +154,54 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     }),
     db.user.findMany({
       orderBy: { followers: { _count: "desc" } },
-      take: 8,
+      take: 10,
       select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },
     }),
   ]);
 
-  const hero = newReleases[0];
+  const weeklyTopSellerId = weeklyTopSellers[0]?.productId;
+  const hero =
+    (weeklyTopSellerId ? newReleases.find((p) => p.id === weeklyTopSellerId) : null) ??
+    (weeklyTopSellerId
+      ? await db.product.findUnique({ where: { id: weeklyTopSellerId }, include: cardInclude })
+      : null) ??
+    newReleases[0];
   const heroArt = hero ? ((hero.release?.artworkLadder as Record<string, string> | undefined)?.["1024"]) : null;
   const heroSoldOut = Boolean(hero?.stockPolicy?.soldOutAt);
   const heroCap = hero?.stockPolicy?.cap ?? null;
   const heroSold = hero?.stockPolicy?.sold ?? 0;
   const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
+  const newReleasesBelowHero = newReleases.filter((p) => p.id !== hero?.id);
+
+  const salesByCreatorId = new Map<string, number>();
+  for (const e of weeklySales) {
+    salesByCreatorId.set(e.product.creatorId, (salesByCreatorId.get(e.product.creatorId) ?? 0) + 1);
+  }
+  const topCreatorIdsByWeeklySales = [...salesByCreatorId.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([id]) => id);
+  const weeklyTopSellingCreators =
+    topCreatorIdsByWeeklySales.length > 0
+      ? await db.user.findMany({
+          where: { id: { in: topCreatorIdsByWeeklySales } },
+          select: { id: true, handle: true, displayName: true, avatarUrl: true },
+        })
+      : [];
+  // Preserve rank order (findMany's `in` doesn't) and fall back to the
+  // most-followed creators when nothing sold this week (e.g. right after
+  // launch) so the rail isn't just empty. Either branch carries a `metric`
+  // string so the rail always has something to show under the name.
+  const weeklyTopCreators =
+    topCreatorIdsByWeeklySales.length > 0
+      ? topCreatorIdsByWeeklySales
+          .map((id) => {
+            const c = weeklyTopSellingCreators.find((c) => c.id === id);
+            if (!c) return null;
+            return { ...c, metric: `${salesByCreatorId.get(id) ?? 0} sold` };
+          })
+          .filter((c): c is NonNullable<typeof c> => c !== null)
+      : creators.slice(0, 10).map((c) => ({ ...c, metric: `${c._count.followers} followers` }));
 
   return (
     <div className="pb-8">
@@ -197,13 +247,55 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         </Link>
       )}
 
-      {sellingOutNow.length > 0 && (
+      {newReleasesBelowHero.length > 0 && (
         <section className="px-4 mb-7">
-          <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft mb-3">Selling Out Now</h3>
-          <div className="grid grid-cols-3 gap-3">
-            {sellingOutNow.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
+          <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft mb-3">New Release</h3>
+          <div className="flex gap-3">
+            <div className="grid grid-cols-2 gap-3 flex-1 min-w-0">
+              {newReleasesBelowHero.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+
+            {weeklyTopCreators.length > 0 && (
+              <div className="w-24 shrink-0">
+                <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-3 leading-tight">
+                  Top This Week
+                </p>
+                <div className="no-scrollbar flex max-h-[420px] flex-col gap-4 overflow-y-auto">
+                  {weeklyTopCreators.map((c, i) => (
+                    <Link key={c.id} href={`/u/${c.handle}`} className="block">
+                      <div className="relative h-[76px] w-16 mb-1.5">
+                        <span
+                          aria-hidden="true"
+                          className="pointer-events-none absolute -left-1.5 -top-2.5 select-none font-sans text-[46px] font-black leading-none text-white/10"
+                        >
+                          {i + 1}
+                        </span>
+                        <div
+                          className={`absolute inset-0 left-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${
+                            AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length]
+                          }`}
+                        >
+                          <FallbackImg
+                            src={c.avatarUrl}
+                            alt={c.displayName}
+                            className="h-full w-full object-cover"
+                            fallback={
+                              <span className="flex h-full w-full items-center justify-center font-serif text-lg text-white">
+                                {c.displayName.slice(0, 1).toUpperCase()}
+                              </span>
+                            }
+                          />
+                        </div>
+                      </div>
+                      <span className="block text-[10px] font-semibold text-ink-2 line-clamp-1">{c.displayName}</span>
+                      <span className="block text-[9px] text-ink-3">{c.metric}</span>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </section>
       )}

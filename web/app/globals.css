@@ -145,3 +145,14 @@ select {
   background: color-mix(in srgb, var(--green) 15%, var(--surface) 85%);
   color: var(--green);
 }
+
+/* Scrollable rails (e.g. the discover page's "Top This Week" list) that
+   should feel like a native scroll surface, not a webpage with a visible
+   scrollbar track. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
