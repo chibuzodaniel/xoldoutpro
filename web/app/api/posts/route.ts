@@ -12,7 +12,7 @@ const authorSelect = { select: { id: true, handle: true, displayName: true, avat
 // "following" (default) — strictly creators you follow, plus your own posts.
 //
 // "forYou" (?feed=forYou) — genuine discovery, no pool restriction at all:
-// every public post from every creator except your own is eligible,
+// every public post from every creator, including your own, is eligible,
 // regardless of any prior relationship, so a brand-new post from an
 // unrelated creator surfaces rather than being filtered out. PostCard's
 // inline Follow button is what lets a viewer act on something they
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
     const posts = await db.post.findMany({
       where: {
         groupId: null,
-        ...(forYou ? { authorId: { not: user.id } } : { authorId: { in: [...followedIds, user.id] } }),
+        ...(forYou ? {} : { authorId: { in: [...followedIds, user.id] } }),
       },
       orderBy: { createdAt: "desc" },
       take: 50,
