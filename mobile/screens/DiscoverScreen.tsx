@@ -9,8 +9,7 @@ import {
   useWindowDimensions,
   StyleSheet,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiGet } from "../lib/api";
 import type { DiscoverData } from "../lib/discoverTypes";
 import type { RootStackParamList } from "../lib/navigation";
@@ -29,7 +28,7 @@ function columnWidth(columns: number, contentWidth: number, gap = 12) {
 }
 
 export function DiscoverScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { width } = useWindowDimensions();
   const contentWidth = width - HORIZONTAL_PADDING * 2;
   const threeColWidth = columnWidth(3, contentWidth);

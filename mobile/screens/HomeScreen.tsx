@@ -10,8 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors } from "../lib/theme";
@@ -27,7 +26,7 @@ type SearchResultProduct = {
 type SearchResponse = { products: SearchResultProduct[]; creators: unknown[] };
 
 export function HomeScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResultProduct[]>([]);
   const [loading, setLoading] = useState(false);

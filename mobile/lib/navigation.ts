@@ -1,5 +1,5 @@
 export type RootStackParamList = {
-  Home: undefined;
+  Tabs: undefined;
   Product: { id: string };
   Creator: { handle: string };
   Event: { id: string };

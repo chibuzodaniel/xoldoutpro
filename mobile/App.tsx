@@ -5,7 +5,8 @@ import { StatusBar } from "expo-status-bar";
 import { setAudioModeAsync } from "expo-audio";
 import type { RootStackParamList } from "./lib/navigation";
 import { colors } from "./lib/theme";
-import { HomeScreen } from "./screens/HomeScreen";
+import { AuthProvider } from "./lib/AuthContext";
+import { BottomTabs } from "./navigation/BottomTabs";
 import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
 import { EventScreen } from "./screens/EventScreen";
@@ -23,20 +24,22 @@ export default function App() {
   }, []);
 
   return (
-    <NavigationContainer theme={navTheme}>
-      <Stack.Navigator
-        screenOptions={{
-          headerStyle: { backgroundColor: colors.bg },
-          headerTintColor: colors.ink,
-          headerShadowVisible: false,
-        }}
-      >
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Product" component={ProductScreen} options={{ title: "" }} />
-        <Stack.Screen name="Creator" component={CreatorScreen} options={{ title: "" }} />
-        <Stack.Screen name="Event" component={EventScreen} options={{ title: "" }} />
-      </Stack.Navigator>
-      <StatusBar style="light" />
-    </NavigationContainer>
+    <AuthProvider>
+      <NavigationContainer theme={navTheme}>
+        <Stack.Navigator
+          screenOptions={{
+            headerStyle: { backgroundColor: colors.bg },
+            headerTintColor: colors.ink,
+            headerShadowVisible: false,
+          }}
+        >
+          <Stack.Screen name="Tabs" component={BottomTabs} options={{ headerShown: false }} />
+          <Stack.Screen name="Product" component={ProductScreen} options={{ title: "" }} />
+          <Stack.Screen name="Creator" component={CreatorScreen} options={{ title: "" }} />
+          <Stack.Screen name="Event" component={EventScreen} options={{ title: "" }} />
+        </Stack.Navigator>
+        <StatusBar style="light" />
+      </NavigationContainer>
+    </AuthProvider>
   );
 }
