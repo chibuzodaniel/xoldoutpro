@@ -4,4 +4,5 @@ export type RootStackParamList = {
   Creator: { handle: string };
   Event: { id: string };
   Collection: { id: string; name: string };
+  Notifications: undefined;
 };

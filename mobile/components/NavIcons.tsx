@@ -49,3 +49,12 @@ export function PlusIcon({ color, size = 18 }: IconProps) {
     </Svg>
   );
 }
+
+export function BellIcon({ color, size = 20 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>
+      <Path d="M18 8a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M10 20a2 2 0 004 0" strokeLinecap="round" />
+    </Svg>
+  );
+}

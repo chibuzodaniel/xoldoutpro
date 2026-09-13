@@ -12,6 +12,7 @@ import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
 import { EventScreen } from "./screens/EventScreen";
 import { CollectionScreen } from "./screens/CollectionScreen";
+import { NotificationsScreen } from "./screens/NotificationsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -41,6 +42,11 @@ export default function App() {
             <Stack.Screen name="Creator" component={CreatorScreen} options={{ title: "" }} />
             <Stack.Screen name="Event" component={EventScreen} options={{ title: "" }} />
             <Stack.Screen name="Collection" component={CollectionScreen} options={{ title: "" }} />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ headerShown: false, presentation: "modal" }}
+            />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>
