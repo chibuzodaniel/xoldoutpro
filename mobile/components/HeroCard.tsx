@@ -1,9 +1,12 @@
 import { Image, Text, View, StyleSheet, useWindowDimensions } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import type { ProductCardData } from "../lib/discoverTypes";
 import { formatNaira } from "../lib/format";
+import { colors, fonts } from "../lib/theme";
 
 // Mirrors web's discover page hero banner: the weekly top-selling release
-// (or the newest one, if nothing's sold yet this week).
+// (or the newest one, if nothing's sold yet this week). The gradient
+// matches web's `bg-gradient-to-t from-black/95 via-black/10 to-black/40`.
 export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; heroWeeklySold: number }) {
   const { width } = useWindowDimensions();
   const cardWidth = width - 32;
@@ -22,6 +25,12 @@ export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; hero
       ) : (
         <View style={[styles.image, styles.imagePlaceholder]} />
       )}
+
+      <LinearGradient
+        colors={["rgba(0,0,0,0.95)", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.4)"]}
+        locations={[0, 0.55, 1]}
+        style={StyleSheet.absoluteFill}
+      />
 
       <View style={styles.typeBadge}>
         <Text style={styles.typeBadgeText}>{(hero.release?.releaseType ?? "single").toLowerCase()}</Text>
@@ -53,9 +62,9 @@ export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; hero
 }
 
 const styles = StyleSheet.create({
-  container: { borderRadius: 12, overflow: "hidden", backgroundColor: "#1a1a1a", position: "relative" },
+  container: { borderRadius: 12, overflow: "hidden", backgroundColor: colors.surface2, position: "relative" },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#1a1a1a" },
+  imagePlaceholder: { backgroundColor: colors.surface2 },
   typeBadge: {
     position: "absolute",
     left: 12,
@@ -65,30 +74,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  typeBadgeText: { color: "#fff", fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
+  typeBadgeText: { color: colors.ink, fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
   sellBadge: {
     position: "absolute",
     left: 12,
     top: 44,
     borderRadius: 999,
-    backgroundColor: "#E11D2E",
+    backgroundColor: colors.red,
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  sellBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
-  footer: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 16,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    borderRadius: 10,
-    padding: 12,
-  },
+  sellBadgeText: { color: colors.ink, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  footer: { position: "absolute", left: 16, right: 16, bottom: 16 },
   creator: { color: "rgba(255,255,255,0.6)", fontSize: 12, letterSpacing: 1, marginBottom: 4 },
-  title: { color: "#fff", fontSize: 22, fontWeight: "600", marginBottom: 8 },
+  title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  stat: { color: "#FF6B7A", fontSize: 12, fontWeight: "600" },
+  stat: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
   statDim: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
-  price: { color: "#fff", fontSize: 18, fontWeight: "600" },
+  price: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif },
 });

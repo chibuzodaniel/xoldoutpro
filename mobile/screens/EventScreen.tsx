@@ -16,6 +16,7 @@ import { API_BASE_URL, apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
 import type { EventDetail } from "../lib/eventDetailTypes";
 import { formatNaira } from "../lib/format";
+import { colors, fonts } from "../lib/theme";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -51,7 +52,7 @@ export function EventScreen() {
   if (!event) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color={colors.ink} />
       </View>
     );
   }
@@ -117,12 +118,12 @@ export function EventScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" },
-  errorText: { color: "#FF6B7A", fontSize: 14 },
-  imageBox: { backgroundColor: "#1a1a1a" },
+  container: { flex: 1, backgroundColor: colors.bg },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  errorText: { color: colors.redSoft, fontSize: 14 },
+  imageBox: { backgroundColor: colors.surface2 },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#1a1a1a" },
+  imagePlaceholder: { backgroundColor: colors.surface2 },
   content: { padding: 16 },
   badge: {
     alignSelf: "flex-start",
@@ -132,19 +133,19 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     marginBottom: 8,
   },
-  badgeText: { color: "#FF6B7A", fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
-  title: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 4 },
-  creatorName: { color: "#ccc", fontSize: 14, marginBottom: 12 },
+  badgeText: { color: colors.redSoft, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 4 },
+  creatorName: { color: colors.ink2, fontSize: 14, marginBottom: 12 },
   detailsBlock: { marginBottom: 16, gap: 2 },
-  detailText: { color: "#bbb", fontSize: 13 },
-  description: { color: "#bbb", fontSize: 13, lineHeight: 19, marginBottom: 20 },
-  sectionTitle: { color: "#999", fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
+  detailText: { color: colors.ink2, fontSize: 13 },
+  description: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 20 },
+  sectionTitle: { color: colors.ink3, fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 },
   tierList: { gap: 8, marginBottom: 20 },
-  tierRow: { borderWidth: 1, borderColor: "#1a1a1a", borderRadius: 10, padding: 12 },
+  tierRow: { borderWidth: 1, borderColor: colors.lineSoft, borderRadius: 10, padding: 12 },
   tierHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  tierName: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  tierPrice: { color: "#eee", fontSize: 14 },
-  tierStat: { color: "#999", fontSize: 12 },
-  webButton: { backgroundColor: "#E11D2E", borderRadius: 8, paddingVertical: 14, alignItems: "center" },
-  webButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  tierName: { color: colors.ink, fontSize: 14, fontWeight: "600" },
+  tierPrice: { color: colors.ink, fontSize: 14, fontFamily: fonts.serif },
+  tierStat: { color: colors.ink3, fontSize: 12 },
+  webButton: { backgroundColor: colors.red, borderRadius: 8, paddingVertical: 14, alignItems: "center" },
+  webButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
 });

@@ -2,6 +2,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
+import { colors } from "../lib/theme";
 import { DiscoverScreen } from "./DiscoverScreen";
 
 type SearchResultProduct = {
@@ -54,11 +56,14 @@ export function HomeScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>XOLDOUT</Text>
+        <View style={styles.wordmarkRow}>
+          <Image source={require("../assets/icon.png")} style={styles.wordmarkIcon} />
+          <Text style={styles.title}>XOLDOUT</Text>
+        </View>
         <TextInput
           style={styles.input}
           placeholder="Search releases, beats, merch…"
-          placeholderTextColor="#666"
+          placeholderTextColor={colors.ink3}
           value={query}
           onChangeText={runSearch}
           autoCapitalize="none"
@@ -67,7 +72,7 @@ export function HomeScreen() {
 
       {isSearching ? (
         <View style={styles.searchResults}>
-          {loading && <ActivityIndicator style={styles.spacer} color="#fff" />}
+          {loading && <ActivityIndicator style={styles.spacer} color={colors.ink} />}
           {error && <Text style={styles.error}>{error}</Text>}
           <FlatList
             data={results}
@@ -90,21 +95,23 @@ export function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505", paddingTop: 50 },
+  container: { flex: 1, backgroundColor: colors.bg, paddingTop: 50 },
   header: { paddingHorizontal: 20 },
   searchResults: { flex: 1, paddingHorizontal: 20 },
-  title: { color: "#fff", fontSize: 20, fontWeight: "700", marginBottom: 16 },
+  wordmarkRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16 },
+  wordmarkIcon: { width: 22, height: 22, borderRadius: 5 },
+  title: { color: colors.ink, fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
   input: {
-    backgroundColor: "#1a1a1a",
-    color: "#fff",
+    backgroundColor: colors.surface2,
+    color: colors.ink,
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 10,
     marginBottom: 12,
   },
   spacer: { marginVertical: 8 },
-  error: { color: "#FF2D42", marginBottom: 8 },
-  row: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: "#222" },
-  rowTitle: { color: "#fff", fontSize: 16 },
-  rowSubtitle: { color: "#999", fontSize: 13, marginTop: 2 },
+  error: { color: colors.red, marginBottom: 8 },
+  row: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  rowTitle: { color: colors.ink, fontSize: 16 },
+  rowSubtitle: { color: colors.ink3, fontSize: 13, marginTop: 2 },
 });

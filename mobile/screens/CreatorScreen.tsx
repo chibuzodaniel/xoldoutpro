@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
 import type { CreatorProfile } from "../lib/creatorTypes";
+import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
 import { Grid } from "../components/Grid";
 import { ProductCard } from "../components/ProductCard";
@@ -47,7 +48,7 @@ export function CreatorScreen() {
   if (!profile) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color={colors.ink} />
       </View>
     );
   }
@@ -125,22 +126,22 @@ export function CreatorScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" },
-  errorText: { color: "#FF6B7A", fontSize: 14 },
-  cover: { width: "100%", height: 100, backgroundColor: "#1a1a1a" },
+  container: { flex: 1, backgroundColor: colors.bg },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  errorText: { color: colors.redSoft, fontSize: 14 },
+  cover: { width: "100%", height: 100, backgroundColor: colors.surface2 },
   content: { paddingHorizontal: HORIZONTAL_PADDING, marginTop: -32 },
   avatarRow: { marginBottom: 10 },
-  name: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  handle: { color: "#999", fontSize: 13, marginBottom: 8 },
-  bio: { color: "#ccc", fontSize: 13, lineHeight: 19, marginBottom: 12, maxWidth: 320 },
+  name: { color: colors.ink, fontSize: 20, fontFamily: fonts.serif },
+  handle: { color: colors.ink3, fontSize: 13, marginBottom: 8 },
+  bio: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 12, maxWidth: 320 },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
-  statBox: { flex: 1, borderWidth: 1, borderColor: "#222", borderRadius: 12, paddingVertical: 12, alignItems: "center" },
-  statValue: { color: "#fff", fontSize: 20, fontWeight: "700" },
-  statLabel: { color: "#999", fontSize: 10, letterSpacing: 1, marginTop: 2 },
+  statBox: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
+  statValue: { color: colors.ink, fontSize: 20, fontFamily: fonts.serif },
+  statLabel: { color: colors.ink3, fontSize: 10, letterSpacing: 1, marginTop: 2 },
   tagsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 12 },
-  tag: { borderWidth: 1, borderColor: "#333", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
-  tagText: { color: "#ccc", fontSize: 12 },
+  tag: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  tagText: { color: colors.ink2, fontSize: 12 },
   section: { marginTop: 20 },
-  sectionTitle: { color: "#fff", fontSize: 16, fontWeight: "600", marginBottom: 10 },
+  sectionTitle: { color: colors.ink, fontSize: 16, fontFamily: fonts.serif, marginBottom: 10 },
 });

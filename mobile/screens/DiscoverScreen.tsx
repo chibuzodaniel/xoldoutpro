@@ -14,6 +14,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiGet } from "../lib/api";
 import type { DiscoverData } from "../lib/discoverTypes";
 import type { RootStackParamList } from "../lib/navigation";
+import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
 import { EventCard } from "../components/EventCard";
 import { Grid } from "../components/Grid";
@@ -62,7 +63,7 @@ export function DiscoverScreen() {
   if (!data && !error) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color={colors.ink} />
       </View>
     );
   }
@@ -86,7 +87,7 @@ export function DiscoverScreen() {
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
-      refreshControl={<RefreshControl tintColor="#fff" refreshing={refreshing} onRefresh={onRefresh} />}
+      refreshControl={<RefreshControl tintColor={colors.ink} refreshing={refreshing} onRefresh={onRefresh} />}
     >
       {d.hero && (
         <TouchableOpacity onPress={() => navigation.navigate("Product", { id: d.hero!.id })} activeOpacity={0.9}>
@@ -214,20 +215,20 @@ export function DiscoverScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" },
+  container: { flex: 1, backgroundColor: colors.bg },
   scrollContent: { paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 12 },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505", gap: 12 },
-  errorText: { color: "#FF6B7A", fontSize: 14 },
-  retryButton: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: "#1a1a1a", borderRadius: 8 },
-  retryText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, gap: 12 },
+  errorText: { color: colors.redSoft, fontSize: 14 },
+  retryButton: { paddingHorizontal: 16, paddingVertical: 8, backgroundColor: colors.surface2, borderRadius: 8 },
+  retryText: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   section: { marginTop: 20 },
-  sectionLabelRed: { color: "#FF6B7A", fontSize: 12, fontWeight: "700", letterSpacing: 0.5, marginBottom: 10 },
-  sectionTitle: { color: "#fff", fontSize: 18, fontWeight: "600", marginBottom: 10 },
-  emptyText: { color: "#999", fontSize: 13 },
+  sectionLabelRed: { color: colors.redSoft, fontSize: 12, fontWeight: "700", letterSpacing: 0.5, marginBottom: 10 },
+  sectionTitle: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif, marginBottom: 10 },
+  emptyText: { color: colors.ink3, fontSize: 13 },
   newReleaseRow: { flexDirection: "row", gap: 12, alignItems: "stretch" },
   grid2Col: { flexDirection: "row", flexWrap: "wrap" },
   rail: { width: RAIL_WIDTH, flexDirection: "column" },
-  railLabel: { color: "#999", fontSize: 9.5, fontWeight: "600", letterSpacing: 0.5, marginBottom: 10 },
+  railLabel: { color: colors.ink3, fontSize: 9.5, fontWeight: "600", letterSpacing: 0.5, marginBottom: 10 },
   railItems: { flex: 1, flexDirection: "column", justifyContent: "space-between", gap: 14 },
   railItem: {},
   railAvatarWrap: { position: "relative", marginBottom: 6, width: 64 },
@@ -240,10 +241,10 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.1)",
     zIndex: -1,
   },
-  railName: { color: "#eee", fontSize: 10, fontWeight: "600" },
-  railMetric: { color: "#999", fontSize: 9 },
+  railName: { color: colors.ink2, fontSize: 10, fontWeight: "600" },
+  railMetric: { color: colors.ink3, fontSize: 9 },
   featuredRow: { flexDirection: "row", gap: 16 },
   featuredItem: { alignItems: "center", width: 64 },
-  featuredName: { color: "#eee", fontSize: 10.5, fontWeight: "500", marginTop: 6, textAlign: "center" },
-  featuredFollowers: { color: "#999", fontSize: 10, marginTop: 2 },
+  featuredName: { color: colors.ink2, fontSize: 10.5, fontWeight: "500", marginTop: 6, textAlign: "center" },
+  featuredFollowers: { color: colors.ink3, fontSize: 10, marginTop: 2 },
 });

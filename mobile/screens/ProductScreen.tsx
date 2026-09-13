@@ -17,6 +17,7 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { ProductDetail } from "../lib/productDetailTypes";
 import { formatNaira } from "../lib/format";
 import { usePreviewPlayer } from "../lib/usePreviewPlayer";
+import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
 
 function formatDuration(sec: number) {
@@ -37,7 +38,7 @@ function PreviewButton({
   return (
     <TouchableOpacity style={styles.previewButton} onPress={onPress} disabled={loading}>
       {loading ? (
-        <ActivityIndicator size="small" color="#fff" />
+        <ActivityIndicator size="small" color={colors.ink} />
       ) : (
         <Text style={styles.previewIcon}>{playing ? "⏸" : "▶"}</Text>
       )}
@@ -84,7 +85,7 @@ export function ProductScreen() {
   if (!product) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color="#fff" />
+        <ActivityIndicator color={colors.ink} />
       </View>
     );
   }
@@ -172,38 +173,38 @@ export function ProductScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#050505" },
-  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#050505" },
-  errorText: { color: "#FF6B7A", fontSize: 14 },
-  imageBox: { backgroundColor: "#1a1a1a" },
+  container: { flex: 1, backgroundColor: colors.bg },
+  centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
+  errorText: { color: colors.redSoft, fontSize: 14 },
+  imageBox: { backgroundColor: colors.surface2 },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#1a1a1a" },
+  imagePlaceholder: { backgroundColor: colors.surface2 },
   content: { padding: 16 },
-  title: { color: "#fff", fontSize: 22, fontWeight: "700", marginBottom: 8 },
+  title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
-  creatorName: { color: "#ccc", fontSize: 14 },
+  creatorName: { color: colors.ink2, fontSize: 14 },
   priceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  price: { color: "#fff", fontSize: 18, fontWeight: "600" },
-  stat: { color: "#FF6B7A", fontSize: 13, fontWeight: "600" },
-  statDim: { color: "#999", fontSize: 13 },
-  description: { color: "#bbb", fontSize: 13, lineHeight: 19, marginBottom: 16 },
+  price: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif },
+  stat: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
+  statDim: { color: colors.ink3, fontSize: 13 },
+  description: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 16 },
   trackList: { marginBottom: 16 },
-  trackRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1a1a1a" },
-  trackOrder: { color: "#666", fontSize: 12, width: 16 },
-  trackTitle: { color: "#eee", fontSize: 14, flex: 1 },
-  trackDuration: { color: "#666", fontSize: 12 },
+  trackRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  trackOrder: { color: colors.ink3, fontSize: 12, width: 16 },
+  trackTitle: { color: colors.ink2, fontSize: 14, flex: 1 },
+  trackDuration: { color: colors.ink3, fontSize: 12 },
   beatPreviewRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
   beatMeta: { flexDirection: "row", gap: 16 },
-  metaText: { color: "#999", fontSize: 12 },
+  metaText: { color: colors.ink3, fontSize: 12 },
   previewButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: colors.surface2,
     alignItems: "center",
     justifyContent: "center",
   },
-  previewIcon: { color: "#fff", fontSize: 12 },
-  webButton: { backgroundColor: "#E11D2E", borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 8 },
-  webButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  previewIcon: { color: colors.ink, fontSize: 12 },
+  webButton: { backgroundColor: colors.red, borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 8 },
+  webButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
 });

@@ -1,6 +1,7 @@
 import { Image, Text, View, StyleSheet } from "react-native";
 import type { ProductCardData } from "../lib/discoverTypes";
 import { categoryLabelFor, formatNaira, imageUrlFor } from "../lib/format";
+import { colors, fonts } from "../lib/theme";
 
 // Mirrors web's components/product/ProductCard.tsx: image plus category
 // label, title, creator, and price alongside either sold count or the
@@ -51,9 +52,9 @@ export function ProductCard({ product, width }: { product: ProductCardData; widt
 }
 
 const styles = StyleSheet.create({
-  imageBox: { borderRadius: 8, backgroundColor: "#1a1a1a", overflow: "hidden", position: "relative" },
+  imageBox: { borderRadius: 8, backgroundColor: colors.surface2, overflow: "hidden", position: "relative" },
   image: { width: "100%", height: "100%" },
-  imagePlaceholder: { backgroundColor: "#1a1a1a" },
+  imagePlaceholder: { backgroundColor: colors.surface2 },
   badge: {
     position: "absolute",
     left: 6,
@@ -63,7 +64,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  badgeText: { color: "#fff", fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
+  badgeText: { color: colors.ink, fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
   soldOutOverlay: {
     position: "absolute",
     inset: 0,
@@ -72,7 +73,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   soldOutText: {
-    color: "#fff",
+    color: colors.ink,
     fontSize: 11,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -83,10 +84,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 4,
   },
-  title: { color: "#fff", fontSize: 12, fontWeight: "600", marginTop: 6 },
-  subtitle: { color: "#999", fontSize: 12, marginTop: 1 },
+  title: { color: colors.ink, fontSize: 12, fontWeight: "600", marginTop: 6 },
+  subtitle: { color: colors.ink3, fontSize: 12, marginTop: 1 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
-  price: { color: "#fff", fontSize: 12 },
-  remaining: { color: "#FF6B7A", fontSize: 12, fontWeight: "600" },
-  sold: { color: "#999", fontSize: 12 },
+  price: { color: colors.ink, fontSize: 12, fontFamily: fonts.serif },
+  remaining: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
+  sold: { color: colors.ink3, fontSize: 12 },
 });

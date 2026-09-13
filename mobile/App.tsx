@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { setAudioModeAsync } from "expo-audio";
 import type { RootStackParamList } from "./lib/navigation";
+import { colors } from "./lib/theme";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
@@ -13,7 +14,7 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const navTheme = {
   ...DarkTheme,
-  colors: { ...DarkTheme.colors, background: "#050505", card: "#050505", border: "#1a1a1a" },
+  colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, border: colors.lineSoft },
 };
 
 export default function App() {
@@ -25,8 +26,8 @@ export default function App() {
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator
         screenOptions={{
-          headerStyle: { backgroundColor: "#050505" },
-          headerTintColor: "#fff",
+          headerStyle: { backgroundColor: colors.bg },
+          headerTintColor: colors.ink,
           headerShadowVisible: false,
         }}
       >

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Image, Text, View, StyleSheet } from "react-native";
 import { AVATAR_COLORS } from "../lib/format";
+import { colors, fonts } from "../lib/theme";
 
 // Falls back to a colored initial when there's no avatarUrl, or the image
 // fails to load — Image has no built-in fallback, so this tracks load
@@ -24,7 +25,7 @@ export function Avatar({
     <View
       style={[
         styles.container,
-        { width: size, height: size, borderRadius: size / 2, backgroundColor: showImage ? "#1a1a1a" : backgroundColor },
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: showImage ? colors.surface2 : backgroundColor },
       ]}
     >
       {showImage ? (
@@ -48,5 +49,5 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.1)",
   },
-  initial: { color: "#fff", fontWeight: "600" },
+  initial: { color: colors.ink, fontFamily: fonts.serif },
 });
