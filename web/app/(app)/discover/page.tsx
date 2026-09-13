@@ -8,7 +8,7 @@ import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { buildDiscoverMetadata } from "@/lib/og";
-import { getWeeklyTopCreators } from "@/lib/discover/weeklyTopCreators";
+import { getDiscoverData } from "@/lib/discover/getDiscoverData";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -105,73 +105,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const oneWeekAgo = new Date();
-  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-  const [newReleases, weeklyTopSellers, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators] = await Promise.all([
-    db.product.findMany({
-      where: { type: "RELEASE", status: "PUBLISHED" },
-      include: cardInclude,
-      orderBy: { publishedAt: "desc" },
-      take: 12,
-    }),
-    // "Sales for the week" = confirmed, non-refunded entitlements (one row
-    // per unit sold — see Entitlement's own comment) created in the last 7
-    // days, grouped by product. Falls back to the newest release below when
-    // nothing has sold yet in that window (e.g. right after launch).
-    db.entitlement.groupBy({
-      by: ["productId"],
-      where: { createdAt: { gte: oneWeekAgo }, revokedAt: null, product: { type: "RELEASE", status: "PUBLISHED" } },
-      _count: { productId: true },
-      orderBy: { _count: { productId: "desc" } },
-      take: 1,
-    }),
-    // Fetches 10 so the "View all" link on /discover/top-creators (which
-    // re-fetches its own, larger list) only appears once there's actually
-    // more than the 3 shown here.
-    getWeeklyTopCreators(10),
-    db.product.findMany({
-      where: { type: "BEAT", status: "PUBLISHED" },
-      include: cardInclude,
-      orderBy: { publishedAt: "desc" },
-      take: 6,
-    }),
-    db.event.findMany({
-      where: { status: "PUBLISHED", startsAt: { gte: new Date() } },
-      include: { tiers: { select: { product: { select: { priceKobo: true, stockPolicy: true } } } } },
-      orderBy: { startsAt: "asc" },
-      take: 6,
-    }),
-    db.product.findMany({
-      where: { type: "MERCH", status: "PUBLISHED" },
-      include: cardInclude,
-      orderBy: { publishedAt: "desc" },
-      take: 6,
-    }),
-    db.user.findMany({
-      orderBy: { followers: { _count: "desc" } },
-      take: 10,
-      select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },
-    }),
-  ]);
-
-  const weeklyTopSellerId = weeklyTopSellers[0]?.productId;
-  const hero =
-    (weeklyTopSellerId ? newReleases.find((p) => p.id === weeklyTopSellerId) : null) ??
-    (weeklyTopSellerId
-      ? await db.product.findUnique({ where: { id: weeklyTopSellerId }, include: cardInclude })
-      : null) ??
-    newReleases[0];
+  const { hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators } =
+    await getDiscoverData();
   const heroArt = hero ? ((hero.release?.artworkLadder as Record<string, string> | undefined)?.["1024"]) : null;
   const heroSoldOut = Boolean(hero?.stockPolicy?.soldOutAt);
   const heroCap = hero?.stockPolicy?.cap ?? null;
   const heroSold = hero?.stockPolicy?.sold ?? 0;
   const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
-  // Only true when `hero` actually won on weekly sales (as opposed to the
-  // newest-release fallback used when nothing's sold yet) — the stockPolicy
-  // "sold" count above is lifetime, so it can't be reused for this.
-  const heroWeeklySold = hero?.id === weeklyTopSellerId ? (weeklyTopSellers[0]?._count.productId ?? 0) : 0;
-  const newReleasesBelowHero = newReleases.filter((p) => p.id !== hero?.id);
 
   return (
     <div className="pb-8">
@@ -289,11 +229,11 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
 
       <section className="px-4 mb-7">
         <h3 className="font-serif text-lg mb-3">Recommended For You</h3>
-        {newReleases.length === 0 ? (
+        {recommended.length === 0 ? (
           <p className="text-sm text-ink-3">Nothing published yet.</p>
         ) : (
           <div className="grid grid-cols-3 gap-3">
-            {newReleases.map((p) => (
+            {recommended.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
           </div>
