@@ -1,6 +1,8 @@
+import { useEffect } from "react";
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
+import { setAudioModeAsync } from "expo-audio";
 import type { RootStackParamList } from "./lib/navigation";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ProductScreen } from "./screens/ProductScreen";
@@ -14,6 +16,10 @@ const navTheme = {
 };
 
 export default function App() {
+  useEffect(() => {
+    setAudioModeAsync({ playsInSilentMode: true });
+  }, []);
+
   return (
     <NavigationContainer theme={navTheme}>
       <Stack.Navigator

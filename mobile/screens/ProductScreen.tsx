@@ -16,7 +16,34 @@ import { API_BASE_URL, apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
 import type { ProductDetail } from "../lib/productDetailTypes";
 import { formatNaira } from "../lib/format";
+import { usePreviewPlayer } from "../lib/usePreviewPlayer";
 import { Avatar } from "../components/Avatar";
+
+function formatDuration(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function PreviewButton({
+  playing,
+  loading,
+  onPress,
+}: {
+  playing: boolean;
+  loading: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={styles.previewButton} onPress={onPress} disabled={loading}>
+      {loading ? (
+        <ActivityIndicator size="small" color="#fff" />
+      ) : (
+        <Text style={styles.previewIcon}>{playing ? "⏸" : "▶"}</Text>
+      )}
+    </TouchableOpacity>
+  );
+}
 
 function webPathFor(product: ProductDetail) {
   if (product.type === "BEAT") return `/b/${product.id}`;
@@ -38,6 +65,7 @@ export function ProductScreen() {
 
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const preview = usePreviewPlayer();
 
   useEffect(() => {
     apiGet<{ product: ProductDetail }>(`/api/products/${id}`)
@@ -101,21 +129,36 @@ export function ProductScreen() {
           <View style={styles.trackList}>
             {product.release.tracks.map((t) => (
               <View key={t.id} style={styles.trackRow}>
+                <PreviewButton
+                  playing={preview.isPlaying(t.id)}
+                  loading={preview.isLoading(t.id)}
+                  onPress={() => preview.toggle("track", t.id)}
+                />
                 <Text style={styles.trackOrder}>{t.order}</Text>
                 <Text style={styles.trackTitle} numberOfLines={1}>
                   {t.title}
                 </Text>
+                <Text style={styles.trackDuration}>{formatDuration(t.durationSec)}</Text>
               </View>
             ))}
           </View>
         )}
 
         {product.beat && (
-          <View style={styles.beatMeta}>
-            {product.beat.bpm && <Text style={styles.metaText}>{product.beat.bpm} BPM</Text>}
-            {product.beat.musicalKey && <Text style={styles.metaText}>Key: {product.beat.musicalKey}</Text>}
+          <View style={styles.beatPreviewRow}>
+            <PreviewButton
+              playing={preview.isPlaying(product.id)}
+              loading={preview.isLoading(product.id)}
+              onPress={() => preview.toggle("beat", product.id)}
+            />
+            <View style={styles.beatMeta}>
+              {product.beat.bpm && <Text style={styles.metaText}>{product.beat.bpm} BPM</Text>}
+              {product.beat.musicalKey && <Text style={styles.metaText}>Key: {product.beat.musicalKey}</Text>}
+            </View>
           </View>
         )}
+
+        {preview.error && <Text style={styles.errorText}>{preview.error}</Text>}
 
         <TouchableOpacity
           style={styles.webButton}
@@ -145,11 +188,22 @@ const styles = StyleSheet.create({
   statDim: { color: "#999", fontSize: 13 },
   description: { color: "#bbb", fontSize: 13, lineHeight: 19, marginBottom: 16 },
   trackList: { marginBottom: 16 },
-  trackRow: { flexDirection: "row", alignItems: "center", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1a1a1a" },
-  trackOrder: { color: "#666", fontSize: 12, width: 24 },
+  trackRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: "#1a1a1a" },
+  trackOrder: { color: "#666", fontSize: 12, width: 16 },
   trackTitle: { color: "#eee", fontSize: 14, flex: 1 },
-  beatMeta: { flexDirection: "row", gap: 16, marginBottom: 16 },
+  trackDuration: { color: "#666", fontSize: 12 },
+  beatPreviewRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
+  beatMeta: { flexDirection: "row", gap: 16 },
   metaText: { color: "#999", fontSize: 12 },
+  previewButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#1a1a1a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  previewIcon: { color: "#fff", fontSize: 12 },
   webButton: { backgroundColor: "#E11D2E", borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   webButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
 });
