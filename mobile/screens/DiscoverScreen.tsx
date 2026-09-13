@@ -9,8 +9,11 @@ import {
   useWindowDimensions,
   StyleSheet,
 } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiGet } from "../lib/api";
 import type { DiscoverData } from "../lib/discoverTypes";
+import type { RootStackParamList } from "../lib/navigation";
 import { Avatar } from "../components/Avatar";
 import { EventCard } from "../components/EventCard";
 import { Grid } from "../components/Grid";
@@ -25,6 +28,7 @@ function columnWidth(columns: number, contentWidth: number, gap = 12) {
 }
 
 export function DiscoverScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { width } = useWindowDimensions();
   const contentWidth = width - HORIZONTAL_PADDING * 2;
   const threeColWidth = columnWidth(3, contentWidth);
@@ -84,7 +88,11 @@ export function DiscoverScreen() {
       contentContainerStyle={styles.scrollContent}
       refreshControl={<RefreshControl tintColor="#fff" refreshing={refreshing} onRefresh={onRefresh} />}
     >
-      {d.hero && <HeroCard hero={d.hero} heroWeeklySold={d.heroWeeklySold} />}
+      {d.hero && (
+        <TouchableOpacity onPress={() => navigation.navigate("Product", { id: d.hero!.id })} activeOpacity={0.9}>
+          <HeroCard hero={d.hero} heroWeeklySold={d.heroWeeklySold} />
+        </TouchableOpacity>
+      )}
 
       {newReleasesCapped.length > 0 && (
         <View style={styles.section}>
@@ -92,7 +100,9 @@ export function DiscoverScreen() {
           <View style={styles.newReleaseRow}>
             <View style={[styles.grid2Col, { width: newReleaseAreaWidth, gap: 12 }]}>
               {newReleasesCapped.map((p) => (
-                <ProductCard key={p.id} product={p} width={twoColWidth} />
+                <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
+                  <ProductCard product={p} width={twoColWidth} />
+                </TouchableOpacity>
               ))}
             </View>
 
@@ -101,7 +111,11 @@ export function DiscoverScreen() {
                 <Text style={styles.railLabel}>TOP THIS WEEK</Text>
                 <View style={styles.railItems}>
                   {topCreatorsCapped.map((c, i) => (
-                    <View key={c.id} style={styles.railItem}>
+                    <TouchableOpacity
+                      key={c.id}
+                      style={styles.railItem}
+                      onPress={() => navigation.navigate("Creator", { handle: c.handle })}
+                    >
                       <View style={styles.railAvatarWrap}>
                         <Text style={styles.railRank}>{i + 1}</Text>
                         <Avatar uri={c.avatarUrl} name={c.displayName} index={i} size={64} />
@@ -110,7 +124,7 @@ export function DiscoverScreen() {
                         {c.displayName}
                       </Text>
                       <Text style={styles.railMetric}>{c.metric}</Text>
-                    </View>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
@@ -126,7 +140,9 @@ export function DiscoverScreen() {
         ) : (
           <Grid>
             {d.recommended.map((p) => (
-              <ProductCard key={p.id} product={p} width={threeColWidth} />
+              <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
+                <ProductCard product={p} width={threeColWidth} />
+              </TouchableOpacity>
             ))}
           </Grid>
         )}
@@ -137,7 +153,9 @@ export function DiscoverScreen() {
           <Text style={styles.sectionTitle}>Beat Store</Text>
           <Grid>
             {d.topBeats.map((p) => (
-              <ProductCard key={p.id} product={p} width={threeColWidth} />
+              <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
+                <ProductCard product={p} width={threeColWidth} />
+              </TouchableOpacity>
             ))}
           </Grid>
         </View>
@@ -159,7 +177,9 @@ export function DiscoverScreen() {
           <Text style={styles.sectionTitle}>Merchandise</Text>
           <Grid>
             {d.merchItems.map((p) => (
-              <ProductCard key={p.id} product={p} width={threeColWidth} />
+              <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
+                <ProductCard product={p} width={threeColWidth} />
+              </TouchableOpacity>
             ))}
           </Grid>
         </View>
@@ -171,13 +191,17 @@ export function DiscoverScreen() {
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.featuredRow}>
               {d.creators.map((c, i) => (
-                <View key={c.id} style={styles.featuredItem}>
+                <TouchableOpacity
+                  key={c.id}
+                  style={styles.featuredItem}
+                  onPress={() => navigation.navigate("Creator", { handle: c.handle })}
+                >
                   <Avatar uri={c.avatarUrl} name={c.displayName} index={i} size={56} />
                   <Text style={styles.featuredName} numberOfLines={1}>
                     {c.displayName}
                   </Text>
                   <Text style={styles.featuredFollowers}>{c._count.followers}</Text>
-                </View>
+                </TouchableOpacity>
               ))}
             </View>
           </ScrollView>
