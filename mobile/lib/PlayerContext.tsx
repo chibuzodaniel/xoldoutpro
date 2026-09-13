@@ -3,6 +3,7 @@ import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { apiGet } from "./api";
 import { useAuth } from "./AuthContext";
 import type { PlayableTrack } from "./playerTypes";
+import { getOfflinePlaybackUri, isDownloaded } from "./offline/downloads";
 
 type PlayerState = {
   current: PlayableTrack | null;
@@ -38,6 +39,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     setError(null);
     try {
+      // Beats have no offline cache format (DECISIONS.md, matching web) —
+      // only a release's individual tracks can be downloaded.
+      if (track.kind !== "beat" && (await isDownloaded(track.trackId))) {
+        const offlineUri = await getOfflinePlaybackUri(track.trackId);
+        if (offlineUri) {
+          setUrl(offlineUri);
+          return;
+        }
+      }
       const path = track.kind === "beat" ? `/api/beats/${track.trackId}/audio-url` : `/api/tracks/${track.trackId}/audio-url`;
       const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
       const data = await apiGet<{ url: string }>(path, idToken);
@@ -97,7 +107,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         queue,
         isPlaying: status.playing,
         loading,
-        error,
+        error: error ?? status.error,
         play,
         togglePlay,
         playNext,
