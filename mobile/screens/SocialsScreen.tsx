@@ -18,7 +18,7 @@ import type { BottomTabParamList } from "../lib/tabNavigation";
 import { colors, fonts } from "../lib/theme";
 import { PostCard } from "../components/social/PostCard";
 import { PostComposer } from "../components/social/PostComposer";
-import { ComingSoonScreen } from "./ComingSoonScreen";
+import { FanbaseTab } from "../components/fanbase/FanbaseTab";
 
 const TABS = [
   { key: "feed", label: "Feed" },
@@ -95,7 +95,7 @@ export function SocialsScreen() {
       </View>
 
       {tab === "fanbase" ? (
-        <ComingSoonScreen title="Fanbase" />
+        <FanbaseTab />
       ) : (
         <FlatList
           style={styles.container}

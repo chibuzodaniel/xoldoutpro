@@ -13,6 +13,8 @@ import { CreatorScreen } from "./screens/CreatorScreen";
 import { EventScreen } from "./screens/EventScreen";
 import { CollectionScreen } from "./screens/CollectionScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
+import { GroupScreen } from "./screens/GroupScreen";
+import { GroupMembersScreen } from "./screens/GroupMembersScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -47,6 +49,8 @@ export default function App() {
               component={NotificationsScreen}
               options={{ headerShown: false, presentation: "modal" }}
             />
+            <Stack.Screen name="Group" component={GroupScreen} options={{ title: "" }} />
+            <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>

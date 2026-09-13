@@ -5,4 +5,6 @@ export type RootStackParamList = {
   Event: { id: string };
   Collection: { id: string; name: string };
   Notifications: undefined;
+  Group: { id: string; name: string };
+  GroupMembers: { id: string; isCreator: boolean };
 };
