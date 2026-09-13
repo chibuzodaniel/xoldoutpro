@@ -7,6 +7,7 @@ import type { RootStackParamList } from "./lib/navigation";
 import { HomeScreen } from "./screens/HomeScreen";
 import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
+import { EventScreen } from "./screens/EventScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -32,6 +33,7 @@ export default function App() {
         <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Product" component={ProductScreen} options={{ title: "" }} />
         <Stack.Screen name="Creator" component={CreatorScreen} options={{ title: "" }} />
+        <Stack.Screen name="Event" component={EventScreen} options={{ title: "" }} />
       </Stack.Navigator>
       <StatusBar style="light" />
     </NavigationContainer>

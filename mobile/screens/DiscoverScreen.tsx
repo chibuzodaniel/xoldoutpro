@@ -166,7 +166,9 @@ export function DiscoverScreen() {
           <Text style={styles.sectionTitle}>Events</Text>
           <Grid>
             {d.upcomingEvents.map((ev) => (
-              <EventCard key={ev.id} event={ev} width={threeColWidth} />
+              <TouchableOpacity key={ev.id} onPress={() => navigation.navigate("Event", { id: ev.id })}>
+                <EventCard event={ev} width={threeColWidth} />
+              </TouchableOpacity>
             ))}
           </Grid>
         </View>
