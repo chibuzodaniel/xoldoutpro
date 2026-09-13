@@ -3,4 +3,5 @@ export type RootStackParamList = {
   Product: { id: string };
   Creator: { handle: string };
   Event: { id: string };
+  Collection: { id: string; name: string };
 };
