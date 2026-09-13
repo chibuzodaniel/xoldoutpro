@@ -4,11 +4,16 @@ import { getApps, getApp, initializeApp } from "firebase/app";
 import { initializeAuth, getReactNativePersistence, getAuth } from "firebase/auth";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Same project as web (lib/firebase/client.ts) — these are Firebase's public
-// client config values (restricted by Firebase security rules, not secrecy),
-// safe to duplicate here rather than share via env vars across two apps.
+// Same Firebase project as web (lib/firebase/client.ts), but its own API
+// key — web's key is HTTP-referrer-restricted to xoldout.app, which blocks
+// every native request (no Referer header), so mobile needs a separately
+// managed key. Restricted in Google Cloud Console to Identity Toolkit API
+// (+ Token Service API) rather than left wide open. These are Firebase's
+// public client config values (restricted by Firebase security rules and
+// this API-restriction, not secrecy) — safe to duplicate here rather than
+// share via env vars across two apps.
 const firebaseConfig = {
-  apiKey: "AIzaSyBF4E3ujQP_Mub5AcRiU5kkBDejmaf2OJc",
+  apiKey: "AIzaSyC5x2QKhYMm26vmjCEhTvWPV9BbsOelEfo",
   authDomain: "auth.xoldout.app",
   projectId: "xoldoutpro",
   storageBucket: "xoldoutpro.firebasestorage.app",
