@@ -5,9 +5,9 @@ import { colors } from "../lib/theme";
 import { DiscoverIcon, SocialsIcon, LibraryIcon, ProfileIcon, PlusIcon } from "../components/NavIcons";
 import { MiniPlayer } from "../components/MiniPlayer";
 import { HomeScreen } from "../screens/HomeScreen";
-import { ComingSoonScreen } from "../screens/ComingSoonScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { LibraryScreen } from "../screens/LibraryScreen";
+import { SocialsScreen } from "../screens/SocialsScreen";
 
 const TAB_BAR_HEIGHT = 60;
 
@@ -25,10 +25,6 @@ function DropButton() {
       <PlusIcon color={colors.ink} />
     </TouchableOpacity>
   );
-}
-
-function SocialsScreen() {
-  return <ComingSoonScreen title="Socials" />;
 }
 
 // The Drop tab never actually navigates (tabPress is prevented below) — this

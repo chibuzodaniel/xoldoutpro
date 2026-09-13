@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View, useWindowDimensions, StyleSheet } from "react-native";
 import { useRoute, type RouteProp } from "@react-navigation/native";
 import QRCode from "react-native-qrcode-svg";
-import { API_BASE_URL, apiGet } from "../lib/api";
+import { apiDelete, apiGet } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { usePlayer } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
@@ -47,10 +47,7 @@ export function CollectionScreen() {
     if (!firebaseUser) return;
     const idToken = await firebaseUser.getIdToken();
     try {
-      await fetch(`${API_BASE_URL}/api/collections/${id}/items/${e.id}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
+      await apiDelete(`/api/collections/${id}/items/${e.id}`, idToken);
       await load();
     } catch {
       // best-effort

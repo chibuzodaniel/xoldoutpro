@@ -31,3 +31,12 @@ export async function apiPatch<T>(path: string, idToken: string, body?: unknown)
   if (!res.ok) throw new Error(`${path} -> ${res.status}`);
   return res.json();
 }
+
+export async function apiDelete<T>(path: string, idToken: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`${path} -> ${res.status}`);
+  return res.json();
+}
