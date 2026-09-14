@@ -41,6 +41,9 @@ export default function AmbassadorPage() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [pitch, setPitch] = useState("");
   const [busy, setBusy] = useState(false);
+  const [editingCode, setEditingCode] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [savingCode, setSavingCode] = useState(false);
 
   async function load() {
     const res = await apiFetch("/api/ambassador/me");
@@ -65,6 +68,24 @@ export default function AmbassadorPage() {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleSaveCode() {
+    const trimmed = codeInput.trim().toLowerCase();
+    if (!trimmed) return;
+    setSavingCode(true);
+    try {
+      const res = await apiFetch("/api/ambassador/me", { method: "PATCH", body: JSON.stringify({ ambassadorCode: trimmed }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not update your code");
+      toast.success("Referral code updated.");
+      setEditingCode(false);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingCode(false);
     }
   }
 
@@ -100,17 +121,67 @@ export default function AmbassadorPage() {
         )}
 
         <div className="rounded-lg border border-line p-4 mb-6">
-          <p className="text-xs text-ink-3 mb-2">Your referral link</p>
-          <p className="text-sm font-mono break-all mb-3">
-            {typeof window !== "undefined" ? window.location.origin : ""}
-            {referralPath}
-          </p>
-          <ShareButton
-            title="Join me on XOLDOUT"
-            text="Sign up on XOLDOUT with my link"
-            path={referralPath}
-            label="Copy referral link"
-          />
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs text-ink-3">Your referral link</p>
+            {!editingCode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCodeInput(me.ambassadorCode ?? "");
+                  setEditingCode(true);
+                }}
+                className="text-xs font-semibold text-red-soft"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {editingCode ? (
+            <div className="mb-3">
+              <div className="flex items-center gap-1 mb-2">
+                <span className="text-sm text-ink-3 shrink-0">{typeof window !== "undefined" ? window.location.origin : ""}/signup?ref=</span>
+                <input
+                  value={codeInput}
+                  onChange={(e) => setCodeInput(e.target.value.toLowerCase())}
+                  placeholder="your-name"
+                  maxLength={24}
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm font-mono"
+                />
+              </div>
+              <p className="text-[11px] text-ink-3 mb-3">Lowercase letters, numbers, and underscores only, 3-24 characters.</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveCode}
+                  disabled={savingCode}
+                  className="rounded-lg bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+                >
+                  {savingCode ? "Saving…" : "Save"}
+                </button>
+                <button
+                  onClick={() => setEditingCode(false)}
+                  disabled={savingCode}
+                  className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-2 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm font-mono break-all mb-3">
+              {typeof window !== "undefined" ? window.location.origin : ""}
+              {referralPath}
+            </p>
+          )}
+
+          {!editingCode && (
+            <ShareButton
+              title="Join me on XOLDOUT"
+              text="Sign up on XOLDOUT with my link"
+              path={referralPath}
+              label="Copy referral link"
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-3">

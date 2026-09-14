@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import {
@@ -48,6 +49,47 @@ export async function GET(req: NextRequest) {
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    console.error(err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+
+// Explicit ask: ambassadors can rename their own referral code to something
+// memorable instead of the random slug generated at approval. Same
+// shape/validation as handle editing (app/api/me/route.ts) — lowercase
+// letters/digits/underscore, 3-24 chars — since this also ends up in a
+// public URL (`?ref=<code>`). Free to change any time, no cooldown: an
+// ambassador changing their own link only ever affects links they
+// themselves shared going forward: existing signups already have their
+// referredByAmbassadorId fixed at first sign-in and are never re-resolved
+// from the code.
+const patchSchema = z.object({
+  ambassadorCode: z
+    .string()
+    .min(3)
+    .max(24)
+    .regex(/^[a-z0-9_]+$/, "lowercase letters, numbers, underscore only"),
+});
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const { user } = await requireUser(req);
+    const { ambassadorCode } = patchSchema.parse(await req.json());
+
+    if (!user.isAmbassador) {
+      return NextResponse.json({ error: "Not an ambassador" }, { status: 403 });
+    }
+
+    if (ambassadorCode !== user.ambassadorCode) {
+      const taken = await db.user.findUnique({ where: { ambassadorCode } });
+      if (taken) return NextResponse.json({ error: "That code is already taken" }, { status: 409 });
+    }
+
+    const updated = await db.user.update({ where: { id: user.id }, data: { ambassadorCode } });
+    return NextResponse.json({ ambassadorCode: updated.ambassadorCode });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
     console.error(err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
