@@ -180,12 +180,18 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             {weeklyTopCreators.length > 0 && (
               <div className="flex w-24 shrink-0 flex-col">
                 <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-3 leading-tight">
-                  Top This Week
+                  Top sellers
                 </p>
-                <div className="flex flex-1 flex-col justify-between gap-4">
-                  {weeklyTopCreators.slice(0, 3).map((c, i) => (
-                    <Link key={c.id} href={`/u/${c.handle}`} className="block">
-                      <div className="relative h-[76px] w-16 mb-1.5">
+                {/* Each row is an equal flex-1 share of whatever height New
+                    Release's own cards establish (items-stretch on the
+                    parent row) — with few entries (often just 1-2 real top
+                    sellers in a given week) this fills the full column
+                    top-to-bottom instead of clumping at the top with dead
+                    space below, which `justify-between` used to leave. */}
+                <div className="flex flex-1 flex-col gap-3">
+                  {weeklyTopCreators.slice(0, 5).map((c, i) => (
+                    <Link key={c.id} href={`/u/${c.handle}`} className="flex flex-1 flex-col justify-center min-h-0">
+                      <div className="relative h-[76px] w-16 mb-1.5 shrink-0">
                         <span
                           aria-hidden="true"
                           className="pointer-events-none absolute -left-1.5 -top-2.5 select-none font-sans text-[46px] font-black leading-none text-white/10"
@@ -214,7 +220,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     </Link>
                   ))}
                 </div>
-                {weeklyTopCreators.length > 3 && (
+                {weeklyTopCreators.length > 5 && (
                   <Link
                     href="/discover/top-creators"
                     className="mt-3 block text-center text-[9px] font-semibold text-red-soft"
