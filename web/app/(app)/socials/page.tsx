@@ -9,6 +9,7 @@ import { CreatePostSheet } from "@/components/social/CreatePostSheet";
 import { PostCard, type FeedPost } from "@/components/social/PostCard";
 import { FanbaseTab } from "@/components/groups/FanbaseTab";
 import { FallbackImg } from "@/components/ui/FallbackImg";
+import { AppHeader } from "@/components/nav/AppHeader";
 
 type FollowedCreator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
@@ -72,83 +73,86 @@ function SocialsPageInner() {
   }, [feedMode]);
 
   return (
-    <div className="px-4 py-6">
-      <h1 className="font-serif text-2xl mb-4">Socials</h1>
+    <div className="pb-6">
+      <AppHeader />
+      <div className="px-4 py-6">
+        <h1 className="font-serif text-2xl mb-4">Socials</h1>
 
-      <div className="flex items-center gap-5 border-b border-line-soft mb-5">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setTab(t.key)}
-            className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
-              tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        <div className="flex items-center gap-5 border-b border-line-soft mb-5">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTab(t.key)}
+              className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
+                tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "fanbase" && <FanbaseTab />}
+
+        {tab === "feed" && (
+          <>
+            <div className="flex items-center gap-2 mb-4">
+              {FEED_MODES.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setFeedMode(m.key)}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                    feedMode === m.key ? "bg-red text-white" : "bg-surface-2 text-ink-3"
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {feedMode === "following" && following && following.length > 0 && (
+              <div className="flex gap-4 overflow-x-auto mb-6 -mx-4 px-4">
+                {following.map((creator) => (
+                  <Link key={creator.id} href={`/u/${creator.handle}`} className="flex flex-col items-center gap-1 shrink-0 w-14">
+                    <div className="h-12 w-12 rounded-full bg-surface-2 overflow-hidden">
+                      <FallbackImg src={creator.avatarUrl} alt={creator.displayName} className="h-full w-full object-cover" fallback={null} />
+                    </div>
+                    <span className="text-[11px] text-ink-3 line-clamp-1 text-center">{creator.displayName}</span>
+                  </Link>
+                ))}
+              </div>
+            )}
+
+            {posts === null ? (
+              <LoadingSpinner full size="md" />
+            ) : posts.length === 0 ? (
+              <p className="text-sm text-ink-3">
+                {feedMode === "forYou"
+                  ? "Nothing to discover yet — check back once more creators start posting."
+                  : "Announcements from creators you follow will show up here once you start following someone."}
+              </p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {posts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)}
+                  />
+                ))}
+              </div>
+            )}
+
+            <CreatePostSheet
+              open={sheetOpen}
+              onClose={closeComposer}
+              onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])}
+            />
+          </>
+        )}
       </div>
-
-      {tab === "fanbase" && <FanbaseTab />}
-
-      {tab === "feed" && (
-        <>
-          <div className="flex items-center gap-2 mb-4">
-            {FEED_MODES.map((m) => (
-              <button
-                key={m.key}
-                type="button"
-                onClick={() => setFeedMode(m.key)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-                  feedMode === m.key ? "bg-red text-white" : "bg-surface-2 text-ink-3"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          {feedMode === "following" && following && following.length > 0 && (
-            <div className="flex gap-4 overflow-x-auto mb-6 -mx-4 px-4">
-              {following.map((creator) => (
-                <Link key={creator.id} href={`/u/${creator.handle}`} className="flex flex-col items-center gap-1 shrink-0 w-14">
-                  <div className="h-12 w-12 rounded-full bg-surface-2 overflow-hidden">
-                    <FallbackImg src={creator.avatarUrl} alt={creator.displayName} className="h-full w-full object-cover" fallback={null} />
-                  </div>
-                  <span className="text-[11px] text-ink-3 line-clamp-1 text-center">{creator.displayName}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          {posts === null ? (
-            <LoadingSpinner full size="md" />
-          ) : posts.length === 0 ? (
-            <p className="text-sm text-ink-3">
-              {feedMode === "forYou"
-                ? "Nothing to discover yet — check back once more creators start posting."
-                : "Announcements from creators you follow will show up here once you start following someone."}
-            </p>
-          ) : (
-            <div className="flex flex-col gap-3">
-              {posts.map((post) => (
-                <PostCard
-                  key={post.id}
-                  post={post}
-                  onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)}
-                />
-              ))}
-            </div>
-          )}
-
-          <CreatePostSheet
-            open={sheetOpen}
-            onClose={closeComposer}
-            onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])}
-          />
-        </>
-      )}
     </div>
   );
 }
