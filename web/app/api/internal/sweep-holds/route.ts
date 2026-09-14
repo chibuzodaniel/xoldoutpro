@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
 import { recordRefund } from "@/lib/commerce/ledger";
+import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 import { sweepExpiredVerifications } from "@/lib/verification/applications";
 
 export const runtime = "nodejs";
@@ -96,11 +97,28 @@ export async function GET(req: NextRequest) {
     giftsExpired += 1;
   }
 
+  // Self-healing fallback for Bachs's payout.paid/payout.failed webhook
+  // never reaching us, platform-wide — app/api/wallet/route.ts already does
+  // this same reconcilePayout check, but only for the withdrawing creator's
+  // own payouts, and only when they happen to reload their /wallet page
+  // afterward. A payout whose webhook silently failed and whose creator
+  // never revisits that page stays stuck on PROCESSING forever — invisible
+  // as "paid" anywhere, including the moderator Platform Finance panel,
+  // even though Bachs's own dashboard already shows it as sent. Checked
+  // here too, every ~10 minutes via this same cron, independent of any
+  // creator's own activity.
+  const inFlightPayouts = await db.payout.findMany({ where: { status: { in: ["PENDING", "PROCESSING"] } } });
+  await Promise.allSettled(
+    inFlightPayouts.map((payout) =>
+      reconcilePayout(payout).catch((err) => console.error("sweep-holds reconcilePayout", payout.id, err)),
+    ),
+  );
+
   // Expired IDENTITY verifications (see lib/verification/applications.ts) —
   // an unrelated domain sharing this cron for the same reason gifts do: no
   // persistent worker process exists in this build, and a fourth Hobby-plan
   // cron slot isn't worth spending on something this infrequent.
   const verificationsExpired = await sweepExpiredVerifications();
 
-  return NextResponse.json({ swept, billboardsSwept, giftsExpired, verificationsExpired });
+  return NextResponse.json({ swept, billboardsSwept, payoutsChecked: inFlightPayouts.length, giftsExpired, verificationsExpired });
 }
