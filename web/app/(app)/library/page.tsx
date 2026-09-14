@@ -211,6 +211,16 @@ function LibraryPageInner() {
     }
   }
 
+  // A release can have several tracks — the floating download icon on its
+  // tile downloads all of them as separate files, one save-dialog per
+  // track (matches how handleDownloadAllForRelease already loops for the
+  // offline-cache case below).
+  async function handleDownloadReleaseFiles(tracks: LibraryTrack[]) {
+    for (const track of tracks) {
+      await handleDownloadFile(track);
+    }
+  }
+
   async function handleDownloadBeatFile(productId: string, title: string) {
     try {
       const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
@@ -434,22 +444,24 @@ function LibraryPageInner() {
                                     </svg>
                                   </span>
                                 )}
-                                {e.product.beat && (
-                                  <button
-                                    type="button"
-                                    onClick={(ev) => {
-                                      ev.stopPropagation();
+                                <button
+                                  type="button"
+                                  onClick={(ev) => {
+                                    ev.stopPropagation();
+                                    if (e.product.beat) {
                                       handleDownloadBeatFile(e.product.id, e.product.title);
-                                    }}
-                                    aria-label={`Download ${e.product.title} as a file`}
-                                    className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-black/60 flex items-center justify-center"
-                                  >
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
-                                      <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
-                                      <path d="M5 20h14" strokeLinecap="round" />
-                                    </svg>
-                                  </button>
-                                )}
+                                    } else if (e.product.release) {
+                                      handleDownloadReleaseFiles(e.product.release.tracks);
+                                    }
+                                  }}
+                                  aria-label={`Download ${e.product.title} as a file`}
+                                  className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-black/60 flex items-center justify-center"
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
+                                    <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                                    <path d="M5 20h14" strokeLinecap="round" />
+                                  </svg>
+                                </button>
                               </div>
                             </button>
                             {/* Title/creator is its own tap target — for a
