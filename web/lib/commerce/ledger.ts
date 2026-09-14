@@ -353,10 +353,12 @@ async function netOfClawbacks(client: Prisma.TransactionClient | typeof db, kind
  *   gives back a seller's *net* (gross minus commission, see recordRefund's
  *   own comment), so the commission itself is kept by design, matching how
  *   this ledger has always behaved.
- * - netIncomeKobo: platformRevenueKobo minus what actually went out to
- *   ambassadors (ambassadorCommissionsKobo) — what the platform truly kept.
- *   Ticket-promoter payouts do NOT reduce this: those are carved out of a
- *   *seller's* own net, never the platform's commission.
+ * - netIncomeKobo: total transaction volume — all the money that has ever
+ *   passed through the platform, gross, before any commission/split is
+ *   taken out (SUM of SALE_CREDIT). Always >= platformRevenueKobo, since
+ *   revenue is only the slice of this the platform itself keeps. Not
+ *   reduced by refunds, same reasoning as platformRevenueKobo: a sale that
+ *   happened still passed through the platform even if later reversed.
  * - owingKobo: total currently sitting in every real user's wallet
  *   (available + pending), not yet withdrawn — the platform's outstanding
  *   liability. Equal to summing every WalletLedgerEntry ever written: money
@@ -377,9 +379,10 @@ async function netOfClawbacks(client: Prisma.TransactionClient | typeof db, kind
  *   net of the commission the platform itself keeps on a refunded sale).
  */
 export async function getPlatformFinancials(client: Prisma.TransactionClient | typeof db = db) {
-  const [commissionTotal, ledgerTotal, paidTotal, ambassadorCommissionsKobo, promoterPayoutsKobo, payoutGroups, paidOrderItems, refundRows] =
+  const [commissionTotal, volumeTotal, ledgerTotal, paidTotal, ambassadorCommissionsKobo, promoterPayoutsKobo, payoutGroups, paidOrderItems, refundRows] =
     await Promise.all([
       client.walletLedgerEntry.aggregate({ where: { kind: "COMMISSION_FEE" }, _sum: { amountKobo: true } }),
+      client.walletLedgerEntry.aggregate({ where: { kind: "SALE_CREDIT" }, _sum: { amountKobo: true } }),
       client.walletLedgerEntry.aggregate({ _sum: { amountKobo: true } }),
       client.payout.aggregate({ where: { status: "PAID" }, _sum: { amountKobo: true } }),
       netOfClawbacks(client, "AMBASSADOR_COMMISSION"),
@@ -419,7 +422,7 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
   const platformRevenueKobo = -(commissionTotal._sum.amountKobo ?? 0);
   return {
     platformRevenueKobo,
-    netIncomeKobo: platformRevenueKobo - ambassadorCommissionsKobo,
+    netIncomeKobo: volumeTotal._sum.amountKobo ?? 0,
     owingKobo: ledgerTotal._sum.amountKobo ?? 0,
     paidKobo: paidTotal._sum.amountKobo ?? 0,
     ambassadorCommissionsKobo,
