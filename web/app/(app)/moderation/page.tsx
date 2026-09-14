@@ -158,6 +158,7 @@ export default function ModerationPage() {
       <UsersListPanel />
 
       {appUser.isSuperModerator && <ManageModeratorsPanel />}
+      <AmbassadorsPanel />
       <VerifyCreatorPanel />
       <VerifyGroupPanel />
       <VerificationQueuePanel />
@@ -566,6 +567,181 @@ function ManageModeratorsPanel() {
                     Revoke
                   </button>
                 )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type TierRate = { tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM"; percent: number };
+type PendingAmbassadorApplication = { id: string; pitch: string | null; user: { handle: string; displayName: string } };
+type AmbassadorRow = {
+  id: string;
+  handle: string;
+  displayName: string;
+  referredCount: number;
+  revenueGeneratedKobo: number;
+  tier: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
+  commissionPercent: number;
+  walletAvailableKobo: number;
+};
+
+function formatNairaShort(kobo: number) {
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
+
+// Ambassador program (platform-wide referral role — distinct from the
+// per-event ticket promoters managed on each event's own page). Payout is
+// fully automatic per sale (lib/commerce/ledger.ts's
+// recordAmbassadorCommission) — this panel only reviews applications and
+// sets the tier rates that drive those automatic payouts, never a manual
+// per-ambassador payout amount.
+function AmbassadorsPanel() {
+  const toast = useToast();
+  const [rates, setRates] = useState<TierRate[] | null>(null);
+  const [pending, setPending] = useState<PendingAmbassadorApplication[] | null>(null);
+  const [ambassadors, setAmbassadors] = useState<AmbassadorRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    const [ratesRes, ambassadorsRes] = await Promise.all([
+      apiFetch("/api/admin/ambassadors/tier-rates"),
+      apiFetch("/api/admin/ambassadors"),
+    ]);
+    if (ratesRes.ok) setRates((await ratesRes.json()).rates);
+    if (ambassadorsRes.ok) {
+      const data = await ambassadorsRes.json();
+      setPending(data.pendingApplications);
+      setAmbassadors(data.ambassadors);
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time fetch on mount, not derived render state
+    load();
+  }, [load]);
+
+  async function saveRate(tier: TierRate["tier"], percent: number) {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/ambassadors/tier-rates", {
+        method: "PATCH",
+        body: JSON.stringify({ tier, percent }),
+      });
+      if (!res.ok) throw new Error("Could not update rate");
+      toast.success(`${tier} now pays ${percent}%.`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reviewApplication(id: string, action: "approve" | "reject") {
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/admin/ambassadors/${id}`, { method: "PATCH", body: JSON.stringify({ action }) });
+      if (!res.ok) throw new Error("Could not update application");
+      toast.success(action === "approve" ? "Ambassador approved." : "Application rejected.");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-line-soft p-4 mb-6">
+      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Ambassadors</p>
+
+      <p className="text-xs text-ink-3 mb-2">
+        Commission rates (% of the platform&apos;s own commission, paid automatically per sale)
+      </p>
+      {rates === null ? (
+        <p className="text-xs text-ink-3 mb-4">Loading…</p>
+      ) : (
+        <div className="grid grid-cols-4 gap-2 mb-5">
+          {rates.map((r) => (
+            <label key={r.tier} className="flex flex-col gap-1">
+              <span className="text-[10px] uppercase tracking-widest text-ink-3">{r.tier}</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                defaultValue={r.percent}
+                disabled={busy}
+                onBlur={(e) => {
+                  const value = Number(e.target.value);
+                  if (Number.isInteger(value) && value !== r.percent) saveRate(r.tier, value);
+                }}
+                className="rounded-lg border border-line bg-transparent px-2 py-1.5 text-sm outline-none focus:border-red"
+              />
+            </label>
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-ink-3 mb-2">Pending applications</p>
+      {pending === null ? (
+        <p className="text-xs text-ink-3 mb-4">Loading…</p>
+      ) : pending.length === 0 ? (
+        <p className="text-xs text-ink-3 mb-4">Nothing pending.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-5">
+          {pending.map((a) => (
+            <div key={a.id} className="flex items-center justify-between gap-2 py-2.5">
+              <div className="min-w-0">
+                <p className="text-sm">
+                  {a.user.displayName} <span className="text-ink-3">@{a.user.handle}</span>
+                </p>
+                {a.pitch && <p className="text-xs text-ink-3 truncate">{a.pitch}</p>}
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => reviewApplication(a.id, "approve")}
+                  disabled={busy}
+                  className="text-xs font-semibold text-green disabled:opacity-40"
+                >
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  onClick={() => reviewApplication(a.id, "reject")}
+                  disabled={busy}
+                  className="text-xs text-red-soft font-semibold disabled:opacity-40"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <p className="text-xs text-ink-3 mb-2">Ambassadors</p>
+      {ambassadors === null ? (
+        <p className="text-xs text-ink-3">Loading…</p>
+      ) : ambassadors.length === 0 ? (
+        <p className="text-xs text-ink-3">No ambassadors yet.</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+          {ambassadors.map((a) => (
+            <div key={a.id} className="flex items-center justify-between py-2.5">
+              <div>
+                <p className="text-sm">
+                  {a.displayName} <span className="text-ink-3">@{a.handle}</span>{" "}
+                  <span className="text-[10px] uppercase tracking-widest text-red-soft">{a.tier}</span>
+                </p>
+                <p className="text-xs text-ink-3">
+                  {a.referredCount} referred · {formatNairaShort(a.revenueGeneratedKobo)} generated · {a.commissionPercent}% ·{" "}
+                  {formatNairaShort(a.walletAvailableKobo)} in wallet
+                </p>
               </div>
             </div>
           ))}

@@ -5,7 +5,13 @@ import { db } from "@/lib/db";
 // quote the same number in its own copy without duplicating it. Re-exported
 // too, so every existing `from "@/lib/commerce/ledger"` import of
 // COMMISSION_RATE elsewhere in the app keeps working unchanged.
-import { COMMISSION_RATE, commissionRateFor } from "@/lib/commerce/constants";
+import {
+  COMMISSION_RATE,
+  commissionRateFor,
+  ambassadorTierFor,
+  DEFAULT_AMBASSADOR_TIER_RATES,
+  type AmbassadorTier,
+} from "@/lib/commerce/constants";
 export { COMMISSION_RATE, commissionRateFor };
 
 // 7-day pending->available window, tied to the same-length refund window
@@ -25,85 +31,189 @@ export { COMMISSION_RATE, commissionRateFor };
 export const SETTLEMENT_WINDOW_DAYS = 7;
 
 /**
- * Records a sale as two immutable ledger entries (money is a ledger, never
+ * Records a sale as immutable ledger entries (money is a ledger, never
  * a balance column — PRD §15): the gross credit to the seller, and the
- * platform's commission as a separate debit. Both settle together on the
- * same schedule. Call inside the same transaction that confirms stock and
- * creates the Entitlement, so a payment can never produce one without the other.
+ * platform's commission as a separate debit — plus, when applicable, a
+ * ticket-promoter split (carved out of the seller's own net) and/or an
+ * ambassador commission (carved out of the platform's own commission,
+ * never the seller's). All settle together on the same schedule. Call
+ * inside the same transaction that confirms stock and creates the
+ * Entitlement, so a payment can never produce one without the others.
  */
 export async function recordSale(
   tx: Prisma.TransactionClient,
-  args: { sellerId: string; orderId: string; grossKobo: number; productType: "RELEASE" | "BEAT" | "EVENT" | "MERCH" },
+  args: {
+    sellerId: string;
+    orderId: string;
+    grossKobo: number;
+    productType: "RELEASE" | "BEAT" | "EVENT" | "MERCH";
+    // Ticket promoter split (EVENT only, per-event — see EventPromoter):
+    // carved out of the SELLER's own net proceeds.
+    promoter?: { userId: string; sharePercent: number };
+    // Ambassador program (platform-wide — see AmbassadorApplication):
+    // carved out of the PLATFORM's own commission share, never the
+    // seller's. Set from the buyer's own referredByAmbassadorId.
+    referredByAmbassadorId?: string | null;
+  },
 ) {
   // Settlement hold deactivated for launch (see SETTLEMENT_WINDOW_DAYS's own
   // comment) — revert to
   // `new Date(Date.now() + SETTLEMENT_WINDOW_DAYS * 24 * 60 * 60 * 1000)`
   // to bring the 7-day hold back.
   const availableAt: Date | null = null;
+  const status = availableAt ? "PENDING" : "AVAILABLE";
   const commissionKobo = Math.round(args.grossKobo * commissionRateFor(args.productType));
+  const promoterKobo = args.promoter
+    ? Math.round((args.grossKobo - commissionKobo) * (args.promoter.sharePercent / 100))
+    : 0;
 
-  await tx.walletLedgerEntry.createMany({
-    data: [
-      {
-        userId: args.sellerId,
-        orderId: args.orderId,
-        amountKobo: args.grossKobo,
-        kind: "SALE_CREDIT",
-        status: availableAt ? "PENDING" : "AVAILABLE",
-        availableAt,
-      },
-      {
-        userId: args.sellerId,
-        orderId: args.orderId,
-        amountKobo: -commissionKobo,
-        kind: "COMMISSION_FEE",
-        status: availableAt ? "PENDING" : "AVAILABLE",
-        availableAt,
-      },
-    ],
+  const entries: Prisma.WalletLedgerEntryCreateManyInput[] = [
+    { userId: args.sellerId, orderId: args.orderId, amountKobo: args.grossKobo, kind: "SALE_CREDIT", status, availableAt },
+    { userId: args.sellerId, orderId: args.orderId, amountKobo: -commissionKobo, kind: "COMMISSION_FEE", status, availableAt },
+  ];
+  if (args.promoter && promoterKobo > 0) {
+    entries.push(
+      { userId: args.sellerId, orderId: args.orderId, amountKobo: -promoterKobo, kind: "PROMOTER_FEE", status, availableAt },
+      { userId: args.promoter.userId, orderId: args.orderId, amountKobo: promoterKobo, kind: "PROMOTER_CREDIT", status, availableAt },
+    );
+  }
+  await tx.walletLedgerEntry.createMany({ data: entries });
+
+  if (args.referredByAmbassadorId) {
+    await recordAmbassadorCommission(tx, {
+      ambassadorId: args.referredByAmbassadorId,
+      orderId: args.orderId,
+      commissionKobo,
+    });
+  }
+}
+
+/**
+ * Sums every COMMISSION_FEE the platform has ever taken on an order placed
+ * by one of this ambassador's referred users — i.e. how much platform
+ * revenue this ambassador has generated. Used both to pick a tier
+ * (ambassadorTierFor) and to display it (app/api/ambassador/me,
+ * app/api/admin/ambassadors). Accepts a transaction client so
+ * recordAmbassadorCommission can read a consistent value inside the same
+ * transaction it's about to write into.
+ */
+export async function getAmbassadorRevenueGeneratedKobo(
+  client: Prisma.TransactionClient | typeof db,
+  ambassadorId: string,
+): Promise<number> {
+  const result = await client.walletLedgerEntry.aggregate({
+    where: { kind: "COMMISSION_FEE", order: { buyer: { referredByAmbassadorId: ambassadorId } } },
+    _sum: { amountKobo: true },
+  });
+  return -(result._sum.amountKobo ?? 0);
+}
+
+/** Moderator-configurable, lazily-defaulted rate for a given tier. */
+export async function getAmbassadorTierRatePercent(
+  client: Prisma.TransactionClient | typeof db,
+  tier: AmbassadorTier,
+): Promise<number> {
+  const row = await client.ambassadorTierRate.findUnique({ where: { tier } });
+  return row?.percent ?? DEFAULT_AMBASSADOR_TIER_RATES[tier];
+}
+
+/**
+ * Automatic, per-sale credit to an ambassador when the buyer was one of
+ * their referrals — carved out of the platform's own commission on THIS
+ * sale, computed at whatever tier the ambassador's revenue-generated-so-far
+ * (before this sale) puts them at. No-ops (and touches nothing) if the
+ * computed cut rounds to zero.
+ */
+async function recordAmbassadorCommission(
+  tx: Prisma.TransactionClient,
+  args: { ambassadorId: string; orderId: string; commissionKobo: number },
+) {
+  const revenueGeneratedKobo = await getAmbassadorRevenueGeneratedKobo(tx, args.ambassadorId);
+  const tier = ambassadorTierFor(revenueGeneratedKobo);
+  const percent = await getAmbassadorTierRatePercent(tx, tier);
+  const ambassadorKobo = Math.round(args.commissionKobo * (percent / 100));
+  if (ambassadorKobo <= 0) return;
+
+  await tx.walletLedgerEntry.create({
+    data: {
+      userId: args.ambassadorId,
+      orderId: args.orderId,
+      amountKobo: ambassadorKobo,
+      kind: "AMBASSADOR_COMMISSION",
+      status: "AVAILABLE",
+      availableAt: null,
+    },
   });
 }
 
 /**
- * Reverses a previously recorded sale: a single immutable debit for the net
- * amount the seller received (gross minus commission), so the two entries
- * from recordSale net to zero regardless of whether they've settled yet.
+ * Reverses a previously recorded sale: an immutable debit for the net
+ * amount the seller actually received (gross minus commission minus any
+ * promoter cut), so every entry recordSale created for this order nets to
+ * zero regardless of whether it's settled yet — plus symmetric clawbacks
+ * from a promoter and/or ambassador if this sale credited either of them.
  * Takes effect immediately (availableAt: null) rather than after the usual
- * settlement window — a seller holding funds from a reversed sale owes them
- * back now, not in 7 days. Used by the copyright takedown path (PRD §14):
- * "a takedown path plus a way to reverse the associated payout."
+ * settlement window — a seller (or promoter, or ambassador) holding funds
+ * from a reversed sale owes them back now, not in 7 days. Used by the
+ * copyright takedown path (PRD §14): "a takedown path plus a way to
+ * reverse the associated payout."
  *
- * Reverses whatever commission was *actually* charged on this specific
- * order — looked up from the COMMISSION_FEE entry recordSale created for
- * it — rather than recomputing from the current COMMISSION_RATE. The rate
- * can change between when a sale settles and when it's later refunded or
- * taken down; recomputing from whatever the rate happens to be *now* would
- * silently over- or under-reverse a sale made under a different rate. Both
- * call sites only invoke this when `payment` exists on the order, and
- * recordSale (which always creates this entry alongside SALE_CREDIT, in
- * the same transaction) is the only path that ever produces a paid order —
- * so this entry existing isn't optional to handle, it's guaranteed.
+ * Reverses whatever was *actually* charged/credited on this specific
+ * order — looked up from the entries recordSale created for it — rather
+ * than recomputing from today's rates. Rates (commission %, an event's
+ * promoter %, an ambassador's tier %) can all change between when a sale
+ * settles and when it's later refunded or taken down; recomputing from
+ * whatever they happen to be *now* would silently over- or under-reverse a
+ * sale made under different rates. Both call sites only invoke this when
+ * `payment` exists on the order, and recordSale (which always creates the
+ * COMMISSION_FEE entry alongside SALE_CREDIT, in the same transaction) is
+ * the only path that ever produces a paid order — so that entry existing
+ * isn't optional to handle, it's guaranteed. PROMOTER_FEE/AMBASSADOR_
+ * COMMISSION are optional, since not every sale has either.
  */
 export async function recordRefund(
   tx: Prisma.TransactionClient,
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
-  const commissionEntry = await tx.walletLedgerEntry.findFirstOrThrow({
-    where: { orderId: args.orderId, kind: "COMMISSION_FEE" },
-  });
+  const [commissionEntry, promoterFeeEntry, ambassadorEntry] = await Promise.all([
+    tx.walletLedgerEntry.findFirstOrThrow({ where: { orderId: args.orderId, kind: "COMMISSION_FEE" } }),
+    tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "PROMOTER_FEE" } }),
+    tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "AMBASSADOR_COMMISSION" } }),
+  ]);
   const commissionKobo = -commissionEntry.amountKobo;
-  const netKobo = args.grossKobo - commissionKobo;
+  const promoterKobo = promoterFeeEntry ? -promoterFeeEntry.amountKobo : 0;
+  const netKobo = args.grossKobo - commissionKobo - promoterKobo;
 
-  await tx.walletLedgerEntry.create({
-    data: {
-      userId: args.sellerId,
+  const entries: Prisma.WalletLedgerEntryCreateManyInput[] = [
+    { userId: args.sellerId, orderId: args.orderId, amountKobo: -netKobo, kind: "REFUND_DEBIT", status: "AVAILABLE", availableAt: null },
+  ];
+
+  if (promoterFeeEntry && promoterKobo > 0) {
+    const promoterCreditEntry = await tx.walletLedgerEntry.findFirstOrThrow({
+      where: { orderId: args.orderId, kind: "PROMOTER_CREDIT" },
+    });
+    entries.push({
+      userId: promoterCreditEntry.userId,
       orderId: args.orderId,
-      amountKobo: -netKobo,
+      amountKobo: -promoterKobo,
       kind: "REFUND_DEBIT",
       status: "AVAILABLE",
       availableAt: null,
-    },
-  });
+    });
+  }
+
+  if (ambassadorEntry) {
+    entries.push({
+      userId: ambassadorEntry.userId,
+      orderId: args.orderId,
+      amountKobo: -ambassadorEntry.amountKobo,
+      kind: "REFUND_DEBIT",
+      status: "AVAILABLE",
+      availableAt: null,
+    });
+  }
+
+  await tx.walletLedgerEntry.createMany({ data: entries });
 }
 
 // Available/pending are computed from `availableAt` at query time rather

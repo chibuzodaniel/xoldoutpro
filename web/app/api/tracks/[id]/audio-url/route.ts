@@ -34,7 +34,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       entitled = Boolean((entitlement && !entitlement.revokedAt) || track.release.product.creatorId === user.id);
     }
 
-    const keyToSign = entitled ? track.audioStreamUrl : (track.previewAudioUrl ?? track.audioStreamUrl);
+    // ?download=1 (explicit ask, mirroring the beat purchase flow's real
+    // master-file download — DECISIONS.md previously deferred this exact
+    // decision for music tracks) signs the original upload instead of the
+    // transcoded streaming rendition. Only ever honored for an entitled
+    // request — an unentitled request ignores it and still only ever gets
+    // the preview clip, same as every other branch here.
+    const wantsDownload = req.nextUrl.searchParams.get("download") === "1";
+    const keyToSign = entitled
+      ? wantsDownload
+        ? track.audioMasterUrl
+        : track.audioStreamUrl
+      : (track.previewAudioUrl ?? track.audioStreamUrl);
     const url = await presignDownload(keyToSign, 300);
 
     // Fire-and-forget play signal for the Socials "suggested" feed ranking

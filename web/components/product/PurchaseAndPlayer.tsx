@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
@@ -115,6 +115,18 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     }
   }
 
+  async function handleDownload(e: MouseEvent, trackId: string) {
+    e.stopPropagation();
+    try {
+      const res = await apiFetch(`/api/tracks/${trackId}/audio-url?download=1`);
+      if (!res.ok) throw new Error("Could not get download link");
+      const data = await res.json();
+      window.location.href = data.url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
+    }
+  }
+
   function handlePlay(track: AccessTrack) {
     const trackQueue: PlayableTrack[] = (tracks ?? []).map((t) => ({
       trackId: t.id,
@@ -162,39 +174,52 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
           const isPlaying = isThisTrack && player.isPlaying;
           const loadingAudio = isThisTrack && player.loading;
           return (
-            <button
-              key={track.id}
-              onClick={() => handlePlay(track)}
-              disabled={loadingAudio}
-              className="flex items-center gap-3 py-3 text-left disabled:opacity-60"
-            >
-              <span className="h-9 w-9 rounded-full bg-red flex items-center justify-center shrink-0" aria-hidden>
-                {isPlaying ? (
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white">
-                    <rect x="6" y="5" width="4" height="14" />
-                    <rect x="14" y="5" width="4" height="14" />
-                  </svg>
-                ) : (
-                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white translate-x-[1px]">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center text-sm">
-                  <span className="truncate">{track.title}</span>
-                  {!entitled && !isOwner && (
-                    <span className="ml-2 shrink-0 text-[11px] text-ink-3 uppercase tracking-widest">Preview</span>
+            <div key={track.id} className="flex items-center gap-3 py-3">
+              <button
+                onClick={() => handlePlay(track)}
+                disabled={loadingAudio}
+                className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-60"
+              >
+                <span className="h-9 w-9 rounded-full bg-red flex items-center justify-center shrink-0" aria-hidden>
+                  {isPlaying ? (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white">
+                      <rect x="6" y="5" width="4" height="14" />
+                      <rect x="14" y="5" width="4" height="14" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 fill-white translate-x-[1px]">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
                   )}
                 </span>
-                <span className="block text-xs text-ink-3 line-clamp-1">
-                  {track.description || `Tap to preview · ${artistName}`}
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center text-sm">
+                    <span className="truncate">{track.title}</span>
+                    {!entitled && !isOwner && (
+                      <span className="ml-2 shrink-0 text-[11px] text-ink-3 uppercase tracking-widest">Preview</span>
+                    )}
+                  </span>
+                  <span className="block text-xs text-ink-3 line-clamp-1">
+                    {track.description || `Tap to preview · ${artistName}`}
+                  </span>
                 </span>
-              </span>
+              </button>
               <span className="text-xs text-ink-3 shrink-0">
                 {entitled || isOwner ? formatTime(track.durationSec) : formatTime(track.previewEndSec - track.previewStartSec)}
               </span>
-            </button>
+              {(entitled || isOwner) && (
+                <button
+                  onClick={(e) => handleDownload(e, track.id)}
+                  aria-label={`Download ${track.title}`}
+                  className="h-7 w-7 rounded-full border border-line flex items-center justify-center shrink-0 text-ink-2"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+                    <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M5 20h14" strokeLinecap="round" />
+                  </svg>
+                </button>
+              )}
+            </div>
           );
         })}
       </div>

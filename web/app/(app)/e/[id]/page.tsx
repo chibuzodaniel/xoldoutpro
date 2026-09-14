@@ -7,6 +7,8 @@ import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
+import { SoldCount } from "@/components/product/SoldCount";
+import { EventPromotersPanel } from "@/components/product/EventPromotersPanel";
 import { buildOgMetadata } from "@/lib/og";
 
 // Public product data — cache and revalidate in the background instead of
@@ -104,7 +106,13 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                   <span className="font-serif text-sm">{formatNaira(tier.product.priceKobo)}</span>
                 </div>
                 <span className="text-xs text-ink-3">
-                  {isSoldOut ? "Sold out" : remaining !== null ? `${remaining} of ${cap} left` : `${sold} sold`}
+                  {isSoldOut ? (
+                    "Sold out"
+                  ) : remaining !== null ? (
+                    `${remaining} of ${cap} left`
+                  ) : (
+                    <SoldCount creatorId={event.creatorId} sold={sold} />
+                  )}
                 </span>
               </div>
             );
@@ -120,6 +128,8 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             isSoldOut: Boolean(t.product.stockPolicy?.soldOutAt),
           }))}
         />
+
+        <EventPromotersPanel eventId={event.id} eventTitle={event.title} creatorId={event.creatorId} />
       </div>
     </div>
   );

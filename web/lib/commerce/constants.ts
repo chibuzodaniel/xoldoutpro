@@ -29,3 +29,43 @@ export const EVENT_COMMISSION_RATE = 0.05;
 export function commissionRateFor(productType: "RELEASE" | "BEAT" | "EVENT" | "MERCH"): number {
   return productType === "EVENT" ? EVENT_COMMISSION_RATE : COMMISSION_RATE;
 }
+
+// Ambassador program (platform-wide referral role, distinct from the
+// per-event EventPromoter below): tiers are never stored, only ever derived
+// from how much platform-commission revenue an ambassador's referred users
+// have generated in total — see ambassadorTierFor(). Starting thresholds,
+// trivially tunable later since they're just constants.
+export const AMBASSADOR_TIER_THRESHOLDS_KOBO = {
+  BRONZE: 0, // every approved ambassador's starting floor
+  SILVER: 5_000_000, // ₦50,000
+  GOLD: 20_000_000, // ₦200,000
+  PLATINUM: 50_000_000, // ₦500,000
+} as const;
+
+export type AmbassadorTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
+
+export function ambassadorTierFor(revenueGeneratedKobo: number): AmbassadorTier {
+  if (revenueGeneratedKobo >= AMBASSADOR_TIER_THRESHOLDS_KOBO.PLATINUM) return "PLATINUM";
+  if (revenueGeneratedKobo >= AMBASSADOR_TIER_THRESHOLDS_KOBO.GOLD) return "GOLD";
+  if (revenueGeneratedKobo >= AMBASSADOR_TIER_THRESHOLDS_KOBO.SILVER) return "SILVER";
+  return "BRONZE";
+}
+
+// The next tier up from `tier`, or null at the top (PLATINUM) — used by the
+// ambassador dashboard's "₦X more to reach {next tier}" motivational line.
+export function nextAmbassadorTier(tier: AmbassadorTier): AmbassadorTier | null {
+  if (tier === "BRONZE") return "SILVER";
+  if (tier === "SILVER") return "GOLD";
+  if (tier === "GOLD") return "PLATINUM";
+  return null;
+}
+
+// Starting defaults for AmbassadorTierRate rows, lazily upserted on first
+// read (see app/api/admin/ambassadors/tier-rates/route.ts) rather than
+// seeded via migration data — a moderator can edit these from day one.
+export const DEFAULT_AMBASSADOR_TIER_RATES: Record<AmbassadorTier, number> = {
+  BRONZE: 10,
+  SILVER: 20,
+  GOLD: 30,
+  PLATINUM: 50,
+};

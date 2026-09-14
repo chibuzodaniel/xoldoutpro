@@ -173,6 +173,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                       key={ev.id}
                       event={{
                         id: ev.id,
+                        creatorId: ev.creatorId,
                         title: ev.title,
                         coverImageLadder: ev.coverImageLadder,
                         startsAt: ev.startsAt,

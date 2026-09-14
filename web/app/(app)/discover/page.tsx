@@ -64,6 +64,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                   key={ev.id}
                   event={{
                     id: ev.id,
+                    creatorId: ev.creatorId,
                     title: ev.title,
                     coverImageLadder: ev.coverImageLadder,
                     startsAt: ev.startsAt,
@@ -270,6 +271,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 key={ev.id}
                 event={{
                   id: ev.id,
+                  creatorId: ev.creatorId,
                   title: ev.title,
                   coverImageLadder: ev.coverImageLadder,
                   startsAt: ev.startsAt,

@@ -47,6 +47,11 @@ const bodySchema = z.object({
   // so a client that hasn't been updated to send this should land on the
   // processor that's actually live.
   gateway: z.enum(["flutterwave", "monnify", "bachs"]).default("bachs"),
+  // Ticket promoter split (EVENT only, explicit ask) — the `?promo=<code>`
+  // query param a promoter's share link carries (EventTierPicker). Resolved
+  // against EventPromoter below; a stale/invalid/self-referral code is
+  // silently ignored rather than blocking checkout.
+  promoCode: z.string().optional(),
 });
 
 // RELEASE/BEAT stay single-copy — a digital single never had a reason to be
@@ -57,7 +62,7 @@ const MULTI_UNIT_TYPES = new Set(["EVENT", "MERCH"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { productId, shipping, isGift = false, guest, quantity, gateway } = bodySchema.parse(await req.json());
+    const { productId, shipping, isGift = false, guest, quantity, gateway, promoCode } = bodySchema.parse(await req.json());
 
     // No Firebase session at all → guest checkout: resolve (or silently
     // create) a real, passwordless account for the email given at checkout,
@@ -127,6 +132,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Shipping address is required" }, { status: 400 });
     }
 
+    // Ticket promoter split (EVENT only) — resolve the promo code against
+    // this specific event's promoters. Invalid/missing/self-referral codes
+    // (and any code on a non-EVENT product) are silently ignored, not an
+    // error — a stale or copy-pasted-wrong link shouldn't block checkout.
+    let promoterId: string | null = null;
+    if (promoCode && product.type === "EVENT" && product.ticketTier) {
+      const promoter = await db.eventPromoter.findUnique({
+        where: { code: promoCode },
+      });
+      if (promoter && promoter.eventId === product.ticketTier.eventId && promoter.userId !== buyer.id) {
+        promoterId = promoter.id;
+      }
+    }
+
     // Shipping fee is a flat per-order cost (explicit ask), not multiplied by
     // quantity — "one package, one shipping cost" for items shipped together.
     // Snapshotted onto MerchOrderFulfillment so a later fee edit never
@@ -164,6 +183,7 @@ export async function POST(req: NextRequest) {
               buyerId: buyer.id,
               status: "PAID",
               isGift,
+              promoterId,
               items: { create: { productId, priceKobo: 0, quantity } },
               merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
             },
@@ -210,6 +230,7 @@ export async function POST(req: NextRequest) {
           buyerId: buyer.id,
           status: "PENDING",
           isGift,
+          promoterId,
           items: { create: { productId, priceKobo: product.priceKobo, quantity } },
           merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
         },

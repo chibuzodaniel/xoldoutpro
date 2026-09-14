@@ -28,7 +28,13 @@ type PaymentForConfirm = {
   orderId: string;
   amountKobo: number;
   processor: string;
-  order: { buyerId: string; isGift: boolean; items: { productId: string; quantity: number }[] };
+  order: {
+    buyerId: string;
+    isGift: boolean;
+    promoterId: string | null;
+    items: { productId: string; quantity: number }[];
+    buyer: { referredByAmbassadorId: string | null };
+  };
 };
 
 type VerifiedResult = { id: number | string; status: "successful" | "failed" | string; amountKobo: number };
@@ -119,11 +125,25 @@ export async function finalizePayment(
       }
     }
     await confirmStock(productId, quantity, tx);
+
+    // Ticket promoter split (EVENT only) — resolved from the promoterId
+    // captured at checkout time (app/api/orders/route.ts, from a
+    // `?promo=<code>` link). Looked up here, not trusted from any stale
+    // client-supplied value, and only ever applied to a still-existing
+    // EventPromoter row for the product actually being sold.
+    let promoter: { userId: string; sharePercent: number } | undefined;
+    if (payment.order.promoterId) {
+      const promoterRow = await tx.eventPromoter.findUnique({ where: { id: payment.order.promoterId } });
+      if (promoterRow) promoter = { userId: promoterRow.userId, sharePercent: promoterRow.sharePercent };
+    }
+
     await recordSale(tx, {
       sellerId: product.creatorId,
       orderId: payment.orderId,
       grossKobo: payment.amountKobo,
       productType: product.type,
+      promoter,
+      referredByAmbassadorId: payment.order.buyer.referredByAmbassadorId,
     });
   });
 

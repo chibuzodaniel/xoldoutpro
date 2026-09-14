@@ -20,34 +20,34 @@ datasource db {
 // on first sign-in and mirrors the Firebase UID; no password is stored here.
 
 model User {
-  id                       String                  @id @default(cuid())
-  firebaseUid              String                  @unique
-  email                    String                  @unique
-  handle                   String                  @unique
-  displayName              String
-  bio                      String?
-  avatarUrl                String?
-  coverUrl                 String?
-  tags                     String[]                @default([])
-  socialLinks              Json                    @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
+  id                          String                  @id @default(cuid())
+  firebaseUid                 String                  @unique
+  email                       String                  @unique
+  handle                      String                  @unique
+  displayName                 String
+  bio                         String?
+  avatarUrl                   String?
+  coverUrl                    String?
+  tags                        String[]                @default([])
+  socialLinks                 Json                    @default("[]") // [{ platform: "Instagram", url: "https://instagram.com/..." }, ...]
   // Defaults on for new signups (onboarding calls enablePush() once the
   // profile step completes, which is what actually requests the browser's
   // notification permission — this column alone is just the stored
   // preference). Existing users who signed up before this default flipped
   // keep whatever they'd already set; the toggle in Edit Profile still lets
   // anyone turn it off.
-  pushEnabled              Boolean                 @default(true)
-  fcmTokens                String[]                @default([]) // Firebase Cloud Messaging push tokens
+  pushEnabled                 Boolean                 @default(true)
+  fcmTokens                   String[]                @default([]) // Firebase Cloud Messaging push tokens
   // Drives the in-app unread badge on the Socials nav tab (distinct from
   // push — this counts activity while the app itself is open) — null until
   // the user's first-ever Socials visit, treated as "everything" from then on.
-  socialsLastSeenAt        DateTime?
-  isModerator              Boolean                 @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
+  socialsLastSeenAt           DateTime?
+  isModerator                 Boolean                 @default(false) // internal staff flag (PRD §3) — set directly in the DB, no self-serve UI
   // A super-moderator can additionally promote/demote other moderators from
   // the moderation dashboard (ManageModeratorsPanel) — the first one still
   // has to be set directly in the DB, same as isModerator itself, but from
   // there on out further moderators can be assigned/removed through the UI.
-  isSuperModerator         Boolean                 @default(false)
+  isSuperModerator            Boolean                 @default(false)
   // Master "has a checkmark" flag — unchanged from its original PRD §12/§18
   // meaning and still moderator-togglable directly (POST /api/admin/verify)
   // for backward compatibility with every existing <VerifiedBadge> call
@@ -56,25 +56,25 @@ model User {
   // suspension/revocation clears verificationBadges but leaves this alone,
   // since other things, like the old moderator toggle, may still want it
   // on) and records which specific badge(s) were actually granted.
-  isVerified               Boolean                 @default(false)
+  isVerified                  Boolean                 @default(false)
   // Specific badges actually granted through VerificationApplication
   // approvals — distinct from isVerified so the UI can show e.g. "Seller
   // Verified" instead of just a bare checkmark. A plain array (matching
   // `tags`' convention elsewhere on this model) rather than a join table:
   // membership only ever needs "is type X currently granted," never its
   // own per-badge relations.
-  verificationBadges       VerificationBadgeType[] @default([])
+  verificationBadges          VerificationBadgeType[] @default([])
   // Set the first time the 50-valid-sales milestone notification/modal is
   // shown, so it doesn't re-trigger on every visit — see
   // lib/verification/eligibility.ts.
-  salesMilestoneNotifiedAt DateTime?
-  createdAt                DateTime                @default(now())
+  salesMilestoneNotifiedAt    DateTime?
+  createdAt                   DateTime                @default(now())
   // Defaults on for new signups, same as pushEnabled — user can turn it off
   // from the profile toggle. Weekly/monthly/yearly best-seller digest emails
   // (lib/email.ts sendDigestEmail, cron at /api/internal/send-digests).
   // Existing users' values are untouched by this default (Prisma column
   // defaults only apply to new rows) — only new signups start opted in.
-  emailDigestSubscribed    Boolean                 @default(true)
+  emailDigestSubscribed       Boolean                 @default(true)
   // Lets a signed-out recipient unsubscribe straight from the email footer
   // without an auth flow — a per-user secret, not the user's own id (which
   // would let anyone unsubscribe anyone by guessing/scraping ids). Optional
@@ -82,7 +82,7 @@ model User {
   // Prisma-level default: db push can't backfill a required unique default
   // onto existing rows in one step, and every user needs a digest sent to
   // them at least once before the token is ever actually used anyway.
-  unsubscribeToken         String?                 @unique
+  unsubscribeToken            String?                 @unique
   // Soft delete: set by DELETE /api/me once the user confirms via the
   // "type DELETE <handle>" flow (components/profile/DeleteAccountSheet).
   // Real user rows are never hard-deleted — nothing in the schema cascades
@@ -91,11 +91,28 @@ model User {
   // scrubs PII (email/handle/displayName/avatar/bio/tags/socialLinks) and
   // disables the Firebase Auth account; requireUser() rejects any request
   // once this is set, even for a still-unexpired ID token.
-  deletedAt                DateTime?
+  deletedAt                   DateTime?
   // Set the first time this user publishes a beat and checks the
   // ownership/producer-agreement box (POST /api/beats) — never re-asked
   // after that, unlike Beat.ownershipConfirmedAt below, which is per-beat.
   producerAgreementAcceptedAt DateTime?
+
+  // ─── Ambassador program ───────────────────────────────────────────────
+  // Platform-wide referral role (not tied to any one creator — see
+  // AmbassadorApplication below). isAmbassador flips true on approval;
+  // ambassadorCode is lazily generated at that same moment (same
+  // lazy-generation idea as unsubscribeToken above) and used in
+  // `?ref=<code>` signup links. referredByAmbassadorId is set once, at
+  // this user's own first-ever sign-in, if they arrived via such a link —
+  // never reassigned after that (first-touch attribution).
+  isAmbassador           Boolean @default(false)
+  ambassadorCode         String? @unique
+  referredByAmbassadorId String?
+  referredByAmbassador   User?   @relation("AmbassadorReferrals", fields: [referredByAmbassadorId], references: [id])
+  referredUsers          User[]  @relation("AmbassadorReferrals")
+
+  ambassadorApplications         AmbassadorApplication[] @relation("AmbassadorApplicant")
+  ambassadorApplicationsReviewed AmbassadorApplication[] @relation("AmbassadorReviewer")
 
   payoutAccounts PayoutAccount[]
   ledgerEntries  WalletLedgerEntry[]
@@ -134,6 +151,8 @@ model User {
   verificationAuditActions VerificationAuditLog[]    @relation("VerificationAuditActor")
 
   moderatorOtpCodes ModeratorOtpCode[]
+
+  eventPromoterRoles EventPromoter[]
 }
 
 model PayoutAccount {
@@ -368,6 +387,15 @@ enum LedgerKind {
   COMMISSION_FEE
   REFUND_DEBIT
   PAYOUT_DEBIT
+  // Automatic, per-sale credit to an ambassador when the buyer was one of
+  // their referrals — carved out of the platform's own commission share,
+  // never the seller's (lib/commerce/ledger.ts's recordAmbassadorCommission).
+  AMBASSADOR_COMMISSION
+  // Ticket promoter split (per-event, distinct from the ambassador program):
+  // PROMOTER_CREDIT is the promoter's automatic cut, PROMOTER_FEE is the
+  // matching debit carved out of the *seller's* own net on that same order.
+  PROMOTER_CREDIT
+  PROMOTER_FEE
 }
 
 enum LedgerStatus {
@@ -502,19 +530,19 @@ model Track {
 // clip, not the full track) is what a non-buyer hears, audioMasterUrl is
 // what presignDownload serves after buy.
 model Beat {
-  productId        String   @id
-  product          Product  @relation(fields: [productId], references: [id])
-  coverImageLadder Json
-  audioMasterUrl   String
-  audioStreamUrl   String?
-  previewAudioUrl  String? // see Track.previewAudioUrl's comment — same fallback story for pre-existing rows
-  waveformPeaksUrl String?
-  previewStartSec  Float
-  previewEndSec    Float
-  durationSec      Float
-  bpm              Int?
-  musicalKey       String?
-  tags             String[] @default([])
+  productId            String    @id
+  product              Product   @relation(fields: [productId], references: [id])
+  coverImageLadder     Json
+  audioMasterUrl       String
+  audioStreamUrl       String?
+  previewAudioUrl      String? // see Track.previewAudioUrl's comment — same fallback story for pre-existing rows
+  waveformPeaksUrl     String?
+  previewStartSec      Float
+  previewEndSec        Float
+  durationSec          Float
+  bpm                  Int?
+  musicalKey           String?
+  tags                 String[]  @default([])
   // Set at publish time once the producer checks the ownership/rights
   // confirmation box (POST /api/beats) — required per beat, unlike
   // User.producerAgreementAcceptedAt above, which is a one-time acceptance.
@@ -610,8 +638,9 @@ model Event {
   publishedAt      DateTime?
   deletedAt        DateTime?
 
-  tiers   TicketTier[]
-  reports Report[]     @relation("ReportsOnEvent")
+  tiers     TicketTier[]
+  reports   Report[]        @relation("ReportsOnEvent")
+  promoters EventPromoter[]
 
   @@index([creatorId])
 }
@@ -686,6 +715,14 @@ model Order {
   status    OrderStatus @default(PENDING)
   isGift    Boolean     @default(false) // routes the entitlement to a Gift instead of the buyer at confirm time
   createdAt DateTime    @default(now())
+
+  // Ticket promoter split (EVENT only) — set at checkout time from a
+  // `?promo=<code>` link (EventTierPicker), resolved against EventPromoter.
+  // Null for every non-ticket order and for a ticket bought with no promoter
+  // link. See lib/commerce/ledger.ts's recordSale for how this drives the
+  // PROMOTER_FEE/PROMOTER_CREDIT split.
+  promoterId String?
+  promoter   EventPromoter? @relation(fields: [promoterId], references: [id])
 
   items            OrderItem[]
   payment          Payment?
@@ -1036,6 +1073,78 @@ model VerificationAuditLog {
   createdAt     DateTime                @default(now())
 
   @@index([applicationId, createdAt])
+}
+
+// ─── Ambassador program ─────────────────────────────────────────────────
+// Platform-wide referral role — deliberately not tied to any one creator
+// (contrast with EventPromoter below, which is exactly that). An approved
+// ambassador refers new *users*; every sale a referred user later makes,
+// to any creator, automatically credits the ambassador a tier-based % of
+// the platform's own commission on that sale (never the seller's net —
+// the seller has no relationship with the ambassador program). Tier itself
+// is never stored — it's derived at read/write time from cumulative
+// referred-revenue via lib/commerce/constants.ts's ambassadorTierFor().
+
+enum AmbassadorApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AmbassadorApplication {
+  id              String                      @id @default(cuid())
+  userId          String
+  user            User                        @relation("AmbassadorApplicant", fields: [userId], references: [id])
+  pitch           String?
+  status          AmbassadorApplicationStatus @default(PENDING)
+  reviewedAt      DateTime?
+  reviewedBy      String?
+  reviewer        User?                       @relation("AmbassadorReviewer", fields: [reviewedBy], references: [id])
+  rejectionReason String?
+  createdAt       DateTime                    @default(now())
+
+  @@index([userId, status])
+  @@index([status])
+}
+
+enum AmbassadorTier {
+  BRONZE
+  SILVER
+  GOLD
+  PLATINUM
+}
+
+// Moderator-configurable: what % of the platform's own commission each
+// tier pays its ambassador on a sale (lib/commerce/ledger.ts's
+// recordAmbassadorCommission). Rows are lazily upserted with starting
+// defaults the first time they're read, not seeded via migration data.
+model AmbassadorTierRate {
+  tier      AmbassadorTier @id
+  percent   Int
+  updatedAt DateTime       @updatedAt
+  updatedBy String?
+}
+
+// ─── Ticket promoter split ──────────────────────────────────────────────
+// Per-event, independent of the Ambassador program above: an event creator
+// adds any user as a promoter for *their* event and sets a % of *their own*
+// net proceeds to share on tickets sold through that promoter's link
+// (`?promo=<code>`, resolved at checkout in app/api/orders/route.ts).
+
+model EventPromoter {
+  id           String   @id @default(cuid())
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id])
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  sharePercent Int
+  code         String   @unique @default(cuid())
+  createdAt    DateTime @default(now())
+
+  orders Order[]
+
+  @@unique([eventId, userId])
+  @@index([eventId])
 }
 
 // ─── Background work queue ──────────────────────────────────────────────

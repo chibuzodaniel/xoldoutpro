@@ -25,8 +25,15 @@ export async function GET(req: NextRequest) {
     const { availableKobo, pendingKobo } = await getWalletBalances(user.id);
 
     const [earned, withdrawn, categoryBreakdown, payouts] = await Promise.all([
+      // Every kind that credits/debits a user as part of a sale itself
+      // (as opposed to a withdrawal) — widened alongside the ambassador
+      // and ticket-promoter features so totalEarnedKobo never diverges
+      // from availableKobo, which already sums every kind unconditionally.
       db.walletLedgerEntry.aggregate({
-        where: { userId: user.id, kind: { in: ["SALE_CREDIT", "COMMISSION_FEE"] } },
+        where: {
+          userId: user.id,
+          kind: { in: ["SALE_CREDIT", "COMMISSION_FEE", "AMBASSADOR_COMMISSION", "PROMOTER_CREDIT", "PROMOTER_FEE"] },
+        },
         _sum: { amountKobo: true },
       }),
       db.walletLedgerEntry.aggregate({

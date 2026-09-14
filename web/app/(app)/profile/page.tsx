@@ -280,6 +280,22 @@ export default function ProfilePage() {
           </Link>
         </div>
 
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-6">
+          <Link href="/ambassador" className="flex items-center gap-3 py-3">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4 text-ink-3 shrink-0">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21v-2a6 6 0 016-6h4a6 6 0 016 6v2" />
+            </svg>
+            <div className="flex-1">
+              <p className="text-sm font-semibold">{appUser.isAmbassador ? "Ambassador dashboard" : "Become an Ambassador"}</p>
+              <p className="text-xs text-ink-3">
+                {appUser.isAmbassador ? "Your referral link, tier, and earnings" : "Earn commission for referring new fans"}
+              </p>
+            </div>
+            <span className="text-ink-3">›</span>
+          </Link>
+        </div>
+
         {appUser.isModerator && (
           <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
             <Link href="/moderation" className="flex items-center justify-between py-3 text-sm">

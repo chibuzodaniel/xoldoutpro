@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
+import { SoldCount } from "@/components/product/SoldCount";
 
 export type EventCardData = {
   id: string;
+  creatorId: string;
   title: string;
   coverImageLadder: unknown;
   startsAt: Date;
@@ -50,7 +52,11 @@ export function EventCard({ event }: { event: EventCardData }) {
         <span className="text-[12px] font-serif">
           {minPriceKobo === 0 ? "Free" : `From ${formatNaira(minPriceKobo)}`}
         </span>
-        <span className="text-[12px] text-ink-3">{allSoldOut ? "Sold out" : `${totalSold} sold`}</span>
+        {allSoldOut ? (
+          <span className="text-[12px] text-ink-3">Sold out</span>
+        ) : (
+          <SoldCount creatorId={event.creatorId} sold={totalSold} />
+        )}
       </div>
     </Link>
   );

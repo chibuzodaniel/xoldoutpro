@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { onAuthStateChanged, type User as FirebaseUser } from "firebase/auth";
 import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
+import { captureReferralCode, consumeReferralCode } from "@/lib/referral";
 
 export type SocialLink = { platform: "Instagram" | "X" | "TikTok" | "YouTube" | "Website"; url: string };
 
@@ -24,6 +25,7 @@ export type AppUser = {
   isSuperModerator: boolean;
   isVerified: boolean;
   verificationBadges: string[];
+  isAmbassador: boolean;
 };
 
 type AuthState = {
@@ -80,7 +82,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const hasSignedInRef = useRef(false);
 
   const syncAppUser = useCallback(async () => {
-    const res = await apiFetch("/api/auth/sync", { method: "POST" });
+    const res = await apiFetch("/api/auth/sync", {
+      method: "POST",
+      body: JSON.stringify({ referralCode: consumeReferralCode() }),
+    });
     if (!res.ok) return;
     const data = await res.json();
     // A deleted account still has a working Firebase login (on purpose, so
@@ -100,6 +105,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setAppUser(data.user);
     setNeedsOnboarding(Boolean(data.needsOnboarding));
   }, [pathname, router]);
+
+  // Ambassador program: capture a `?ref=<code>` landing on any page, once,
+  // before the very first sync call has a chance to read it back.
+  useEffect(() => {
+    captureReferralCode();
+  }, []);
 
   useEffect(() => {
     if (!firebaseAuth) {

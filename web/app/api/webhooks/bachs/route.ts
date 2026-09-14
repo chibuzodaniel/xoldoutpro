@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
 
   const payment = await db.payment.findUnique({
     where: { processorRef: verified.txRef },
-    include: { order: { include: { items: true } } },
+    include: { order: { include: { items: true, buyer: { select: { referredByAmbassadorId: true } } } } },
   });
   if (!payment) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
 

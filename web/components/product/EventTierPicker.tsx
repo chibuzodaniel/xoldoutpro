@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -22,8 +22,20 @@ function formatNaira(kobo: number) {
   return `Buy · ₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 }
 
-export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Tier[] }) {
+// useSearchParams (for the `?promo=` promoter link) requires a Suspense
+// boundary — same pattern as app/(app)/library/page.tsx's own wrapper.
+export function EventTierPicker(props: { eventId: string; tiers: Tier[] }) {
+  return (
+    <Suspense fallback={null}>
+      <EventTierPickerInner {...props} />
+    </Suspense>
+  );
+}
+
+function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier[] }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const promoCode = searchParams.get("promo") ?? undefined;
   const toast = useToast();
   const { firebaseUser } = useAuth();
   const [access, setAccess] = useState<Record<string, AccessTier> | null>(null);
@@ -81,7 +93,7 @@ export function EventTierPicker({ eventId, tiers }: { eventId: string; tiers: Ti
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
       const res = await apiFetch("/api/orders", {
         method: "POST",
-        body: JSON.stringify({ productId, quantity: quantityFor(productId), guest, gateway }),
+        body: JSON.stringify({ productId, quantity: quantityFor(productId), guest, gateway, promoCode }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");

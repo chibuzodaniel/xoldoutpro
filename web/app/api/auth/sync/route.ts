@@ -15,6 +15,11 @@ const SITE_URL = "https://www.xoldout.app";
 export async function POST(req: NextRequest) {
   try {
     const decoded = await requireFirebaseUser(req);
+    // Ambassador program: only ever consulted for a brand-new row below —
+    // an existing user's referredByAmbassadorId is set once, at their own
+    // first-ever sign-in, and never reassigned on a later sync call.
+    const body = await req.json().catch(() => ({}));
+    const referralCode: string | undefined = typeof body?.referralCode === "string" ? body.referralCode : undefined;
 
     const existing = await db.user.findUnique({ where: { firebaseUid: decoded.uid } });
     if (existing) {
@@ -28,6 +33,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Firebase account has no email" }, { status: 400 });
     }
 
+    const referredByAmbassador = referralCode
+      ? await db.user.findUnique({ where: { ambassadorCode: referralCode } })
+      : null;
+
     const handle = await generateUniqueHandle(decoded.email.split("@")[0]);
     const user = await db.user.create({
       data: {
@@ -36,6 +45,7 @@ export async function POST(req: NextRequest) {
         handle,
         displayName: (decoded.name as string | undefined) ?? handle,
         avatarUrl: (decoded.picture as string | undefined) ?? null,
+        referredByAmbassadorId: referredByAmbassador?.isAmbassador ? referredByAmbassador.id : null,
       },
     });
 

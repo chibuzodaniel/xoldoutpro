@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
+import { SoldCount } from "@/components/product/SoldCount";
 
 export type ProductCardData = {
   id: string;
+  creatorId: string;
   // Prisma's ProductType includes EVENT too, but an EVENT-type Product (a
   // ticket tier) is never routed through this card — Discover/Library show
   // those via EventCard/EventTierPicker instead, keyed by Event.id.
@@ -95,7 +97,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
             {isSoldOut ? "Sold out" : `${remaining} left`}
           </span>
         ) : (
-          <span className="text-[12px] text-ink-3">{sold} sold</span>
+          <SoldCount creatorId={product.creatorId} sold={sold} />
         )}
       </div>
     </Link>
