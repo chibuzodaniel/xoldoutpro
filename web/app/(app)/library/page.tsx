@@ -13,6 +13,7 @@ import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet"
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
+import { downloadFileFromResponse } from "@/lib/downloadFile";
 
 type LibraryTrack = {
   id: string;
@@ -187,6 +188,39 @@ function LibraryPageInner() {
       toast.error(err instanceof Error ? err.message : "Download failed");
     } finally {
       setBusyTrackId(null);
+    }
+  }
+
+  // Real file save to the device (distinct from "Download for offline"
+  // above, which just caches an encrypted copy for in-app playback) —
+  // explicit ask: this should be reachable from the Library, not just the
+  // release's own /r/[id] page.
+  async function handleDownloadFile(track: LibraryTrack) {
+    setBusyTrackId(track.id);
+    try {
+      const res = await apiFetch(`/api/tracks/${track.id}/audio-url?download=1`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not download track");
+      }
+      await downloadFileFromResponse(res, `${track.title} - XOLDOUT.mp3`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setBusyTrackId(null);
+    }
+  }
+
+  async function handleDownloadBeatFile(productId: string, title: string) {
+    try {
+      const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not download beat");
+      }
+      await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
     }
   }
 
@@ -400,6 +434,22 @@ function LibraryPageInner() {
                                     </svg>
                                   </span>
                                 )}
+                                {e.product.beat && (
+                                  <button
+                                    type="button"
+                                    onClick={(ev) => {
+                                      ev.stopPropagation();
+                                      handleDownloadBeatFile(e.product.id, e.product.title);
+                                    }}
+                                    aria-label={`Download ${e.product.title} as a file`}
+                                    className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-black/60 flex items-center justify-center"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
+                                      <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                                      <path d="M5 20h14" strokeLinecap="round" />
+                                    </svg>
+                                  </button>
+                                )}
                               </div>
                             </button>
                             {/* Title/creator is its own tap target — for a
@@ -476,19 +526,29 @@ function LibraryPageInner() {
                                           </span>
                                         </span>
                                       </button>
-                                      {downloaded[track.id] ? (
-                                        <button onClick={() => handleRemoveDownload(track.id)} className="text-[11px] text-ink-3 uppercase tracking-widest">
-                                          Downloaded · Remove
-                                        </button>
-                                      ) : (
+                                      <div className="flex items-center gap-3 shrink-0">
+                                        {downloaded[track.id] ? (
+                                          <button onClick={() => handleRemoveDownload(track.id)} className="text-[11px] text-ink-3 uppercase tracking-widest">
+                                            Downloaded · Remove
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleDownload(e, track)}
+                                            disabled={busyTrackId === track.id}
+                                            className="text-[11px] text-red-soft uppercase tracking-widest disabled:opacity-50"
+                                          >
+                                            {busyTrackId === track.id ? "…" : "Offline"}
+                                          </button>
+                                        )}
                                         <button
-                                          onClick={() => handleDownload(e, track)}
+                                          onClick={() => handleDownloadFile(track)}
                                           disabled={busyTrackId === track.id}
-                                          className="text-[11px] text-red-soft uppercase tracking-widest disabled:opacity-50"
+                                          aria-label={`Download ${track.title} as a file`}
+                                          className="text-[11px] text-ink-2 uppercase tracking-widest disabled:opacity-50"
                                         >
-                                          {busyTrackId === track.id ? "Downloading…" : "Download"}
+                                          Save file
                                         </button>
-                                      )}
+                                      </div>
                                     </div>
                                   );
                                 })}

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
+import { downloadsEnabled, serveTaggedAudioDownload } from "@/lib/audio/serveDownload";
 
 // Paid audio is never a permanent public link (PRD §16) — every playback
 // goes through a short-TTL signed GET issued per request. Signed-out
@@ -24,7 +25,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const user = await getOptionalUser(req);
     const { id } = await params;
 
-    const track = await db.track.findUnique({ where: { id }, include: { release: { include: { product: true } } } });
+    const track = await db.track.findUnique({
+      where: { id },
+      include: { release: { include: { product: { include: { creator: true } } } } },
+    });
     if (!track || !track.audioStreamUrl) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     let entitled = false;
@@ -36,23 +40,27 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // ?download=1 (explicit ask, mirroring the beat purchase flow's real
     // master-file download — DECISIONS.md previously deferred this exact
-    // decision for music tracks) signs the original upload instead of the
-    // transcoded streaming rendition. Only ever honored for an entitled
-    // request — an unentitled request ignores it and still only ever gets
-    // the preview clip, same as every other branch here.
+    // decision for music tracks) serves the original master file directly
+    // through this route (not a presigned R2 URL), with XOLDOUT/artist/
+    // artwork tags embedded — see serveTaggedAudioDownload. Gated on the
+    // super-moderator-controlled platform toggle; a disabled toggle 403s
+    // rather than silently falling back to playback, so the client can
+    // show a real error instead of a confusingly no-op download button.
     const wantsDownload = req.nextUrl.searchParams.get("download") === "1";
-    const keyToSign = entitled
-      ? wantsDownload
-        ? track.audioMasterUrl
-        : track.audioStreamUrl
-      : (track.previewAudioUrl ?? track.audioStreamUrl);
-    // Real download (not playback) needs Content-Disposition: attachment —
-    // see presignDownload's own comment for why: without it, the browser
-    // just opens/plays the file inline instead of saving it, on iOS Safari
-    // and everywhere else.
-    const downloadFilename =
-      entitled && wantsDownload ? `${track.title}.${track.audioMasterUrl.split(".").pop() || "mp3"}` : undefined;
-    const url = await presignDownload(keyToSign, 300, downloadFilename);
+    if (entitled && wantsDownload) {
+      if (!(await downloadsEnabled())) {
+        return NextResponse.json({ error: "Downloads are currently disabled" }, { status: 403 });
+      }
+      return serveTaggedAudioDownload({
+        masterKey: track.audioMasterUrl,
+        title: track.title,
+        artistName: track.release.product.creator.displayName,
+        artworkUrl: (track.release.artworkLadder as Record<string, string> | null)?.["1024"] ?? null,
+      });
+    }
+
+    const keyToSign = entitled ? track.audioStreamUrl : (track.previewAudioUrl ?? track.audioStreamUrl);
+    const url = await presignDownload(keyToSign, 300);
 
     // Fire-and-forget play signal for the Socials "suggested" feed ranking
     // (creators you play often) — never let a logging failure break playback.

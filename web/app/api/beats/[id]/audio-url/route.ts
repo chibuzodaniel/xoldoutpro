@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
+import { downloadsEnabled, serveTaggedAudioDownload } from "@/lib/audio/serveDownload";
 
 // Mirrors app/api/tracks/[id]/audio-url, with one Beat-specific difference
 // (DECISIONS.md, single flat license): an entitled buyer gets the real
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const user = await getOptionalUser(req);
     const { id } = await params;
 
-    const product = await db.product.findUnique({ where: { id }, include: { beat: true } });
+    const product = await db.product.findUnique({ where: { id }, include: { beat: true, creator: true } });
     if (!product || !product.beat || !product.beat.audioStreamUrl) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
@@ -36,16 +37,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (entitled) {
       // Same master file either way (a beat purchase is a license to the
       // actual file — see this route's own top comment), but only a real
-      // ?download=1 request gets Content-Disposition: attachment. Without
-      // that distinction, tagging every response as an attachment would
-      // also hit the in-app <audio> player's own fetch of this endpoint,
-      // which some browsers refuse to play inline once that header is set —
-      // see presignDownload's own comment for the fuller story.
+      // ?download=1 request is proxied through serveTaggedAudioDownload
+      // (XOLDOUT/artist/artwork embedded, real Content-Disposition).
+      // Playback keeps signing the plain master with no disposition
+      // override — some browsers refuse to play an <audio> src inline once
+      // that header is set, which would break the in-app player.
       const wantsDownload = req.nextUrl.searchParams.get("download") === "1";
-      const downloadFilename = wantsDownload
-        ? `${product.title}.${product.beat.audioMasterUrl.split(".").pop() || "mp3"}`
-        : undefined;
-      const url = await presignDownload(product.beat.audioMasterUrl, 300, downloadFilename);
+      if (wantsDownload) {
+        if (!(await downloadsEnabled())) {
+          return NextResponse.json({ error: "Downloads are currently disabled" }, { status: 403 });
+        }
+        return serveTaggedAudioDownload({
+          masterKey: product.beat.audioMasterUrl,
+          title: product.title,
+          artistName: product.creator.displayName,
+          artworkUrl: (product.beat.coverImageLadder as Record<string, string> | null)?.["1024"] ?? null,
+        });
+      }
+      const url = await presignDownload(product.beat.audioMasterUrl, 300);
       return NextResponse.json({ url, entitled: true, previewStartSec: null, previewEndSec: null });
     }
 

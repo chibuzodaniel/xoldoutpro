@@ -71,6 +71,27 @@ export default function ModerationPage() {
   const { verified: otpVerified, markVerified } = useModeratorSession();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [panelVisibility, setPanelVisibility] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    if (!appUser?.isModerator) return;
+    async function loadVisibility() {
+      const res = await apiFetch("/api/admin/panel-visibility");
+      if (!res.ok) return;
+      const data: { visibility: Record<string, boolean> } = await res.json();
+      setPanelVisibility(data.visibility);
+    }
+    loadVisibility();
+  }, [appUser]);
+
+  // Super-moderators always see every panel regardless of the configured
+  // visibility — same "super-mods see everything" precedent as
+  // ManageModeratorsPanel, which isn't configurable at all for that reason.
+  function panelVisible(key: string): boolean {
+    if (appUser?.isSuperModerator) return true;
+    if (panelVisibility === null) return false;
+    return panelVisibility[key] ?? true;
+  }
 
   const load = useCallback(async () => {
     const res = await apiFetch("/api/reports");
@@ -153,17 +174,23 @@ export default function ModerationPage() {
       <div className="px-4">
       <p className="text-xs text-ink-3 mb-6">Open and in-review reports, soonest SLA first.</p>
 
-      <PlatformFinancePanel />
-      <PlatformStatsPanel />
-      <GrowthChart />
-      <UsersListPanel />
+      {appUser.isSuperModerator && <SiteControlsPanel panelVisibility={panelVisibility} onVisibilityChange={setPanelVisibility} />}
+
+      {panelVisible("finance") && <PlatformFinancePanel />}
+      {panelVisible("stats") && (
+        <>
+          <PlatformStatsPanel />
+          <GrowthChart />
+        </>
+      )}
+      {panelVisible("users") && <UsersListPanel />}
 
       {appUser.isSuperModerator && <ManageModeratorsPanel />}
-      <AmbassadorsPanel />
-      <VerifyCreatorPanel />
-      <VerifyGroupPanel />
-      <VerificationQueuePanel />
-      <RestoreAccountPanel />
+      {panelVisible("ambassadors") && <AmbassadorsPanel />}
+      {panelVisible("verifyCreator") && <VerifyCreatorPanel />}
+      {panelVisible("verifyGroup") && <VerifyGroupPanel />}
+      {panelVisible("verificationQueue") && <VerificationQueuePanel />}
+      {panelVisible("restoreAccount") && <RestoreAccountPanel />}
 
       {reports === null ? (
         <LoadingSpinner full size="md" />
@@ -232,6 +259,122 @@ export default function ModerationPage() {
         </div>
       )}
       </div>
+    </div>
+  );
+}
+
+const PANEL_LABEL: Record<string, string> = {
+  finance: "Platform finance",
+  stats: "Platform growth",
+  users: "User directory",
+  ambassadors: "Ambassadors",
+  verifyCreator: "Verify creator",
+  verifyGroup: "Verify group",
+  verificationQueue: "Verification queue",
+  restoreAccount: "Restore account",
+};
+const PANEL_KEYS = Object.keys(PANEL_LABEL);
+
+// Super-moderator-only: platform-wide toggles (currently just real-file
+// downloads for songs/beats) and which of the panels below a *regular*
+// moderator sees. Explicit ask, 2026-09-14: "super moderator should be
+// able to turn on/off for the file download... and also be able to select
+// what's visible for other moderators."
+function SiteControlsPanel({
+  panelVisibility,
+  onVisibilityChange,
+}: {
+  panelVisibility: Record<string, boolean> | null;
+  onVisibilityChange: (v: Record<string, boolean>) => void;
+}) {
+  const toast = useToast();
+  const [downloadsEnabled, setDownloadsEnabled] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const res = await apiFetch("/api/admin/settings");
+      if (!res.ok) return;
+      const data: { downloadsEnabled: boolean } = await res.json();
+      setDownloadsEnabled(data.downloadsEnabled);
+    }
+    load();
+  }, []);
+
+  async function toggleDownloads(enabled: boolean) {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ downloadsEnabled: enabled }) });
+      if (!res.ok) throw new Error("Could not update setting");
+      setDownloadsEnabled(enabled);
+      toast.success(`File downloads are now ${enabled ? "on" : "off"} for everyone.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePanel(key: string, visible: boolean) {
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/panel-visibility", {
+        method: "PATCH",
+        body: JSON.stringify({ panelKey: key, visible }),
+      });
+      if (!res.ok) throw new Error("Could not update panel visibility");
+      onVisibilityChange({ ...(panelVisibility ?? {}), [key]: visible });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-line-soft p-4 mb-6">
+      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Site controls</p>
+
+      <div className="flex items-center justify-between py-2.5 border-b border-line-soft mb-3">
+        <div>
+          <p className="text-sm font-semibold">Song/beat file downloads</p>
+          <p className="text-xs text-ink-3">Turns the real-file Download button off for everyone when disabled.</p>
+        </div>
+        {downloadsEnabled === null ? (
+          <span className="text-xs text-ink-3">Loading…</span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => toggleDownloads(!downloadsEnabled)}
+            disabled={busy}
+            className={`rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-40 ${
+              downloadsEnabled ? "bg-green/15 text-green" : "bg-red/15 text-red-soft"
+            }`}
+          >
+            {downloadsEnabled ? "On" : "Off"}
+          </button>
+        )}
+      </div>
+
+      <p className="text-xs text-ink-3 mb-2">Visible to regular moderators</p>
+      {panelVisibility === null ? (
+        <p className="text-xs text-ink-3">Loading…</p>
+      ) : (
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+          {PANEL_KEYS.map((key) => (
+            <label key={key} className="flex items-center justify-between py-2.5 text-sm">
+              <span>{PANEL_LABEL[key]}</span>
+              <input
+                type="checkbox"
+                checked={panelVisibility[key] ?? true}
+                disabled={busy}
+                onChange={(e) => togglePanel(key, e.target.checked)}
+                className="h-4 w-4"
+              />
+            </label>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

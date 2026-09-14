@@ -1131,6 +1131,32 @@ model AmbassadorTierRate {
   updatedBy            String?
 }
 
+// ─── Platform settings ───────────────────────────────────────────────────
+// Singleton row (fixed id, lazily upserted on first read — same pattern as
+// AmbassadorTierRate above) for platform-wide toggles a super-moderator
+// controls. Currently just the real-file-download feature for songs/beats
+// (PurchaseAndPlayer/BeatPurchaseAndPlayer's Download button and the
+// /api/tracks|beats/[id]/audio-url?download=1 routes both check this).
+model PlatformSettings {
+  id               String   @id @default("singleton")
+  downloadsEnabled Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
+  updatedBy        String?
+}
+
+// Which moderation-dashboard panels a *regular* moderator sees — a
+// super-moderator always sees every panel regardless of this table (same
+// "super-mods see everything" precedent as ManageModeratorsPanel, which
+// isn't configurable at all for that reason). Missing rows default to
+// visible; a super-moderator only ever writes a row to hide something.
+// panelKey values match the PANEL_KEYS list in app/(app)/moderation/page.tsx.
+model ModerationPanelVisibility {
+  panelKey  String   @id
+  visible   Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
 // ─── Ticket promoter split ──────────────────────────────────────────────
 // Per-event, independent of the Ambassador program above: an event creator
 // adds any user as a promoter for *their* event and sets a % of *their own*

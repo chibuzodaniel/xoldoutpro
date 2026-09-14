@@ -189,7 +189,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     top-to-bottom instead of clumping at the top with dead
                     space below, which `justify-between` used to leave. */}
                 <div className="flex flex-1 flex-col gap-3">
-                  {weeklyTopCreators.slice(0, 5).map((c, i) => (
+                  {weeklyTopCreators.slice(0, 3).map((c, i) => (
                     <Link key={c.id} href={`/u/${c.handle}`} className="flex flex-1 flex-col justify-center min-h-0">
                       <div className="relative h-[76px] w-16 mb-1.5 shrink-0">
                         <span
@@ -220,7 +220,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     </Link>
                   ))}
                 </div>
-                {weeklyTopCreators.length > 5 && (
+                {weeklyTopCreators.length > 3 && (
                   <Link
                     href="/discover/top-creators"
                     className="mt-3 block text-center text-[9px] font-semibold text-red-soft"

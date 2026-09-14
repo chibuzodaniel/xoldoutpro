@@ -10,6 +10,7 @@ import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestIn
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
+import { downloadFileFromResponse } from "@/lib/downloadFile";
 
 type AccessTrack = {
   id: string;
@@ -115,13 +116,15 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     }
   }
 
-  async function handleDownload(e: MouseEvent, trackId: string) {
+  async function handleDownload(e: MouseEvent, trackId: string, title: string) {
     e.stopPropagation();
     try {
       const res = await apiFetch(`/api/tracks/${trackId}/audio-url?download=1`);
-      if (!res.ok) throw new Error("Could not get download link");
-      const data = await res.json();
-      window.location.href = data.url;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not download track");
+      }
+      await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
     }
@@ -209,7 +212,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
               </span>
               {(entitled || isOwner) && (
                 <button
-                  onClick={(e) => handleDownload(e, track.id)}
+                  onClick={(e) => handleDownload(e, track.id, track.title)}
                   aria-label={`Download ${track.title}`}
                   className="h-7 w-7 rounded-full border border-line flex items-center justify-center shrink-0 text-ink-2"
                 >

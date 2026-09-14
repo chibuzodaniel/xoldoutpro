@@ -10,6 +10,7 @@ import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestIn
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
+import { downloadFileFromResponse } from "@/lib/downloadFile";
 
 type Props = {
   productId: string;
@@ -80,9 +81,11 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   async function handleDownload() {
     try {
       const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
-      if (!res.ok) throw new Error("Could not get download link");
-      const data = await res.json();
-      window.location.href = data.url;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not download beat");
+      }
+      await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
     }

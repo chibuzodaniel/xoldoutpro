@@ -36,26 +36,14 @@ export async function presignUpload(key: string, contentType: string, expiresSec
 }
 
 /**
- * Short-TTL signed GET for paid/preview audio. Never cache the URL server-side.
- *
- * `downloadFilename`, when passed, sets `ResponseContentDisposition:
- * attachment` on the signed URL — without it, opening the URL (in-app
- * `<audio>` playback, or a browser navigating straight to it) just streams/
- * plays the file inline, which is what plain playback wants. A real
- * "Download" action needs the attachment header explicitly: without it,
- * `window.location.href = url` on a plain audio object just opens Safari's
- * (or any browser's) inline player instead of saving anything — confirmed
- * gap on iOS, but not iOS-specific; no browser downloads a played-inline
- * audio/mpeg object without this header telling it to.
+ * Short-TTL signed GET for paid/preview audio streaming. Never cache the
+ * URL server-side. A real file *download* (not playback) doesn't use this
+ * at all — see lib/audio/serveDownload.ts, which proxies the file through
+ * our own server instead of a presigned URL, since it needs to embed
+ * XOLDOUT/artist/artwork tags into the bytes before they reach the buyer.
  */
-export async function presignDownload(key: string, expiresSeconds = 300, downloadFilename?: string) {
-  const cmd = new GetObjectCommand({
-    Bucket: bucket(),
-    Key: key,
-    ...(downloadFilename
-      ? { ResponseContentDisposition: `attachment; filename="${downloadFilename.replace(/"/g, "")}"` }
-      : {}),
-  });
+export async function presignDownload(key: string, expiresSeconds = 300) {
+  const cmd = new GetObjectCommand({ Bucket: bucket(), Key: key });
   return getSignedUrl(client(), cmd, { expiresIn: expiresSeconds });
 }
 
