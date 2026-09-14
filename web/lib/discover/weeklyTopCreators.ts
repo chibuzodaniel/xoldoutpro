@@ -8,24 +8,26 @@ export type WeeklyTopCreator = {
   metric: string;
 };
 
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-
 // Ranks creators by confirmed, non-refunded entitlements sold across all
-// their products (not just releases) in the last 7 days. Entitlement has no
-// creatorId of its own (only productId), so this aggregates in JS rather
-// than a single groupBy — fine at this scale. Falls back to most-followed
-// creators when nothing has sold yet (e.g. right after launch), so callers
-// always get a non-empty list.
+// their products (not just releases) — all-time, not restricted to any
+// recent window (explicit ask: "it should not have the one week in the
+// logic"). Entitlement has no creatorId of its own (only productId), so
+// this aggregates in JS rather than a single groupBy — fine at this scale.
+// A newer platform can still have fewer than `limit` distinct sellers even
+// counting all-time sales, which used to leave the Discover rail looking
+// sparse/empty next to New Release — so once real sellers are exhausted,
+// the rest of `limit` is padded with the next most-followed creators
+// (excluding anyone already listed), so callers reliably get a full list to
+// fill the space. Padded entries show a follower count instead of a sold
+// count, since they honestly haven't sold anything yet.
 export async function getWeeklyTopCreators(limit: number): Promise<WeeklyTopCreator[]> {
-  const oneWeekAgo = new Date(Date.now() - WEEK_MS);
-
-  const weeklySales = await db.entitlement.findMany({
-    where: { createdAt: { gte: oneWeekAgo }, revokedAt: null },
+  const allSales = await db.entitlement.findMany({
+    where: { revokedAt: null },
     select: { product: { select: { creatorId: true } } },
   });
 
   const salesByCreatorId = new Map<string, number>();
-  for (const e of weeklySales) {
+  for (const e of allSales) {
     salesByCreatorId.set(e.product.creatorId, (salesByCreatorId.get(e.product.creatorId) ?? 0) + 1);
   }
   const topCreatorIds = [...salesByCreatorId.entries()]
@@ -33,25 +35,34 @@ export async function getWeeklyTopCreators(limit: number): Promise<WeeklyTopCrea
     .slice(0, limit)
     .map(([id]) => id);
 
-  if (topCreatorIds.length === 0) {
-    const creators = await db.user.findMany({
-      orderBy: { followers: { _count: "desc" } },
-      take: limit,
-      select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },
-    });
-    return creators.map((c) => ({ ...c, metric: `${c._count.followers} followers` }));
-  }
+  const sellers =
+    topCreatorIds.length > 0
+      ? await db.user
+          .findMany({
+            where: { id: { in: topCreatorIds } },
+            select: { id: true, handle: true, displayName: true, avatarUrl: true },
+          })
+          // findMany's `in` doesn't preserve order, so re-sort to rank order.
+          .then((found) =>
+            topCreatorIds
+              .map((id) => {
+                const c = found.find((c) => c.id === id);
+                if (!c) return null;
+                return { ...c, metric: `${salesByCreatorId.get(id) ?? 0} sold` };
+              })
+              .filter((c): c is WeeklyTopCreator => c !== null),
+          )
+      : [];
 
-  const found = await db.user.findMany({
-    where: { id: { in: topCreatorIds } },
-    select: { id: true, handle: true, displayName: true, avatarUrl: true },
+  const remaining = limit - sellers.length;
+  if (remaining <= 0) return sellers;
+
+  const padding = await db.user.findMany({
+    where: { id: { notIn: topCreatorIds } },
+    orderBy: { followers: { _count: "desc" } },
+    take: remaining,
+    select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },
   });
-  // findMany's `in` doesn't preserve order, so re-sort to rank order.
-  return topCreatorIds
-    .map((id) => {
-      const c = found.find((c) => c.id === id);
-      if (!c) return null;
-      return { ...c, metric: `${salesByCreatorId.get(id) ?? 0} sold` };
-    })
-    .filter((c): c is WeeklyTopCreator => c !== null);
+
+  return [...sellers, ...padding.map((c) => ({ ...c, metric: `${c._count.followers} followers` }))];
 }
