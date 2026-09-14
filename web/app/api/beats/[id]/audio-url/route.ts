@@ -34,7 +34,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     if (entitled) {
-      const url = await presignDownload(product.beat.audioMasterUrl, 300);
+      // Same master file either way (a beat purchase is a license to the
+      // actual file — see this route's own top comment), but only a real
+      // ?download=1 request gets Content-Disposition: attachment. Without
+      // that distinction, tagging every response as an attachment would
+      // also hit the in-app <audio> player's own fetch of this endpoint,
+      // which some browsers refuse to play inline once that header is set —
+      // see presignDownload's own comment for the fuller story.
+      const wantsDownload = req.nextUrl.searchParams.get("download") === "1";
+      const downloadFilename = wantsDownload
+        ? `${product.title}.${product.beat.audioMasterUrl.split(".").pop() || "mp3"}`
+        : undefined;
+      const url = await presignDownload(product.beat.audioMasterUrl, 300, downloadFilename);
       return NextResponse.json({ url, entitled: true, previewStartSec: null, previewEndSec: null });
     }
 

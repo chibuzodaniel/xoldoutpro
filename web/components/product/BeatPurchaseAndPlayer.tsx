@@ -79,7 +79,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
 
   async function handleDownload() {
     try {
-      const res = await apiFetch(`/api/beats/${productId}/audio-url`);
+      const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
       if (!res.ok) throw new Error("Could not get download link");
       const data = await res.json();
       window.location.href = data.url;

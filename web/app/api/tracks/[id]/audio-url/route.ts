@@ -46,7 +46,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         ? track.audioMasterUrl
         : track.audioStreamUrl
       : (track.previewAudioUrl ?? track.audioStreamUrl);
-    const url = await presignDownload(keyToSign, 300);
+    // Real download (not playback) needs Content-Disposition: attachment —
+    // see presignDownload's own comment for why: without it, the browser
+    // just opens/plays the file inline instead of saving it, on iOS Safari
+    // and everywhere else.
+    const downloadFilename =
+      entitled && wantsDownload ? `${track.title}.${track.audioMasterUrl.split(".").pop() || "mp3"}` : undefined;
+    const url = await presignDownload(keyToSign, 300, downloadFilename);
 
     // Fire-and-forget play signal for the Socials "suggested" feed ranking
     // (creators you play often) — never let a logging failure break playback.
