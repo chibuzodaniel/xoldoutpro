@@ -7,7 +7,7 @@ const EXT_BY_TYPE: Record<string, string> = {
 };
 
 /** Presigns a direct-to-R2 upload, PUTs the file, and returns the resulting object key. */
-export async function uploadImage(file: File, kind: "avatar" | "cover" | "artwork") {
+export async function uploadImage(file: File, kind: "avatar" | "cover" | "artwork" | "billboard") {
   const extension = EXT_BY_TYPE[file.type];
   if (!extension) throw new Error(`Unsupported image type: ${file.type}`);
 

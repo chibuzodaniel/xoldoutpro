@@ -12,10 +12,11 @@ const KIND_CONFIG = {
   cover: { prefix: "covers", contentTypes: ["image/jpeg", "image/png", "image/webp"] },
   artwork: { prefix: "artwork", contentTypes: ["image/jpeg", "image/png", "image/webp"] },
   audio: { prefix: "audio", contentTypes: ["audio/mpeg", "audio/wav", "audio/x-wav", "audio/wave"] },
+  billboard: { prefix: "billboards", contentTypes: ["image/jpeg", "image/png", "image/webp"] },
 } as const;
 
 const bodySchema = z.object({
-  kind: z.enum(["avatar", "cover", "artwork", "audio"]),
+  kind: z.enum(["avatar", "cover", "artwork", "audio", "billboard"]),
   contentType: z.string(),
   extension: z.string().regex(/^[a-z0-9]{1,5}$/),
 });

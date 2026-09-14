@@ -117,6 +117,7 @@ model User {
   payoutAccounts PayoutAccount[]
   ledgerEntries  WalletLedgerEntry[]
   payouts        Payout[]
+  billboards     Billboard[]
   products       Product[]
   entitlements   Entitlement[]
   orders         Order[]
@@ -396,6 +397,13 @@ enum LedgerKind {
   // matching debit carved out of the *seller's* own net on that same order.
   PROMOTER_CREDIT
   PROMOTER_FEE
+  // Wallet-funded Billboard purchase (lib/commerce/billboards.ts) — a debit
+  // like PAYOUT_DEBIT, not tied to any Order.
+  BILLBOARD_FEE
+  // Reverses a BILLBOARD_FEE when a moderator rejects a billboard
+  // (lib/commerce/billboards.ts's rejectBillboard) — a Bachs-paid billboard
+  // is refunded via a real Bachs refund instead, not this.
+  BILLBOARD_REFUND
 }
 
 enum LedgerStatus {
@@ -414,6 +422,8 @@ model WalletLedgerEntry {
   order       Order?       @relation(fields: [orderId], references: [id])
   payoutId    String?
   payout      Payout?      @relation(fields: [payoutId], references: [id])
+  billboardId String?
+  billboard   Billboard?   @relation(fields: [billboardId], references: [id])
   createdAt   DateTime     @default(now())
   availableAt DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
 
@@ -756,8 +766,14 @@ enum PaymentStatus {
 
 model Payment {
   id                    String        @id @default(cuid())
-  orderId               String        @unique
-  order                 Order         @relation(fields: [orderId], references: [id])
+  // Exactly one of orderId/billboardId is ever set — same optional-FK
+  // side-by-side pattern as WalletLedgerEntry's orderId/payoutId. A
+  // Billboard's Bachs checkout (lib/commerce/billboards.ts) is the only
+  // other thing this Payment/webhook pipeline pays for besides an Order.
+  orderId               String?       @unique
+  order                 Order?        @relation(fields: [orderId], references: [id])
+  billboardId           String?       @unique
+  billboard             Billboard?    @relation(fields: [billboardId], references: [id])
   processor             String        @default("flutterwave")
   processorRef          String        @unique // tx_ref; webhook idempotency key
   // Flutterwave's own numeric transaction id (verifyTransaction()'s `id`) —
@@ -1138,10 +1154,59 @@ model AmbassadorTierRate {
 // (PurchaseAndPlayer/BeatPurchaseAndPlayer's Download button and the
 // /api/tracks|beats/[id]/audio-url?download=1 routes both check this).
 model PlatformSettings {
-  id               String   @id @default("singleton")
-  downloadsEnabled Boolean  @default(true)
-  updatedAt        DateTime @updatedAt
+  id                     String   @id @default("singleton")
+  downloadsEnabled       Boolean  @default(true)
+  // ₦5,000/day starting default — see lib/commerce/billboards.ts's
+  // getBillboardDailyRateKobo(). What a creator pays for one day of the
+  // Discover billboard rail; moderator-editable via SiteControlsPanel.
+  billboardDailyRateKobo Int      @default(500000)
+  updatedAt              DateTime @updatedAt
+  updatedBy              String?
+}
+
+// ─── Billboards ─────────────────────────────────────────────────────────
+// A rotating promotional artwork rail on the Discover page (see
+// components/discover/BillboardRail.tsx). Creators pay
+// PlatformSettings.billboardDailyRateKobo for one day live, debited from
+// their wallet if it covers the cost, otherwise via a real Bachs checkout
+// for the full amount (lib/commerce/billboards.ts) — only one active/pending
+// billboard per creator at a time. Moderators can also add one manually
+// (isModeratorAdded, no payment) and override any billboard's expiresAt
+// past the 1-day default.
+enum BillboardStatus {
+  PENDING_PAYMENT // Bachs checkout started, not yet confirmed
+  PENDING_REVIEW  // paid (wallet or Bachs), awaiting moderator approval
+  ACTIVE
+  REJECTED        // moderator declined — always refunded, always has a reason
+  REMOVED         // moderator-deactivated an ACTIVE one, or an abandoned PENDING_PAYMENT swept
+}
+
+model Billboard {
+  id               String          @id @default(cuid())
+  creatorId        String?
+  creator          User?           @relation(fields: [creatorId], references: [id])
+  artworkUrl       String
+  status           BillboardStatus @default(PENDING_PAYMENT)
+  isModeratorAdded Boolean         @default(false)
+  // Creator-chosen at purchase time (explicit ask: "they should also be
+  // allowed to choose how many days ... that will determine how much they
+  // are paying") — paidKobo = days * PlatformSettings.billboardDailyRateKobo
+  // at the rate in effect when they bought it. Stored (not just derived from
+  // expiresAt-activatedAt) so a Bachs purchase still knows how many days to
+  // grant once the webhook actually confirms payment, and so a moderator's
+  // "extend" action has a real unit to add to.
+  days             Int             @default(1)
+  paidKobo         Int             @default(0)
+  activatedAt      DateTime?
+  expiresAt        DateTime?
+  rejectionReason  String?
+  createdAt        DateTime        @default(now())
   updatedBy        String?
+  payment          Payment?
+  ledgerEntries    WalletLedgerEntry[]
+
+  @@index([status, expiresAt])
+  @@index([creatorId])
 }
 
 // Which moderation-dashboard panels a *regular* moderator sees — a

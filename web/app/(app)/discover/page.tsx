@@ -9,6 +9,8 @@ import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { buildDiscoverMetadata } from "@/lib/og";
 import { getDiscoverData } from "@/lib/discover/getDiscoverData";
+import { getActiveBillboards } from "@/lib/commerce/billboards";
+import { BillboardRail } from "@/components/discover/BillboardRail";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -106,8 +108,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const { hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators } =
-    await getDiscoverData();
+  const [
+    { hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators },
+    billboards,
+  ] = await Promise.all([getDiscoverData(), getActiveBillboards()]);
   const heroArt = hero ? ((hero.release?.artworkLadder as Record<string, string> | undefined)?.["1024"]) : null;
   const heroSoldOut = Boolean(hero?.stockPolicy?.soldOutAt);
   const heroCap = hero?.stockPolicy?.cap ?? null;
@@ -233,6 +237,8 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
         </section>
       )}
+
+      <BillboardRail slides={billboards} />
 
       <section className="px-4 mb-7">
         <h3 className="font-serif text-lg mb-3">Recommended For You</h3>

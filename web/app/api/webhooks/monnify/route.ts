@@ -47,10 +47,13 @@ export async function POST(req: NextRequest) {
     where: { processorRef: verified.txRef },
     include: { order: { include: { items: true, buyer: { select: { referredByAmbassadorId: true } } } } },
   });
-  if (!payment) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
+  // orderId/order are optional in the schema (a Billboard payment has
+  // neither — see lib/commerce/billboards.ts) but this processor is only
+  // ever used for Order checkout, so both are expected to be set here.
+  if (!payment || !payment.orderId || !payment.order) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
 
   try {
-    await finalizePayment(payment, verified, body);
+    await finalizePayment({ ...payment, orderId: payment.orderId, order: payment.order }, verified, body);
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Could not finalize order" }, { status: 500 });

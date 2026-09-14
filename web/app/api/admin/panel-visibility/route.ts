@@ -11,6 +11,7 @@ const PANEL_KEYS = [
   "stats",
   "users",
   "ambassadors",
+  "billboards",
   "verifyCreator",
   "verifyGroup",
   "verificationQueue",

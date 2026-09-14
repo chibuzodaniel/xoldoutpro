@@ -34,12 +34,13 @@ export async function GET(req: NextRequest) {
 
   const cutoff = new Date(Date.now() - HOLD_MINUTES * 60 * 1000);
   const stale = await db.payment.findMany({
-    where: { status: "INITIATED", createdAt: { lt: cutoff } },
+    where: { status: "INITIATED", createdAt: { lt: cutoff }, orderId: { not: null } },
     include: { order: { include: { items: true } } },
   });
 
   let swept = 0;
   for (const payment of stale) {
+    if (!payment.orderId || !payment.order) continue;
     const productId = payment.order.items[0]?.productId;
     const quantity = payment.order.items[0]?.quantity ?? 1;
     if (!productId) continue;
@@ -50,6 +51,25 @@ export async function GET(req: NextRequest) {
     await releaseReservation(productId, quantity);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
     swept += 1;
+  }
+
+  // Same abandoned-checkout cleanup as above, for Billboard purchases
+  // (lib/commerce/billboards.ts) — without this, a creator who starts a
+  // Bachs checkout and never completes it would be permanently blocked from
+  // starting a new one (getBlockingBillboardForCreator treats PENDING_PAYMENT
+  // as blocking regardless of age).
+  const staleBillboardPayments = await db.payment.findMany({
+    where: { status: "INITIATED", createdAt: { lt: cutoff }, billboardId: { not: null } },
+    select: { id: true, billboardId: true },
+  });
+  let billboardsSwept = 0;
+  for (const payment of staleBillboardPayments) {
+    if (!payment.billboardId) continue;
+    const claim = await db.payment.updateMany({ where: { id: payment.id, status: "INITIATED" }, data: { status: "FAILED" } });
+    if (claim.count === 0) continue; // a webhook won the race in the meantime
+
+    await db.billboard.updateMany({ where: { id: payment.billboardId, status: "PENDING_PAYMENT" }, data: { status: "REMOVED" } });
+    billboardsSwept += 1;
   }
 
   // PRD §7.3: an unclaimed gift expires after a fixed window, "returning the
@@ -82,5 +102,5 @@ export async function GET(req: NextRequest) {
   // cron slot isn't worth spending on something this infrequent.
   const verificationsExpired = await sweepExpiredVerifications();
 
-  return NextResponse.json({ swept, giftsExpired, verificationsExpired });
+  return NextResponse.json({ swept, billboardsSwept, giftsExpired, verificationsExpired });
 }

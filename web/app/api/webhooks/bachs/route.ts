@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyTransaction } from "@/lib/bachs";
 import { finalizePayment } from "@/lib/commerce/confirmPayment";
+import { finalizeBillboardPayment } from "@/lib/commerce/billboards";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 
 export const runtime = "nodejs";
@@ -91,17 +92,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const payment = await db.payment.findUnique({
+  // A Payment pays for exactly one of an Order or a Billboard (see the
+  // Payment model's own comment) — checked here before deciding which
+  // finalize path (and which relations) to load.
+  const paymentRef = await db.payment.findUnique({
     where: { processorRef: verified.txRef },
-    include: { order: { include: { items: true, buyer: { select: { referredByAmbassadorId: true } } } } },
+    select: { id: true, orderId: true, billboardId: true },
   });
-  if (!payment) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
+  if (!paymentRef) return NextResponse.json({ error: "Unknown payment" }, { status: 404 });
 
   try {
-    await finalizePayment(payment, verified, body);
+    if (paymentRef.billboardId) {
+      const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
+      await finalizeBillboardPayment(payment, verified, body);
+    } else {
+      const payment = await db.payment.findUniqueOrThrow({
+        where: { id: paymentRef.id },
+        include: { order: { include: { items: true, buyer: { select: { referredByAmbassadorId: true } } } } },
+      });
+      // orderId/order are optional in the schema now (a Billboard payment
+      // has neither) but guaranteed set here (the billboardId branch above
+      // is the only other case) — narrowed explicitly for finalizePayment's
+      // stricter PaymentForConfirm type.
+      if (!payment.orderId || !payment.order) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
+      await finalizePayment({ ...payment, orderId: payment.orderId, order: payment.order }, verified, body);
+    }
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "Could not finalize order" }, { status: 500 });
+    return NextResponse.json({ error: "Could not finalize payment" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });
