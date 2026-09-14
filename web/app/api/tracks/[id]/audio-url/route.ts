@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
-import { downloadsEnabled, serveTaggedAudioDownload } from "@/lib/audio/serveDownload";
+import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
+
+export const runtime = "nodejs";
+// A ?download=1 request proxies the master through ffmpeg (ID3 tagging) —
+// mirrors app/api/uploads/audio/ingest's own maxDuration; without this the
+// plain playback branch below still ran fine under the default limit, but
+// the tagging branch on a real song routinely exceeded it and the
+// connection was killed mid-response (client-side: "Load failed").
+export const maxDuration = 120;
 
 // Paid audio is never a permanent public link (PRD §16) — every playback
 // goes through a short-TTL signed GET issued per request. Signed-out
@@ -55,7 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         masterKey: track.audioMasterUrl,
         title: track.title,
         artistName: track.release.product.creator.displayName,
-        artworkUrl: (track.release.artworkLadder as Record<string, string> | null)?.["1024"] ?? null,
+        artworkUrl: pickArtworkUrl(track.release.artworkLadder),
       });
     }
 

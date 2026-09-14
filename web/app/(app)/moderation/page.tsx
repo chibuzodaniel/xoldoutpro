@@ -439,6 +439,7 @@ type PlatformFinancials = {
   paidKobo: number;
   ambassadorCommissionsKobo: number;
   promoterPayoutsKobo: number;
+  billboardRevenueKobo: number;
   refundedKobo: number;
   revenueByType: Record<string, number>;
   payoutsByStatus: Record<string, { count: number; amountKobo: number }>;
@@ -497,6 +498,10 @@ function PlatformFinancePanel() {
             <div className="flex items-center justify-between py-2 text-xs">
               <span className="text-ink-3">Ticket promoter payouts</span>
               <span>{formatNairaFull(financials.promoterPayoutsKobo)}</span>
+            </div>
+            <div className="flex items-center justify-between py-2 text-xs">
+              <span className="text-ink-3">Billboard revenue</span>
+              <span>{formatNairaFull(financials.billboardRevenueKobo)}</span>
             </div>
             <div className="flex items-center justify-between py-2 text-xs">
               <span className="text-ink-3">Refunded to sellers (net)</span>

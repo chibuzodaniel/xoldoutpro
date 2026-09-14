@@ -17,6 +17,13 @@ const ROTATE_MS = 5000;
  * call. A plain setInterval + CSS opacity crossfade — no carousel library,
  * matching this codebase's general "no new dependency for something this
  * simple" pattern (see e.g. the ID3-tagging work's own ffmpeg-static reuse).
+ *
+ * No outer <section>/padding of its own (explicit ask, with a reference
+ * screenshot): this renders nested inside the New Release row's own left
+ * column, directly below the release grid, so it reads as part of that same
+ * block — with the Top sellers rail alongside stretching to match the
+ * combined height (see that section's own "items-stretch" comment).
+ * Square-ish, matching a release-artwork card's proportions, not a wide banner.
  */
 export function BillboardRail({ slides }: { slides: BillboardSlide[] }) {
   const [index, setIndex] = useState(0);
@@ -30,8 +37,9 @@ export function BillboardRail({ slides }: { slides: BillboardSlide[] }) {
   if (slides.length === 0) return null;
 
   return (
-    <section className="px-4 mb-7">
-      <div className="relative aspect-[16/7] w-full overflow-hidden rounded-xl bg-surface">
+    <div>
+      <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-1.5 leading-tight">Billboards</p>
+      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-surface">
         {slides.map((slide, i) => {
           const inner = (
             // eslint-disable-next-line @next/next/no-img-element -- remote R2 artwork, arbitrary aspect ratio
@@ -59,6 +67,6 @@ export function BillboardRail({ slides }: { slides: BillboardSlide[] }) {
           ))}
         </div>
       )}
-    </section>
+    </div>
   );
 }

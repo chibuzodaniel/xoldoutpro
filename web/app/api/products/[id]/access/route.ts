@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { downloadsEnabled } from "@/lib/audio/serveDownload";
 
 // Track list + preview windows are public browsing info — served to signed-out
 // visitors too (entitled/isOwner just default false). Only /api/orders (the
@@ -21,6 +22,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     entitled,
     isOwner: user ? product.creatorId === user.id : false,
+    // Explicit ask: when a super-moderator turns real-file downloads off,
+    // the Download button should disappear entirely (not just error on
+    // click) — in-app streaming keeps working either way.
+    downloadsEnabled: await downloadsEnabled(),
     tracks: product.release.tracks.map((t) => ({
       id: t.id,
       title: t.title,

@@ -52,6 +52,10 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   const [tracks, setTracks] = useState<AccessTrack[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [gifting, setGifting] = useState(false);
+  const [downloadingTrackId, setDownloadingTrackId] = useState<string | null>(null);
+  // Defaults true (the common case) so the button doesn't flash in then out
+  // for everyone — corrected from the access response once it loads.
+  const [downloadsAllowed, setDownloadsAllowed] = useState(true);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -62,6 +66,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     setEntitled(data.entitled);
     setIsOwner(data.isOwner);
     setTracks(data.tracks);
+    setDownloadsAllowed(data.downloadsEnabled ?? true);
   }
 
   useEffect(() => {
@@ -118,6 +123,10 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
 
   async function handleDownload(e: MouseEvent, trackId: string, title: string) {
     e.stopPropagation();
+    // The tagging round trip on the server genuinely takes a few seconds
+    // (real fetch + ffmpeg pass, not instant) — this state is what makes
+    // the tap feel like it registered immediately instead of doing nothing.
+    setDownloadingTrackId(trackId);
     try {
       const res = await apiFetch(`/api/tracks/${trackId}/audio-url?download=1`);
       if (!res.ok) {
@@ -127,6 +136,8 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloadingTrackId(null);
     }
   }
 
@@ -210,16 +221,24 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
               <span className="text-xs text-ink-3 shrink-0">
                 {entitled || isOwner ? formatTime(track.durationSec) : formatTime(track.previewEndSec - track.previewStartSec)}
               </span>
-              {(entitled || isOwner) && (
+              {(entitled || isOwner) && downloadsAllowed && (
                 <button
                   onClick={(e) => handleDownload(e, track.id, track.title)}
+                  disabled={downloadingTrackId === track.id}
                   aria-label={`Download ${track.title}`}
-                  className="h-7 w-7 rounded-full border border-line flex items-center justify-center shrink-0 text-ink-2"
+                  className="h-7 w-7 rounded-full border border-line flex items-center justify-center shrink-0 text-ink-2 disabled:opacity-60"
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
-                    <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M5 20h14" strokeLinecap="round" />
-                  </svg>
+                  {downloadingTrackId === track.id ? (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 animate-spin">
+                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.3" />
+                      <path d="M21 12a9 9 0 00-9-9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3.5 w-3.5">
+                      <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M5 20h14" strokeLinecap="round" />
+                    </svg>
+                  )}
                 </button>
               )}
             </div>

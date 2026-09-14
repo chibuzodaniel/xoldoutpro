@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { downloadsEnabled } from "@/lib/audio/serveDownload";
 
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
+    const canDownload = await downloadsEnabled();
     const entitlements = await db.entitlement.findMany({
       where: { userId: user.id, revokedAt: null },
       // Pinned items float to the top (most-recently-pinned first), then
@@ -25,7 +27,10 @@ export async function GET(req: NextRequest) {
         checkIn: true,
       },
     });
-    return NextResponse.json({ entitlements });
+    // Explicit ask: when a super-moderator turns real-file downloads off,
+    // the download controls should disappear entirely — in-app
+    // streaming/offline caching (lib/offline/downloads.ts) keeps working.
+    return NextResponse.json({ entitlements, downloadsEnabled: canDownload });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     throw err;

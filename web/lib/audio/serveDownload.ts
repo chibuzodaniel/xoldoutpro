@@ -15,6 +15,24 @@ export async function downloadsEnabled(): Promise<boolean> {
 }
 
 /**
+ * Picks the largest available image from a size-ladder JSON column
+ * (artworkLadder/coverImageLadder — see lib/images.ts's artworkLadder,
+ * whose keys are string-ified pixel sizes like "64"/"256"/"1024"). Prefers
+ * "1024" but doesn't assume it's the only key present, so an older or
+ * unusually-shaped ladder still yields *some* cover for the download's
+ * embedded artwork instead of silently embedding none.
+ */
+export function pickArtworkUrl(ladder: unknown): string | null {
+  if (!ladder || typeof ladder !== "object") return null;
+  const entries = Object.entries(ladder as Record<string, unknown>).filter(
+    (e): e is [string, string] => typeof e[1] === "string" && e[1].length > 0,
+  );
+  if (entries.length === 0) return null;
+  entries.sort(([a], [b]) => (Number(b) || 0) - (Number(a) || 0));
+  return entries[0][1];
+}
+
+/**
  * Fetches the master file, embeds XOLDOUT/artist/artwork metadata (MP3
  * only — see embedDownloadMetadata's own comment), and returns it as a
  * direct file-download NextResponse. Used by both the track and beat
@@ -35,8 +53,17 @@ export async function serveTaggedAudioDownload(args: {
     getObjectBuffer(args.masterKey),
     args.artworkUrl
       ? fetch(args.artworkUrl)
-          .then((r) => (r.ok ? r.arrayBuffer().then((b) => Buffer.from(b)) : null))
-          .catch(() => null)
+          .then((r) => {
+            if (!r.ok) {
+              console.error(`Download artwork fetch failed: ${r.status} ${r.statusText} for ${args.artworkUrl}`);
+              return null;
+            }
+            return r.arrayBuffer().then((b) => Buffer.from(b));
+          })
+          .catch((err) => {
+            console.error(`Download artwork fetch threw for ${args.artworkUrl}`, err);
+            return null;
+          })
       : Promise.resolve(null),
   ]);
 

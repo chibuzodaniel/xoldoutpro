@@ -47,6 +47,10 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   const [isOwner, setIsOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [gifting, setGifting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  // Defaults true (the common case) so the button doesn't flash in then out
+  // for everyone — corrected from the access response once it loads.
+  const [downloadsAllowed, setDownloadsAllowed] = useState(true);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -60,6 +64,7 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
     const data = await res.json();
     setEntitled(data.entitled);
     setIsOwner(data.isOwner);
+    setDownloadsAllowed(data.downloadsEnabled ?? true);
   }
 
   useEffect(() => {
@@ -79,6 +84,10 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   }
 
   async function handleDownload() {
+    // The tagging round trip on the server genuinely takes a few seconds
+    // (real fetch + ffmpeg pass, not instant) — this state is what makes
+    // the tap feel like it registered immediately instead of doing nothing.
+    setDownloading(true);
     try {
       const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
       if (!res.ok) {
@@ -88,6 +97,8 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -184,17 +195,25 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
         <span className="text-xs text-ink-3">{formatTime(durationSec)}</span>
       </div>
 
-      {(entitled || isOwner) && (
+      {(entitled || isOwner) && downloadsAllowed && (
         <div className="mt-4">
           <button
             onClick={handleDownload}
-            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2"
+            disabled={downloading}
+            className="w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
-              <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
-              <path d="M5 20h14" strokeLinecap="round" />
-            </svg>
-            Download
+            {downloading ? (
+              <svg viewBox="0 0 24 24" className="h-4 w-4 animate-spin">
+                <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.3" />
+                <path d="M21 12a9 9 0 00-9-9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M5 20h14" strokeLinecap="round" />
+              </svg>
+            )}
+            {downloading ? "Downloading…" : "Download"}
           </button>
           {entitled && <p className="text-[12px] text-green mt-3">You own this beat, licensed for commercial use.</p>}
         </div>

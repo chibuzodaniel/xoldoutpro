@@ -164,7 +164,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         </Link>
       )}
 
-      {newReleasesBelowHero.length > 0 && (
+      {(newReleasesBelowHero.length > 0 || billboards.length > 0) && (
         <section className="px-4 mb-7">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft">New Release</h3>
@@ -175,10 +175,17 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
             )}
           </div>
           <div className="flex items-stretch gap-3">
-            <div className="grid grid-cols-2 gap-3 flex-1 min-w-0 content-start">
-              {newReleasesBelowHero.slice(0, 4).map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
+            <div className="flex-1 min-w-0 flex flex-col gap-3">
+              <div className="grid grid-cols-2 gap-3 content-start">
+                {newReleasesBelowHero.slice(0, 4).map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+              {/* Nested here, not a separate section — explicit ask, with a
+                  reference screenshot: the billboard falls inside the New
+                  Release row so the Top sellers rail alongside naturally
+                  stretches taller to match (items-stretch on the parent row). */}
+              <BillboardRail slides={billboards} />
             </div>
 
             {weeklyTopCreators.length > 0 && (
@@ -186,14 +193,15 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                 <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-3 leading-tight">
                   Top sellers
                 </p>
-                {/* Each row is an equal flex-1 share of whatever height New
-                    Release's own cards establish (items-stretch on the
-                    parent row) — with few entries (often just 1-2 real top
-                    sellers in a given week) this fills the full column
+                {/* Each row is an equal flex-1 share of whatever height the
+                    left column establishes (items-stretch on the parent
+                    row) — with few entries this fills the full column
                     top-to-bottom instead of clumping at the top with dead
-                    space below, which `justify-between` used to leave. */}
+                    space below, which `justify-between` used to leave.
+                    Longer now that the billboard makes the left column
+                    taller (explicit ask: "the top seller can be longer"). */}
                 <div className="flex flex-1 flex-col gap-3">
-                  {weeklyTopCreators.slice(0, 3).map((c, i) => (
+                  {weeklyTopCreators.slice(0, 5).map((c, i) => (
                     <Link key={c.id} href={`/u/${c.handle}`} className="flex flex-1 flex-col justify-center min-h-0">
                       <div className="relative h-[76px] w-16 mb-1.5 shrink-0">
                         <span
@@ -224,7 +232,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
                     </Link>
                   ))}
                 </div>
-                {weeklyTopCreators.length > 3 && (
+                {weeklyTopCreators.length > 5 && (
                   <Link
                     href="/discover/top-creators"
                     className="mt-3 block text-center text-[9px] font-semibold text-red-soft"
@@ -237,8 +245,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
         </section>
       )}
-
-      <BillboardRail slides={billboards} />
 
       <section className="px-4 mb-7">
         <h3 className="font-serif text-lg mb-3">Recommended For You</h3>

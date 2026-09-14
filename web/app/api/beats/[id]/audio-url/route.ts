@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
-import { downloadsEnabled, serveTaggedAudioDownload } from "@/lib/audio/serveDownload";
+import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
+
+export const runtime = "nodejs";
+// See that route's own comment: a ?download=1 request runs ffmpeg tagging
+// on the real master and needs real headroom past the default function
+// timeout, or the connection gets killed mid-response ("Load failed").
+export const maxDuration = 120;
 
 // Mirrors app/api/tracks/[id]/audio-url, with one Beat-specific difference
 // (DECISIONS.md, single flat license): an entitled buyer gets the real
@@ -51,7 +57,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           masterKey: product.beat.audioMasterUrl,
           title: product.title,
           artistName: product.creator.displayName,
-          artworkUrl: (product.beat.coverImageLadder as Record<string, string> | null)?.["1024"] ?? null,
+          artworkUrl: pickArtworkUrl(product.beat.coverImageLadder),
         });
       }
       const url = await presignDownload(product.beat.audioMasterUrl, 300);

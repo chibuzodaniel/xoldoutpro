@@ -349,10 +349,17 @@ async function netOfClawbacks(client: Prisma.TransactionClient | typeof db, kind
  *
  * Headline:
  * - platformRevenueKobo: total commission ever collected across every sale
- *   (SUM of -COMMISSION_FEE). Not reduced by refunds — a refund only ever
- *   gives back a seller's *net* (gross minus commission, see recordRefund's
- *   own comment), so the commission itself is kept by design, matching how
- *   this ledger has always behaved.
+ *   (SUM of -COMMISSION_FEE), plus Billboard revenue (SUM of Billboard.paidKobo
+ *   for every billboard that isn't REJECTED — a rejection is always a full
+ *   refund for zero service rendered, unlike an order refund/takedown, so it's
+ *   the one case actually excluded here). Billboard revenue is read from the
+ *   Billboard table itself, not the ledger, since a Bachs-paid billboard has
+ *   no WalletLedgerEntry footprint at all (see lib/commerce/billboards.ts) —
+ *   reading BILLBOARD_FEE/BILLBOARD_REFUND from the ledger here too would
+ *   double-count the wallet-paid ones. Commission itself is not reduced by
+ *   refunds — a refund only ever gives back a seller's *net* (gross minus
+ *   commission, see recordRefund's own comment), so the commission itself is
+ *   kept by design, matching how this ledger has always behaved.
  * - netIncomeKobo: total transaction volume — all the money that has ever
  *   passed through the platform, gross, before any commission/split is
  *   taken out (SUM of SALE_CREDIT). Always >= platformRevenueKobo, since
@@ -371,15 +378,18 @@ async function netOfClawbacks(client: Prisma.TransactionClient | typeof db, kind
  *
  * Breakdown:
  * - ambassadorCommissionsKobo / promoterPayoutsKobo: each net of clawbacks.
- * - revenueByType: commission collected per Product.type, from PAID orders'
- *   own items (same "join through OrderItem" approach app/api/wallet/route.ts
- *   already uses for a single seller's own breakdown, applied platform-wide).
+ * - billboardRevenueKobo: the Billboard-table slice of platformRevenueKobo
+ *   above, broken out on its own so it's visible separately from ordinary
+ *   commission.
+ * - revenueByType: commission actually collected (from COMMISSION_FEE
+ *   ledger rows, not recomputed from price*quantity*rate) per Product.type —
+ *   always sums to exactly platformRevenueKobo's commission component.
  * - payoutsByStatus: count + gross amountKobo per Payout.status.
  * - refundedKobo: total seller-side REFUND_DEBIT (what sellers gave back,
  *   net of the commission the platform itself keeps on a refunded sale).
  */
 export async function getPlatformFinancials(client: Prisma.TransactionClient | typeof db = db) {
-  const [commissionTotal, volumeTotal, ledgerTotal, paidTotal, ambassadorCommissionsKobo, promoterPayoutsKobo, payoutGroups, paidOrderItems, refundRows] =
+  const [commissionTotal, volumeTotal, ledgerTotal, paidTotal, ambassadorCommissionsKobo, promoterPayoutsKobo, billboardRevenueTotal, payoutGroups, commissionRows, refundRows] =
     await Promise.all([
       client.walletLedgerEntry.aggregate({ where: { kind: "COMMISSION_FEE" }, _sum: { amountKobo: true } }),
       client.walletLedgerEntry.aggregate({ where: { kind: "SALE_CREDIT" }, _sum: { amountKobo: true } }),
@@ -387,13 +397,27 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
       client.payout.aggregate({ where: { status: "PAID" }, _sum: { amountKobo: true } }),
       netOfClawbacks(client, "AMBASSADOR_COMMISSION"),
       netOfClawbacks(client, "PROMOTER_CREDIT"),
+      // Read from the Billboard table, not the ledger — see this function's
+      // own doc comment for why (a Bachs-paid billboard never touches the
+      // ledger at all, so summing BILLBOARD_FEE here would both miss those
+      // and double-count the wallet-paid ones).
+      client.billboard.aggregate({ where: { status: { not: "REJECTED" } }, _sum: { paidKobo: true } }),
       client.payout.groupBy({ by: ["status"], _count: { _all: true }, _sum: { amountKobo: true } }),
-      // Same unbounded-fetch-then-reduce approach app/api/wallet/route.ts
-      // already uses for one seller's own category breakdown — fine at this
-      // scale (see that route's own comment), applied platform-wide here.
-      client.orderItem.findMany({
-        where: { order: { status: "PAID" } },
-        select: { priceKobo: true, quantity: true, product: { select: { type: true } } },
+      // Every COMMISSION_FEE row, joined to its order's product type — reads
+      // the commission actually charged (recordSale's own computation, which
+      // for MERCH includes the buyer's shipping fee in the commission base)
+      // instead of independently recomputing priceKobo*quantity*rate here,
+      // which used to silently exclude shipping and so undercount MERCH's
+      // slice versus the real ledger total. Grouping by type this way also
+      // means revenueByType always sums to exactly platformRevenueKobo's
+      // commission component, by construction, with no way for the two to
+      // drift apart again.
+      client.walletLedgerEntry.findMany({
+        where: { kind: "COMMISSION_FEE" },
+        select: {
+          amountKobo: true,
+          order: { select: { items: { take: 1, select: { product: { select: { type: true } } } } } },
+        },
       }),
       // Every REFUND_DEBIT row for the order, so the seller's own can be
       // told apart from a promoter/ambassador clawback riding the same
@@ -409,19 +433,21 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
     ]);
 
   const revenueByType: Record<string, number> = {};
-  for (const item of paidOrderItems) {
-    const type = item.product.type;
-    const commissionKobo = Math.round(item.priceKobo * item.quantity * commissionRateFor(type));
-    revenueByType[type] = (revenueByType[type] ?? 0) + commissionKobo;
+  for (const row of commissionRows) {
+    const type = row.order?.items[0]?.product.type;
+    if (!type) continue;
+    revenueByType[type] = (revenueByType[type] ?? 0) - row.amountKobo;
   }
 
   const payoutsByStatus = Object.fromEntries(
     payoutGroups.map((g) => [g.status, { count: g._count._all, amountKobo: g._sum.amountKobo ?? 0 }]),
   );
 
-  const platformRevenueKobo = -(commissionTotal._sum.amountKobo ?? 0);
+  const billboardRevenueKobo = billboardRevenueTotal._sum.paidKobo ?? 0;
+  const platformRevenueKobo = -(commissionTotal._sum.amountKobo ?? 0) + billboardRevenueKobo;
   return {
     platformRevenueKobo,
+    billboardRevenueKobo,
     netIncomeKobo: volumeTotal._sum.amountKobo ?? 0,
     owingKobo: ledgerTotal._sum.amountKobo ?? 0,
     paidKobo: paidTotal._sum.amountKobo ?? 0,

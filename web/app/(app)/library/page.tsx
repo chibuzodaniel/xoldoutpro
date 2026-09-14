@@ -93,6 +93,12 @@ function LibraryPageInner() {
   const [entitlements, setEntitlements] = useState<LibraryEntitlement[] | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null);
+  const [downloadingProductId, setDownloadingProductId] = useState<string | null>(null);
+  // Defaults true (the common case) so download controls don't flash in
+  // then out for everyone — corrected once /api/library loads. When a
+  // super-moderator turns real-file downloads off, these hide entirely;
+  // the "Offline" in-app cache (lib/offline/downloads.ts) is unaffected.
+  const [downloadsAllowed, setDownloadsAllowed] = useState(true);
   const [collectingId, setCollectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionsFor, setActionsFor] = useState<LibraryEntitlement | null>(null);
@@ -105,8 +111,9 @@ function LibraryPageInner() {
   const loadLibrary = useCallback(async () => {
     const res = await apiFetch("/api/library");
     if (!res.ok) return;
-    const data: { entitlements: LibraryEntitlement[] } = await res.json();
+    const data: { entitlements: LibraryEntitlement[]; downloadsEnabled?: boolean } = await res.json();
     setEntitlements(data.entitlements);
+    setDownloadsAllowed(data.downloadsEnabled ?? true);
     const allTracks = data.entitlements.flatMap((e) => e.product.release?.tracks ?? []);
     await refreshDownloadState(allTracks);
   }, [refreshDownloadState]);
@@ -218,6 +225,24 @@ function LibraryPageInner() {
   async function handleDownloadReleaseFiles(tracks: LibraryTrack[]) {
     for (const track of tracks) {
       await handleDownloadFile(track);
+    }
+  }
+
+  // Wraps the tile's floating download icon (either branch below) so it
+  // shows a busy state the instant it's tapped — explicit ask: it "doesn't
+  // press immediately, it takes time to respond." The fetch+ffmpeg round
+  // trip genuinely does take a few seconds; the fix is showing that it's
+  // working right away, not making it faster.
+  async function handleTileDownload(e: LibraryEntitlement) {
+    setDownloadingProductId(e.product.id);
+    try {
+      if (e.product.beat) {
+        await handleDownloadBeatFile(e.product.id, e.product.title);
+      } else if (e.product.release) {
+        await handleDownloadReleaseFiles(e.product.release.tracks);
+      }
+    } finally {
+      setDownloadingProductId(null);
     }
   }
 
@@ -444,24 +469,31 @@ function LibraryPageInner() {
                                     </svg>
                                   </span>
                                 )}
+                                {downloadsAllowed && (
                                 <button
                                   type="button"
                                   onClick={(ev) => {
                                     ev.stopPropagation();
-                                    if (e.product.beat) {
-                                      handleDownloadBeatFile(e.product.id, e.product.title);
-                                    } else if (e.product.release) {
-                                      handleDownloadReleaseFiles(e.product.release.tracks);
-                                    }
+                                    if (downloadingProductId) return;
+                                    handleTileDownload(e);
                                   }}
+                                  disabled={downloadingProductId === e.product.id}
                                   aria-label={`Download ${e.product.title} as a file`}
-                                  className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-black/60 flex items-center justify-center"
+                                  className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-red flex items-center justify-center disabled:opacity-70"
                                 >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
-                                    <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
-                                    <path d="M5 20h14" strokeLinecap="round" />
-                                  </svg>
+                                  {downloadingProductId === e.product.id ? (
+                                    <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-white">
+                                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.3" />
+                                      <path d="M21 12a9 9 0 00-9-9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                                    </svg>
+                                  ) : (
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
+                                      <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                                      <path d="M5 20h14" strokeLinecap="round" />
+                                    </svg>
+                                  )}
                                 </button>
+                                )}
                               </div>
                             </button>
                             {/* Title/creator is its own tap target — for a
@@ -552,14 +584,16 @@ function LibraryPageInner() {
                                             {busyTrackId === track.id ? "…" : "Offline"}
                                           </button>
                                         )}
+                                        {downloadsAllowed && (
                                         <button
                                           onClick={() => handleDownloadFile(track)}
                                           disabled={busyTrackId === track.id}
                                           aria-label={`Download ${track.title} as a file`}
                                           className="text-[11px] text-ink-2 uppercase tracking-widest disabled:opacity-50"
                                         >
-                                          Save file
+                                          {busyTrackId === track.id ? "…" : "Save file"}
                                         </button>
+                                        )}
                                       </div>
                                     </div>
                                   );
