@@ -320,3 +320,119 @@ export async function getWalletBalances(userId: string, client: Prisma.Transacti
     pendingKobo: pending._sum.amountKobo ?? 0,
   };
 }
+
+/**
+ * Nets a credit kind (AMBASSADOR_COMMISSION or PROMOTER_CREDIT) against its
+ * refund clawbacks, exactly rather than approximately: a clawback is always
+ * written with the same (orderId, userId) as the credit it reverses (see
+ * recordRefund above), and that pairing can never coincidentally collide
+ * with an unrelated REFUND_DEBIT (a seller can't be their own promoter or
+ * referring ambassador), so matching on it is safe.
+ */
+async function netOfClawbacks(client: Prisma.TransactionClient | typeof db, kind: "AMBASSADOR_COMMISSION" | "PROMOTER_CREDIT") {
+  const credits = await client.walletLedgerEntry.findMany({
+    where: { kind },
+    select: { orderId: true, userId: true, amountKobo: true },
+  });
+  if (credits.length === 0) return 0;
+  const clawbacks = await client.walletLedgerEntry.findMany({
+    where: { kind: "REFUND_DEBIT", OR: credits.map((c) => ({ orderId: c.orderId, userId: c.userId })) },
+    select: { orderId: true, userId: true, amountKobo: true },
+  });
+  const clawbackByKey = new Map(clawbacks.map((c) => [`${c.orderId}:${c.userId}`, c.amountKobo]));
+  return credits.reduce((sum, c) => sum + c.amountKobo + (clawbackByKey.get(`${c.orderId}:${c.userId}`) ?? 0), 0);
+}
+
+/**
+ * Platform-wide financial overview for the moderator dashboard — "everything
+ * concerning finance" (explicit ask), not just the four headline figures.
+ *
+ * Headline:
+ * - platformRevenueKobo: total commission ever collected across every sale
+ *   (SUM of -COMMISSION_FEE). Not reduced by refunds — a refund only ever
+ *   gives back a seller's *net* (gross minus commission, see recordRefund's
+ *   own comment), so the commission itself is kept by design, matching how
+ *   this ledger has always behaved.
+ * - netIncomeKobo: platformRevenueKobo minus what actually went out to
+ *   ambassadors (ambassadorCommissionsKobo) — what the platform truly kept.
+ *   Ticket-promoter payouts do NOT reduce this: those are carved out of a
+ *   *seller's* own net, never the platform's commission.
+ * - owingKobo: total currently sitting in every real user's wallet
+ *   (available + pending), not yet withdrawn — the platform's outstanding
+ *   liability. Equal to summing every WalletLedgerEntry ever written: money
+ *   taken as commission is never credited to any wallet row in the first
+ *   place, so this sum nets out to exactly what's still owed to people,
+ *   automatically correct across refunds without any special-casing.
+ * - paidKobo: total actually paid out (Payout.status = PAID only — a
+ *   PENDING/PROCESSING withdrawal hasn't left the platform yet, and a
+ *   FAILED one never did).
+ *
+ * Breakdown:
+ * - ambassadorCommissionsKobo / promoterPayoutsKobo: each net of clawbacks.
+ * - revenueByType: commission collected per Product.type, from PAID orders'
+ *   own items (same "join through OrderItem" approach app/api/wallet/route.ts
+ *   already uses for a single seller's own breakdown, applied platform-wide).
+ * - payoutsByStatus: count + gross amountKobo per Payout.status.
+ * - refundedKobo: total seller-side REFUND_DEBIT (what sellers gave back,
+ *   net of the commission the platform itself keeps on a refunded sale).
+ */
+export async function getPlatformFinancials(client: Prisma.TransactionClient | typeof db = db) {
+  const [commissionTotal, ledgerTotal, paidTotal, ambassadorCommissionsKobo, promoterPayoutsKobo, payoutGroups, paidOrderItems, refundRows] =
+    await Promise.all([
+      client.walletLedgerEntry.aggregate({ where: { kind: "COMMISSION_FEE" }, _sum: { amountKobo: true } }),
+      client.walletLedgerEntry.aggregate({ _sum: { amountKobo: true } }),
+      client.payout.aggregate({ where: { status: "PAID" }, _sum: { amountKobo: true } }),
+      netOfClawbacks(client, "AMBASSADOR_COMMISSION"),
+      netOfClawbacks(client, "PROMOTER_CREDIT"),
+      client.payout.groupBy({ by: ["status"], _count: { _all: true }, _sum: { amountKobo: true } }),
+      // Same unbounded-fetch-then-reduce approach app/api/wallet/route.ts
+      // already uses for one seller's own category breakdown — fine at this
+      // scale (see that route's own comment), applied platform-wide here.
+      client.orderItem.findMany({
+        where: { order: { status: "PAID" } },
+        select: { priceKobo: true, quantity: true, product: { select: { type: true } } },
+      }),
+      // Every REFUND_DEBIT row for the order, so the seller's own can be
+      // told apart from a promoter/ambassador clawback riding the same
+      // order (see the refundedKobo comment below for why that matters).
+      client.walletLedgerEntry.findMany({
+        where: { kind: "REFUND_DEBIT" },
+        select: {
+          userId: true,
+          amountKobo: true,
+          order: { select: { items: { take: 1, select: { product: { select: { creatorId: true } } } } } },
+        },
+      }),
+    ]);
+
+  const revenueByType: Record<string, number> = {};
+  for (const item of paidOrderItems) {
+    const type = item.product.type;
+    const commissionKobo = Math.round(item.priceKobo * item.quantity * commissionRateFor(type));
+    revenueByType[type] = (revenueByType[type] ?? 0) + commissionKobo;
+  }
+
+  const payoutsByStatus = Object.fromEntries(
+    payoutGroups.map((g) => [g.status, { count: g._count._all, amountKobo: g._sum.amountKobo ?? 0 }]),
+  );
+
+  const platformRevenueKobo = -(commissionTotal._sum.amountKobo ?? 0);
+  return {
+    platformRevenueKobo,
+    netIncomeKobo: platformRevenueKobo - ambassadorCommissionsKobo,
+    owingKobo: ledgerTotal._sum.amountKobo ?? 0,
+    paidKobo: paidTotal._sum.amountKobo ?? 0,
+    ambassadorCommissionsKobo,
+    promoterPayoutsKobo,
+    revenueByType,
+    payoutsByStatus,
+    // A refunded order can have up to three REFUND_DEBIT rows (seller,
+    // promoter, ambassador — recordRefund) — summing all of them would
+    // triple-count the same refund. Keeping only the row whose userId
+    // matches that order's own seller isolates the one row every refund
+    // always has, so the total is exact, not an approximation.
+    refundedKobo: -refundRows
+      .filter((r) => r.order?.items[0]?.product.creatorId === r.userId)
+      .reduce((sum, r) => sum + r.amountKobo, 0),
+  };
+}
