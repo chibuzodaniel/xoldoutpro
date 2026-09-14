@@ -139,11 +139,13 @@ export async function finalizePayment(
 
     await recordSale(tx, {
       sellerId: product.creatorId,
+      buyerId: payment.order.buyerId,
       orderId: payment.orderId,
       grossKobo: payment.amountKobo,
       productType: product.type,
       promoter,
-      referredByAmbassadorId: payment.order.buyer.referredByAmbassadorId,
+      buyerReferredByAmbassadorId: payment.order.buyer.referredByAmbassadorId,
+      sellerReferredByAmbassadorId: product.creator.referredByAmbassadorId,
     });
   });
 

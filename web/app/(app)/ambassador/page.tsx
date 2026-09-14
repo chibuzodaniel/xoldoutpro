@@ -18,18 +18,18 @@ type MeResponse = {
   application: Application | null;
   ambassadorCode?: string;
   referredCount?: number;
+  activeInviteCount?: number;
   revenueGeneratedKobo?: number;
-  tier?: "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
-  commissionPercent?: number;
-  nextTier?: { name: string; remainingKobo: number; commissionPercent: number } | null;
+  tier?: "SILVER" | "GOLD";
+  firstPurchasePercent?: number;
+  continuousPercent?: number;
+  nextTier?: { name: string; remainingActiveInvites: number; firstPurchasePercent: number; continuousPercent: number } | null;
 };
 
-const TIER_LABEL: Record<string, string> = { BRONZE: "Bronze", SILVER: "Silver", GOLD: "Gold", PLATINUM: "Platinum" };
+const TIER_LABEL: Record<string, string> = { SILVER: "Silver", GOLD: "Gold" };
 const TIER_COLOR: Record<string, string> = {
-  BRONZE: "bg-amber-900/20 text-amber-600",
   SILVER: "bg-zinc-400/20 text-zinc-400",
   GOLD: "bg-yellow-500/20 text-yellow-600",
-  PLATINUM: "bg-red/15 text-red-soft",
 };
 
 function formatNaira(kobo: number) {
@@ -107,16 +107,21 @@ export default function AmbassadorPage() {
         <BackHeader title="Ambassador" />
 
         <div className="flex items-center gap-2 mb-4">
-          <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${TIER_COLOR[me.tier ?? "BRONZE"]}`}>
-            {TIER_LABEL[me.tier ?? "BRONZE"]}
+          <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${TIER_COLOR[me.tier ?? "SILVER"]}`}>
+            {TIER_LABEL[me.tier ?? "SILVER"]}
           </span>
-          <span className="text-xs text-ink-3">Earning {me.commissionPercent}% of platform commission on referred sales</span>
         </div>
+
+        <p className="text-xs text-ink-3 mb-1">
+          {me.firstPurchasePercent}% of platform commission on a referral&apos;s first purchase, {me.continuousPercent}% on every
+          purchase after that.
+        </p>
 
         {me.nextTier && (
           <p className="text-xs text-ink-3 mb-6">
-            {formatNaira(Math.max(me.nextTier.remainingKobo, 0))} more in referred revenue to reach{" "}
-            <span className="font-semibold">{TIER_LABEL[me.nextTier.name]}</span> ({me.nextTier.commissionPercent}%).
+            {me.nextTier.remainingActiveInvites} more active invite{me.nextTier.remainingActiveInvites === 1 ? "" : "s"} to reach{" "}
+            <span className="font-semibold">{TIER_LABEL[me.nextTier.name]}</span> ({me.nextTier.firstPurchasePercent}% /{" "}
+            {me.nextTier.continuousPercent}%).
           </p>
         )}
 
@@ -184,15 +189,19 @@ export default function AmbassadorPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 mb-3">
           <div className="rounded-lg border border-line p-4">
             <p className="text-xs text-ink-3 mb-1">People referred</p>
             <p className="font-serif text-xl">{me.referredCount}</p>
           </div>
           <div className="rounded-lg border border-line p-4">
-            <p className="text-xs text-ink-3 mb-1">Revenue generated</p>
-            <p className="font-serif text-xl">{formatNaira(me.revenueGeneratedKobo ?? 0)}</p>
+            <p className="text-xs text-ink-3 mb-1">Active invites</p>
+            <p className="font-serif text-xl">{me.activeInviteCount}</p>
           </div>
+        </div>
+        <div className="rounded-lg border border-line p-4">
+          <p className="text-xs text-ink-3 mb-1">Revenue generated</p>
+          <p className="font-serif text-xl">{formatNaira(me.revenueGeneratedKobo ?? 0)}</p>
         </div>
       </div>
     );

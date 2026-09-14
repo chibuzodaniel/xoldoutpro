@@ -31,41 +31,35 @@ export function commissionRateFor(productType: "RELEASE" | "BEAT" | "EVENT" | "M
 }
 
 // Ambassador program (platform-wide referral role, distinct from the
-// per-event EventPromoter below): tiers are never stored, only ever derived
-// from how much platform-commission revenue an ambassador's referred users
-// have generated in total — see ambassadorTierFor(). Starting thresholds,
-// trivially tunable later since they're just constants.
-export const AMBASSADOR_TIER_THRESHOLDS_KOBO = {
-  BRONZE: 0, // every approved ambassador's starting floor
-  SILVER: 5_000_000, // ₦50,000
-  GOLD: 20_000_000, // ₦200,000
-  PLATINUM: 50_000_000, // ₦500,000
-} as const;
+// per-event EventPromoter below). Two tiers only (explicit ask,
+// 2026-09-14): every approved ambassador starts at SILVER; GOLD is reached
+// by *active* invite count — referred users who've actually made at least
+// one purchase, not raw signups — never stored, always derived (see
+// getAmbassadorActiveInviteCount in lib/commerce/ledger.ts).
+export const AMBASSADOR_GOLD_ACTIVE_INVITES = 500;
 
-export type AmbassadorTier = "BRONZE" | "SILVER" | "GOLD" | "PLATINUM";
+export type AmbassadorTier = "SILVER" | "GOLD";
 
-export function ambassadorTierFor(revenueGeneratedKobo: number): AmbassadorTier {
-  if (revenueGeneratedKobo >= AMBASSADOR_TIER_THRESHOLDS_KOBO.PLATINUM) return "PLATINUM";
-  if (revenueGeneratedKobo >= AMBASSADOR_TIER_THRESHOLDS_KOBO.GOLD) return "GOLD";
-  if (revenueGeneratedKobo >= AMBASSADOR_TIER_THRESHOLDS_KOBO.SILVER) return "SILVER";
-  return "BRONZE";
+export function ambassadorTierFor(activeInviteCount: number): AmbassadorTier {
+  return activeInviteCount >= AMBASSADOR_GOLD_ACTIVE_INVITES ? "GOLD" : "SILVER";
 }
 
-// The next tier up from `tier`, or null at the top (PLATINUM) — used by the
-// ambassador dashboard's "₦X more to reach {next tier}" motivational line.
+// The next tier up from `tier`, or null at the top (GOLD) — used by the
+// ambassador dashboard's "X more active invites to reach {next tier}" line.
 export function nextAmbassadorTier(tier: AmbassadorTier): AmbassadorTier | null {
-  if (tier === "BRONZE") return "SILVER";
-  if (tier === "SILVER") return "GOLD";
-  if (tier === "GOLD") return "PLATINUM";
-  return null;
+  return tier === "SILVER" ? "GOLD" : null;
 }
+
+export type AmbassadorTierRateValue = { firstPurchasePercent: number; continuousPercent: number };
 
 // Starting defaults for AmbassadorTierRate rows, lazily upserted on first
 // read (see app/api/admin/ambassadors/tier-rates/route.ts) rather than
 // seeded via migration data — a moderator can edit these from day one.
-export const DEFAULT_AMBASSADOR_TIER_RATES: Record<AmbassadorTier, number> = {
-  BRONZE: 10,
-  SILVER: 20,
-  GOLD: 30,
-  PLATINUM: 50,
+// firstPurchasePercent: what the ambassador earns (of the platform's own
+// commission) the first time a person they referred ever buys anything.
+// continuousPercent: the lower ongoing rate for every purchase that same
+// person makes after their first.
+export const DEFAULT_AMBASSADOR_TIER_RATES: Record<AmbassadorTier, AmbassadorTierRateValue> = {
+  SILVER: { firstPurchasePercent: 20, continuousPercent: 10 },
+  GOLD: { firstPurchasePercent: 35, continuousPercent: 20 },
 };

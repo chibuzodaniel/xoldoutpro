@@ -4,9 +4,10 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import {
   getAmbassadorRevenueGeneratedKobo,
-  getAmbassadorTierRatePercent,
+  getAmbassadorActiveInviteCount,
+  getAmbassadorTierRates,
 } from "@/lib/commerce/ledger";
-import { ambassadorTierFor, nextAmbassadorTier, AMBASSADOR_TIER_THRESHOLDS_KOBO } from "@/lib/commerce/constants";
+import { ambassadorTierFor, nextAmbassadorTier, AMBASSADOR_GOLD_ACTIVE_INVITES } from "@/lib/commerce/constants";
 
 export async function GET(req: NextRequest) {
   try {
@@ -21,19 +22,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ isAmbassador: false, application: latestApplication });
     }
 
-    const [referredCount, revenueGeneratedKobo] = await Promise.all([
+    const [referredCount, revenueGeneratedKobo, activeInviteCount] = await Promise.all([
       db.user.count({ where: { referredByAmbassadorId: user.id } }),
       getAmbassadorRevenueGeneratedKobo(db, user.id),
+      getAmbassadorActiveInviteCount(db, user.id),
     ]);
 
-    const tier = ambassadorTierFor(revenueGeneratedKobo);
-    const commissionPercent = await getAmbassadorTierRatePercent(db, tier);
+    const tier = ambassadorTierFor(activeInviteCount);
+    const rates = await getAmbassadorTierRates(db, tier);
     const next = nextAmbassadorTier(tier);
     const nextTier = next
       ? {
           name: next,
-          remainingKobo: AMBASSADOR_TIER_THRESHOLDS_KOBO[next] - revenueGeneratedKobo,
-          commissionPercent: await getAmbassadorTierRatePercent(db, next),
+          remainingActiveInvites: Math.max(AMBASSADOR_GOLD_ACTIVE_INVITES - activeInviteCount, 0),
+          ...(await getAmbassadorTierRates(db, next)),
         }
       : null;
 
@@ -41,9 +43,11 @@ export async function GET(req: NextRequest) {
       isAmbassador: true,
       ambassadorCode: user.ambassadorCode,
       referredCount,
+      activeInviteCount,
       revenueGeneratedKobo,
       tier,
-      commissionPercent,
+      firstPurchasePercent: rates.firstPurchasePercent,
+      continuousPercent: rates.continuousPercent,
       nextTier,
       application: latestApplication,
     });

@@ -1107,22 +1107,28 @@ model AmbassadorApplication {
   @@index([status])
 }
 
+// Two tiers only (explicit ask, 2026-09-14 — down from the original
+// Bronze/Silver/Gold/Platinum ladder): every approved ambassador starts at
+// SILVER; GOLD is reached by active-invite count, not revenue
+// (lib/commerce/constants.ts's ambassadorTierFor/AMBASSADOR_GOLD_ACTIVE_INVITES).
 enum AmbassadorTier {
-  BRONZE
   SILVER
   GOLD
-  PLATINUM
 }
 
-// Moderator-configurable: what % of the platform's own commission each
-// tier pays its ambassador on a sale (lib/commerce/ledger.ts's
-// recordAmbassadorCommission). Rows are lazily upserted with starting
-// defaults the first time they're read, not seeded via migration data.
+// Moderator-configurable, per tier: firstPurchasePercent is what the
+// ambassador earns (of the platform's own commission) the first time a
+// person they referred ever buys anything; continuousPercent is the lower
+// ongoing rate for every purchase after that same person's first. Rows are
+// lazily upserted with starting defaults the first time they're read, not
+// seeded via migration data. See lib/commerce/ledger.ts's
+// recordAmbassadorCommission.
 model AmbassadorTierRate {
-  tier      AmbassadorTier @id
-  percent   Int
-  updatedAt DateTime       @updatedAt
-  updatedBy String?
+  tier                 AmbassadorTier @id
+  firstPurchasePercent Int
+  continuousPercent    Int
+  updatedAt            DateTime       @updatedAt
+  updatedBy            String?
 }
 
 // ─── Ticket promoter split ──────────────────────────────────────────────

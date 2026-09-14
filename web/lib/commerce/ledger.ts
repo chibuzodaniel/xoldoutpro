@@ -11,6 +11,7 @@ import {
   ambassadorTierFor,
   DEFAULT_AMBASSADOR_TIER_RATES,
   type AmbassadorTier,
+  type AmbassadorTierRateValue,
 } from "@/lib/commerce/constants";
 export { COMMISSION_RATE, commissionRateFor };
 
@@ -44,6 +45,7 @@ export async function recordSale(
   tx: Prisma.TransactionClient,
   args: {
     sellerId: string;
+    buyerId: string;
     orderId: string;
     grossKobo: number;
     productType: "RELEASE" | "BEAT" | "EVENT" | "MERCH";
@@ -52,8 +54,15 @@ export async function recordSale(
     promoter?: { userId: string; sharePercent: number };
     // Ambassador program (platform-wide — see AmbassadorApplication):
     // carved out of the PLATFORM's own commission share, never the
-    // seller's. Set from the buyer's own referredByAmbassadorId.
-    referredByAmbassadorId?: string | null;
+    // seller's. An ambassador earns on EITHER side of a sale they
+    // referred a party to — the buyer's own referredByAmbassadorId and/or
+    // the seller's — since "invite someone who buys" and "invite someone
+    // who becomes a creator and sells" both count (explicit ask). Both can
+    // be set on the same order (crediting the same or different
+    // ambassadors); each is evaluated independently against that specific
+    // referred person's own first-transaction status.
+    buyerReferredByAmbassadorId?: string | null;
+    sellerReferredByAmbassadorId?: string | null;
   },
 ) {
   // Settlement hold deactivated for launch (see SETTLEMENT_WINDOW_DAYS's own
@@ -79,9 +88,18 @@ export async function recordSale(
   }
   await tx.walletLedgerEntry.createMany({ data: entries });
 
-  if (args.referredByAmbassadorId) {
+  if (args.buyerReferredByAmbassadorId) {
     await recordAmbassadorCommission(tx, {
-      ambassadorId: args.referredByAmbassadorId,
+      ambassadorId: args.buyerReferredByAmbassadorId,
+      referredUserId: args.buyerId,
+      orderId: args.orderId,
+      commissionKobo,
+    });
+  }
+  if (args.sellerReferredByAmbassadorId) {
+    await recordAmbassadorCommission(tx, {
+      ambassadorId: args.sellerReferredByAmbassadorId,
+      referredUserId: args.sellerId,
       orderId: args.orderId,
       commissionKobo,
     });
@@ -89,48 +107,104 @@ export async function recordSale(
 }
 
 /**
- * Sums every COMMISSION_FEE the platform has ever taken on an order placed
- * by one of this ambassador's referred users — i.e. how much platform
- * revenue this ambassador has generated. Used both to pick a tier
- * (ambassadorTierFor) and to display it (app/api/ambassador/me,
- * app/api/admin/ambassadors). Accepts a transaction client so
- * recordAmbassadorCommission can read a consistent value inside the same
- * transaction it's about to write into.
+ * Sums every COMMISSION_FEE the platform has ever taken on an order where
+ * either the buyer or the seller was one of this ambassador's referred
+ * users — i.e. how much platform revenue this ambassador has generated,
+ * from either side of a sale. Purely informational (shown on the
+ * ambassador's own dashboard and the moderator panel) — tier is driven by
+ * getAmbassadorActiveInviteCount below, not this figure.
  */
 export async function getAmbassadorRevenueGeneratedKobo(
   client: Prisma.TransactionClient | typeof db,
   ambassadorId: string,
 ): Promise<number> {
   const result = await client.walletLedgerEntry.aggregate({
-    where: { kind: "COMMISSION_FEE", order: { buyer: { referredByAmbassadorId: ambassadorId } } },
+    where: {
+      kind: "COMMISSION_FEE",
+      order: {
+        OR: [
+          { buyer: { referredByAmbassadorId: ambassadorId } },
+          { items: { some: { product: { creator: { referredByAmbassadorId: ambassadorId } } } } },
+        ],
+      },
+    },
     _sum: { amountKobo: true },
   });
   return -(result._sum.amountKobo ?? 0);
 }
 
-/** Moderator-configurable, lazily-defaulted rate for a given tier. */
-export async function getAmbassadorTierRatePercent(
+/**
+ * How many people this ambassador referred are "active" — have completed
+ * at least one PAID order, either as the buyer or as the seller (i.e. they
+ * published something and it sold). A raw signup with no transaction never
+ * counts. Drives ambassadorTierFor() — see that function's own comment for
+ * why this replaced a revenue-based threshold.
+ */
+export async function getAmbassadorActiveInviteCount(
+  client: Prisma.TransactionClient | typeof db,
+  ambassadorId: string,
+): Promise<number> {
+  return client.user.count({
+    where: {
+      referredByAmbassadorId: ambassadorId,
+      OR: [
+        { orders: { some: { status: "PAID" } } },
+        { products: { some: { orderItems: { some: { order: { status: "PAID" } } } } } },
+      ],
+    },
+  });
+}
+
+/** Moderator-configurable, lazily-defaulted first-purchase/continuous rates for a given tier. */
+export async function getAmbassadorTierRates(
   client: Prisma.TransactionClient | typeof db,
   tier: AmbassadorTier,
-): Promise<number> {
+): Promise<AmbassadorTierRateValue> {
   const row = await client.ambassadorTierRate.findUnique({ where: { tier } });
-  return row?.percent ?? DEFAULT_AMBASSADOR_TIER_RATES[tier];
+  return row
+    ? { firstPurchasePercent: row.firstPurchasePercent, continuousPercent: row.continuousPercent }
+    : DEFAULT_AMBASSADOR_TIER_RATES[tier];
 }
 
 /**
- * Automatic, per-sale credit to an ambassador when the buyer was one of
- * their referrals — carved out of the platform's own commission on THIS
- * sale, computed at whatever tier the ambassador's revenue-generated-so-far
- * (before this sale) puts them at. No-ops (and touches nothing) if the
- * computed cut rounds to zero.
+ * Whether this PAID order is the very first transaction `userId` has ever
+ * been party to — as a buyer OR as a seller (an item in the order belongs
+ * to them). Order status is already flipped to PAID in the same
+ * transaction before recordSale runs, so "this order is the only one" (a
+ * count of 1) means it's their first. Drives which of a tier's two rates
+ * (first-purchase vs. continuous) an ambassador earns for this specific
+ * referred person — tracked once per person across BOTH buying and
+ * selling, not separately per role.
+ */
+async function isFirstQualifyingTransaction(tx: Prisma.TransactionClient, userId: string): Promise<boolean> {
+  const [priorAsBuyer, priorAsSeller] = await Promise.all([
+    tx.order.count({ where: { buyerId: userId, status: "PAID" } }),
+    tx.order.count({ where: { status: "PAID", items: { some: { product: { creatorId: userId } } } } }),
+  ]);
+  return priorAsBuyer + priorAsSeller <= 1;
+}
+
+/**
+ * Automatic, per-sale credit to an ambassador when `referredUserId` (either
+ * this order's buyer or its seller) is one of their referrals — carved out
+ * of the platform's own commission on THIS sale, never the seller's net.
+ * Pays the tier's firstPurchasePercent on referredUserId's first-ever
+ * transaction (buying or selling, tracked as one combined "have they ever
+ * transacted" state) and continuousPercent on every one after that. Tier
+ * itself comes from the ambassador's active-invite count. No-ops (and
+ * touches nothing) if the computed cut rounds to zero.
  */
 async function recordAmbassadorCommission(
   tx: Prisma.TransactionClient,
-  args: { ambassadorId: string; orderId: string; commissionKobo: number },
+  args: { ambassadorId: string; referredUserId: string; orderId: string; commissionKobo: number },
 ) {
-  const revenueGeneratedKobo = await getAmbassadorRevenueGeneratedKobo(tx, args.ambassadorId);
-  const tier = ambassadorTierFor(revenueGeneratedKobo);
-  const percent = await getAmbassadorTierRatePercent(tx, tier);
+  const [isFirst, activeInviteCount] = await Promise.all([
+    isFirstQualifyingTransaction(tx, args.referredUserId),
+    getAmbassadorActiveInviteCount(tx, args.ambassadorId),
+  ]);
+  const tier = ambassadorTierFor(activeInviteCount);
+  const rates = await getAmbassadorTierRates(tx, tier);
+  const percent = isFirst ? rates.firstPurchasePercent : rates.continuousPercent;
   const ambassadorKobo = Math.round(args.commissionKobo * (percent / 100));
   if (ambassadorKobo <= 0) return;
 
@@ -175,10 +249,12 @@ export async function recordRefund(
   tx: Prisma.TransactionClient,
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
-  const [commissionEntry, promoterFeeEntry, ambassadorEntry] = await Promise.all([
+  const [commissionEntry, promoterFeeEntry, ambassadorEntries] = await Promise.all([
     tx.walletLedgerEntry.findFirstOrThrow({ where: { orderId: args.orderId, kind: "COMMISSION_FEE" } }),
     tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "PROMOTER_FEE" } }),
-    tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "AMBASSADOR_COMMISSION" } }),
+    // Up to two — a sale can credit an ambassador on the buyer's side, the
+    // seller's side, or both (recordSale above), each its own row.
+    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "AMBASSADOR_COMMISSION" } }),
   ]);
   const commissionKobo = -commissionEntry.amountKobo;
   const promoterKobo = promoterFeeEntry ? -promoterFeeEntry.amountKobo : 0;
@@ -202,7 +278,7 @@ export async function recordRefund(
     });
   }
 
-  if (ambassadorEntry) {
+  for (const ambassadorEntry of ambassadorEntries) {
     entries.push({
       userId: ambassadorEntry.userId,
       orderId: args.orderId,

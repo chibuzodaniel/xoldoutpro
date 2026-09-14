@@ -4,14 +4,21 @@ import { requireModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { DEFAULT_AMBASSADOR_TIER_RATES, type AmbassadorTier } from "@/lib/commerce/constants";
 
-const TIERS: AmbassadorTier[] = ["BRONZE", "SILVER", "GOLD", "PLATINUM"];
+const TIERS: AmbassadorTier[] = ["SILVER", "GOLD"];
 
 export async function GET(req: NextRequest) {
   try {
     await requireModerator(req);
     const rows = await db.ambassadorTierRate.findMany();
-    const byTier = new Map(rows.map((r) => [r.tier, r.percent]));
-    const rates = TIERS.map((tier) => ({ tier, percent: byTier.get(tier) ?? DEFAULT_AMBASSADOR_TIER_RATES[tier] }));
+    const byTier = new Map(rows.map((r) => [r.tier, r]));
+    const rates = TIERS.map((tier) => {
+      const row = byTier.get(tier);
+      return {
+        tier,
+        firstPurchasePercent: row?.firstPurchasePercent ?? DEFAULT_AMBASSADOR_TIER_RATES[tier].firstPurchasePercent,
+        continuousPercent: row?.continuousPercent ?? DEFAULT_AMBASSADOR_TIER_RATES[tier].continuousPercent,
+      };
+    });
     return NextResponse.json({ rates });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
@@ -21,19 +28,20 @@ export async function GET(req: NextRequest) {
 }
 
 const patchSchema = z.object({
-  tier: z.enum(["BRONZE", "SILVER", "GOLD", "PLATINUM"]),
-  percent: z.number().int().min(0).max(100),
+  tier: z.enum(["SILVER", "GOLD"]),
+  firstPurchasePercent: z.number().int().min(0).max(100),
+  continuousPercent: z.number().int().min(0).max(100),
 });
 
 export async function PATCH(req: NextRequest) {
   try {
     const { user } = await requireModerator(req);
-    const { tier, percent } = patchSchema.parse(await req.json());
+    const { tier, firstPurchasePercent, continuousPercent } = patchSchema.parse(await req.json());
 
     const row = await db.ambassadorTierRate.upsert({
       where: { tier },
-      create: { tier, percent, updatedBy: user.id },
-      update: { percent, updatedBy: user.id },
+      create: { tier, firstPurchasePercent, continuousPercent, updatedBy: user.id },
+      update: { firstPurchasePercent, continuousPercent, updatedBy: user.id },
     });
 
     return NextResponse.json({ rate: row });
