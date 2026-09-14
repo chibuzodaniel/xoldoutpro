@@ -9,20 +9,25 @@ export type WeeklyTopCreator = {
 };
 
 // Ranks creators by confirmed, non-refunded entitlements sold across all
-// their products (not just releases) — all-time, not restricted to any
-// recent window (explicit ask: "it should not have the one week in the
-// logic"). Entitlement has no creatorId of its own (only productId), so
-// this aggregates in JS rather than a single groupBy — fine at this scale.
-// A newer platform can still have fewer than `limit` distinct sellers even
-// counting all-time sales, which used to leave the Discover rail looking
-// sparse/empty next to New Release — so once real sellers are exhausted,
-// the rest of `limit` is padded with the next most-followed creators
-// (excluding anyone already listed), so callers reliably get a full list to
-// fill the space. Padded entries show a follower count instead of a sold
-// count, since they honestly haven't sold anything yet.
+// their products (not just releases), restricted to the last 14 days
+// (explicit ask, 2026-09-14: "latest sales at least a week or two" — a
+// reversal of this file's earlier all-time behavior, which itself had
+// reversed an original 7-day window; two weeks splits the difference).
+// Entitlement has no creatorId of its own (only productId), so this
+// aggregates in JS rather than a single groupBy — fine at this scale.
+// A newer platform (or a quiet fortnight) can still have fewer than `limit`
+// distinct sellers in that window, which used to leave the Discover rail
+// looking sparse/empty next to New Release — so once real recent sellers
+// are exhausted, the rest of `limit` is padded with the next most-followed
+// creators (excluding anyone already listed), so callers reliably get a
+// full list to fill the space. Padded entries show a follower count instead
+// of a sold count, since they honestly haven't sold anything recently.
+const RECENCY_WINDOW_DAYS = 14;
+
 export async function getWeeklyTopCreators(limit: number): Promise<WeeklyTopCreator[]> {
+  const since = new Date(Date.now() - RECENCY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const allSales = await db.entitlement.findMany({
-    where: { revokedAt: null },
+    where: { revokedAt: null, createdAt: { gte: since } },
     select: { product: { select: { creatorId: true } } },
   });
 

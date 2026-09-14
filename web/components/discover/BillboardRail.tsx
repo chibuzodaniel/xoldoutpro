@@ -23,7 +23,7 @@ const ROTATE_MS = 5000;
  * column, directly below the release grid, so it reads as part of that same
  * block — with the Top sellers rail alongside stretching to match the
  * combined height (see that section's own "items-stretch" comment).
- * Square-ish, matching a release-artwork card's proportions, not a wide banner.
+ * Portrait (4:5, taller than a plain square — explicit ask), not a wide banner.
  */
 export function BillboardRail({ slides }: { slides: BillboardSlide[] }) {
   const [index, setIndex] = useState(0);
@@ -39,7 +39,7 @@ export function BillboardRail({ slides }: { slides: BillboardSlide[] }) {
   return (
     <div>
       <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-1.5 leading-tight">Billboards</p>
-      <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-surface">
+      <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl bg-surface">
         {slides.map((slide, i) => {
           const inner = (
             // eslint-disable-next-line @next/next/no-img-element -- remote R2 artwork, arbitrary aspect ratio
