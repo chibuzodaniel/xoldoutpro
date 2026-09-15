@@ -1,5 +1,6 @@
 import { Image, Text, View, StyleSheet, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Svg, Path } from "react-native-svg";
 import type { ProductCardData } from "../lib/discoverTypes";
 import { formatNaira } from "../lib/format";
 import { colors, fonts } from "../lib/theme";
@@ -39,6 +40,14 @@ export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; hero
         <Text style={styles.sellBadgeText}>{heroWeeklySold > 0 ? "Top Seller This Week" : "New Release"}</Text>
       </View>
 
+      <View style={[StyleSheet.absoluteFill, styles.playButtonWrap]} pointerEvents="none">
+        <View style={styles.playButton}>
+          <Svg width={20} height={20} viewBox="0 0 24 24">
+            <Path d="M8 5v14l11-7z" fill="#fff" />
+          </Svg>
+        </View>
+      </View>
+
       <View style={styles.footer}>
         <Text style={styles.creator} numberOfLines={1}>
           {hero.creator.displayName.toUpperCase()}
@@ -75,6 +84,17 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   typeBadgeText: { color: colors.ink, fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
+  playButtonWrap: { alignItems: "center", justifyContent: "center" },
+  playButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   sellBadge: {
     position: "absolute",
     left: 12,

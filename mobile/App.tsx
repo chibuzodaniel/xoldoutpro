@@ -29,6 +29,8 @@ import { PayoutAccountsScreen } from "./screens/PayoutAccountsScreen";
 import { WithdrawScreen } from "./screens/WithdrawScreen";
 import { AnalyticsScreen } from "./screens/AnalyticsScreen";
 import { PlayerScreen } from "./screens/PlayerScreen";
+import { DiscoverCategoryScreen } from "./screens/DiscoverCategoryScreen";
+import { TopCreatorsScreen } from "./screens/TopCreatorsScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -80,6 +82,8 @@ export default function App() {
             <Stack.Screen name="Withdraw" component={WithdrawScreen} options={{ title: "" }} />
             <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: "" }} />
             <Stack.Screen name="Player" component={PlayerScreen} options={{ headerShown: false, presentation: "modal" }} />
+            <Stack.Screen name="DiscoverCategory" component={DiscoverCategoryScreen} options={{ title: "" }} />
+            <Stack.Screen name="TopCreators" component={TopCreatorsScreen} options={{ title: "" }} />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>

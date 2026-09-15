@@ -29,4 +29,6 @@ export type RootStackParamList = {
   Withdraw: undefined;
   Analytics: undefined;
   Player: undefined;
+  DiscoverCategory: { type: "RELEASE" | "BEAT" | "EVENT" | "MERCH" };
+  TopCreators: undefined;
 };
