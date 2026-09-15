@@ -3,7 +3,9 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 
-const authorSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } as const;
+const authorSelect = {
+  select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true },
+} as const;
 
 // Two modes, both non-group announcement posts, both strictly newest-first
 // (explicit ask: recency takes priority over any ranking) — what
@@ -77,7 +79,7 @@ export async function POST(req: NextRequest) {
 
     const post = await db.post.create({
       data: { authorId: user.id, body, imageUrl: imageUrl ?? null },
-      include: { author: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } },
+      include: { author: authorSelect },
     });
 
     return NextResponse.json({

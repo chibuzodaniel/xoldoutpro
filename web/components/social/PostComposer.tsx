@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import type { FeedPost } from "./PostCard";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 const MAX_LEN = 500;
 
@@ -19,6 +20,7 @@ export function PostComposer({
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -99,8 +101,25 @@ export function PostComposer({
             type="file"
             accept="image/jpeg,image/png,image/webp"
             className="hidden"
-            onChange={(e) => e.target.files?.[0] && handleFileSelected(e.target.files[0])}
+            onChange={(e) => {
+              const picked = e.target.files?.[0];
+              if (picked) setCropFile(picked);
+              e.target.value = "";
+            }}
           />
+          {cropFile && (
+            <ImageCropModal
+              file={cropFile}
+              aspect={1}
+              outputWidth={1024}
+              outputHeight={1024}
+              onCancel={() => setCropFile(null)}
+              onConfirm={(cropped) => {
+                setCropFile(null);
+                handleFileSelected(cropped);
+              }}
+            />
+          )}
           <svg viewBox="0 0 24 24" className="h-5 w-5 cursor-pointer" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="3" y="5" width="18" height="14" rx="2" />
             <circle cx="9" cy="10.5" r="1.75" />

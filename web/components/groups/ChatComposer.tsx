@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import type { ChatMessageData } from "./ChatMessage";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 type Props = {
   groupId: string;
@@ -23,6 +24,7 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
   const toast = useToast();
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [pollMode, setPollMode] = useState(false);
   const [options, setOptions] = useState(["", ""]);
   const [submitting, setSubmitting] = useState(false);
@@ -137,8 +139,25 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
           type="file"
           accept="image/jpeg,image/png,image/webp"
           className="hidden"
-          onChange={(e) => e.target.files?.[0] && setImageFile(e.target.files[0])}
+          onChange={(e) => {
+            const picked = e.target.files?.[0];
+            if (picked) setCropFile(picked);
+            e.target.value = "";
+          }}
         />
+        {cropFile && (
+          <ImageCropModal
+            file={cropFile}
+            aspect={1}
+            outputWidth={1024}
+            outputHeight={1024}
+            onCancel={() => setCropFile(null)}
+            onConfirm={(cropped) => {
+              setCropFile(null);
+              setImageFile(cropped);
+            }}
+          />
+        )}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}

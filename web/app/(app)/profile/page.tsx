@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
-import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 import { SalesMilestoneSheet } from "@/components/profile/SalesMilestoneSheet";
@@ -158,7 +158,7 @@ export default function ProfilePage() {
         <h1 className="flex items-center gap-1.5 font-serif text-xl">
           {appUser.displayName}
           {appUser.isVerified ? (
-            <VerifiedBadge className="h-4 w-4 text-red-soft shrink-0" />
+            <VerifiedBadge className="h-4 w-4 shrink-0" badgeType={primaryBadgeType(appUser.verificationBadges)} />
           ) : (
             <Link
               href="/verification"

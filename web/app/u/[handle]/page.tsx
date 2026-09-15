@@ -6,7 +6,7 @@ import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { EventCard } from "@/components/product/EventCard";
 import { ReportButton } from "@/components/trust/ReportButton";
-import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { buildOgMetadata } from "@/lib/og";
 import { NewVisitorGate } from "@/components/auth/NewVisitorGate";
 
@@ -117,7 +117,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <div className="flex items-start justify-between gap-3">
           <h1 className="flex items-center gap-1.5 font-serif text-xl">
             {user.displayName}
-            {user.isVerified && <VerifiedBadge className="h-4 w-4 text-red-soft shrink-0" />}
+            {user.isVerified && <VerifiedBadge className="h-4 w-4 shrink-0" badgeType={primaryBadgeType(user.verificationBadges)} />}
           </h1>
           <ReportButton targetType="PROFILE" targetId={user.id} className="text-xs text-ink-3 shrink-0 pt-1" />
         </div>

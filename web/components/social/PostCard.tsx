@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { ReportButton } from "@/components/trust/ReportButton";
-import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
+import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { FollowButton } from "@/components/profile/FollowButton";
 import { Linkified } from "@/components/ui/Linkified";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -16,7 +16,14 @@ export type FeedPost = {
   body: string;
   imageUrl: string | null;
   createdAt: string;
-  author: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified?: boolean };
+  author: {
+    id: string;
+    handle: string;
+    displayName: string;
+    avatarUrl: string | null;
+    isVerified?: boolean;
+    verificationBadges?: string[];
+  };
   likeCount: number;
   likedByMe: boolean;
   commentCount: number;
@@ -195,7 +202,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
         <div className="min-w-0 flex-1">
           <Link href={`/u/${post.author.handle}`} className="flex items-center gap-1 text-sm font-semibold">
             <span className="line-clamp-1">{post.author.displayName}</span>
-            {post.author.isVerified && <VerifiedBadge />}
+            {post.author.isVerified && <VerifiedBadge badgeType={primaryBadgeType(post.author.verificationBadges)} />}
           </Link>
           <p className="text-[12px] text-ink-3">{timeAgo(post.createdAt)}</p>
         </div>

@@ -14,6 +14,7 @@ export type FanbaseRowData = {
   unreadCount: number;
   joinRequestPending: boolean;
   isVerified: boolean;
+  verificationBadgeType?: string | null;
   creator: { displayName: string; isVerified?: boolean };
 };
 
@@ -83,7 +84,7 @@ export function FanbaseRow({
           <div className="flex items-center justify-between gap-2">
             <p className="flex items-center gap-1 text-sm font-semibold min-w-0">
               <span className="line-clamp-1">{group.name}</span>
-              {group.isVerified && <VerifiedBadge />}
+              {group.isVerified && <VerifiedBadge badgeType={group.verificationBadgeType} />}
             </p>
             {group.lastActivityAt && <span className="text-[11px] text-ink-3 shrink-0">{timeAgo(group.lastActivityAt)}</span>}
           </div>
@@ -110,7 +111,7 @@ export function FanbaseRow({
       <Link href={`/groups/${group.id}`} className="min-w-0 flex-1">
         <p className="flex items-center gap-1 text-sm font-semibold">
           <span className="line-clamp-1">{group.name}</span>
-          {group.isVerified && <VerifiedBadge />}
+          {group.isVerified && <VerifiedBadge badgeType={group.verificationBadgeType} />}
         </p>
         <p className="text-xs text-ink-3 line-clamp-1">{subtitle}</p>
       </Link>

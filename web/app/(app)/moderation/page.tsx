@@ -14,6 +14,14 @@ import { GrowthChart } from "@/components/moderation/GrowthChart";
 import { useModeratorSession } from "@/lib/useModeratorSession";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { uploadImage } from "@/lib/uploadImage";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
+
+// Matches components/discover/BillboardRail.tsx's aspect-[4/5] display —
+// cropping to the same ratio here means what a moderator frames is exactly
+// what shows on Discover, not a server-side center-crop guess.
+const BILLBOARD_ASPECT = 4 / 5;
+const BILLBOARD_OUTPUT_WIDTH = 1024;
+const BILLBOARD_OUTPUT_HEIGHT = 1280;
 
 type ReportRow = {
   id: string;
@@ -1168,6 +1176,7 @@ function BillboardsPanel() {
   const [billboards, setBillboards] = useState<BillboardRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [addFile, setAddFile] = useState<File | null>(null);
+  const [addCropFile, setAddCropFile] = useState<File | null>(null);
   const [addHandle, setAddHandle] = useState("");
   const [addDays, setAddDays] = useState(1);
   const [adding, setAdding] = useState(false);
@@ -1310,9 +1319,26 @@ function BillboardsPanel() {
         <input
           type="file"
           accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => setAddFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const picked = e.target.files?.[0];
+            if (picked) setAddCropFile(picked);
+            e.target.value = "";
+          }}
           className="text-xs"
         />
+        {addCropFile && (
+          <ImageCropModal
+            file={addCropFile}
+            aspect={BILLBOARD_ASPECT}
+            outputWidth={BILLBOARD_OUTPUT_WIDTH}
+            outputHeight={BILLBOARD_OUTPUT_HEIGHT}
+            onCancel={() => setAddCropFile(null)}
+            onConfirm={(cropped) => {
+              setAddCropFile(null);
+              setAddFile(cropped);
+            }}
+          />
+        )}
         <div className="flex items-center gap-2">
           <input
             value={addHandle}

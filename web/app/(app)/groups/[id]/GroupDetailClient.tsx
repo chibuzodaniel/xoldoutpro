@@ -26,6 +26,7 @@ type GroupDetail = {
   creatorId: string;
   memberCount: number;
   isVerified: boolean;
+  verificationBadgeType: string | null;
   verificationRequestedAt: string | null;
 };
 
@@ -268,7 +269,7 @@ export function GroupDetailClient({ id }: { id: string }) {
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-1 text-base font-semibold">
             <span className="line-clamp-1">{group.name}</span>
-            {group.isVerified && <VerifiedBadge />}
+            {group.isVerified && <VerifiedBadge badgeType={group.verificationBadgeType} />}
           </h1>
           <p className="text-xs text-ink-3">
             {group.memberCount} member{group.memberCount === 1 ? "" : "s"}

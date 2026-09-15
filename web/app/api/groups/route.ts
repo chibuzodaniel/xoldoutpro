@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
           unreadCount: unreadByGroup.get(g.id) ?? 0,
           joinRequestPending: pendingRequestGroupIds.has(g.id),
           isVerified: g.isVerified,
+          verificationBadgeType: g.verificationBadgeType,
         };
       }),
     });

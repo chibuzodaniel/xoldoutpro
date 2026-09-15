@@ -18,6 +18,7 @@ export async function getCreatorProfile(handle: string) {
       tags: true,
       socialLinks: true,
       isVerified: true,
+      verificationBadges: true,
     },
   });
   if (!user) return null;

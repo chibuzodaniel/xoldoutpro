@@ -5,7 +5,9 @@ import { db } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push/send";
 import { parseMentions } from "@/lib/groups/mentions";
 
-const authorSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } as const;
+const authorSelect = {
+  select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true },
+} as const;
 const replyToSelect = { select: { id: true, body: true, author: { select: { displayName: true } } } } as const;
 
 function serialize(
@@ -14,7 +16,14 @@ function serialize(
     body: string;
     imageUrl: string | null;
     createdAt: Date;
-    author: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean };
+    author: {
+      id: string;
+      handle: string;
+      displayName: string;
+      avatarUrl: string | null;
+      isVerified: boolean;
+      verificationBadges: string[];
+    };
     replyTo: { id: string; body: string; author: { displayName: string } } | null;
     poll?: { options: string[]; votes: { userId: string; optionIndex: number }[] } | null;
   },

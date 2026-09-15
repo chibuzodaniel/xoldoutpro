@@ -6,6 +6,14 @@ import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ImageCropModal } from "@/components/upload/ImageCropModal";
+
+// Matches components/discover/BillboardRail.tsx's aspect-[4/5] display —
+// cropping to the same ratio here means what a creator frames is exactly
+// what shows on Discover, not a server-side center-crop guess.
+const BILLBOARD_ASPECT = 4 / 5;
+const BILLBOARD_OUTPUT_WIDTH = 1024;
+const BILLBOARD_OUTPUT_HEIGHT = 1280;
 
 type BillboardStatus = "PENDING_PAYMENT" | "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "REMOVED";
 
@@ -42,6 +50,7 @@ export default function BillboardsPage() {
   const [me, setMe] = useState<MeResponse | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [days, setDays] = useState(1);
   const [busy, setBusy] = useState(false);
 
@@ -144,9 +153,26 @@ export default function BillboardsPage() {
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => handlePickFile(e.target.files?.[0] ?? null)}
+            onChange={(e) => {
+              const picked = e.target.files?.[0];
+              if (picked) setCropFile(picked);
+              e.target.value = "";
+            }}
             className="mb-4 text-sm"
           />
+          {cropFile && (
+            <ImageCropModal
+              file={cropFile}
+              aspect={BILLBOARD_ASPECT}
+              outputWidth={BILLBOARD_OUTPUT_WIDTH}
+              outputHeight={BILLBOARD_OUTPUT_HEIGHT}
+              onCancel={() => setCropFile(null)}
+              onConfirm={(cropped) => {
+                setCropFile(null);
+                handlePickFile(cropped);
+              }}
+            />
+          )}
 
           <p className="text-xs text-ink-3 mb-2">Days ({me.minDays}–{me.maxDays})</p>
           <input
