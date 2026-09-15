@@ -25,6 +25,8 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
   const [handle, setHandle] = useState("");
   const [sharePercent, setSharePercent] = useState("10");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPercent, setEditPercent] = useState("");
 
   const isOwner = appUser?.id === creatorId;
 
@@ -64,6 +66,30 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
     }
   }
 
+  // Explicit ask, 2026-09-15: "event owners should be able to edit
+  // percentage to give to their promoters after they have saved" — reuses
+  // the same POST (it upserts by handle) rather than a new endpoint.
+  async function handleSaveEdit(p: Promoter) {
+    const percent = Number(editPercent);
+    if (!Number.isInteger(percent) || percent < 1 || percent > 90) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/events/${eventId}/promoters`, {
+        method: "POST",
+        body: JSON.stringify({ handle: p.user.handle, sharePercent: percent }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not update promoter");
+      toast.success(`@${p.user.handle}'s share updated to ${percent}%.`);
+      setEditingId(null);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleRemove(promoterId: string) {
     setBusy(true);
     try {
@@ -94,26 +120,63 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
                 <p className="text-sm font-semibold truncate">
                   {p.user.displayName} <span className="text-ink-3 font-normal">@{p.user.handle}</span>
                 </p>
-                <p className="text-xs text-ink-3">
-                  {p.sharePercent}% of your net per ticket · {p.referredCount} referred
-                </p>
+                {editingId === p.id ? (
+                  <div className="flex items-center gap-2 mt-1">
+                    <input
+                      value={editPercent}
+                      onChange={(e) => setEditPercent(e.target.value)}
+                      type="number"
+                      min={1}
+                      max={90}
+                      autoFocus
+                      className="w-14 rounded-lg border border-line bg-surface px-2 py-1 text-xs text-center"
+                    />
+                    <span className="text-xs text-ink-3">% of your net</span>
+                    <button
+                      onClick={() => handleSaveEdit(p)}
+                      disabled={busy}
+                      className="text-xs text-red-soft font-semibold disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button onClick={() => setEditingId(null)} disabled={busy} className="text-xs text-ink-3 disabled:opacity-50">
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-xs text-ink-3">
+                    {p.sharePercent}% of your net per ticket · {p.referredCount} referred
+                  </p>
+                )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <ShareButton
-                  title={eventTitle}
-                  text={`Get tickets to ${eventTitle} on XOLDOUT`}
-                  path={`/e/${eventId}?promo=${p.code}`}
-                  label="Copy link"
-                  className="border border-line text-ink-2"
-                />
-                <button
-                  onClick={() => handleRemove(p.id)}
-                  disabled={busy}
-                  className="text-xs text-red-soft font-semibold disabled:opacity-50"
-                >
-                  Remove
-                </button>
-              </div>
+              {editingId !== p.id && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <ShareButton
+                    title={eventTitle}
+                    text={`Get tickets to ${eventTitle} on XOLDOUT`}
+                    path={`/e/${eventId}?promo=${p.code}`}
+                    label="Copy link"
+                    className="border border-line text-ink-2"
+                  />
+                  <button
+                    onClick={() => {
+                      setEditingId(p.id);
+                      setEditPercent(String(p.sharePercent));
+                    }}
+                    disabled={busy}
+                    className="text-xs text-ink-2 font-semibold disabled:opacity-50"
+                  >
+                    Edit %
+                  </button>
+                  <button
+                    onClick={() => handleRemove(p.id)}
+                    disabled={busy}
+                    className="text-xs text-red-soft font-semibold disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

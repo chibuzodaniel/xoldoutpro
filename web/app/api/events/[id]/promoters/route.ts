@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { sendPromoterAddedEmail } from "@/lib/email";
+
+const SITE_URL = "https://www.xoldout.app";
 
 // Ticket promoter split (per-event, independent of the platform-wide
 // Ambassador program — DECISIONS-equivalent design note in the plan this
@@ -75,12 +78,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "You can't be your own promoter" }, { status: 400 });
     }
 
+    const existing = await db.eventPromoter.findUnique({
+      where: { eventId_userId: { eventId: id, userId: target.id } },
+    });
+
     const promoter = await db.eventPromoter.upsert({
       where: { eventId_userId: { eventId: id, userId: target.id } },
       create: { eventId: id, userId: target.id, sharePercent },
       update: { sharePercent },
       include: { user: { select: { handle: true, displayName: true } } },
     });
+
+    // Only on genuine first-add, not on a later edit of their percentage —
+    // explicit ask, 2026-09-15: "promoters should receive a mail if they
+    // are added as a promoter," with their own referral link right in it.
+    if (!existing) {
+      void sendPromoterAddedEmail({
+        to: target.email,
+        promoterName: target.displayName,
+        eventTitle: event.title,
+        eventOwnerName: user.displayName,
+        sharePercent,
+        referralUrl: `${SITE_URL}/e/${id}?promo=${promoter.code}`,
+      }).catch((err) => console.error("promoter added email failed", err));
+    }
 
     return NextResponse.json({ promoter }, { status: 201 });
   } catch (err) {

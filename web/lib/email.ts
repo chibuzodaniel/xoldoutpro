@@ -574,3 +574,31 @@ export async function sendAccountDeletedEmail(input: { to: string; displayName: 
   `;
   return sendEmail({ to: input.to, subject: "Your XOLDOUT account has been deleted", html: shell(body) });
 }
+
+// ─── Ticket promoter added ───────────────────────────────────────────────
+// Fire-and-forget from POST /api/events/[id]/promoters — explicit ask,
+// 2026-09-15: a promoter should be emailed as soon as an event owner adds
+// them, with their own referral link right in the email so they can start
+// sharing it immediately without having to log in and go find it first.
+export async function sendPromoterAddedEmail(input: {
+  to: string;
+  promoterName: string;
+  eventTitle: string;
+  eventOwnerName: string;
+  sharePercent: number;
+  referralUrl: string;
+}): Promise<boolean> {
+  const firstName = input.promoterName.trim().split(" ")[0] || input.promoterName;
+  const body = `
+    <tr><td style="padding:44px 40px 4px;">
+      <div style="color:${C.red};font-size:11px;letter-spacing:2px;text-transform:uppercase;font-weight:700;margin-bottom:14px;">You&apos;re a ticket promoter</div>
+      <div style="color:${C.white};font-size:22px;font-weight:700;line-height:30px;margin-bottom:14px;">${escapeHtml(input.eventOwnerName)} added you as a promoter for &quot;${escapeHtml(input.eventTitle)}&quot;</div>
+      <div style="color:${C.body};font-size:14px;line-height:22px;margin-bottom:28px;">
+        Hey ${escapeHtml(firstName)}, you&apos;ll earn <strong style="color:${C.value};">${input.sharePercent}%</strong> of their net on every ticket sold through your own link below. Share it anywhere — every sale is tracked automatically.
+      </div>
+    </td></tr>
+    <tr><td style="padding:0 40px 20px;">${receiptCard(C.red, [{ label: "Your referral link", value: escapeHtml(input.referralUrl), mono: true }])}</td></tr>
+    <tr><td style="padding:0 40px 40px;text-align:center;">${button(input.referralUrl, "Open your link", "red", true)}</td></tr>
+  `;
+  return sendEmail({ to: input.to, subject: `You're a ticket promoter for ${input.eventTitle}`, html: shell(body) });
+}

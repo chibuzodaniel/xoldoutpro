@@ -20,6 +20,8 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
   const [handle, setHandle] = useState("");
   const [sharePercent, setSharePercent] = useState("10");
   const [busy, setBusy] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editPercent, setEditPercent] = useState("");
 
   const isOwner = appUser?.id === creatorId;
 
@@ -54,6 +56,28 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
       toast.success(`@${trimmed} added as a promoter.`);
     } catch (e) {
       Alert.alert("Could not add promoter", e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Explicit ask, 2026-09-15: "event owners should be able to edit
+  // percentage to give to their promoters after they have saved" — mirrors
+  // web's components/product/EventPromotersPanel.tsx, reusing the same
+  // POST (it upserts by handle) rather than a new endpoint.
+  async function handleSaveEdit(p: Promoter) {
+    if (!firebaseUser) return;
+    const percent = Number(editPercent);
+    if (!Number.isInteger(percent) || percent < 1 || percent > 90) return;
+    setBusy(true);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      await apiPost(`/api/events/${eventId}/promoters`, idToken, { handle: p.user.handle, sharePercent: percent });
+      setEditingId(null);
+      await load();
+      toast.success(`@${p.user.handle}'s share updated to ${percent}%.`);
+    } catch (e) {
+      Alert.alert("Could not update promoter", e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setBusy(false);
     }
@@ -101,18 +125,48 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
                   <Text style={styles.rowName} numberOfLines={1}>
                     {p.user.displayName} <Text style={styles.rowHandle}>@{p.user.handle}</Text>
                   </Text>
-                  <Text style={styles.rowMeta}>
-                    {p.sharePercent}% of your net per ticket · {p.referredCount} referred
-                  </Text>
+                  {editingId === p.id ? (
+                    <View style={styles.editRow}>
+                      <TextInput
+                        value={editPercent}
+                        onChangeText={setEditPercent}
+                        keyboardType="numeric"
+                        autoFocus
+                        style={[styles.input, styles.editPercentInput]}
+                      />
+                      <Text style={styles.rowMeta}>% of your net</Text>
+                      <TouchableOpacity onPress={() => handleSaveEdit(p)} disabled={busy}>
+                        <Text style={styles.removeText}>Save</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => setEditingId(null)} disabled={busy}>
+                        <Text style={styles.rowMeta}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <Text style={styles.rowMeta}>
+                      {p.sharePercent}% of your net per ticket · {p.referredCount} referred
+                    </Text>
+                  )}
                 </View>
-                <View style={styles.rowActions}>
-                  <TouchableOpacity style={styles.copyLinkButton} onPress={() => handleShare(p.code)}>
-                    <Text style={styles.copyLinkText}>Share link</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => handleRemove(p.id)} disabled={busy}>
-                    <Text style={styles.removeText}>Remove</Text>
-                  </TouchableOpacity>
-                </View>
+                {editingId !== p.id && (
+                  <View style={styles.rowActions}>
+                    <TouchableOpacity style={styles.copyLinkButton} onPress={() => handleShare(p.code)}>
+                      <Text style={styles.copyLinkText}>Share link</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingId(p.id);
+                        setEditPercent(String(p.sharePercent));
+                      }}
+                      disabled={busy}
+                    >
+                      <Text style={styles.copyLinkText}>Edit %</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleRemove(p.id)} disabled={busy}>
+                      <Text style={styles.removeText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             ))}
           </View>
@@ -153,6 +207,8 @@ const styles = StyleSheet.create({
   rowHandle: { color: colors.ink3, fontWeight: "400" },
   rowMeta: { color: colors.ink3, fontSize: 12, marginTop: 1 },
   rowActions: { flexDirection: "row", alignItems: "center", gap: 10, flexShrink: 0 },
+  editRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 4 },
+  editPercentInput: { width: 52, textAlign: "center", paddingHorizontal: 6, paddingVertical: 5, fontSize: 12 },
   copyLinkButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   copyLinkText: { color: colors.ink2, fontSize: 11.5, fontWeight: "600" },
   removeText: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
