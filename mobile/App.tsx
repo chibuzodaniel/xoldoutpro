@@ -15,6 +15,11 @@ import { CollectionScreen } from "./screens/CollectionScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { GroupScreen } from "./screens/GroupScreen";
 import { GroupMembersScreen } from "./screens/GroupMembersScreen";
+import { PublishScreen } from "./screens/PublishScreen";
+import { PublishMusicScreen } from "./screens/PublishMusicScreen";
+import { PublishBeatScreen } from "./screens/PublishBeatScreen";
+import { PublishMerchScreen } from "./screens/PublishMerchScreen";
+import { PublishEventScreen } from "./screens/PublishEventScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -51,6 +56,11 @@ export default function App() {
             />
             <Stack.Screen name="Group" component={GroupScreen} options={{ title: "" }} />
             <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="Publish" component={PublishScreen} options={{ title: "", presentation: "modal" }} />
+            <Stack.Screen name="PublishMusic" component={PublishMusicScreen} options={{ title: "" }} />
+            <Stack.Screen name="PublishBeat" component={PublishBeatScreen} options={{ title: "" }} />
+            <Stack.Screen name="PublishMerch" component={PublishMerchScreen} options={{ title: "" }} />
+            <Stack.Screen name="PublishEvent" component={PublishEventScreen} options={{ title: "" }} />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>

@@ -7,4 +7,9 @@ export type RootStackParamList = {
   Notifications: undefined;
   Group: { id: string; name: string };
   GroupMembers: { id: string; isCreator: boolean };
+  Publish: undefined;
+  PublishMusic: undefined;
+  PublishBeat: undefined;
+  PublishMerch: undefined;
+  PublishEvent: undefined;
 };

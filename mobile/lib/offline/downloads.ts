@@ -24,7 +24,14 @@ export type DownloadMeta = {
 
 const INDEX_KEY = "xoldout-downloads-index";
 const ENCRYPTION_KEY_STORE_KEY = "xoldout-offline-key";
-const downloadsDir = new Directory(Paths.document, "downloads");
+// Lazy: expo-file-system has no web implementation, so constructing a
+// Directory at module scope throws immediately and crashes every screen
+// that pulls this in transitively (offline downloads are native-only).
+let _downloadsDir: Directory | undefined;
+function downloadsDir(): Directory {
+  if (!_downloadsDir) _downloadsDir = new Directory(Paths.document, "downloads");
+  return _downloadsDir;
+}
 
 // crypto-js's own WordArray.random() (used internally by AES.encrypt to
 // generate a salt/IV when none is supplied) throws "Native crypto module
@@ -58,7 +65,7 @@ async function setIndex(index: Record<string, DownloadMeta>): Promise<void> {
 }
 
 function encryptedFileFor(trackId: string): File {
-  return new File(downloadsDir, `${trackId}.enc`);
+  return new File(downloadsDir(), `${trackId}.enc`);
 }
 
 export async function downloadTrackForOffline(
@@ -75,7 +82,7 @@ export async function downloadTrackForOffline(
   const data = await apiGet<{ url: string; entitled: boolean }>(`/api/tracks/${track.trackId}/audio-url`, idToken);
   if (!data.entitled) throw new Error("You need to own this release before downloading it");
 
-  if (!downloadsDir.exists) downloadsDir.create({ intermediates: true });
+  if (!downloadsDir().exists) downloadsDir().create({ intermediates: true });
 
   const tempFile = await File.downloadFileAsync(data.url, Paths.cache);
   const base64 = await tempFile.base64();

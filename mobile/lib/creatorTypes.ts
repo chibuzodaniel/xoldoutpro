@@ -17,3 +17,28 @@ export type CreatorProfile = {
   catalog: ProductCardData[];
   events: EventData[];
 };
+
+export type ReleaseType = "SINGLE" | "EP" | "ALBUM";
+
+export type TrackDraft = {
+  localId: string;
+  title: string;
+  description: string;
+  lyricsText: string;
+  status: "idle" | "uploading" | "ready" | "error";
+  error?: string;
+  durationSec?: number;
+  peaks?: number[];
+  audioMasterKey?: string;
+  audioStreamKey?: string;
+  waveformPeaksKey?: string;
+  previewLength: 30 | 50 | "custom";
+  previewLengthCustomSec: number;
+  previewStartSec: number;
+};
+
+export function effectivePreviewLength(t: { durationSec?: number; previewLength: 30 | 50 | "custom"; previewLengthCustomSec: number }) {
+  const durationSec = t.durationSec ?? 0;
+  const raw = t.previewLength === "custom" ? t.previewLengthCustomSec : t.previewLength;
+  return Math.min(Math.max(raw, 5), durationSec || raw);
+}

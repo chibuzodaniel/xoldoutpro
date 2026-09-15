@@ -16,7 +16,7 @@ import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@r
 import * as ImagePicker from "expo-image-picker";
 import { API_BASE_URL, apiDelete, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
-import { uploadImage } from "../lib/social/uploadImage";
+import { uploadImage } from "../lib/uploadImage";
 import type { ChatMessage, GroupDetail, JoinRequestStatus, GroupRole } from "../lib/fanbaseTypes";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors, fonts } from "../lib/theme";

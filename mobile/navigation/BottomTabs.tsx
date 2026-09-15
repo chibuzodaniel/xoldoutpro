@@ -1,6 +1,9 @@
-import { Alert, TouchableOpacity, View, StyleSheet } from "react-native";
+import { TouchableOpacity, View, StyleSheet } from "react-native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import type { BottomTabParamList } from "../lib/tabNavigation";
+import type { RootStackParamList } from "../lib/navigation";
+import { useAuth } from "../lib/AuthContext";
 import { colors } from "../lib/theme";
 import { DiscoverIcon, SocialsIcon, LibraryIcon, ProfileIcon, PlusIcon } from "../components/NavIcons";
 import { MiniPlayer } from "../components/MiniPlayer";
@@ -14,13 +17,15 @@ const TAB_BAR_HEIGHT = 60;
 const Tab = createBottomTabNavigator<BottomTabParamList>();
 
 // Mirrors web's BottomNav.tsx five-item layout: Discover, Socials, a raised
-// "Drop" FAB (publish — not wired to a real flow yet, Creator Tools isn't
-// built), Library, Profile.
+// "Drop" FAB (opens the Creator Tools publish hub), Library, Profile.
 function DropButton() {
+  const navigation = useNavigation<NavigationProp<RootStackParamList & BottomTabParamList>>();
+  const { appUser } = useAuth();
+
   return (
     <TouchableOpacity
       style={styles.dropButton}
-      onPress={() => Alert.alert("Coming soon", "Publishing from the mobile app isn't built yet.")}
+      onPress={() => navigation.navigate(appUser ? "Publish" : "Profile")}
     >
       <PlusIcon color={colors.ink} />
     </TouchableOpacity>

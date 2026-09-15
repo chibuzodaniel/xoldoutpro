@@ -14,7 +14,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { apiPost } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
-import { uploadImage } from "../../lib/social/uploadImage";
+import { uploadImage } from "../../lib/uploadImage";
 import type { FanbaseGroup } from "../../lib/fanbaseTypes";
 import { colors, fonts } from "../../lib/theme";
 

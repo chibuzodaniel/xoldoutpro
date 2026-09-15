@@ -1,4 +1,4 @@
-import { apiPost } from "../api";
+import { apiPost } from "./api";
 
 const EXT_BY_TYPE: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -31,4 +31,12 @@ export async function uploadImage(
   if (!putRes.ok) throw new Error("Upload to storage failed");
 
   return key;
+}
+
+// Mirrors web's artwork/finalize route call: turns an uploaded "artwork" key
+// into a server-generated size ladder (used for release/beat/merch/event art).
+export async function uploadAndFinalizeArtwork(uri: string, contentType: string, idToken: string): Promise<Record<string, string>> {
+  const key = await uploadImage(uri, contentType, "artwork", idToken);
+  const data = await apiPost<{ artworkLadder: Record<string, string> }>("/api/uploads/artwork/finalize", idToken, { key });
+  return data.artworkLadder;
 }
