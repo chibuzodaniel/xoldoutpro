@@ -18,6 +18,7 @@ type AuthState = {
   login: (email: string, password: string) => Promise<void>;
   signup: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshAppUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -63,8 +64,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(firebaseAuth);
   }
 
+  // Re-fetches appUser without a full auth round-trip — used after editing
+  // profile fields, avatar/cover, or anything else /api/me can mutate, so
+  // the UI reflects the change immediately instead of waiting for the next
+  // onAuthStateChanged firing (which normally doesn't fire again at all
+  // until the next sign-in).
+  async function refreshAppUser() {
+    if (!firebaseUser) return;
+    await syncAppUser(firebaseUser);
+  }
+
   return (
-    <AuthContext.Provider value={{ firebaseUser, appUser, loading, needsOnboarding, login, signup, logout }}>
+    <AuthContext.Provider value={{ firebaseUser, appUser, loading, needsOnboarding, login, signup, logout, refreshAppUser }}>
       {children}
     </AuthContext.Provider>
   );

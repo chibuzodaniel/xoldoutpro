@@ -4,6 +4,7 @@ export type PlayableTrack = {
   artistName: string;
   artworkUrl: string | null;
   productId: string;
+  lyricsText: string | null;
   // "track" (default) fetches /api/tracks/:id/audio-url; "beat" fetches
   // /api/beats/:id/audio-url — see usePreviewPlayer's comment on why these
   // are two different endpoints.

@@ -50,6 +50,21 @@ export function PlusIcon({ color, size = 18 }: IconProps) {
   );
 }
 
+// Ported from web's BottomNav.tsx "Post" FAB glyph — a pencil, swapped in
+// for PlusIcon when the raised Drop button is composing a post instead of
+// opening the general Publish hub.
+export function ComposeIcon({ color, size = 18 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>
+      <Path
+        d="M4 20l.9-4.5a2 2 0 01.55-1.03L16.6 3.32a1.6 1.6 0 012.26 0l1.82 1.82a1.6 1.6 0 010 2.26L9.53 18.55a2 2 0 01-1.03.55L4 20z"
+        strokeLinejoin="round"
+      />
+      <Path d="M14.5 5.5l4 4" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
 export function BellIcon({ color, size = 20 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>

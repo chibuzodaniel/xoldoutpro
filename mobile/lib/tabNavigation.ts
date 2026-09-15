@@ -1,6 +1,6 @@
 export type BottomTabParamList = {
   Discover: undefined;
-  Socials: undefined;
+  Socials: { compose?: boolean } | undefined;
   Drop: undefined;
   Library: undefined;
   Profile: undefined;

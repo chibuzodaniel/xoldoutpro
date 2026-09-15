@@ -11,4 +11,5 @@ export type AppUser = {
   tags: string[];
   socialLinks: SocialLink[];
   isVerified: boolean;
+  verificationBadges: string[];
 };

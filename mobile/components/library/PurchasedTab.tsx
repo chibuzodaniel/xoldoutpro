@@ -265,6 +265,7 @@ export function PurchasedTab() {
                                       artistName: e.product.creator.displayName,
                                       artworkUrl: art,
                                       productId: e.product.id,
+                                      lyricsText: t.lyricsText,
                                       kind: "track",
                                     },
                                     buildPlayable(e),

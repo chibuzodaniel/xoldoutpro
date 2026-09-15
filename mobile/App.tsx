@@ -20,6 +20,15 @@ import { PublishMusicScreen } from "./screens/PublishMusicScreen";
 import { PublishBeatScreen } from "./screens/PublishBeatScreen";
 import { PublishMerchScreen } from "./screens/PublishMerchScreen";
 import { PublishEventScreen } from "./screens/PublishEventScreen";
+import { EditProfileScreen } from "./screens/EditProfileScreen";
+import { CatalogScreen } from "./screens/CatalogScreen";
+import { CatalogEventsScreen } from "./screens/CatalogEventsScreen";
+import { CatalogMerchScreen } from "./screens/CatalogMerchScreen";
+import { WalletScreen } from "./screens/WalletScreen";
+import { PayoutAccountsScreen } from "./screens/PayoutAccountsScreen";
+import { WithdrawScreen } from "./screens/WithdrawScreen";
+import { AnalyticsScreen } from "./screens/AnalyticsScreen";
+import { PlayerScreen } from "./screens/PlayerScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -61,6 +70,16 @@ export default function App() {
             <Stack.Screen name="PublishBeat" component={PublishBeatScreen} options={{ title: "" }} />
             <Stack.Screen name="PublishMerch" component={PublishMerchScreen} options={{ title: "" }} />
             <Stack.Screen name="PublishEvent" component={PublishEventScreen} options={{ title: "" }} />
+            <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ title: "" }} />
+            <Stack.Screen name="CatalogMusic" component={CatalogScreen} options={{ title: "" }} />
+            <Stack.Screen name="CatalogBeats" component={CatalogScreen} options={{ title: "" }} />
+            <Stack.Screen name="CatalogEvents" component={CatalogEventsScreen} options={{ title: "" }} />
+            <Stack.Screen name="CatalogMerch" component={CatalogMerchScreen} options={{ title: "" }} />
+            <Stack.Screen name="Wallet" component={WalletScreen} options={{ title: "" }} />
+            <Stack.Screen name="PayoutAccounts" component={PayoutAccountsScreen} options={{ title: "" }} />
+            <Stack.Screen name="Withdraw" component={WithdrawScreen} options={{ title: "" }} />
+            <Stack.Screen name="Analytics" component={AnalyticsScreen} options={{ title: "" }} />
+            <Stack.Screen name="Player" component={PlayerScreen} options={{ headerShown: false, presentation: "modal" }} />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>

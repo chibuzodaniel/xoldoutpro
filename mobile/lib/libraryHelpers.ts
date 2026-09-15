@@ -27,6 +27,7 @@ export function buildPlayable(e: LibraryEntitlement): PlayableTrack[] {
       artistName: e.product.creator.displayName,
       artworkUrl: artworkUrl(e.product.release),
       productId: e.product.id,
+      lyricsText: t.lyricsText,
       kind: "track",
     }));
   }
@@ -38,6 +39,7 @@ export function buildPlayable(e: LibraryEntitlement): PlayableTrack[] {
         artistName: e.product.creator.displayName,
         artworkUrl: beatCoverUrl(e.product.beat),
         productId: e.product.id,
+        lyricsText: null,
         kind: "beat",
       },
     ];

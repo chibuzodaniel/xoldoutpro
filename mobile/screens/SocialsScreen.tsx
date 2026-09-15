@@ -9,7 +9,7 @@ import {
   View,
   StyleSheet,
 } from "react-native";
-import { useNavigation, type NavigationProp } from "@react-navigation/native";
+import { useNavigation, useRoute, type NavigationProp, type RouteProp } from "@react-navigation/native";
 import { apiGet } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import type { FeedPost, FollowedCreator } from "../lib/socialTypes";
@@ -34,12 +34,24 @@ type FeedMode = (typeof FEED_MODES)[number]["key"];
 
 export function SocialsScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList & BottomTabParamList>>();
+  const route = useRoute<RouteProp<BottomTabParamList, "Socials">>();
   const { appUser, firebaseUser, loading: authLoading } = useAuth();
   const [tab, setTab] = useState<SocialsTab>("feed");
   const [feedMode, setFeedMode] = useState<FeedMode>("forYou");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+
+  // The central "Drop" FAB opens the composer directly (instead of the
+  // general Publish hub) when it's tapped while already on Socials — mirrors
+  // web's BottomNav.tsx (`/socials?compose=1`). Clears the param right after
+  // so navigating back here later doesn't reopen it.
+  useEffect(() => {
+    if (route.params?.compose) {
+      setComposerOpen(true);
+      navigation.setParams({ compose: undefined });
+    }
+  }, [route.params?.compose, navigation]);
 
   const load = useCallback(async () => {
     if (!firebaseUser) return;
