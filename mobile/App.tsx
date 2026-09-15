@@ -67,7 +67,11 @@ export default function App() {
             />
             <Stack.Screen name="Group" component={GroupScreen} options={{ title: "" }} />
             <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
-            <Stack.Screen name="Publish" component={PublishScreen} options={{ title: "", presentation: "modal" }} />
+            <Stack.Screen
+              name="Publish"
+              component={PublishScreen}
+              options={{ headerShown: false, presentation: "transparentModal", animation: "slide_from_bottom" }}
+            />
             <Stack.Screen name="PublishMusic" component={PublishMusicScreen} options={{ title: "" }} />
             <Stack.Screen name="PublishBeat" component={PublishBeatScreen} options={{ title: "" }} />
             <Stack.Screen name="PublishMerch" component={PublishMerchScreen} options={{ title: "" }} />
