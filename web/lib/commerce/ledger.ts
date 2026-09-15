@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 // COMMISSION_RATE elsewhere in the app keeps working unchanged.
 import {
   COMMISSION_RATE,
+  EVENT_COMMISSION_RATE,
   commissionRateFor,
   ambassadorTierFor,
   DEFAULT_AMBASSADOR_TIER_RATES,
@@ -14,6 +15,25 @@ import {
   type AmbassadorTierRateValue,
 } from "@/lib/commerce/constants";
 export { COMMISSION_RATE, commissionRateFor };
+
+type CommissionRates = { RELEASE: number; BEAT: number; EVENT: number; MERCH: number };
+
+// commissionRateFor() above is the *default* rate (COMMISSION_RATE/
+// EVENT_COMMISSION_RATE from lib/commerce/constants.ts) — this is the live,
+// moderator-editable one (PlatformSettings, SiteControlsPanel), which is
+// what recordSale below actually charges. Takes the same transaction
+// recordSale runs in when called from there, so the rate read and the
+// ledger entries it produces are consistent within one atomic write; a
+// plain db read (no tx) is fine for anything read-only, like display copy.
+export async function getCommissionRates(client: Prisma.TransactionClient | typeof db = db): Promise<CommissionRates> {
+  const row = await client.platformSettings.findUnique({ where: { id: "singleton" } });
+  return {
+    RELEASE: (row?.commissionReleasePercent ?? Math.round(COMMISSION_RATE * 100)) / 100,
+    BEAT: (row?.commissionBeatPercent ?? Math.round(COMMISSION_RATE * 100)) / 100,
+    MERCH: (row?.commissionMerchPercent ?? Math.round(COMMISSION_RATE * 100)) / 100,
+    EVENT: (row?.commissionEventPercent ?? Math.round(EVENT_COMMISSION_RATE * 100)) / 100,
+  };
+}
 
 // 7-day pending->available window, tied to the same-length refund window
 // (DECISIONS.md). Only recordSale reads commissionRateFor()/COMMISSION_RATE —
@@ -71,7 +91,8 @@ export async function recordSale(
   // to bring the 7-day hold back.
   const availableAt: Date | null = null;
   const status = availableAt ? "PENDING" : "AVAILABLE";
-  const commissionKobo = Math.round(args.grossKobo * commissionRateFor(args.productType));
+  const rates = await getCommissionRates(tx);
+  const commissionKobo = Math.round(args.grossKobo * rates[args.productType]);
   const promoterKobo = args.promoter
     ? Math.round((args.grossKobo - commissionKobo) * (args.promoter.sharePercent / 100))
     : 0;
@@ -93,6 +114,7 @@ export async function recordSale(
       ambassadorId: args.buyerReferredByAmbassadorId,
       referredUserId: args.buyerId,
       orderId: args.orderId,
+      grossKobo: args.grossKobo,
       commissionKobo,
     });
   }
@@ -101,6 +123,7 @@ export async function recordSale(
       ambassadorId: args.sellerReferredByAmbassadorId,
       referredUserId: args.sellerId,
       orderId: args.orderId,
+      grossKobo: args.grossKobo,
       commissionKobo,
     });
   }
@@ -155,7 +178,11 @@ export async function getAmbassadorActiveInviteCount(
   });
 }
 
-/** Moderator-configurable, lazily-defaulted first-purchase/continuous rates for a given tier. */
+/**
+ * Moderator-configurable, lazily-defaulted first-purchase/continuous rates
+ * for a given tier — each a whole percent OF GROSS (see
+ * recordAmbassadorCommission's own comment for why, not of the commission).
+ */
 export async function getAmbassadorTierRates(
   client: Prisma.TransactionClient | typeof db,
   tier: AmbassadorTier,
@@ -188,6 +215,19 @@ async function isFirstQualifyingTransaction(tx: Prisma.TransactionClient, userId
  * Automatic, per-sale credit to an ambassador when `referredUserId` (either
  * this order's buyer or its seller) is one of their referrals — carved out
  * of the platform's own commission on THIS sale, never the seller's net.
+ *
+ * firstPurchasePercent/continuousPercent (AmbassadorTierRate) are a whole
+ * percent OF GROSS — explicit ask, 2026-09-15: a moderator types "2" and
+ * means literally 2% of the sale, not 2% of whatever the commission happens
+ * to be, so the split stays exactly what they set it to (e.g. "Gold keeps
+ * 2, platform keeps 10" on a 12%-commission sale) even if the underlying
+ * per-type commission rate is later changed. Always clamped to the
+ * commissionKobo actually collected on this sale — never taken from the
+ * seller's own net — which is also what stops firstPurchasePercent's
+ * default of 12 (sized for the 12% RELEASE/BEAT/MERCH rate) from ever
+ * overpaying an ambassador on a lower-commission sale, like a 5%-commission
+ * EVENT ticket: the clamp caps it at that sale's own (smaller) commission.
+ *
  * Pays the tier's firstPurchasePercent on referredUserId's first-ever
  * transaction (buying or selling, tracked as one combined "have they ever
  * transacted" state) and continuousPercent on every one after that. Tier
@@ -196,7 +236,7 @@ async function isFirstQualifyingTransaction(tx: Prisma.TransactionClient, userId
  */
 async function recordAmbassadorCommission(
   tx: Prisma.TransactionClient,
-  args: { ambassadorId: string; referredUserId: string; orderId: string; commissionKobo: number },
+  args: { ambassadorId: string; referredUserId: string; orderId: string; grossKobo: number; commissionKobo: number },
 ) {
   const [isFirst, activeInviteCount] = await Promise.all([
     isFirstQualifyingTransaction(tx, args.referredUserId),
@@ -205,7 +245,7 @@ async function recordAmbassadorCommission(
   const tier = ambassadorTierFor(activeInviteCount);
   const rates = await getAmbassadorTierRates(tx, tier);
   const percent = isFirst ? rates.firstPurchasePercent : rates.continuousPercent;
-  const ambassadorKobo = Math.round(args.commissionKobo * (percent / 100));
+  const ambassadorKobo = Math.min(args.commissionKobo, Math.round(args.grossKobo * (percent / 100)));
   if (ambassadorKobo <= 0) return;
 
   await tx.walletLedgerEntry.create({

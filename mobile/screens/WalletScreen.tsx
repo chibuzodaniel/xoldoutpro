@@ -12,8 +12,18 @@ import { colors, fonts } from "../lib/theme";
 // Explicit ask, 2026-08-31, "for now" (matches web's own note in
 // app/(app)/wallet/page.tsx): the 7-day settlement hold is off, so a sale
 // is withdrawable immediately.
-const COMMISSION_RATE = 0.12;
-const EVENT_COMMISSION_RATE = 0.05;
+
+// Music/beats/merch usually share one rate (moderation page's default), but
+// a moderator can now set each independently (matches web's wallet/page.tsx)
+// — collapse back to "X% on music, beats, and merch" when they still match,
+// otherwise spell out each one so the copy never understates what was taken.
+function commissionCopy(rates: WalletData["commissionPercent"]) {
+  const { RELEASE, BEAT, MERCH, EVENT } = rates;
+  if (RELEASE === BEAT && BEAT === MERCH) {
+    return `${RELEASE}% on music, beats, and merch; ${EVENT}% on ticket sales`;
+  }
+  return `${RELEASE}% on music, ${BEAT}% on beats, ${MERCH}% on merch, ${EVENT}% on ticket sales`;
+}
 
 const STATUS_META: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Pending", color: colors.ink3 },
@@ -109,10 +119,7 @@ export function WalletScreen() {
         <Text style={styles.balanceLabel}>Available</Text>
         <Text style={styles.balanceValue}>{formatNaira(data.availableKobo)}</Text>
       </View>
-      <Text style={styles.commissionNote}>
-        Totals shown are after our platform fee — {Math.round(COMMISSION_RATE * 100)}% on music, beats, and merch;{" "}
-        {Math.round(EVENT_COMMISSION_RATE * 100)}% on ticket sales.
-      </Text>
+      <Text style={styles.commissionNote}>Totals shown are after our platform fee — {commissionCopy(data.commissionPercent)}.</Text>
 
       <View style={styles.statsRow}>
         <View style={styles.statBox}>

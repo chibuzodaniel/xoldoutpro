@@ -5,7 +5,6 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { BackHeader } from "@/components/ui/BackHeader";
-import { COMMISSION_RATE, EVENT_COMMISSION_RATE } from "@/lib/commerce/constants";
 
 type WalletData = {
   availableKobo: number;
@@ -14,6 +13,11 @@ type WalletData = {
   totalWithdrawnKobo: number;
   earnedByCategory: Record<string, number>;
   payouts: Payout[];
+  // Live, moderator-editable rates (moderation page's SiteControlsPanel) —
+  // fetched fresh on every load rather than the lib/commerce/constants.ts
+  // defaults, since a moderator can set each product type's rate
+  // independently now and this copy needs to stay accurate either way.
+  commissionPercent: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number };
 };
 
 type Payout = {
@@ -44,6 +48,18 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 
 function statusMeta(status: string) {
   return STATUS_META[status] ?? { label: status, className: "text-ink-3" };
+}
+
+// Music/beats/merch usually share one rate (moderation page's default), but
+// a moderator can now set each independently — collapse back to the old
+// "X% on music, beats, and merch" phrasing when they still match, otherwise
+// spell out each one so the copy never understates what was actually taken.
+function commissionCopy(rates: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number }) {
+  const { RELEASE, BEAT, MERCH, EVENT } = rates;
+  if (RELEASE === BEAT && BEAT === MERCH) {
+    return `${RELEASE}% on music, beats, and merch; ${EVENT}% on ticket sales`;
+  }
+  return `${RELEASE}% on music, ${BEAT}% on beats, ${MERCH}% on merch, ${EVENT}% on ticket sales`;
 }
 
 // Bachs documents no delivery SLA for a payout — showing a countdown to a
@@ -229,8 +245,7 @@ export default function WalletPage() {
         <p className="font-serif text-3xl">{naira(data.availableKobo)}</p>
       </div>
       <p className="text-[11px] text-ink-3 mb-3">
-        Totals shown are after our platform fee — {Math.round(COMMISSION_RATE * 100)}% on music, beats, and merch;{" "}
-        {Math.round(EVENT_COMMISSION_RATE * 100)}% on ticket sales.
+        Totals shown are after our platform fee — {commissionCopy(data.commissionPercent)}.
       </p>
 
       <div className="grid grid-cols-2 gap-3 mb-6">

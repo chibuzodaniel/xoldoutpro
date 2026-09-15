@@ -26,6 +26,7 @@ export type WalletData = {
   totalWithdrawnKobo: number;
   earnedByCategory: Record<string, number>;
   payouts: Payout[];
+  commissionPercent: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number };
 };
 
 export type ProductStat = {

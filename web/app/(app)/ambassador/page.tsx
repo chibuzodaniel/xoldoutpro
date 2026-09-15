@@ -113,8 +113,8 @@ export default function AmbassadorPage() {
         </div>
 
         <p className="text-xs text-ink-3 mb-1">
-          {me.firstPurchasePercent}% of platform commission on a referral&apos;s first purchase, {me.continuousPercent}% on every
-          purchase after that.
+          {me.firstPurchasePercent}% of the sale (capped at our own commission) on a referral&apos;s first purchase,{" "}
+          {me.continuousPercent}% on every purchase after that.
         </p>
 
         {me.nextTier && (

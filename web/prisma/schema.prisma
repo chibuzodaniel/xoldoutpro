@@ -1168,6 +1168,17 @@ model PlatformSettings {
   // getBillboardDailyRateKobo(). What a creator pays for one day of the
   // Discover billboard rail; moderator-editable via SiteControlsPanel.
   billboardDailyRateKobo Int      @default(500000)
+  // Per-product-type platform commission, super-moderator-editable via
+  // SiteControlsPanel (lib/commerce/ledger.ts's getCommissionRates() reads
+  // these; lib/commerce/constants.ts's COMMISSION_RATE/EVENT_COMMISSION_RATE
+  // are now just the starting defaults below, not the live rate). Whole
+  // percent, matching AmbassadorTierRate's own convention — DECISIONS.md:
+  // 12% on music/beats/merch, 5% on tickets (a lower take since the
+  // creator still bears the real-world cost of putting the show on).
+  commissionReleasePercent Int @default(12)
+  commissionBeatPercent    Int @default(12)
+  commissionMerchPercent   Int @default(12)
+  commissionEventPercent   Int @default(5)
   updatedAt              DateTime @updatedAt
   updatedBy              String?
 }

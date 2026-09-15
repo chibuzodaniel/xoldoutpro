@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { confirmStock, releaseReservation } from "@/lib/commerce/stock";
-import { recordSale, getWalletBalances, commissionRateFor } from "@/lib/commerce/ledger";
+import { recordSale, getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificationEmail } from "@/lib/email";
@@ -181,7 +181,8 @@ export async function finalizePayment(
     });
 
     const { availableKobo, pendingKobo } = await getWalletBalances(product.creatorId);
-    const netKobo = payment.amountKobo - Math.round(payment.amountKobo * commissionRateFor(product.type));
+    const rates = await getCommissionRates();
+    const netKobo = payment.amountKobo - Math.round(payment.amountKobo * rates[product.type]);
     void sendSaleNotificationEmail({
       to: product.creator.email,
       productTitle: product.title,

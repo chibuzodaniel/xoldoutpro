@@ -288,11 +288,29 @@ const PANEL_LABEL: Record<string, string> = {
 };
 const PANEL_KEYS = Object.keys(PANEL_LABEL);
 
-// Super-moderator-only: platform-wide toggles (currently just real-file
-// downloads for songs/beats) and which of the panels below a *regular*
-// moderator sees. Explicit ask, 2026-09-14: "super moderator should be
-// able to turn on/off for the file download... and also be able to select
-// what's visible for other moderators."
+type CommissionKey = "commissionReleasePercent" | "commissionBeatPercent" | "commissionMerchPercent" | "commissionEventPercent";
+const COMMISSION_KEYS: CommissionKey[] = [
+  "commissionReleasePercent",
+  "commissionBeatPercent",
+  "commissionMerchPercent",
+  "commissionEventPercent",
+];
+const COMMISSION_LABEL: Record<CommissionKey, string> = {
+  commissionReleasePercent: "Music",
+  commissionBeatPercent: "Beats",
+  commissionMerchPercent: "Merchandise",
+  commissionEventPercent: "Events (tickets)",
+};
+type SettingsResponse = { downloadsEnabled: boolean; billboardDailyRateKobo: number } & Record<CommissionKey, number>;
+
+// Super-moderator-only: platform-wide toggles (real-file downloads for
+// songs/beats, per-type commission rates — lib/commerce/ledger.ts's
+// getCommissionRates(), what recordSale actually charges on every sale)
+// and which of the panels below a *regular* moderator sees. Explicit ask,
+// 2026-09-14: "super moderator should be able to turn on/off for the file
+// download... and also be able to select what's visible for other
+// moderators"; 2026-09-15: "moderators should be able to set how much
+// percentage ... for events, music, beats, merchandise."
 function SiteControlsPanel({
   panelVisibility,
   onVisibilityChange,
@@ -304,19 +322,55 @@ function SiteControlsPanel({
   const [downloadsEnabled, setDownloadsEnabled] = useState<boolean | null>(null);
   const [billboardRateKobo, setBillboardRateKobo] = useState<number | null>(null);
   const [rateInput, setRateInput] = useState("");
+  const [commissionLoaded, setCommissionLoaded] = useState(false);
+  const [commissionInputs, setCommissionInputs] = useState<Record<CommissionKey, string>>({
+    commissionReleasePercent: "",
+    commissionBeatPercent: "",
+    commissionMerchPercent: "",
+    commissionEventPercent: "",
+  });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     async function load() {
       const res = await apiFetch("/api/admin/settings");
       if (!res.ok) return;
-      const data: { downloadsEnabled: boolean; billboardDailyRateKobo: number } = await res.json();
+      const data: SettingsResponse = await res.json();
       setDownloadsEnabled(data.downloadsEnabled);
       setBillboardRateKobo(data.billboardDailyRateKobo);
       setRateInput(String(data.billboardDailyRateKobo / 100));
+      setCommissionInputs({
+        commissionReleasePercent: String(data.commissionReleasePercent),
+        commissionBeatPercent: String(data.commissionBeatPercent),
+        commissionMerchPercent: String(data.commissionMerchPercent),
+        commissionEventPercent: String(data.commissionEventPercent),
+      });
+      setCommissionLoaded(true);
     }
     load();
   }, []);
+
+  async function saveCommissionRates() {
+    const patch: Partial<Record<CommissionKey, number>> = {};
+    for (const key of COMMISSION_KEYS) {
+      const n = Number(commissionInputs[key]);
+      if (!Number.isInteger(n) || n < 0 || n > 90) {
+        toast.error("Commission rates must be whole numbers between 0 and 90.");
+        return;
+      }
+      patch[key] = n;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify(patch) });
+      if (!res.ok) throw new Error("Could not update commission rates");
+      toast.success("Commission rates updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveBillboardRate() {
     const naira = Number(rateInput);
@@ -416,6 +470,43 @@ function SiteControlsPanel({
               Save
             </button>
           </div>
+        )}
+      </div>
+
+      <div className="py-2.5 border-b border-line-soft mb-3">
+        <p className="text-sm font-semibold mb-0.5">Platform commission</p>
+        <p className="text-xs text-ink-3 mb-3">What XOLDOUT keeps per sale, by product type — the rest goes to the seller.</p>
+        {!commissionLoaded ? (
+          <p className="text-xs text-ink-3">Loading…</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {COMMISSION_KEYS.map((key) => (
+                <div key={key} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
+                  <span className="text-xs text-ink-2">{COMMISSION_LABEL[key]}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <input
+                      type="number"
+                      min={0}
+                      max={90}
+                      value={commissionInputs[key]}
+                      onChange={(e) => setCommissionInputs((cur) => ({ ...cur, [key]: e.target.value }))}
+                      className="w-12 rounded-lg border border-line bg-surface px-1.5 py-1 text-xs text-right"
+                    />
+                    <span className="text-xs text-ink-3">%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={saveCommissionRates}
+              disabled={busy}
+              className="rounded-full bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Save commission rates
+            </button>
+          </>
         )}
       </div>
 
@@ -940,7 +1031,7 @@ function TierRateEditor({
     <div className="flex flex-col gap-1.5 rounded-lg border border-line p-2">
       <span className="text-[10px] uppercase tracking-widest text-ink-3">{rate.tier}</span>
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs text-ink-2">First purchase %</span>
+        <span className="text-xs text-ink-2">First purchase % (of sale)</span>
         <input
           type="number"
           min={0}
@@ -952,7 +1043,7 @@ function TierRateEditor({
         />
       </label>
       <label className="flex items-center justify-between gap-2">
-        <span className="text-xs text-ink-2">Continuous %</span>
+        <span className="text-xs text-ink-2">Continuous % (of sale)</span>
         <input
           type="number"
           min={0}
@@ -1038,8 +1129,10 @@ function AmbassadorsPanel() {
       <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Ambassadors</p>
 
       <p className="text-xs text-ink-3 mb-2">
-        Commission rates (% of the platform&apos;s own commission, paid automatically per sale) — first purchase is what an
-        ambassador earns the first time a person they invited buys anything; continuous is the rate after that.
+        Commission rates (% of the sale price, carved out of the platform&apos;s own commission — never more than the
+        commission itself, and never the seller&apos;s net) — first purchase is what an ambassador earns the first time a
+        person they invited buys anything; continuous is the rate after that. A value at or above the product&apos;s own
+        commission rate pays the ambassador that sale&apos;s entire commission.
       </p>
       {rates === null ? (
         <p className="text-xs text-ink-3 mb-4">Loading…</p>

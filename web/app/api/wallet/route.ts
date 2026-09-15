@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { getWalletBalances } from "@/lib/commerce/ledger";
+import { getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 
 // PRD §1.2/§13: all currency figures live in Wallet, nowhere else. This is
@@ -69,6 +69,8 @@ export async function GET(req: NextRequest) {
       byCategory[type] = (byCategory[type] ?? 0) + row.priceKobo * row.quantity;
     }
 
+    const commissionRates = await getCommissionRates();
+
     return NextResponse.json({
       availableKobo,
       pendingKobo,
@@ -76,6 +78,16 @@ export async function GET(req: NextRequest) {
       totalWithdrawnKobo: Math.abs(withdrawn._sum.amountKobo ?? 0),
       earnedByCategory: byCategory,
       payouts,
+      // Live, moderator-editable rates (SiteControlsPanel) — not the
+      // lib/commerce/constants.ts defaults, which are just what a fresh
+      // PlatformSettings row starts at. Sent as whole percent (12, not
+      // 0.12) since that's what the copy below actually displays.
+      commissionPercent: {
+        RELEASE: Math.round(commissionRates.RELEASE * 100),
+        BEAT: Math.round(commissionRates.BEAT * 100),
+        MERCH: Math.round(commissionRates.MERCH * 100),
+        EVENT: Math.round(commissionRates.EVENT * 100),
+      },
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
