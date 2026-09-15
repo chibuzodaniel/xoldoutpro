@@ -20,6 +20,7 @@ import { firebaseAuth } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { apiPatch, apiPost, apiDelete } from "../lib/api";
 import { uploadImage } from "../lib/uploadImage";
+import { enablePush, disablePush } from "../lib/push";
 import type { RootStackParamList } from "../lib/navigation";
 import type { SocialLink } from "../lib/authTypes";
 import { colors, fonts } from "../lib/theme";
@@ -42,8 +43,10 @@ export function EditProfileScreen() {
   const [coverPreview, setCoverPreview] = useState<string | null>(appUser?.coverUrl ?? null);
   const [avatarPending, setAvatarPending] = useState<{ uri: string; mimeType: string } | null>(null);
   const [coverPending, setCoverPending] = useState<{ uri: string; mimeType: string } | null>(null);
-  const [digestSubscribed, setDigestSubscribed] = useState(false);
+  const [digestSubscribed, setDigestSubscribed] = useState(appUser?.emailDigestSubscribed ?? false);
   const [digestBusy, setDigestBusy] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(appUser?.pushEnabled ?? false);
+  const [pushBusy, setPushBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -102,6 +105,23 @@ export function EditProfileScreen() {
       Alert.alert("Could not update");
     } finally {
       setDigestBusy(false);
+    }
+  }
+
+  async function handleTogglePush() {
+    if (!firebaseUser) return;
+    setPushBusy(true);
+    try {
+      if (pushEnabled) {
+        await disablePush(firebaseUser);
+        setPushEnabled(false);
+      } else {
+        const result = await enablePush(firebaseUser);
+        if (!result.ok) Alert.alert("Could not enable push", result.error);
+        else setPushEnabled(true);
+      }
+    } finally {
+      setPushBusy(false);
     }
   }
 
@@ -256,6 +276,14 @@ export function EditProfileScreen() {
       <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={busy}>
         {busy ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitButtonText}>Save Changes</Text>}
       </TouchableOpacity>
+
+      <View style={styles.toggleRow}>
+        <View style={styles.toggleInfo}>
+          <Text style={styles.toggleTitle}>Get notified in the background</Text>
+          <Text style={styles.toggleSubtitle}>New releases, purchases, and follows — even when the app isn't open.</Text>
+        </View>
+        <Switch value={pushEnabled} onValueChange={handleTogglePush} disabled={pushBusy} trackColor={{ true: colors.red }} />
+      </View>
 
       <View style={styles.toggleRow}>
         <View style={styles.toggleInfo}>

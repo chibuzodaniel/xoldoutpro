@@ -7,6 +7,7 @@ import type { RootStackParamList } from "./lib/navigation";
 import { colors } from "./lib/theme";
 import { AuthProvider } from "./lib/AuthContext";
 import { PlayerProvider } from "./lib/PlayerContext";
+import { ToastProvider } from "./components/ToastProvider";
 import { BottomTabs } from "./navigation/BottomTabs";
 import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
@@ -31,6 +32,8 @@ import { AnalyticsScreen } from "./screens/AnalyticsScreen";
 import { PlayerScreen } from "./screens/PlayerScreen";
 import { DiscoverCategoryScreen } from "./screens/DiscoverCategoryScreen";
 import { TopCreatorsScreen } from "./screens/TopCreatorsScreen";
+import { DownloadedScreen } from "./screens/DownloadedScreen";
+import { HeavyRotationScreen } from "./screens/HeavyRotationScreen";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -41,12 +44,18 @@ const navTheme = {
 
 export default function App() {
   useEffect(() => {
-    setAudioModeAsync({ playsInSilentMode: true });
+    // shouldPlayInBackground keeps audio running once the app is
+    // backgrounded/locked — without it playback stops the moment the app
+    // loses focus, unlike Spotify/Apple Music. Also needs
+    // ios.infoPlist.UIBackgroundModes: ["audio"] in app.json (see there)
+    // for iOS to actually grant the background execution time.
+    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: "duckOthers" });
   }, []);
 
   return (
     <AuthProvider>
       <PlayerProvider>
+        <ToastProvider>
         <NavigationContainer theme={navTheme}>
           <Stack.Navigator
             screenOptions={{
@@ -88,9 +97,12 @@ export default function App() {
             <Stack.Screen name="Player" component={PlayerScreen} options={{ headerShown: false, presentation: "modal" }} />
             <Stack.Screen name="DiscoverCategory" component={DiscoverCategoryScreen} options={{ title: "" }} />
             <Stack.Screen name="TopCreators" component={TopCreatorsScreen} options={{ title: "" }} />
+            <Stack.Screen name="Downloaded" component={DownloadedScreen} options={{ title: "" }} />
+            <Stack.Screen name="HeavyRotation" component={HeavyRotationScreen} options={{ title: "" }} />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>
+        </ToastProvider>
       </PlayerProvider>
     </AuthProvider>
   );

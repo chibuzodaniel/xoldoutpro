@@ -11,7 +11,6 @@ import {
   useWindowDimensions,
   StyleSheet,
 } from "react-native";
-import QRCode from "react-native-qrcode-svg";
 import { API_BASE_URL, apiGet, apiPatch } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
 import { usePlayer } from "../../lib/PlayerContext";
@@ -20,6 +19,7 @@ import type { LibraryEntitlement, LibraryTrack } from "../../lib/libraryTypes";
 import { colors } from "../../lib/theme";
 import { ActionSheet } from "../ActionSheet";
 import { AddToCollectionSheet } from "../AddToCollectionSheet";
+import { TicketQrCode } from "../TicketQrCode";
 import { FULFILLMENT_LABEL, artworkUrl, beatCoverUrl, merchImageUrl, buildPlayable, formatEventDate } from "../../lib/libraryHelpers";
 
 const HORIZONTAL_PADDING = 16;
@@ -251,34 +251,51 @@ export function PurchasedTab() {
 
                       {expandedId === e.id && e.product.release && (
                         <View style={styles.trackList}>
+                          <View style={styles.trackListHeader}>
+                            <Text style={styles.trackListTitle} numberOfLines={1}>
+                              {e.product.title}
+                            </Text>
+                            <TouchableOpacity onPress={() => setCollectingFor(e)}>
+                              <Text style={styles.collectLink}>+ Collection</Text>
+                            </TouchableOpacity>
+                          </View>
                           {e.product.release.tracks.map((t: LibraryTrack) => {
                             const isThisTrack = player.current?.trackId === t.id;
                             return (
-                              <TouchableOpacity
-                                key={t.id}
-                                style={styles.trackRow}
-                                onPress={() =>
-                                  player.play(
-                                    {
-                                      trackId: t.id,
-                                      title: t.title,
-                                      artistName: e.product.creator.displayName,
-                                      artworkUrl: art,
-                                      productId: e.product.id,
-                                      lyricsText: t.lyricsText,
-                                      kind: "track",
-                                    },
-                                    buildPlayable(e),
-                                  )
-                                }
-                                disabled={busyTrackId === t.id}
-                              >
-                                <Text style={styles.trackPlayIcon}>{isThisTrack && player.isPlaying ? "⏸" : "▶"}</Text>
-                                <Text style={styles.trackTitle} numberOfLines={1}>
-                                  {t.title}
-                                </Text>
-                                {downloaded[t.id] && <Text style={styles.trackDownloadedIcon}>✓</Text>}
-                              </TouchableOpacity>
+                              <View key={t.id} style={styles.trackRow}>
+                                <TouchableOpacity
+                                  style={styles.trackTapArea}
+                                  onPress={() =>
+                                    player.play(
+                                      {
+                                        trackId: t.id,
+                                        title: t.title,
+                                        artistName: e.product.creator.displayName,
+                                        artworkUrl: art,
+                                        productId: e.product.id,
+                                        lyricsText: t.lyricsText,
+                                        kind: "track",
+                                      },
+                                      buildPlayable(e),
+                                    )
+                                  }
+                                  disabled={busyTrackId === t.id}
+                                >
+                                  <Text style={styles.trackPlayIcon}>{isThisTrack && player.isPlaying ? "⏸" : "▶"}</Text>
+                                  <Text style={styles.trackTitle} numberOfLines={1}>
+                                    {t.title}
+                                  </Text>
+                                </TouchableOpacity>
+                                {downloaded[t.id] ? (
+                                  <TouchableOpacity onPress={() => handleRemoveDownload(t.id)}>
+                                    <Text style={styles.trackOfflineLink}>Remove</Text>
+                                  </TouchableOpacity>
+                                ) : (
+                                  <TouchableOpacity onPress={() => handleDownload(e, t)} disabled={busyTrackId === t.id}>
+                                    <Text style={styles.trackOfflineLinkActive}>{busyTrackId === t.id ? "…" : "Offline"}</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
                             );
                           })}
                         </View>
@@ -298,11 +315,7 @@ export function PurchasedTab() {
                   const tier = e.product.ticketTier!;
                   return (
                     <View key={e.id} style={styles.ticketRow}>
-                      {e.checkIn && (
-                        <View style={styles.qrBox}>
-                          <QRCode value={e.checkIn.code} size={56} backgroundColor={colors.ink} />
-                        </View>
-                      )}
+                      {e.checkIn && <TicketQrCode value={e.checkIn.code} label={`${tier.event.title} · ${tier.name}`} />}
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.cardTitle} numberOfLines={1}>
                           {tier.event.title}
@@ -314,6 +327,9 @@ export function PurchasedTab() {
                           {e.checkIn?.checkedInAt ? "Checked in" : "Show this QR code at the door"}
                         </Text>
                       </View>
+                      <TouchableOpacity style={styles.collectButton} onPress={() => setCollectingFor(e)}>
+                        <Text style={styles.collectButtonText}>+</Text>
+                      </TouchableOpacity>
                     </View>
                   );
                 })}
@@ -344,6 +360,9 @@ export function PurchasedTab() {
                         </Text>
                       </View>
                       <Text style={styles.merchStatus}>{FULFILLMENT_LABEL[status]}</Text>
+                      <TouchableOpacity style={styles.collectButton} onPress={() => setCollectingFor(e)}>
+                        <Text style={styles.collectButtonText}>+</Text>
+                      </TouchableOpacity>
                     </View>
                   );
                 })}
@@ -355,8 +374,10 @@ export function PurchasedTab() {
 
       {actionsFor &&
         (() => {
+          const isRelease = Boolean(actionsFor.product.release);
           const releaseTracks = actionsFor.product.release?.tracks ?? [];
-          const allDownloaded = releaseTracks.length > 0 && releaseTracks.every((t) => downloaded[t.id]);
+          const hasDownloaded = releaseTracks.some((t) => downloaded[t.id]);
+          const kindLabel = isRelease ? "release" : "beat";
           return (
             <ActionSheet
               visible
@@ -367,14 +388,15 @@ export function PurchasedTab() {
                 ...(buildPlayable(actionsFor).length > 1
                   ? [{ label: "Shuffle", onPress: () => handleShuffle(actionsFor) }]
                   : []),
-                { label: actionsFor.pinnedAt ? "Unpin" : "Pin", onPress: () => handleTogglePin(actionsFor) },
-                { label: "Add to collection", onPress: () => setCollectingFor(actionsFor) },
+                { label: actionsFor.pinnedAt ? `Unpin ${kindLabel}` : `Pin ${kindLabel}`, onPress: () => handleTogglePin(actionsFor) },
+                { label: "Add to playlist", onPress: () => setCollectingFor(actionsFor) },
                 { label: "Play next", onPress: () => handlePlayNext(actionsFor) },
-                ...(actionsFor.product.release
+                ...(isRelease
                   ? [
-                      allDownloaded
-                        ? { label: "Remove from offline", destructive: true, onPress: () => handleRemoveAllForRelease(actionsFor) }
-                        : { label: "Download for offline", onPress: () => handleDownloadAllForRelease(actionsFor) },
+                      { label: "Download for offline", onPress: () => handleDownloadAllForRelease(actionsFor) },
+                      ...(hasDownloaded
+                        ? [{ label: "Delete from library", destructive: true, onPress: () => handleRemoveAllForRelease(actionsFor) }]
+                        : []),
                     ]
                   : []),
               ]}
@@ -447,14 +469,20 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   cardSubtitle: { color: colors.ink3, fontSize: 12, marginTop: 1 },
   trackList: { marginTop: 8, gap: 4 },
-  trackRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 4 },
+  trackListHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
+  trackListTitle: { color: colors.ink3, fontSize: 11, flex: 1, marginRight: 8 },
+  collectLink: { color: colors.ink3, fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.5 },
+  trackRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, paddingVertical: 4 },
+  trackTapArea: { flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 },
   trackPlayIcon: { color: colors.ink, fontSize: 10, width: 14 },
   trackTitle: { color: colors.ink2, fontSize: 12, flex: 1 },
-  trackDownloadedIcon: { color: colors.redSoft, fontSize: 11, fontWeight: "700" },
+  trackOfflineLink: { color: colors.ink3, fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.5 },
+  trackOfflineLinkActive: { color: colors.redSoft, fontSize: 10.5, textTransform: "uppercase", letterSpacing: 0.5 },
   ticketRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.lineSoft, borderRadius: 10, padding: 12 },
-  qrBox: { padding: 4, backgroundColor: colors.ink, borderRadius: 6 },
   ticketStatus: { color: colors.redSoft, fontSize: 10, fontWeight: "700", textTransform: "uppercase", marginTop: 4 },
   merchRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   merchImage: { width: 44, height: 44, borderRadius: 6 },
   merchStatus: { color: colors.redSoft, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  collectButton: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, borderColor: colors.line, alignItems: "center", justifyContent: "center" },
+  collectButtonText: { color: colors.ink3, fontSize: 15, lineHeight: 15 },
 });

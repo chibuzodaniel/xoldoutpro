@@ -201,6 +201,13 @@ model TrackPlay {
   id        String   @id @default(cuid())
   userId    String
   creatorId String
+  // Nullable, and only ever set for an *entitled* (owned) play — a signed-in
+  // visitor previewing a track they don't own still logs a row here (for the
+  // Socials "creators you play often" ranking, which predates this field and
+  // stays creatorId-only on purpose), but productId is left null for that
+  // case so Heavy Rotation only ever counts real plays of things a fan
+  // actually bought, never previews.
+  productId String?
   createdAt DateTime @default(now())
 
   user    User @relation("TrackPlaysByUser", fields: [userId], references: [id])
@@ -208,6 +215,7 @@ model TrackPlay {
 
   @@index([userId, createdAt])
   @@index([creatorId])
+  @@index([userId, productId])
 }
 
 // ─── Fanbase: announcements (PRD §11 MVP) and groups (PRD §11 Phase 2) ─

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View, useWindowDimensions, StyleSheet } from "react-native";
-import { useRoute, type RouteProp } from "@react-navigation/native";
-import QRCode from "react-native-qrcode-svg";
+import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiDelete, apiGet } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import { usePlayer } from "../lib/PlayerContext";
@@ -9,11 +9,13 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { LibraryEntitlement } from "../lib/libraryTypes";
 import { colors, fonts } from "../lib/theme";
 import { ActionSheet } from "../components/ActionSheet";
+import { TicketQrCode } from "../components/TicketQrCode";
 import { FULFILLMENT_LABEL, artworkUrl, beatCoverUrl, merchImageUrl, buildPlayable, formatEventDate } from "../lib/libraryHelpers";
 
 const HORIZONTAL_PADDING = 16;
 
 export function CollectionScreen() {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "Collection">>();
   const { id, name } = route.params;
   const { firebaseUser } = useAuth();
@@ -55,13 +57,14 @@ export function CollectionScreen() {
   }
 
   function handlePlayTap(e: LibraryEntitlement) {
-    if (player.current?.productId === e.product.id) {
-      if (!player.isPlaying) player.togglePlay();
-      return;
+    if (player.current?.productId !== e.product.id) {
+      const queue = buildPlayable(e);
+      if (queue.length === 0) return;
+      player.play(queue[0], queue);
+    } else if (!player.isPlaying) {
+      player.togglePlay();
     }
-    const queue = buildPlayable(e);
-    if (queue.length === 0) return;
-    player.play(queue[0], queue);
+    navigation.navigate("Player");
   }
 
   if (error) {
@@ -130,11 +133,7 @@ export function CollectionScreen() {
                 const tier = e.product.ticketTier!;
                 return (
                   <TouchableOpacity key={e.id} style={styles.ticketRow} onLongPress={() => setActionsFor(e)}>
-                    {e.checkIn && (
-                      <View style={styles.qrBox}>
-                        <QRCode value={e.checkIn.code} size={56} backgroundColor={colors.ink} />
-                      </View>
-                    )}
+                    {e.checkIn && <TicketQrCode value={e.checkIn.code} label={`${tier.event.title} · ${tier.name}`} />}
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.cardTitle} numberOfLines={1}>
                         {tier.event.title}
@@ -212,7 +211,6 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   cardSubtitle: { color: colors.ink3, fontSize: 12, marginTop: 1 },
   ticketRow: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.lineSoft, borderRadius: 10, padding: 12 },
-  qrBox: { padding: 4, backgroundColor: colors.ink, borderRadius: 6 },
   merchRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   merchImage: { width: 44, height: 44, borderRadius: 6 },
   merchStatus: { color: colors.redSoft, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },

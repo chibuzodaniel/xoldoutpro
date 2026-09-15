@@ -5,11 +5,13 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { UserHandleAutocomplete } from "@/components/ui/UserHandleAutocomplete";
 
 type Promoter = {
   id: string;
   sharePercent: number;
   code: string;
+  referredCount: number;
   user: { handle: string; displayName: string };
 };
 
@@ -92,7 +94,9 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
                 <p className="text-sm font-semibold truncate">
                   {p.user.displayName} <span className="text-ink-3 font-normal">@{p.user.handle}</span>
                 </p>
-                <p className="text-xs text-ink-3">{p.sharePercent}% of your net per ticket</p>
+                <p className="text-xs text-ink-3">
+                  {p.sharePercent}% of your net per ticket · {p.referredCount} referred
+                </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <ShareButton
@@ -116,10 +120,11 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
       )}
 
       <div className="flex gap-2">
-        <input
+        <UserHandleAutocomplete
           value={handle}
-          onChange={(e) => setHandle(e.target.value)}
-          placeholder="@handle"
+          onChange={setHandle}
+          onSelect={(u) => setHandle(u.handle)}
+          excludeUserId={appUser?.id}
           className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
         />
         <input

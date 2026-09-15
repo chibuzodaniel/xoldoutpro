@@ -4,8 +4,10 @@ import { useAuth } from "../lib/AuthContext";
 import { apiGet, apiPost, apiDelete } from "../lib/api";
 import { API_BASE_URL } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
+import { useToast } from "./ToastProvider";
+import { UserHandleAutocomplete } from "./UserHandleAutocomplete";
 
-type Promoter = { id: string; sharePercent: number; code: string; user: { handle: string; displayName: string } };
+type Promoter = { id: string; sharePercent: number; code: string; referredCount: number; user: { handle: string; displayName: string } };
 
 // Owner-only, mirrors web's components/product/EventPromotersPanel.tsx —
 // renders nothing for anyone but the event's own creator. Note this is a
@@ -13,6 +15,7 @@ type Promoter = { id: string; sharePercent: number; code: string; user: { handle
 // tickets stays web-only, same as every other product type.
 export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventId: string; eventTitle: string; creatorId: string }) {
   const { appUser, firebaseUser } = useAuth();
+  const toast = useToast();
   const [promoters, setPromoters] = useState<Promoter[] | null>(null);
   const [handle, setHandle] = useState("");
   const [sharePercent, setSharePercent] = useState("10");
@@ -48,6 +51,7 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
       await apiPost(`/api/events/${eventId}/promoters`, idToken, { handle: trimmed, sharePercent: percent });
       setHandle("");
       await load();
+      toast.success(`@${trimmed} added as a promoter.`);
     } catch (e) {
       Alert.alert("Could not add promoter", e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -97,7 +101,9 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
                   <Text style={styles.rowName} numberOfLines={1}>
                     {p.user.displayName} <Text style={styles.rowHandle}>@{p.user.handle}</Text>
                   </Text>
-                  <Text style={styles.rowMeta}>{p.sharePercent}% of your net per ticket</Text>
+                  <Text style={styles.rowMeta}>
+                    {p.sharePercent}% of your net per ticket · {p.referredCount} referred
+                  </Text>
                 </View>
                 <View style={styles.rowActions}>
                   <TouchableOpacity style={styles.copyLinkButton} onPress={() => handleShare(p.code)}>
@@ -114,13 +120,12 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
       )}
 
       <View style={styles.addRow}>
-        <TextInput
+        <UserHandleAutocomplete
           value={handle}
           onChangeText={setHandle}
-          placeholder="@handle"
-          placeholderTextColor={colors.ink3}
-          autoCapitalize="none"
-          style={[styles.input, styles.handleInput]}
+          onSelect={(u) => setHandle(u.handle)}
+          excludeUserId={appUser?.id}
+          style={styles.handleInput}
         />
         <TextInput
           value={sharePercent}

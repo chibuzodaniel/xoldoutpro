@@ -29,7 +29,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       orderBy: { createdAt: "asc" },
     });
 
-    return NextResponse.json({ promoters });
+    // "Referred" = tickets sold (order item quantity, not order count — a
+    // single order can buy more than one ticket) through each promoter's own
+    // link, paid orders only. Few promoters per event in practice, so one
+    // query + in-JS aggregation beats a groupBy across a join.
+    const paidOrders = await db.order.findMany({
+      where: { promoterId: { in: promoters.map((p) => p.id) }, status: "PAID" },
+      select: { promoterId: true, items: { select: { quantity: true } } },
+    });
+    const referredByPromoterId = new Map<string, number>();
+    for (const order of paidOrders) {
+      if (!order.promoterId) continue;
+      const qty = order.items.reduce((sum, i) => sum + i.quantity, 0);
+      referredByPromoterId.set(order.promoterId, (referredByPromoterId.get(order.promoterId) ?? 0) + qty);
+    }
+
+    return NextResponse.json({
+      promoters: promoters.map((p) => ({ ...p, referredCount: referredByPromoterId.get(p.id) ?? 0 })),
+    });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error(err);

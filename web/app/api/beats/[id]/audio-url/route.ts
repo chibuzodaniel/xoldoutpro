@@ -35,8 +35,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
       // Fire-and-forget play signal for the Socials "suggested" feed ranking
       // (creators you play often) — never let a logging failure break playback.
+      // productId only set when entitled, so Heavy Rotation only counts real
+      // plays, never previews — see tracks/[id]/audio-url's matching comment.
       db.trackPlay
-        .create({ data: { userId: user.id, creatorId: product.creatorId } })
+        .create({ data: { userId: user.id, creatorId: product.creatorId, productId: entitled ? id : undefined } })
         .catch((err) => console.error("trackPlay log failed", err));
     }
 

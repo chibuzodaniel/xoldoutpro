@@ -31,4 +31,6 @@ export type RootStackParamList = {
   Player: undefined;
   DiscoverCategory: { type: "RELEASE" | "BEAT" | "EVENT" | "MERCH" };
   TopCreators: undefined;
+  Downloaded: undefined;
+  HeavyRotation: undefined;
 };

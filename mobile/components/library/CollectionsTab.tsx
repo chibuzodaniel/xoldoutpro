@@ -3,41 +3,63 @@ import { ActivityIndicator, Image, ScrollView, Text, TextInput, TouchableOpacity
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiGet, apiPost } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
+import { listDownloads } from "../../lib/offline/downloads";
 import type { Collection } from "../../lib/collectionTypes";
+import type { HeavyRotationProduct } from "../../lib/heavyRotationTypes";
 import type { RootStackParamList } from "../../lib/navigation";
 import { colors } from "../../lib/theme";
 
-function CollectionCard({ collection, width, onPress }: { collection: Collection; width: number; onPress: () => void }) {
-  const covers = collection.covers.slice(0, 4);
+function CollectionCard({
+  name,
+  itemCount,
+  covers,
+  width,
+  onPress,
+}: {
+  name: string;
+  itemCount: number;
+  covers: string[];
+  width: number;
+  onPress: () => void;
+}) {
+  const shownCovers = covers.slice(0, 4);
   return (
     <TouchableOpacity style={{ width }} onPress={onPress}>
       <View style={[styles.coverBox, { width, height: width }]}>
-        {covers.length === 0 ? (
+        {shownCovers.length === 0 ? (
           <View style={[styles.coverCell, styles.coverPlaceholder, { width, height: width }]} />
-        ) : covers.length === 1 ? (
-          <Image source={{ uri: covers[0] }} style={{ width, height: width }} />
+        ) : shownCovers.length === 1 ? (
+          <Image source={{ uri: shownCovers[0] }} style={{ width, height: width }} />
         ) : (
           <View style={styles.coverGrid}>
-            {covers.map((url, i) => (
+            {shownCovers.map((url, i) => (
               <Image key={i} source={{ uri: url }} style={[styles.coverCell, { width: width / 2 - 0.5, height: width / 2 - 0.5 }]} />
             ))}
           </View>
         )}
       </View>
       <Text style={styles.cardTitle} numberOfLines={1}>
-        {collection.name}
+        {name}
       </Text>
       <Text style={styles.cardSubtitle}>
-        {collection.itemCount} item{collection.itemCount === 1 ? "" : "s"}
+        {itemCount} item{itemCount === 1 ? "" : "s"}
       </Text>
     </TouchableOpacity>
   );
+}
+
+function imageUrlForHeavyRotation(p: HeavyRotationProduct) {
+  return p.release?.artworkLadder?.["256"] ?? p.beat?.coverImageLadder?.["256"] ?? null;
 }
 
 export function CollectionsTab() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
   const [collections, setCollections] = useState<Collection[] | null>(null);
+  const [downloadedCount, setDownloadedCount] = useState(0);
+  const [downloadedCovers, setDownloadedCovers] = useState<string[]>([]);
+  const [heavyRotationCount, setHeavyRotationCount] = useState(0);
+  const [heavyRotationCovers, setHeavyRotationCovers] = useState<string[]>([]);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
 
@@ -48,6 +70,20 @@ export function CollectionsTab() {
       .then((idToken) => apiGet<{ collections: Collection[] }>("/api/collections", idToken))
       .then((data) => setCollections(data.collections))
       .catch(() => setCollections([]));
+
+    listDownloads().then((downloads) => {
+      setDownloadedCount(downloads.length);
+      setDownloadedCovers(downloads.map((d) => d.artworkUrl).filter((u): u is string => !!u));
+    });
+
+    firebaseUser
+      .getIdToken()
+      .then((idToken) => apiGet<{ products: HeavyRotationProduct[] }>("/api/library/heavy-rotation", idToken))
+      .then((data) => {
+        setHeavyRotationCount(data.products.length);
+        setHeavyRotationCovers(data.products.map(imageUrlForHeavyRotation).filter((u): u is string => !!u));
+      })
+      .catch(() => {});
   }, [firebaseUser]);
 
   async function createCollection() {
@@ -91,6 +127,29 @@ export function CollectionsTab() {
         </TouchableOpacity>
       </View>
 
+      {(downloadedCount > 0 || heavyRotationCount > 0) && (
+        <View style={[styles.grid, styles.autoGrid]}>
+          {downloadedCount > 0 && (
+            <CollectionCard
+              name="Downloaded"
+              itemCount={downloadedCount}
+              covers={downloadedCovers}
+              width={cardWidth}
+              onPress={() => navigation.navigate("Downloaded")}
+            />
+          )}
+          {heavyRotationCount > 0 && (
+            <CollectionCard
+              name="Heavy Rotation"
+              itemCount={heavyRotationCount}
+              covers={heavyRotationCovers}
+              width={cardWidth}
+              onPress={() => navigation.navigate("HeavyRotation")}
+            />
+          )}
+        </View>
+      )}
+
       {collections.length === 0 ? (
         <Text style={styles.emptyText}>Group what you own into collections — start by naming one above, then add items from Purchased.</Text>
       ) : (
@@ -98,7 +157,9 @@ export function CollectionsTab() {
           {collections.map((c) => (
             <CollectionCard
               key={c.id}
-              collection={c}
+              name={c.name}
+              itemCount={c.itemCount}
+              covers={c.covers}
               width={cardWidth}
               onPress={() => navigation.navigate("Collection", { id: c.id, name: c.name })}
             />
@@ -114,6 +175,7 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: "center", justifyContent: "center", paddingTop: 60 },
   emptyText: { color: colors.ink3, fontSize: 13, lineHeight: 19 },
   createRow: { flexDirection: "row", gap: 8, marginBottom: 20 },
+  autoGrid: { marginBottom: 20 },
   input: {
     flex: 1,
     backgroundColor: colors.surface,

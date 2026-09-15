@@ -12,4 +12,6 @@ export type AppUser = {
   socialLinks: SocialLink[];
   isVerified: boolean;
   verificationBadges: string[];
+  pushEnabled: boolean;
+  emailDigestSubscribed: boolean;
 };
