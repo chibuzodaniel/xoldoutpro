@@ -195,12 +195,8 @@ export default function ModerationPage() {
       {panelVisible("users") && <UsersListPanel />}
 
       {appUser.isSuperModerator && <ManageModeratorsPanel />}
-      {panelVisible("ambassadors") && (
-        <>
-          <AmbassadorsPanel />
-          <LegacyAmbassadorRecompute />
-        </>
-      )}
+      {panelVisible("ambassadors") && <AmbassadorsPanel />}
+      {panelVisible("ambassadorRecompute") && <LegacyAmbassadorRecompute />}
       {panelVisible("eventPromoters") && <EventPromotersModPanel />}
       {panelVisible("billboards") && <BillboardsPanel />}
       {panelVisible("verifyCreator") && <VerifyCreatorPanel />}
@@ -284,6 +280,7 @@ const PANEL_LABEL: Record<string, string> = {
   stats: "Platform growth",
   users: "User directory",
   ambassadors: "Ambassadors",
+  ambassadorRecompute: "Legacy ambassador recompute",
   eventPromoters: "Ticket promoters",
   billboards: "Billboards",
   verifyCreator: "Verify creator",
