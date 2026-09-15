@@ -4,6 +4,7 @@ import {
   Image,
   Linking,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -19,6 +20,10 @@ import { formatNaira } from "../lib/format";
 import { usePreviewPlayer } from "../lib/usePreviewPlayer";
 import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
+import { PublishedByYou } from "../components/PublishedByYou";
+import { ReportButton } from "../components/ReportButton";
+
+const TYPE_LABEL: Record<ProductDetail["type"], string> = { RELEASE: "", BEAT: "Beat", MERCH: "Merch" };
 
 function formatDuration(sec: number) {
   const m = Math.floor(sec / 60);
@@ -96,6 +101,9 @@ export function ProductScreen() {
   const sold = product.stockPolicy?.sold ?? 0;
   const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
 
+  const typeLabel = TYPE_LABEL[product.type];
+  const gallery = product.merchItem?.galleryImageUrls ?? [];
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
       <View style={[styles.imageBox, { width, height: width }]}>
@@ -106,14 +114,65 @@ export function ProductScreen() {
         )}
       </View>
 
+      {gallery.length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galleryRow}>
+          {gallery.map((url) => (
+            <Image key={url} source={{ uri: url }} style={styles.galleryThumb} />
+          ))}
+        </ScrollView>
+      )}
+
       <View style={styles.content}>
-        <Text style={styles.title}>{product.title}</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("Creator", { handle: product.creator.handle })}>
-          <View style={styles.creatorRow}>
-            <Avatar uri={product.creator.avatarUrl} name={product.creator.displayName} index={0} size={24} />
-            <Text style={styles.creatorName}>{product.creator.displayName}</Text>
+        {typeLabel !== "" && (
+          <View style={styles.typeBadge}>
+            <Text style={styles.typeBadgeText}>{typeLabel}</Text>
           </View>
-        </TouchableOpacity>
+        )}
+
+        <View style={styles.headerRow}>
+          <View style={styles.headerInfo}>
+            <Text style={styles.title}>{product.title}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Creator", { handle: product.creator.handle })}>
+              <View style={styles.creatorRow}>
+                <Avatar uri={product.creator.avatarUrl} name={product.creator.displayName} index={0} size={24} />
+                <Text style={styles.creatorName}>{product.creator.displayName}</Text>
+              </View>
+            </TouchableOpacity>
+            <PublishedByYou creatorId={product.creatorId} />
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() =>
+                Share.share({ message: `${product.title} — ${product.creator.displayName} on XOLDOUT\n${API_BASE_URL}${webPathFor(product)}` }).catch(
+                  () => {},
+                )
+              }
+            >
+              <Text style={styles.shareIcon}>↗</Text>
+            </TouchableOpacity>
+            <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} />
+          </View>
+        </View>
+
+        {product.beat && (product.beat.bpm || product.beat.musicalKey || product.beat.tags.length > 0) && (
+          <View style={styles.chipsRow}>
+            {product.beat.bpm && (
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{product.beat.bpm} BPM</Text>
+              </View>
+            )}
+            {product.beat.musicalKey && (
+              <View style={styles.chip}>
+                <Text style={styles.chipText}>{product.beat.musicalKey}</Text>
+              </View>
+            )}
+            {product.beat.tags.map((tag) => (
+              <View key={tag} style={styles.chip}>
+                <Text style={styles.chipText}>{tag}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         <View style={styles.priceRow}>
           <Text style={styles.price}>{formatNaira(product.priceKobo)}</Text>
@@ -152,10 +211,7 @@ export function ProductScreen() {
               loading={preview.isLoading(product.id)}
               onPress={() => preview.toggle("beat", product.id)}
             />
-            <View style={styles.beatMeta}>
-              {product.beat.bpm && <Text style={styles.metaText}>{product.beat.bpm} BPM</Text>}
-              {product.beat.musicalKey && <Text style={styles.metaText}>Key: {product.beat.musicalKey}</Text>}
-            </View>
+            <Text style={styles.metaText}>{formatDuration(product.beat.durationSec)}</Text>
           </View>
         )}
 
@@ -167,6 +223,12 @@ export function ProductScreen() {
         >
           <Text style={styles.webButtonText}>Buy on xoldout.app</Text>
         </TouchableOpacity>
+
+        {product.type === "BEAT" && (
+          <TouchableOpacity onPress={() => Linking.openURL(`${API_BASE_URL}/legal/terms#beat-licenses`)}>
+            <Text style={styles.licenseLink}>View license terms</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </ScrollView>
   );
@@ -180,10 +242,28 @@ const styles = StyleSheet.create({
   image: { width: "100%", height: "100%" },
   imagePlaceholder: { backgroundColor: colors.surface2 },
   content: { padding: 16 },
+  galleryRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  galleryThumb: { width: 64, height: 64, borderRadius: 10, backgroundColor: colors.surface2 },
+  typeBadge: {
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    backgroundColor: "rgba(225,29,46,0.1)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  typeBadgeText: { color: colors.redSoft, fontSize: 10, fontWeight: "700", textTransform: "uppercase", letterSpacing: 0.5 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
+  headerInfo: { flex: 1, minWidth: 0 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
+  shareIcon: { color: colors.ink2, fontSize: 18 },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
-  creatorRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 12 },
+  creatorRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   creatorName: { color: colors.ink2, fontSize: 14 },
-  priceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
+  chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  chipText: { color: colors.ink2, fontSize: 12 },
+  priceRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12, marginBottom: 12 },
   price: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif },
   stat: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
   statDim: { color: colors.ink3, fontSize: 13 },
@@ -194,7 +274,6 @@ const styles = StyleSheet.create({
   trackTitle: { color: colors.ink2, fontSize: 14, flex: 1 },
   trackDuration: { color: colors.ink3, fontSize: 12 },
   beatPreviewRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
-  beatMeta: { flexDirection: "row", gap: 16 },
   metaText: { color: colors.ink3, fontSize: 12 },
   previewButton: {
     width: 32,
@@ -207,4 +286,5 @@ const styles = StyleSheet.create({
   previewIcon: { color: colors.ink, fontSize: 12 },
   webButton: { backgroundColor: colors.red, borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   webButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
+  licenseLink: { color: colors.ink3, fontSize: 11, textAlign: "center", textDecorationLine: "underline", marginTop: 12 },
 });

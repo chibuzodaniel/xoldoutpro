@@ -8,6 +8,7 @@ export type EventTierDetail = {
 
 export type EventDetail = {
   id: string;
+  creatorId: string;
   title: string;
   description: string;
   coverImageLadder: ImageLadder;

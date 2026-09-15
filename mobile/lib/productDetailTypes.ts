@@ -14,6 +14,7 @@ export type Track = {
 
 export type ProductDetail = {
   id: string;
+  creatorId: string;
   type: "RELEASE" | "BEAT" | "MERCH";
   title: string;
   description: string | null;

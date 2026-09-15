@@ -4,6 +4,7 @@ import {
   Image,
   Linking,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -17,6 +18,10 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { EventDetail } from "../lib/eventDetailTypes";
 import { formatNaira } from "../lib/format";
 import { colors, fonts } from "../lib/theme";
+import { PublishedByYou } from "../components/PublishedByYou";
+import { SoldCount } from "../components/SoldCount";
+import { ReportButton } from "../components/ReportButton";
+import { EventPromotersPanel } from "../components/EventPromotersPanel";
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -74,10 +79,27 @@ export function EventScreen() {
           <Text style={styles.badgeText}>Event</Text>
         </View>
 
-        <Text style={styles.title}>{event.title}</Text>
-        <TouchableOpacity onPress={() => navigation.navigate("Creator", { handle: event.creator.handle })}>
-          <Text style={styles.creatorName}>{event.creator.displayName}</Text>
-        </TouchableOpacity>
+        <View style={styles.headerRow}>
+          <View style={styles.headerInfo}>
+            <Text style={styles.title}>{event.title}</Text>
+            <TouchableOpacity onPress={() => navigation.navigate("Creator", { handle: event.creator.handle })}>
+              <Text style={styles.creatorName}>{event.creator.displayName}</Text>
+            </TouchableOpacity>
+            <PublishedByYou creatorId={event.creatorId} />
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              onPress={() =>
+                Share.share({ message: `${event.title} — ${event.creator.displayName} on XOLDOUT\n${API_BASE_URL}/e/${event.id}` }).catch(
+                  () => {},
+                )
+              }
+            >
+              <Text style={styles.shareIcon}>↗</Text>
+            </TouchableOpacity>
+            <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} />
+          </View>
+        </View>
 
         <View style={styles.detailsBlock}>
           <Text style={styles.detailText}>
@@ -101,9 +123,13 @@ export function EventScreen() {
                   <Text style={styles.tierName}>{tier.name}</Text>
                   <Text style={styles.tierPrice}>{formatNaira(tier.product.priceKobo)}</Text>
                 </View>
-                <Text style={styles.tierStat}>
-                  {isSoldOut ? "Sold out" : remaining !== null ? `${remaining} of ${cap} left` : `${sold} sold`}
-                </Text>
+                {isSoldOut ? (
+                  <Text style={styles.tierStat}>Sold out</Text>
+                ) : remaining !== null ? (
+                  <Text style={styles.tierStat}>{`${remaining} of ${cap} left`}</Text>
+                ) : (
+                  <SoldCount creatorId={event.creatorId} sold={sold} />
+                )}
               </View>
             );
           })}
@@ -112,6 +138,8 @@ export function EventScreen() {
         <TouchableOpacity style={styles.webButton} onPress={() => Linking.openURL(`${API_BASE_URL}/e/${event.id}`)}>
           <Text style={styles.webButtonText}>Get tickets on xoldout.app</Text>
         </TouchableOpacity>
+
+        <EventPromotersPanel eventId={event.id} eventTitle={event.title} creatorId={event.creatorId} />
       </View>
     </ScrollView>
   );
@@ -134,8 +162,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   badgeText: { color: colors.redSoft, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
+  headerInfo: { flex: 1, minWidth: 0 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
+  shareIcon: { color: colors.ink2, fontSize: 18 },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 4 },
-  creatorName: { color: colors.ink2, fontSize: 14, marginBottom: 12 },
+  creatorName: { color: colors.ink2, fontSize: 14 },
   detailsBlock: { marginBottom: 16, gap: 2 },
   detailText: { color: colors.ink2, fontSize: 13 },
   description: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 20 },
