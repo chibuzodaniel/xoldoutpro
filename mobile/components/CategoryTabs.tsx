@@ -15,23 +15,30 @@ const TABS: { label: string; type: CategoryType }[] = [
 // plain Discover feed, each other tab opens the single-category browse view.
 export function CategoryTabs({ active, onSelect }: { active: CategoryType; onSelect: (type: CategoryType) => void }) {
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.container} contentContainerStyle={styles.content}>
-      {TABS.map((tab) => {
-        const isActive = tab.type === active;
-        return (
-          <TouchableOpacity key={tab.label} style={styles.tab} onPress={() => onSelect(tab.type)}>
-            <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
-            {isActive && <View style={styles.underline} />}
-          </TouchableOpacity>
-        );
-      })}
-    </ScrollView>
+    <View style={styles.wrap}>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.content}>
+        {TABS.map((tab) => {
+          const isActive = tab.type === active;
+          return (
+            <TouchableOpacity key={tab.label} style={styles.tab} onPress={() => onSelect(tab.type)}>
+              <Text style={[styles.label, isActive && styles.labelActive]}>{tab.label}</Text>
+              {isActive && <View style={styles.underline} />}
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  content: { paddingHorizontal: 16, gap: 20 },
+  // Explicit height + flexGrow/flexShrink: 0 — a horizontal ScrollView with
+  // no size constraints of its own can otherwise stretch to fill the
+  // column parent's remaining vertical space instead of sizing to its
+  // single row of tabs, which is what produced a large empty gap between
+  // this and the Hero card below it.
+  wrap: { height: 44, flexGrow: 0, flexShrink: 0, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  content: { paddingHorizontal: 16, gap: 20, alignItems: "center" },
   tab: { paddingBottom: 10, position: "relative" },
   label: { color: colors.ink3, fontSize: 14, fontWeight: "600" },
   labelActive: { color: colors.ink },
