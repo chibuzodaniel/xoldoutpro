@@ -174,23 +174,34 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
       )}
 
       <View style={styles.addRow}>
-        <UserHandleAutocomplete
-          value={handle}
-          onChangeText={setHandle}
-          onSelect={(u) => setHandle(u.handle)}
-          excludeUserId={appUser?.id}
-          style={styles.handleInput}
-        />
-        <TextInput
-          value={sharePercent}
-          onChangeText={setSharePercent}
-          keyboardType="numeric"
-          style={[styles.input, styles.percentInput]}
-        />
+        <View style={styles.handleField}>
+          <Text style={styles.fieldLabel}>Handle</Text>
+          <UserHandleAutocomplete
+            value={handle}
+            onChangeText={setHandle}
+            onSelect={(u) => setHandle(u.handle)}
+            excludeUserId={appUser?.id}
+            style={styles.handleInput}
+          />
+        </View>
+        <View>
+          <Text style={styles.fieldLabel}>% you pay them per sale</Text>
+          <TextInput
+            value={sharePercent}
+            onChangeText={setSharePercent}
+            keyboardType="numeric"
+            accessibilityLabel="Percentage of your own net you'll pay this promoter per ticket sold"
+            style={[styles.input, styles.percentInput]}
+          />
+        </View>
         <TouchableOpacity style={styles.addButton} onPress={handleAdd} disabled={busy}>
           <Text style={styles.addButtonText}>Add</Text>
         </TouchableOpacity>
       </View>
+      <Text style={styles.helperNote}>
+        This comes out of your own earnings, not the buyer&apos;s price — e.g. 10% means you keep 90% of your net on
+        every ticket this promoter sells.
+      </Text>
     </View>
   );
 }
@@ -212,7 +223,10 @@ const styles = StyleSheet.create({
   copyLinkButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   copyLinkText: { color: colors.ink2, fontSize: 11.5, fontWeight: "600" },
   removeText: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
-  addRow: { flexDirection: "row", gap: 8 },
+  addRow: { flexDirection: "row", gap: 8, alignItems: "flex-end" },
+  helperNote: { color: colors.ink3, fontSize: 11, lineHeight: 15, marginTop: 8 },
+  fieldLabel: { color: colors.ink3, fontSize: 10, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 4 },
+  handleField: { flex: 1, minWidth: 0 },
   input: {
     borderWidth: 1,
     borderColor: colors.line,

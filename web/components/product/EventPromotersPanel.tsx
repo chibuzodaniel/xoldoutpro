@@ -182,22 +182,29 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
         </div>
       )}
 
-      <div className="flex gap-2">
-        <UserHandleAutocomplete
-          value={handle}
-          onChange={setHandle}
-          onSelect={(u) => setHandle(u.handle)}
-          excludeUserId={appUser?.id}
-          className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-sm"
-        />
-        <input
-          value={sharePercent}
-          onChange={(e) => setSharePercent(e.target.value)}
-          type="number"
-          min={1}
-          max={90}
-          className="w-16 rounded-lg border border-line bg-surface px-2 py-2 text-sm text-center"
-        />
+      <div className="flex gap-2 items-end">
+        <div className="flex-1 min-w-0">
+          <label className="block text-[10px] uppercase tracking-widest text-ink-3 mb-1">Handle</label>
+          <UserHandleAutocomplete
+            value={handle}
+            onChange={setHandle}
+            onSelect={(u) => setHandle(u.handle)}
+            excludeUserId={appUser?.id}
+            className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-widest text-ink-3 mb-1">% you pay them per sale</label>
+          <input
+            value={sharePercent}
+            onChange={(e) => setSharePercent(e.target.value)}
+            type="number"
+            min={1}
+            max={90}
+            aria-label="Percentage of your own net you'll pay this promoter per ticket sold"
+            className="w-16 rounded-lg border border-line bg-surface px-2 py-2 text-sm text-center"
+          />
+        </div>
         <button
           onClick={handleAdd}
           disabled={busy}
@@ -206,6 +213,10 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
           Add
         </button>
       </div>
+      <p className="text-[11px] text-ink-3 mt-2">
+        This comes out of your own earnings, not the buyer&apos;s price — e.g. 10% means you keep 90% of your net on every
+        ticket this promoter sells.
+      </p>
     </div>
   );
 }
