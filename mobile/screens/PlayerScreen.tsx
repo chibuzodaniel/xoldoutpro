@@ -3,7 +3,7 @@ import { Image, PanResponder, Share, Text, TouchableOpacity, View, StyleSheet } 
 import { Svg, Path, Rect } from "react-native-svg";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { usePlayer } from "../lib/PlayerContext";
+import { usePlayer, usePlayerProgress } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors, fonts } from "../lib/theme";
 
@@ -144,8 +144,6 @@ export function PlayerScreen() {
   const {
     current,
     isPlaying,
-    positionSec,
-    durationSec,
     repeatMode,
     shuffled,
     queue,
@@ -158,6 +156,7 @@ export function PlayerScreen() {
     toggleShuffle,
     play,
   } = usePlayer();
+  const { positionSec, durationSec } = usePlayerProgress();
   const [showLyrics, setShowLyrics] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
 
@@ -181,8 +180,9 @@ export function PlayerScreen() {
           <Text style={styles.minimize}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerLabel}>Playing from XOLDOUT</Text>
-        <TouchableOpacity onPress={handleShare} hitSlop={12}>
+        <TouchableOpacity style={styles.shareButton} onPress={handleShare} hitSlop={12}>
           <Text style={styles.shareIcon}>↗</Text>
+          <Text style={styles.shareText}>Share</Text>
         </TouchableOpacity>
       </View>
 
@@ -264,8 +264,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 24, paddingTop: 12 },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
   minimize: { color: colors.ink2, fontSize: 30, width: 28 },
-  headerLabel: { color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
-  shareIcon: { color: colors.ink2, fontSize: 20, width: 28, textAlign: "right" },
+  headerLabel: { flex: 1, textAlign: "center", color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
+  shareButton: { flexDirection: "row", alignItems: "center", gap: 4 },
+  shareIcon: { color: colors.redSoft, fontSize: 18 },
+  shareText: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
   artworkWrap: { alignItems: "center", marginBottom: 24 },
   artwork: { width: 300, height: 300, borderRadius: 16, backgroundColor: colors.surface2 },
   artworkPlaceholder: {},

@@ -10,6 +10,7 @@ import { CategoryTabs, type CategoryType } from "../components/CategoryTabs";
 import { Grid } from "../components/Grid";
 import { ProductCard } from "../components/ProductCard";
 import { EventCard } from "../components/EventCard";
+import { useOwnedProducts } from "../lib/useOwnedProducts";
 
 const SECTION_TITLE: Record<"RELEASE" | "BEAT" | "EVENT" | "MERCH", string> = {
   RELEASE: "Music",
@@ -51,6 +52,7 @@ export function DiscoverCategoryScreen() {
   }
 
   const items = data ? (data.type === "EVENT" ? data.events : data.products) : null;
+  const ownedIds = useOwnedProducts(data && data.type !== "EVENT" ? data.products.map((p) => p.id) : []);
 
   return (
     <View style={styles.container}>
@@ -70,7 +72,7 @@ export function DiscoverCategoryScreen() {
                 ))
               : data!.products.map((p) => (
                   <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
-                    <ProductCard product={p} width={threeColWidth} />
+                    <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
                   </TouchableOpacity>
                 ))}
           </Grid>

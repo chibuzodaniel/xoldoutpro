@@ -4,6 +4,8 @@ import {
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   Text,
   TextInput,
   TouchableOpacity,
@@ -169,9 +171,12 @@ export function CatalogScreen() {
   }
 
   return (
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <FlatList
       style={styles.container}
       contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
       data={items}
       keyExtractor={(item) => item.id}
       ListEmptyComponent={<Text style={styles.emptyText}>Nothing published yet.</Text>}
@@ -220,6 +225,7 @@ export function CatalogScreen() {
         );
       }}
     />
+    </KeyboardAvoidingView>
   );
 }
 

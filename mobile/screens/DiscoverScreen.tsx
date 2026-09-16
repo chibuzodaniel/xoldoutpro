@@ -20,6 +20,7 @@ import { EventCard } from "../components/EventCard";
 import { Grid } from "../components/Grid";
 import { HeroCard } from "../components/HeroCard";
 import { ProductCard } from "../components/ProductCard";
+import { useOwnedProducts } from "../lib/useOwnedProducts";
 import { BillboardRail } from "../components/BillboardRail";
 import { CategoryTabs, type CategoryType } from "../components/CategoryTabs";
 
@@ -43,6 +44,13 @@ export function DiscoverScreen() {
   const [billboards, setBillboards] = useState<BillboardSlide[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const ownedIds = useOwnedProducts(
+    data
+      ? [data.hero?.id, ...data.newReleasesBelowHero.map((p) => p.id), ...data.recommended.map((p) => p.id), ...data.topBeats.map((p) => p.id), ...data.merchItems.map((p) => p.id)].filter(
+          (id): id is string => Boolean(id),
+        )
+      : [],
+  );
 
   async function load() {
     try {
@@ -124,7 +132,7 @@ export function DiscoverScreen() {
                 <View style={styles.grid2Col}>
                   {newReleasesCapped.map((p) => (
                     <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
-                      <ProductCard product={p} width={twoColWidth} />
+                      <ProductCard product={p} width={twoColWidth} owned={ownedIds.has(p.id)} />
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -175,7 +183,7 @@ export function DiscoverScreen() {
             <Grid>
               {d.recommended.map((p) => (
                 <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
-                  <ProductCard product={p} width={threeColWidth} />
+                  <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
                 </TouchableOpacity>
               ))}
             </Grid>
@@ -193,7 +201,7 @@ export function DiscoverScreen() {
             <Grid>
               {d.topBeats.map((p) => (
                 <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
-                  <ProductCard product={p} width={threeColWidth} />
+                  <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
                 </TouchableOpacity>
               ))}
             </Grid>
@@ -229,7 +237,7 @@ export function DiscoverScreen() {
             <Grid>
               {d.merchItems.map((p) => (
                 <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
-                  <ProductCard product={p} width={threeColWidth} />
+                  <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
                 </TouchableOpacity>
               ))}
             </Grid>

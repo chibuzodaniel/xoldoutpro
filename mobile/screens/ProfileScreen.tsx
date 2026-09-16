@@ -21,6 +21,7 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { MeStats } from "../lib/walletTypes";
 import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
+import { AppLogoHeader } from "../components/AppLogoHeader";
 import { VerifiedBadge, primaryBadgeType } from "../components/VerifiedBadge";
 
 const CATALOG_ROWS = [
@@ -44,6 +45,9 @@ function SignedInView() {
 
   return (
     <View>
+      <View style={styles.logoHeader}>
+        <AppLogoHeader />
+      </View>
       {appUser.coverUrl ? (
         <Image source={{ uri: appUser.coverUrl }} style={styles.cover} />
       ) : (
@@ -120,6 +124,7 @@ function SignedOutView() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -138,6 +143,7 @@ function SignedOutView() {
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.authContent}>
+      <AppLogoHeader style={styles.authLogoHeader} />
       <Text style={styles.eyebrow}>{mode === "login" ? "Welcome back" : "Create an account"}</Text>
 
       <TextInput
@@ -149,15 +155,20 @@ function SignedOutView() {
         autoCapitalize="none"
         keyboardType="email-address"
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor={colors.ink3}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        autoCapitalize="none"
-      />
+      <View style={styles.passwordRow}>
+        <TextInput
+          style={[styles.input, styles.passwordInput]}
+          placeholder="Password"
+          placeholderTextColor={colors.ink3}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+        />
+        <TouchableOpacity style={styles.togglePasswordButton} onPress={() => setShowPassword((v) => !v)}>
+          <Text style={styles.togglePasswordText}>{showPassword ? "Hide" : "Show"}</Text>
+        </TouchableOpacity>
+      </View>
 
       {error && <Text style={styles.errorText}>{error}</Text>}
 
@@ -208,6 +219,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   centered: { flex: 1, alignItems: "center", justifyContent: "center" },
   authContent: { flex: 1, padding: 20, justifyContent: "center" },
+  authLogoHeader: { marginBottom: 40 },
   eyebrow: { color: colors.red, fontSize: 12, fontWeight: "700", letterSpacing: 2, textTransform: "uppercase", marginBottom: 24 },
   input: {
     backgroundColor: colors.surface,
@@ -220,12 +232,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontSize: 14,
   },
+  passwordRow: { position: "relative", marginBottom: 12 },
+  passwordInput: { marginBottom: 0, paddingRight: 60 },
+  togglePasswordButton: { position: "absolute", right: 14, top: 0, bottom: 0, justifyContent: "center" },
+  togglePasswordText: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
   errorText: { color: colors.redSoft, fontSize: 13, marginBottom: 12 },
   primaryButton: { backgroundColor: colors.red, borderRadius: 8, paddingVertical: 14, alignItems: "center", marginTop: 8 },
   primaryButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   switchModeButton: { alignItems: "center", marginTop: 20 },
   switchModeText: { color: colors.redSoft, fontSize: 13 },
 
+  logoHeader: { paddingHorizontal: 16, paddingTop: 50, paddingBottom: 16 },
   cover: { width: "100%", height: 110, backgroundColor: colors.surface2 },
   coverPlaceholder: {},
   content: { paddingHorizontal: 16, paddingBottom: 40, marginTop: -32 },

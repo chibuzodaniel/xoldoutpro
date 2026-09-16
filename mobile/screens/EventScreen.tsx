@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
+  KeyboardAvoidingView,
   Linking,
+  Platform,
   ScrollView,
   Share,
   StyleSheet,
@@ -39,6 +41,7 @@ export function EventScreen() {
 
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     apiGet<{ event: EventDetail }>(`/api/events/${id}`)
@@ -65,7 +68,14 @@ export function EventScreen() {
   const cover = event.coverImageLadder?.["1024"];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      ref={scrollRef}
+      style={styles.container}
+      contentContainerStyle={{ paddingBottom: 40 }}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <View style={[styles.imageBox, { width, height: (width * 3) / 4 }]}>
         {cover ? (
           <Image source={{ uri: cover }} style={styles.image} />
@@ -89,6 +99,7 @@ export function EventScreen() {
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
+              style={styles.shareButton}
               onPress={() =>
                 Share.share({ message: `${event.title} — ${event.creator.displayName} on XOLDOUT\n${API_BASE_URL}/e/${event.id}` }).catch(
                   () => {},
@@ -96,6 +107,7 @@ export function EventScreen() {
               }
             >
               <Text style={styles.shareIcon}>↗</Text>
+              <Text style={styles.shareText}>Share</Text>
             </TouchableOpacity>
             <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} />
           </View>
@@ -139,9 +151,15 @@ export function EventScreen() {
           <Text style={styles.webButtonText}>Get tickets on xoldout.app</Text>
         </TouchableOpacity>
 
-        <EventPromotersPanel eventId={event.id} eventTitle={event.title} creatorId={event.creatorId} />
+        <EventPromotersPanel
+          eventId={event.id}
+          eventTitle={event.title}
+          creatorId={event.creatorId}
+          onFocusInput={() => scrollRef.current?.scrollToEnd({ animated: true })}
+        />
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -165,7 +183,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 },
   headerInfo: { flex: 1, minWidth: 0 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
-  shareIcon: { color: colors.ink2, fontSize: 18 },
+  shareButton: { flexDirection: "row", alignItems: "center", gap: 4 },
+  shareIcon: { color: colors.redSoft, fontSize: 16 },
+  shareText: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 4 },
   creatorName: { color: colors.ink2, fontSize: 14 },
   detailsBlock: { marginBottom: 16, gap: 2 },

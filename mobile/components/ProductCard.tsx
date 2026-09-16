@@ -6,7 +6,7 @@ import { colors, fonts } from "../lib/theme";
 // Mirrors web's components/product/ProductCard.tsx: image plus category
 // label, title, creator, and price alongside either sold count or the
 // remaining-stock count.
-export function ProductCard({ product, width }: { product: ProductCardData; width: number }) {
+export function ProductCard({ product, width, owned }: { product: ProductCardData; width: number; owned?: boolean }) {
   const isSoldOut = Boolean(product.stockPolicy?.soldOutAt);
   const cap = product.stockPolicy?.cap ?? null;
   const sold = product.stockPolicy?.sold ?? 0;
@@ -29,6 +29,12 @@ export function ProductCard({ product, width }: { product: ProductCardData; widt
         {isSoldOut && (
           <View style={styles.soldOutOverlay}>
             <Text style={styles.soldOutText}>Sold out</Text>
+          </View>
+        )}
+
+        {owned && !isSoldOut && (
+          <View style={styles.ownedBadge}>
+            <Text style={styles.ownedBadgeText}>Owned</Text>
           </View>
         )}
       </View>
@@ -72,6 +78,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  ownedBadge: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  ownedBadgeText: { color: colors.redSoft, fontSize: 9, fontWeight: "700", textTransform: "uppercase" },
   soldOutText: {
     color: colors.ink,
     fontSize: 11,

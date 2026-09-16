@@ -17,13 +17,33 @@ import { API_BASE_URL, apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
 import type { ProductDetail } from "../lib/productDetailTypes";
 import { formatNaira } from "../lib/format";
-import { usePreviewPlayer } from "../lib/usePreviewPlayer";
+import { usePlayer } from "../lib/PlayerContext";
+import { useAuth } from "../lib/AuthContext";
 import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
 import { PublishedByYou } from "../components/PublishedByYou";
 import { ReportButton } from "../components/ReportButton";
 
 const TYPE_LABEL: Record<ProductDetail["type"], string> = { RELEASE: "", BEAT: "Beat", MERCH: "Merch" };
+
+// Same shape as web's PurchaseAndPlayer/BeatPurchaseAndPlayer access state —
+// fetched separately from the public product-detail payload because it's
+// the only response that carries full (non-preview-windowed) durations and
+// lyricsText, and it's what tells us whether this listener is entitled to
+// full playback at all (GET /api/{products,beats}/:id/access).
+type ReleaseAccess = {
+  entitled: boolean;
+  isOwner: boolean;
+  tracks: { id: string; title: string; description: string | null; durationSec: number; previewStartSec: number; previewEndSec: number; lyricsText: string | null }[];
+};
+
+type BeatAccess = {
+  entitled: boolean;
+  isOwner: boolean;
+  durationSec: number;
+  previewStartSec: number;
+  previewEndSec: number;
+};
 
 function formatDuration(sec: number) {
   const m = Math.floor(sec / 60);
@@ -69,15 +89,42 @@ export function ProductScreen() {
   const route = useRoute<RouteProp<RootStackParamList, "Product">>();
   const { id } = route.params;
 
+  const { firebaseUser } = useAuth();
+  const player = usePlayer();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const preview = usePreviewPlayer();
+  const [releaseAccess, setReleaseAccess] = useState<ReleaseAccess | null>(null);
+  const [beatAccess, setBeatAccess] = useState<BeatAccess | null>(null);
 
   useEffect(() => {
     apiGet<{ product: ProductDetail }>(`/api/products/${id}`)
       .then((data) => setProduct(data.product))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
   }, [id]);
+
+  // Mirrors web's PurchaseAndPlayer/BeatPurchaseAndPlayer: the public
+  // product payload above never carries full durations or lyricsText (a
+  // signed-out crawler could otherwise infer full audio length), so
+  // entitlement + the real track data both come from this second,
+  // auth-aware call.
+  useEffect(() => {
+    if (!product) return;
+    let cancelled = false;
+    async function loadAccess() {
+      const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
+      if (product!.type === "RELEASE") {
+        const data = await apiGet<ReleaseAccess>(`/api/products/${product!.id}/access`, idToken).catch(() => null);
+        if (!cancelled && data) setReleaseAccess(data);
+      } else if (product!.type === "BEAT") {
+        const data = await apiGet<BeatAccess>(`/api/beats/${product!.id}/access`, idToken).catch(() => null);
+        if (!cancelled && data) setBeatAccess(data);
+      }
+    }
+    loadAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, [product, firebaseUser]);
 
   if (error) {
     return (
@@ -142,6 +189,7 @@ export function ProductScreen() {
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
+              style={styles.shareButton}
               onPress={() =>
                 Share.share({ message: `${product.title} — ${product.creator.displayName} on XOLDOUT\n${API_BASE_URL}${webPathFor(product)}` }).catch(
                   () => {},
@@ -149,6 +197,7 @@ export function ProductScreen() {
               }
             >
               <Text style={styles.shareIcon}>↗</Text>
+              <Text style={styles.shareText}>Share</Text>
             </TouchableOpacity>
             <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} />
           </View>
@@ -183,46 +232,95 @@ export function ProductScreen() {
           )}
         </View>
 
+        {product.merchItem && product.merchItem.shippingFeeKobo > 0 && (
+          <Text style={styles.shippingNote}>+ {formatNaira(product.merchItem.shippingFeeKobo)} shipping</Text>
+        )}
+
         {product.description && <Text style={styles.description}>{product.description}</Text>}
 
         {product.release && product.release.tracks.length > 0 && (
           <View style={styles.trackList}>
-            {product.release.tracks.map((t) => (
-              <View key={t.id} style={styles.trackRow}>
-                <PreviewButton
-                  playing={preview.isPlaying(t.id)}
-                  loading={preview.isLoading(t.id)}
-                  onPress={() => preview.toggle("track", t.id)}
-                />
-                <Text style={styles.trackOrder}>{t.order}</Text>
-                <Text style={styles.trackTitle} numberOfLines={1}>
-                  {t.title}
-                </Text>
-                <Text style={styles.trackDuration}>{formatDuration(t.durationSec)}</Text>
-              </View>
-            ))}
+            {product.release.tracks.map((t) => {
+              const accessTrack = releaseAccess?.tracks.find((at) => at.id === t.id);
+              const entitled = releaseAccess?.entitled || releaseAccess?.isOwner;
+              const isThisTrack = player.current?.trackId === t.id;
+              const durationSec = entitled ? (accessTrack?.durationSec ?? t.durationSec) : t.previewEndSec - t.previewStartSec;
+              return (
+                <View key={t.id} style={styles.trackRow}>
+                  <PreviewButton
+                    playing={isThisTrack && player.isPlaying}
+                    loading={isThisTrack && player.loading}
+                    onPress={() => {
+                      if (isThisTrack) {
+                        player.togglePlay();
+                        return;
+                      }
+                      const queue = product.release!.tracks.map((qt) => ({
+                        trackId: qt.id,
+                        title: qt.title,
+                        artistName: product.creator.displayName,
+                        artworkUrl: image ?? null,
+                        lyricsText: releaseAccess?.tracks.find((at) => at.id === qt.id)?.lyricsText ?? null,
+                        productId: product.id,
+                      }));
+                      player.play(
+                        { trackId: t.id, title: t.title, artistName: product.creator.displayName, artworkUrl: image ?? null, lyricsText: accessTrack?.lyricsText ?? null, productId: product.id },
+                        queue,
+                      );
+                    }}
+                  />
+                  <Text style={styles.trackOrder}>{t.order}</Text>
+                  <View style={styles.trackTitleCol}>
+                    <Text style={styles.trackTitle} numberOfLines={1}>
+                      {t.title}
+                    </Text>
+                    {!entitled && <Text style={styles.trackPreviewTag}>Preview</Text>}
+                  </View>
+                  <Text style={styles.trackDuration}>{formatDuration(durationSec)}</Text>
+                </View>
+              );
+            })}
           </View>
         )}
 
-        {product.beat && (
-          <View style={styles.beatPreviewRow}>
-            <PreviewButton
-              playing={preview.isPlaying(product.id)}
-              loading={preview.isLoading(product.id)}
-              onPress={() => preview.toggle("beat", product.id)}
-            />
-            <Text style={styles.metaText}>{formatDuration(product.beat.durationSec)}</Text>
-          </View>
+        {releaseAccess?.entitled && (
+          <Text style={styles.ownedNote}>You own this. Playable offline once downloaded to your Library.</Text>
         )}
 
-        {preview.error && <Text style={styles.errorText}>{preview.error}</Text>}
+        {product.beat && (() => {
+          const beatEntitled = beatAccess?.entitled || beatAccess?.isOwner;
+          const isThisBeat = player.current?.trackId === product.id && player.current?.kind === "beat";
+          const durationSec = beatEntitled ? (beatAccess?.durationSec ?? product.beat.durationSec) : product.beat.previewEndSec - product.beat.previewStartSec;
+          return (
+            <View style={styles.beatPreviewRow}>
+              <PreviewButton
+                playing={isThisBeat && player.isPlaying}
+                loading={isThisBeat && player.loading}
+                onPress={() => {
+                  if (isThisBeat) {
+                    player.togglePlay();
+                    return;
+                  }
+                  player.play({ trackId: product.id, title: product.title, artistName: product.creator.displayName, artworkUrl: image ?? null, lyricsText: null, kind: "beat", productId: product.id });
+                }}
+              />
+              <Text style={styles.metaText}>{beatEntitled ? "Full beat" : "Preview"} · {formatDuration(durationSec)}</Text>
+            </View>
+          );
+        })()}
 
-        <TouchableOpacity
-          style={styles.webButton}
-          onPress={() => Linking.openURL(`${API_BASE_URL}${webPathFor(product)}`)}
-        >
-          <Text style={styles.webButtonText}>Buy on xoldout.app</Text>
-        </TouchableOpacity>
+        {beatAccess?.entitled && <Text style={styles.ownedNote}>You own this beat, licensed for commercial use.</Text>}
+
+        {player.error && <Text style={styles.errorText}>{player.error}</Text>}
+
+        {!(releaseAccess?.entitled || releaseAccess?.isOwner || beatAccess?.entitled || beatAccess?.isOwner) && (
+          <TouchableOpacity
+            style={styles.webButton}
+            onPress={() => Linking.openURL(`${API_BASE_URL}${webPathFor(product)}`)}
+          >
+            <Text style={styles.webButtonText}>Buy on xoldout.app</Text>
+          </TouchableOpacity>
+        )}
 
         {product.type === "BEAT" && (
           <TouchableOpacity onPress={() => Linking.openURL(`${API_BASE_URL}/legal/terms#beat-licenses`)}>
@@ -256,7 +354,9 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 12 },
   headerInfo: { flex: 1, minWidth: 0 },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 14, paddingTop: 2 },
-  shareIcon: { color: colors.ink2, fontSize: 18 },
+  shareButton: { flexDirection: "row", alignItems: "center", gap: 4 },
+  shareIcon: { color: colors.redSoft, fontSize: 16 },
+  shareText: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   creatorName: { color: colors.ink2, fontSize: 14 },
@@ -267,14 +367,18 @@ const styles = StyleSheet.create({
   price: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif },
   stat: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
   statDim: { color: colors.ink3, fontSize: 13 },
+  shippingNote: { color: colors.ink3, fontSize: 12, marginTop: -6, marginBottom: 12 },
   description: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 16 },
   trackList: { marginBottom: 16 },
   trackRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   trackOrder: { color: colors.ink3, fontSize: 12, width: 16 },
-  trackTitle: { color: colors.ink2, fontSize: 14, flex: 1 },
+  trackTitleCol: { flex: 1, minWidth: 0 },
+  trackTitle: { color: colors.ink2, fontSize: 14 },
+  trackPreviewTag: { color: colors.ink3, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.5, marginTop: 1 },
   trackDuration: { color: colors.ink3, fontSize: 12 },
   beatPreviewRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 16 },
   metaText: { color: colors.ink3, fontSize: 12 },
+  ownedNote: { color: colors.green, fontSize: 12, marginBottom: 16 },
   previewButton: {
     width: 32,
     height: 32,

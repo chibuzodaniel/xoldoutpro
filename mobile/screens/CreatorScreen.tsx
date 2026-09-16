@@ -19,6 +19,7 @@ import { Avatar } from "../components/Avatar";
 import { Grid } from "../components/Grid";
 import { ProductCard } from "../components/ProductCard";
 import { EventCard } from "../components/EventCard";
+import { useOwnedProducts } from "../lib/useOwnedProducts";
 
 const HORIZONTAL_PADDING = 16;
 
@@ -30,6 +31,7 @@ export function CreatorScreen() {
 
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const ownedIds = useOwnedProducts(profile?.catalog.map((p) => p.id) ?? []);
 
   useEffect(() => {
     apiGet<CreatorProfile>(`/api/creators/${handle}`)
@@ -101,7 +103,7 @@ export function CreatorScreen() {
             <Grid>
               {profile.catalog.map((p) => (
                 <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
-                  <ProductCard product={p} width={threeColWidth} />
+                  <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
                 </TouchableOpacity>
               ))}
             </Grid>

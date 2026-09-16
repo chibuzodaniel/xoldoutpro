@@ -1,12 +1,13 @@
 {
   "expo": {
-    "name": "mobile",
+    "name": "XOLDOUT",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
+      "bundleIdentifier": "com.xoldout.mobile",
       "supportsTablet": true,
       "infoPlist": {
         "UIBackgroundModes": [
@@ -15,8 +16,9 @@
       }
     },
     "android": {
+      "package": "com.xoldout.mobile",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0a0a0b",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
@@ -39,7 +41,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/android-icon-monochrome.png",
           "color": "#e11d2e"
         }
       ]

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
-  Image,
   SafeAreaView,
   StyleSheet,
   Text,
@@ -15,6 +14,7 @@ import { apiGet } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors } from "../lib/theme";
+import { AppLogoHeader } from "../components/AppLogoHeader";
 import { BellIcon } from "../components/NavIcons";
 import { DiscoverScreen } from "./DiscoverScreen";
 
@@ -70,18 +70,18 @@ export function HomeScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.wordmarkRow}>
-          <View style={styles.wordmarkLeft}>
-            <Image source={require("../assets/icon.png")} style={styles.wordmarkIcon} />
-            <Text style={styles.title}>XOLDOUT</Text>
-          </View>
-          <TouchableOpacity style={styles.bellButton} onPress={() => navigation.navigate("Notifications")}>
-            <BellIcon color={colors.ink2} />
-            {unreadCount > 0 && (
-              <View style={styles.unreadBadge}>
-                <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <AppLogoHeader
+            right={
+              <TouchableOpacity style={styles.bellButton} onPress={() => navigation.navigate("Notifications")}>
+                <BellIcon color={colors.ink2} />
+                {unreadCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            }
+          />
         </View>
         <TextInput
           style={styles.input}
@@ -121,8 +121,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, paddingTop: 50 },
   header: { paddingHorizontal: 20 },
   searchResults: { flex: 1, paddingHorizontal: 20 },
-  wordmarkRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
-  wordmarkLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  wordmarkRow: { marginBottom: 16 },
   bellButton: { position: "relative", padding: 4 },
   unreadBadge: {
     position: "absolute",
@@ -137,8 +136,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   unreadBadgeText: { color: colors.ink, fontSize: 9, fontWeight: "700" },
-  wordmarkIcon: { width: 22, height: 22, borderRadius: 5 },
-  title: { color: colors.ink, fontSize: 16, fontWeight: "800", letterSpacing: -0.3 },
   input: {
     backgroundColor: colors.surface2,
     color: colors.ink,
