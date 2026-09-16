@@ -11,6 +11,7 @@ import { buildDiscoverMetadata } from "@/lib/og";
 import { getDiscoverData } from "@/lib/discover/getDiscoverData";
 import { getActiveBillboards } from "@/lib/commerce/billboards";
 import { BillboardRail } from "@/components/discover/BillboardRail";
+import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -97,11 +98,13 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           {products.length === 0 ? (
             <p className="text-sm text-ink-3">Nothing published yet.</p>
           ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {products.map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            <OwnedBadgesProvider productIds={products.map((p) => p.id)}>
+              <div className="grid grid-cols-3 gap-3">
+                {products.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+            </OwnedBadgesProvider>
           )}
         </section>
       </div>
@@ -112,6 +115,9 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
     { hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators },
     billboards,
   ] = await Promise.all([getDiscoverData(), getActiveBillboards()]);
+  const allProductIds = [hero?.id, ...newReleasesBelowHero.map((p) => p.id), ...recommended.map((p) => p.id), ...topBeats.map((p) => p.id), ...merchItems.map((p) => p.id)].filter(
+    (id): id is string => Boolean(id),
+  );
   const heroArt = hero ? ((hero.release?.artworkLadder as Record<string, string> | undefined)?.["1024"]) : null;
   const heroSoldOut = Boolean(hero?.stockPolicy?.soldOutAt);
   const heroCap = hero?.stockPolicy?.cap ?? null;
@@ -119,9 +125,10 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
   const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
 
   return (
-    <div className="pb-8">
-      <AppHeader />
-      <CategoryTabs active={null} />
+    <OwnedBadgesProvider productIds={allProductIds}>
+      <div className="pb-8">
+        <AppHeader />
+        <CategoryTabs active={null} />
 
       {hero && (
         <Link href={`/r/${hero.id}`} className="block relative mx-4 mb-6 rounded-xl overflow-hidden aspect-[4/5]">
@@ -343,5 +350,6 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
         </section>
       )}
     </div>
+    </OwnedBadgesProvider>
   );
 }

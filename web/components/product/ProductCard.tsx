@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { SoldCount } from "@/components/product/SoldCount";
+import { useOwnedProducts } from "@/components/product/OwnedBadges";
 
 export type ProductCardData = {
   id: string;
@@ -54,6 +57,7 @@ function categoryLabelFor(product: ProductCardData) {
 // price plus either sold count or remaining count, plus the sold-out state.
 // A sold-out item is never hidden, only visually marked.
 export function ProductCard({ product }: { product: ProductCardData }) {
+  const owned = useOwnedProducts().has(product.id);
   const isSoldOut = Boolean(product.stockPolicy?.soldOutAt);
   const cap = product.stockPolicy?.cap ?? null;
   const sold = product.stockPolicy?.sold ?? 0;
@@ -86,6 +90,12 @@ export function ProductCard({ product }: { product: ProductCardData }) {
               Sold out
             </span>
           </div>
+        )}
+
+        {owned && !isSoldOut && (
+          <span className="absolute right-1.5 top-1.5 rounded-full bg-green/90 px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
+            Owned
+          </span>
         )}
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{product.title}</p>

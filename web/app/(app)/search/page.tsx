@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
+import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
@@ -78,11 +79,13 @@ export default function SearchPage() {
       {!queryTooShort && products.length > 0 && (
         <div>
           <h3 className="text-[12px] font-bold uppercase tracking-wide text-ink-3 mb-3">Releases</h3>
-          <div className="grid grid-cols-3 gap-3">
-            {products.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
+          <OwnedBadgesProvider productIds={products.map((p) => p.id)}>
+            <div className="grid grid-cols-3 gap-3">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          </OwnedBadgesProvider>
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { ProfileHeaderRow } from "@/components/profile/ProfileHeaderRow";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
+import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
 import { EventCard } from "@/components/product/EventCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
@@ -184,20 +185,22 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                 </div>
               </div>
             )}
-            {CATALOG_SECTIONS.map(({ types, label }) => {
-              const items = catalog.filter((p) => types.includes(p.type));
-              if (items.length === 0) return null;
-              return (
-                <div key={label}>
-                  <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">{label}</h2>
-                  <div className="grid grid-cols-3 gap-3">
-                    {items.map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
+            <OwnedBadgesProvider productIds={catalog.map((p) => p.id)}>
+              {CATALOG_SECTIONS.map(({ types, label }) => {
+                const items = catalog.filter((p) => types.includes(p.type));
+                if (items.length === 0) return null;
+                return (
+                  <div key={label}>
+                    <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">{label}</h2>
+                    <div className="grid grid-cols-3 gap-3">
+                      {items.map((p) => (
+                        <ProductCard key={p.id} product={p} />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </OwnedBadgesProvider>
           </div>
         )}
       </div>
