@@ -8,6 +8,7 @@ import {
 } from "firebase/auth";
 import { firebaseAuth } from "./firebase";
 import { apiPost } from "./api";
+import { enablePush } from "./push";
 import type { AppUser } from "./authTypes";
 
 type AuthState = {
@@ -37,6 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
     setAppUser(data.accountDeleted ? null : data.user);
     setNeedsOnboarding(Boolean(data.needsOnboarding));
+
+    // Notifications are on by default now — there's no in-app toggle, so
+    // this is the only place push ever gets (re-)registered. Fire-and-forget:
+    // a denied OS permission or an Expo Go build without push support should
+    // never block sign-in.
+    if (data.user && !data.user.pushEnabled) {
+      enablePush(user).catch(() => {});
+    }
   }, []);
 
   useEffect(() => {

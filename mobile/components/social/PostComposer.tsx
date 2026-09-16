@@ -1,10 +1,11 @@
 import { useState } from "react";
 import {
-  ActivityIndicator,
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   Text,
   TextInput,
   TouchableOpacity,
@@ -32,8 +33,6 @@ export function PostComposer({
   const { firebaseUser } = useAuth();
   const [body, setBody] = useState("");
   const [image, setImage] = useState<{ uri: string; type: string } | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function pickImage() {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -52,30 +51,30 @@ export function PostComposer({
   function reset() {
     setBody("");
     setImage(null);
-    setError(null);
   }
 
   async function handleSubmit() {
     const trimmed = body.trim();
+    const pendingImage = image;
     if (!trimmed || !firebaseUser) return;
-    setSubmitting(true);
-    setError(null);
+    // Closes right away rather than making the user wait on the upload+create
+    // round trip staring at a spinner — the post appears in the feed (via
+    // onPosted) once that finishes in the background; a failure surfaces as
+    // an alert instead of reopening the sheet with the draft intact.
+    reset();
+    onClose();
     try {
       const idToken = await firebaseUser.getIdToken();
       let imageUrl: string | null = null;
-      if (image) {
-        const key = await uploadImage(image.uri, image.type, "artwork", idToken);
+      if (pendingImage) {
+        const key = await uploadImage(pendingImage.uri, pendingImage.type, "artwork", idToken);
         const data = await apiPost<{ artworkLadder: Record<string, string> }>("/api/uploads/artwork/finalize", idToken, { key });
         imageUrl = data.artworkLadder["1024"];
       }
       const data = await apiPost<{ post: FeedPost }>("/api/posts", idToken, { body: trimmed, imageUrl });
       onPosted(data.post);
-      reset();
-      onClose();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not publish post");
-    } finally {
-      setSubmitting(false);
+      Alert.alert("Could not publish post", e instanceof Error ? e.message : "Something went wrong");
     }
   }
 
@@ -85,6 +84,7 @@ export function PostComposer({
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.backdrop}
       >
+        <Pressable style={styles.backdropTapArea} onPress={onClose} />
         <View style={styles.sheet}>
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeText}>✕</Text>
@@ -111,8 +111,6 @@ export function PostComposer({
             </View>
           )}
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
-
           <View style={styles.footer}>
             <TouchableOpacity onPress={pickImage}>
               <Text style={styles.imagePickerIcon}>🖼</Text>
@@ -121,12 +119,8 @@ export function PostComposer({
               <Text style={styles.charCount}>
                 {body.length}/{MAX_LEN}
               </Text>
-              <TouchableOpacity style={styles.postButton} onPress={handleSubmit} disabled={submitting || !body.trim()}>
-                {submitting ? (
-                  <ActivityIndicator size="small" color={colors.ink} />
-                ) : (
-                  <Text style={styles.postButtonText}>Post</Text>
-                )}
+              <TouchableOpacity style={styles.postButton} onPress={handleSubmit} disabled={!body.trim()}>
+                <Text style={styles.postButtonText}>Post</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -138,6 +132,7 @@ export function PostComposer({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  backdropTapArea: { flex: 1 },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 32 },
   closeButton: {
     position: "absolute",
@@ -168,7 +163,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   removeImageText: { color: colors.ink, fontSize: 10 },
-  errorText: { color: colors.redSoft, fontSize: 12, marginTop: 8 },
   footer: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 },
   imagePickerIcon: { fontSize: 22 },
   footerRight: { flexDirection: "row", alignItems: "center", gap: 12 },

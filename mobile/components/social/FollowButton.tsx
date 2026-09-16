@@ -15,7 +15,6 @@ export function FollowButton({
 }) {
   const { appUser, firebaseUser } = useAuth();
   const [following, setFollowing] = useState<boolean | null>(initialFollowing ?? null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!appUser || !firebaseUser || appUser.id === targetUserId || initialFollowing !== undefined) return;
@@ -30,33 +29,31 @@ export function FollowButton({
 
   async function toggle() {
     if (!firebaseUser) return;
-    setBusy(true);
+    const next = !following;
+    setFollowing(next);
     try {
       const idToken = await firebaseUser.getIdToken();
-      if (following) {
-        await apiDelete(`/api/follow?targetUserId=${targetUserId}`, idToken);
-      } else {
+      if (next) {
         await apiPost("/api/follow", idToken, { targetUserId });
+      } else {
+        await apiDelete(`/api/follow?targetUserId=${targetUserId}`, idToken);
       }
-      setFollowing(!following);
     } catch {
-      // best-effort, no toast surface in this component
-    } finally {
-      setBusy(false);
+      setFollowing(!next);
     }
   }
 
   return (
     <TouchableOpacity
       onPress={toggle}
-      disabled={busy || following === null}
+      disabled={following === null}
       style={[
         styles.button,
         compact ? styles.buttonCompact : styles.buttonDefault,
         following ? styles.buttonFollowing : styles.buttonNotFollowing,
       ]}
     >
-      {busy || following === null ? (
+      {following === null ? (
         <ActivityIndicator size="small" color={following ? colors.ink2 : colors.ink} />
       ) : (
         <Text style={[styles.text, following ? styles.textFollowing : styles.textNotFollowing]}>

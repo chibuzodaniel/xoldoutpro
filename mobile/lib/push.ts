@@ -57,8 +57,3 @@ export async function enablePush(firebaseUser: FirebaseUser): Promise<{ ok: true
     return { ok: false, error: "Could not register this device for push." };
   }
 }
-
-export async function disablePush(firebaseUser: FirebaseUser): Promise<void> {
-  const idToken = await firebaseUser.getIdToken();
-  await apiPatch("/api/me", idToken, { pushEnabled: false, fcmTokens: [] });
-}

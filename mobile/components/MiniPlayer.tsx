@@ -11,8 +11,11 @@ import { colors, fonts } from "../lib/theme";
 // PlayerScreen, mirroring web's MiniPlayer -> ExpandedPlayer tap-to-expand.
 export function MiniPlayer() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const { current, isPlaying, loading, togglePlay } = usePlayer();
+  const { current, isPlaying, loading, togglePlay, next, previous, queue, queueIndex, repeatMode } = usePlayer();
   if (!current) return null;
+
+  const hasPrevious = queueIndex > 0;
+  const hasNext = queueIndex < queue.length - 1 || (repeatMode === "all" && queue.length > 0);
 
   return (
     <View style={styles.container}>
@@ -31,12 +34,18 @@ export function MiniPlayer() {
           </Text>
         </View>
       </TouchableOpacity>
+      <TouchableOpacity style={styles.skipButton} onPress={previous} disabled={!hasPrevious}>
+        <Text style={[styles.skipIcon, !hasPrevious && styles.skipIconDisabled]}>⏮</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.playButton} onPress={togglePlay} disabled={loading}>
         {loading ? (
           <ActivityIndicator size="small" color={colors.ink} />
         ) : (
           <Text style={styles.playIcon}>{isPlaying ? "⏸" : "▶"}</Text>
         )}
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.skipButton} onPress={next} disabled={!hasNext}>
+        <Text style={[styles.skipIcon, !hasNext && styles.skipIconDisabled]}>⏭</Text>
       </TouchableOpacity>
     </View>
   );
@@ -68,4 +77,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   playIcon: { color: colors.ink, fontSize: 12 },
+  skipButton: { width: 28, height: 32, alignItems: "center", justifyContent: "center" },
+  skipIcon: { color: colors.ink2, fontSize: 15 },
+  skipIconDisabled: { color: colors.ink3, opacity: 0.4 },
 });

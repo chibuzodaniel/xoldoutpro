@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ActivityIndicator, Alert, Image, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { useRef, useState } from "react";
+import { ActivityIndicator, Alert, Animated, Image, Pressable, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiDelete, apiGet, apiPost } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
@@ -8,6 +8,8 @@ import type { RootStackParamList } from "../../lib/navigation";
 import { colors, fonts } from "../../lib/theme";
 import { Avatar } from "../Avatar";
 import { FollowButton } from "./FollowButton";
+
+const DOUBLE_TAP_WINDOW_MS = 300;
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -21,22 +23,42 @@ function timeAgo(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short" });
 }
 
-export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (postId: string) => void }) {
+export function PostCard({
+  post,
+  onDeleted,
+  onExpandComments,
+}: {
+  post: FeedPost;
+  onDeleted?: (postId: string) => void;
+  // Lets the hosting FlatList (SocialsScreen) scroll this row into view once
+  // the comment input actually exists — a FlatList row's own KeyboardAvoidingView
+  // inset can't reach content the keyboard already covers when it opens, since
+  // this input only mounts on expand and sits at the bottom of a
+  // variable-height card.
+  onExpandComments?: () => void;
+}) {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { appUser, firebaseUser } = useAuth();
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [busy, setBusy] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [commentsOpen, setCommentsOpen] = useState(false);
   const [comments, setComments] = useState<PostComment[] | null>(null);
   const [commentCount, setCommentCount] = useState(post.commentCount);
   const [commentBody, setCommentBody] = useState("");
   const [postingComment, setPostingComment] = useState(false);
+  const lastTapRef = useRef(0);
+  const heartAnim = useRef(new Animated.Value(0)).current;
 
   async function toggleComments() {
     const next = !commentsOpen;
     setCommentsOpen(next);
+    if (next) {
+      // Double rAF: wait for the newly-expanded section's layout to commit
+      // before asking the list to scroll to it, or it scrolls to where the
+      // (shorter, pre-expand) row used to end.
+      requestAnimationFrame(() => requestAnimationFrame(() => onExpandComments?.()));
+    }
     if (next && comments === null && firebaseUser) {
       try {
         const idToken = await firebaseUser.getIdToken();
@@ -44,6 +66,10 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
         setComments(data.comments);
       } catch {
         setComments([]);
+      } finally {
+        // The spinner-to-list swap changes this row's height again once
+        // comments actually arrive — re-settle the scroll position for it.
+        requestAnimationFrame(() => requestAnimationFrame(() => onExpandComments?.()));
       }
     }
   }
@@ -73,13 +99,15 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
         style: "destructive",
         onPress: async () => {
           if (!firebaseUser) return;
-          setDeleting(true);
+          // Removes from the feed immediately rather than waiting on the
+          // network round trip — the confirmation dialog already got explicit
+          // intent, so there's nothing left for a spinner to protect against.
+          onDeleted?.(post.id);
           try {
             const idToken = await firebaseUser.getIdToken();
             await apiDelete(`/api/posts/${post.id}`, idToken);
-            onDeleted?.(post.id);
           } catch {
-            setDeleting(false);
+            Alert.alert("Couldn't delete this post. Try again.");
           }
         },
       },
@@ -105,6 +133,29 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
     }
   }
 
+  // Double-tap on the photo (or, for a text-only post, the body) toggles
+  // like the same as tapping the heart button — mirrors web's PostCard.tsx
+  // gesture 1:1, including that a second double-tap unlikes again rather
+  // than only ever liking. Manual timestamp-based detection since RN has no
+  // built-in double-tap event.
+  function handleDoubleTapLike() {
+    const now = Date.now();
+    const isDoubleTap = now - lastTapRef.current < DOUBLE_TAP_WINDOW_MS;
+    lastTapRef.current = isDoubleTap ? 0 : now;
+    if (!isDoubleTap) return;
+
+    // Only the like transition pops the heart — double-tapping an
+    // already-liked post to unlike it stays silent, same as web.
+    if (!liked) {
+      heartAnim.setValue(0);
+      Animated.sequence([
+        Animated.spring(heartAnim, { toValue: 1, useNativeDriver: true, friction: 4 }),
+        Animated.timing(heartAnim, { toValue: 0, duration: 250, delay: 350, useNativeDriver: true }),
+      ]).start();
+    }
+    toggleLike();
+  }
+
   return (
     <View style={styles.card}>
       <View style={styles.header}>
@@ -123,15 +174,33 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
           <FollowButton targetUserId={post.author.id} compact initialFollowing={post.followedByMe} />
         )}
         {appUser?.id === post.author.id && (
-          <TouchableOpacity onPress={handleDelete} disabled={deleting}>
+          <TouchableOpacity onPress={handleDelete}>
             <Text style={styles.deleteText}>Delete</Text>
           </TouchableOpacity>
         )}
       </View>
 
-      <Text style={styles.body}>{post.body}</Text>
+      <Pressable onPress={post.imageUrl ? undefined : handleDoubleTapLike}>
+        <Text style={styles.body}>{post.body}</Text>
+      </Pressable>
 
-      {post.imageUrl && <Image source={{ uri: post.imageUrl }} style={styles.postImage} />}
+      {post.imageUrl && (
+        <Pressable onPress={handleDoubleTapLike} style={styles.postImageWrap}>
+          <Image source={{ uri: post.imageUrl }} style={styles.postImage} />
+          <Animated.Text
+            pointerEvents="none"
+            style={[
+              styles.flyingHeart,
+              {
+                opacity: heartAnim,
+                transform: [{ scale: heartAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1.3] }) }],
+              },
+            ]}
+          >
+            ♥
+          </Animated.Text>
+        </Pressable>
+      )}
 
       <View style={styles.actionsRow}>
         <TouchableOpacity style={styles.actionButton} onPress={toggleLike}>
@@ -187,7 +256,19 @@ const styles = StyleSheet.create({
   timeText: { color: colors.ink3, fontSize: 11, marginTop: 1 },
   deleteText: { color: colors.ink3, fontSize: 12 },
   body: { color: colors.ink2, fontSize: 14, lineHeight: 20, marginBottom: 10 },
-  postImage: { width: "100%", aspectRatio: 1, borderRadius: 8, backgroundColor: colors.surface2, marginBottom: 10 },
+  postImageWrap: { marginBottom: 10 },
+  postImage: { width: "100%", aspectRatio: 1, borderRadius: 8, backgroundColor: colors.surface2 },
+  flyingHeart: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    marginTop: -40,
+    marginLeft: -35,
+    fontSize: 70,
+    color: colors.ink,
+    textShadowColor: "rgba(0,0,0,0.35)",
+    textShadowRadius: 8,
+  },
   actionsRow: { flexDirection: "row", gap: 20 },
   actionButton: { flexDirection: "row", alignItems: "center", gap: 6 },
   actionIcon: { color: colors.ink3, fontSize: 16 },
