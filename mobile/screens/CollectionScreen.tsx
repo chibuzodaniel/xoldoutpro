@@ -69,6 +69,10 @@ export function CollectionScreen() {
   }
 
   function handlePlayAll(musicItems: LibraryEntitlement[], shuffle?: boolean) {
+    if (!shuffle && player.isPlaying && musicItems.some((e) => e.product.id === player.current?.productId)) {
+      player.togglePlay();
+      return;
+    }
     const queue = musicItems.flatMap(buildPlayable);
     if (queue.length === 0) return;
     if (shuffle) {
@@ -78,7 +82,6 @@ export function CollectionScreen() {
       }
     }
     player.play(queue[0], queue);
-    navigation.navigate("Player");
   }
 
   if (error) {
@@ -102,6 +105,7 @@ export function CollectionScreen() {
   const merchItems = items.filter((e) => e.product.merchItem);
   const cardWidth = (width - HORIZONTAL_PADDING * 2 - 16) / 2;
   const heroCover = musicItems.length > 0 ? (musicItems[0].product.release ? artworkUrl(musicItems[0].product.release) : beatCoverUrl(musicItems[0].product.beat)) : null;
+  const isPlayingThis = player.isPlaying && musicItems.some((e) => e.product.id === player.current?.productId);
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -112,6 +116,7 @@ export function CollectionScreen() {
         onPlay={() => handlePlayAll(musicItems)}
         onShuffle={musicItems.length > 1 ? () => handlePlayAll(musicItems, true) : undefined}
         playDisabled={musicItems.length === 0}
+        isPlaying={isPlayingThis}
       />
 
       <View style={styles.body}>

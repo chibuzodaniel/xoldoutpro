@@ -90,49 +90,62 @@ export function HeavyRotationScreen() {
     }
   }
 
-  // Merch has no audio to play, so it's excluded from the queue — everything
-  // else needs its own lookup (a release's full tracklist isn't in this
-  // screen's summary card data; a beat's "track" is just the product itself).
+  async function tracksFor(p: HeavyRotationProduct): Promise<PlayableTrack[]> {
+    if (p.type === "BEAT") {
+      return [
+        {
+          trackId: p.id,
+          title: p.title,
+          artistName: p.creator.displayName,
+          artworkUrl: p.beat?.coverImageLadder?.["1024"] ?? null,
+          productId: p.id,
+          lyricsText: null,
+          kind: "beat",
+        },
+      ];
+    }
+    const data = await apiGet<{ product: ProductDetail }>(`/api/products/${p.id}`);
+    const tracks = data.product.release?.tracks ?? [];
+    const art = data.product.release?.artworkLadder?.["1024"] ?? null;
+    return tracks.map((t) => ({
+      trackId: t.id,
+      title: t.title,
+      artistName: data.product.creator.displayName,
+      artworkUrl: art,
+      productId: p.id,
+      lyricsText: null,
+      kind: "track",
+    }));
+  }
+
+  const isPlayingThis = player.isPlaying && (products ?? []).some((p) => p.id === player.current?.productId);
+
+  // Merch has no audio to play, so it's excluded from the queue. Plays the
+  // first item's track(s) as soon as they're ready (instant for a beat, one
+  // fetch for a release) instead of waiting on every item via Promise.all —
+  // that used to delay the mini player appearing by however long the
+  // slowest lookup took. The rest loads in the background and appends via
+  // playNext once ready.
   async function handlePlayAll() {
-    if (!products || products.length === 0) return;
+    if (!products) return;
+    if (isPlayingThis) {
+      player.togglePlay();
+      return;
+    }
+    const playable = products.filter((p) => p.type !== "MERCH");
+    if (playable.length === 0) return;
     setPlayingAll(true);
     try {
-      const groups = await Promise.all(
-        products
-          .filter((p) => p.type !== "MERCH")
-          .map(async (p): Promise<PlayableTrack[]> => {
-            if (p.type === "BEAT") {
-              return [
-                {
-                  trackId: p.id,
-                  title: p.title,
-                  artistName: p.creator.displayName,
-                  artworkUrl: p.beat?.coverImageLadder?.["1024"] ?? null,
-                  productId: p.id,
-                  lyricsText: null,
-                  kind: "beat",
-                },
-              ];
-            }
-            const data = await apiGet<{ product: ProductDetail }>(`/api/products/${p.id}`);
-            const tracks = data.product.release?.tracks ?? [];
-            const art = data.product.release?.artworkLadder?.["1024"] ?? null;
-            return tracks.map((t) => ({
-              trackId: t.id,
-              title: t.title,
-              artistName: data.product.creator.displayName,
-              artworkUrl: art,
-              productId: p.id,
-              lyricsText: null,
-              kind: "track",
-            }));
-          }),
-      );
-      const queue = groups.flat();
-      if (queue.length === 0) return;
-      player.play(queue[0], queue);
-      navigation.navigate("Player");
-    } finally {
+      const [first, ...rest] = playable;
+      const firstTracks = await tracksFor(first);
+      if (firstTracks.length > 0) player.play(firstTracks[0], firstTracks);
+      setPlayingAll(false);
+      if (rest.length > 0) {
+        const restGroups = await Promise.all(rest.map(tracksFor));
+        const restTracks = restGroups.flat();
+        if (restTracks.length > 0) player.playNext(restTracks);
+      }
+    } catch {
       setPlayingAll(false);
     }
   }
@@ -154,6 +167,7 @@ export function HeavyRotationScreen() {
         onPlay={handlePlayAll}
         playBusy={playingAll}
         playDisabled={products.length === 0}
+        isPlaying={isPlayingThis}
       />
       <View style={styles.body}>
       {products.length === 0 ? (

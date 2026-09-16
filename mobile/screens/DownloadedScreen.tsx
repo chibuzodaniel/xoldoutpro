@@ -52,11 +52,16 @@ export function DownloadedScreen() {
     listDownloads().then((list) => setDownloads([...list].sort((a, b) => b.downloadedAt - a.downloadedAt)));
   }, []);
 
+  const isPlayingThis = player.isPlaying && (downloads ?? []).some((d) => d.trackId === player.current?.trackId);
+
   function handlePlayAll() {
+    if (isPlayingThis) {
+      player.togglePlay();
+      return;
+    }
     if (!downloads || downloads.length === 0) return;
     const queue = downloads.map(toPlayable);
     player.play(queue[0], queue);
-    navigation.navigate("Player");
   }
 
   if (!downloads) return null;
@@ -69,6 +74,7 @@ export function DownloadedScreen() {
         coverImage={downloads[0]?.artworkUrl ?? null}
         onPlay={handlePlayAll}
         playDisabled={downloads.length === 0}
+        isPlaying={isPlayingThis}
       />
 
       <View style={styles.body}>

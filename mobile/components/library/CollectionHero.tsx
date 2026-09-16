@@ -1,6 +1,7 @@
 import { ActivityIndicator, Image, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { colors, fonts } from "../../lib/theme";
+import { PlayIcon, PauseIcon } from "../PlayerIcons";
 
 // Mirrors the Apple Music "Heavy Rotation" playlist-header pattern: a
 // blurred cover wash behind the title, then a prominent Play pill (plus an
@@ -15,6 +16,7 @@ export function CollectionHero({
   onShuffle,
   playBusy,
   playDisabled,
+  isPlaying,
 }: {
   title: string;
   subtitle: string;
@@ -23,6 +25,9 @@ export function CollectionHero({
   onShuffle?: () => void;
   playBusy?: boolean;
   playDisabled?: boolean;
+  // Whether this collection's own content is the thing currently playing —
+  // swaps the pill to Pause and toggles instead of always restarting.
+  isPlaying?: boolean;
 }) {
   return (
     <View style={styles.hero}>
@@ -49,9 +54,14 @@ export function CollectionHero({
             <TouchableOpacity style={styles.playPill} onPress={onPlay} disabled={playBusy}>
               {playBusy ? (
                 <ActivityIndicator size="small" color={colors.bg} />
+              ) : isPlaying ? (
+                <>
+                  <PauseIcon color={colors.bg} size={13} />
+                  <Text style={styles.playText}>Pause</Text>
+                </>
               ) : (
                 <>
-                  <Text style={styles.playIcon}>▶</Text>
+                  <PlayIcon color={colors.bg} size={13} />
                   <Text style={styles.playText}>Play</Text>
                 </>
               )}
@@ -90,6 +100,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     minWidth: 140,
   },
-  playIcon: { color: colors.bg, fontSize: 13 },
   playText: { color: colors.bg, fontSize: 15, fontWeight: "700" },
 });

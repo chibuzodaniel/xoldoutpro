@@ -118,13 +118,31 @@ export async function isDownloaded(trackId: string): Promise<boolean> {
 export async function removeDownload(trackId: string): Promise<void> {
   const file = encryptedFileFor(trackId);
   if (file.exists) file.delete();
+  // getOfflinePlaybackUri now leaves its decrypted temp file in place
+  // (reused across plays instead of re-decrypting every time) — has to be
+  // cleaned up here too, or the plaintext audio would outlive the download
+  // it came from.
+  const playbackFile = new File(Paths.cache, `offline-${trackId}.mp3`);
+  if (playbackFile.exists) playbackFile.delete();
   const index = await getIndex();
   delete index[trackId];
   await setIndex(index);
 }
 
-/** Decrypts a downloaded track into a playable file:// URI in the cache dir. */
+/**
+ * Decrypts a downloaded track into a playable file:// URI in the cache dir.
+ * Pure-JS AES over a multi-MB audio file is genuinely slow (real,
+ * perceptible seconds, not native-crypto-fast) — reusing an already-
+ * decrypted temp file from earlier this session is what makes replaying or
+ * skipping back to a downloaded track feel instant instead of re-paying
+ * that cost every single tap. Safe to skip re-verifying the ciphertext:
+ * the temp file is only ever written by this function, for this exact
+ * trackId, and the cache dir is cleared by the OS between app installs.
+ */
 export async function getOfflinePlaybackUri(trackId: string): Promise<string | null> {
+  const playbackFile = new File(Paths.cache, `offline-${trackId}.mp3`);
+  if (playbackFile.exists) return playbackFile.uri;
+
   const file = encryptedFileFor(trackId);
   if (!file.exists) return null;
 
@@ -135,8 +153,6 @@ export async function getOfflinePlaybackUri(trackId: string): Promise<string | n
     iv: CryptoJS.enc.Hex.parse(ivHex),
   }).toString(CryptoJS.enc.Utf8);
 
-  const playbackFile = new File(Paths.cache, `offline-${trackId}.mp3`);
-  if (playbackFile.exists) playbackFile.delete();
   playbackFile.create();
   playbackFile.write(base64, { encoding: "base64" });
   return playbackFile.uri;

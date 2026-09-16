@@ -12,6 +12,7 @@ import type { PlayableTrack } from "../../lib/playerTypes";
 import type { RootStackParamList } from "../../lib/navigation";
 import { buildPlayable } from "../../lib/libraryHelpers";
 import { colors } from "../../lib/theme";
+import { PlayIcon, PauseIcon } from "../PlayerIcons";
 
 function CollectionCard({
   name,
@@ -21,6 +22,7 @@ function CollectionCard({
   onPress,
   onPlayAll,
   playAllBusy,
+  playing,
 }: {
   name: string;
   itemCount: number;
@@ -29,6 +31,9 @@ function CollectionCard({
   onPress: () => void;
   onPlayAll?: () => void;
   playAllBusy?: boolean;
+  // Whether this card's own content is the thing currently playing — swaps
+  // the button to a pause icon and toggles instead of always restarting.
+  playing?: boolean;
 }) {
   // covers[0] is the most recently added item's artwork — the list API
   // orders by addedAt desc — so the card's cover updates as the collection
@@ -51,7 +56,13 @@ function CollectionCard({
             }}
             disabled={playAllBusy}
           >
-            {playAllBusy ? <ActivityIndicator size="small" color={colors.ink} /> : <Text style={styles.playAllIcon}>▶</Text>}
+            {playAllBusy ? (
+              <ActivityIndicator size="small" color={colors.ink} />
+            ) : playing ? (
+              <PauseIcon color={colors.ink} size={12} />
+            ) : (
+              <PlayIcon color={colors.ink} size={12} />
+            )}
           </TouchableOpacity>
         )}
       </View>
@@ -98,7 +109,15 @@ export function CollectionsTab() {
       .catch(() => {});
   }, [firebaseUser]);
 
+  const isPlayingDownloaded = player.isPlaying && downloads.some((d) => d.trackId === player.current?.trackId);
+  const isPlayingHeavyRotation =
+    player.isPlaying && heavyRotationProducts.some((p) => p.id === player.current?.productId);
+
   function handlePlayAllDownloaded() {
+    if (isPlayingDownloaded) {
+      player.togglePlay();
+      return;
+    }
     if (downloads.length === 0) return;
     const queue: PlayableTrack[] = downloads.map((d) => ({
       trackId: d.trackId,
@@ -112,47 +131,59 @@ export function CollectionsTab() {
     player.play(queue[0], queue);
   }
 
-  // Merch has no audio and is excluded; a release needs its full tracklist
-  // fetched (this screen's summary card data doesn't carry it), a beat's
-  // "track" is just the product itself.
+  async function tracksFor(p: HeavyRotationProduct): Promise<PlayableTrack[]> {
+    if (p.type === "BEAT") {
+      return [
+        {
+          trackId: p.id,
+          title: p.title,
+          artistName: p.creator.displayName,
+          artworkUrl: p.beat?.coverImageLadder?.["1024"] ?? null,
+          productId: p.id,
+          lyricsText: null,
+          kind: "beat",
+        },
+      ];
+    }
+    const data = await apiGet<{ product: ProductDetail }>(`/api/products/${p.id}`);
+    const tracks = data.product.release?.tracks ?? [];
+    const art = data.product.release?.artworkLadder?.["1024"] ?? null;
+    return tracks.map((t) => ({
+      trackId: t.id,
+      title: t.title,
+      artistName: data.product.creator.displayName,
+      artworkUrl: art,
+      productId: p.id,
+      lyricsText: null,
+      kind: "track",
+    }));
+  }
+
+  // Merch has no audio and is excluded. Plays the first item's track(s) the
+  // moment they're ready (instant for a beat, one fetch for a release)
+  // rather than waiting on every item's fetch via Promise.all — the mini
+  // player used to only appear once the whole list had resolved, which
+  // could take a few seconds. The rest loads in the background and appends
+  // via playNext once ready.
   async function handlePlayAllHeavyRotation() {
-    if (heavyRotationProducts.length === 0) return;
+    if (isPlayingHeavyRotation) {
+      player.togglePlay();
+      return;
+    }
+    const playable = heavyRotationProducts.filter((p) => p.type !== "MERCH");
+    if (playable.length === 0) return;
     setPlayingAllAuto("heavyRotation");
     try {
-      const groups = await Promise.all(
-        heavyRotationProducts
-          .filter((p) => p.type !== "MERCH")
-          .map(async (p): Promise<PlayableTrack[]> => {
-            if (p.type === "BEAT") {
-              return [
-                {
-                  trackId: p.id,
-                  title: p.title,
-                  artistName: p.creator.displayName,
-                  artworkUrl: p.beat?.coverImageLadder?.["1024"] ?? null,
-                  productId: p.id,
-                  lyricsText: null,
-                  kind: "beat",
-                },
-              ];
-            }
-            const data = await apiGet<{ product: ProductDetail }>(`/api/products/${p.id}`);
-            const tracks = data.product.release?.tracks ?? [];
-            const art = data.product.release?.artworkLadder?.["1024"] ?? null;
-            return tracks.map((t) => ({
-              trackId: t.id,
-              title: t.title,
-              artistName: data.product.creator.displayName,
-              artworkUrl: art,
-              productId: p.id,
-              lyricsText: null,
-              kind: "track",
-            }));
-          }),
-      );
-      const queue = groups.flat();
-      if (queue.length > 0) player.play(queue[0], queue);
-    } finally {
+      const [first, ...rest] = playable;
+      const firstTracks = await tracksFor(first);
+      if (firstTracks.length > 0) player.play(firstTracks[0], firstTracks);
+      setPlayingAllAuto(null);
+      if (rest.length > 0) {
+        const restGroups = await Promise.all(rest.map(tracksFor));
+        const restTracks = restGroups.flat();
+        if (restTracks.length > 0) player.playNext(restTracks);
+      }
+    } catch {
       setPlayingAllAuto(null);
     }
   }
@@ -230,6 +261,7 @@ export function CollectionsTab() {
               width={cardWidth}
               onPress={() => navigation.navigate("Downloaded")}
               onPlayAll={handlePlayAllDownloaded}
+              playing={isPlayingDownloaded}
             />
           )}
           {heavyRotationProducts.length > 0 && (
@@ -241,6 +273,7 @@ export function CollectionsTab() {
               onPress={() => navigation.navigate("HeavyRotation")}
               onPlayAll={handlePlayAllHeavyRotation}
               playAllBusy={playingAllAuto === "heavyRotation"}
+              playing={isPlayingHeavyRotation}
             />
           )}
         </View>
@@ -301,7 +334,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  playAllIcon: { color: colors.ink, fontSize: 12, marginLeft: 1 },
   coverCell: {},
   coverPlaceholder: { backgroundColor: colors.surface2 },
   cardTitle: { color: colors.ink, fontSize: 13, fontWeight: "600" },

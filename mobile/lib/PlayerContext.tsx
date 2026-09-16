@@ -156,10 +156,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   );
 
   // Warms the cache for whatever plays next, so tapping "skip" (or letting
-  // a track finish) hits the cache instead of waiting on a fresh presign.
+  // a track finish) hits the cache instead of waiting on a fresh presign —
+  // or, for a downloaded track, instead of waiting on the pure-JS AES
+  // decrypt (genuinely slow for a multi-MB file) that getOfflinePlaybackUri
+  // would otherwise only start once "next" is actually tapped.
   useEffect(() => {
     const upcoming = queue[queueIndex + 1];
-    if (upcoming) fetchAudioUrl(upcoming).catch(() => {});
+    if (!upcoming) return;
+    (async () => {
+      if (upcoming.kind !== "beat" && (await isDownloaded(upcoming.trackId))) {
+        await getOfflinePlaybackUri(upcoming.trackId);
+      } else {
+        await fetchAudioUrl(upcoming);
+      }
+    })().catch(() => {});
   }, [queue, queueIndex, fetchAudioUrl]);
 
   const play = useCallback(
