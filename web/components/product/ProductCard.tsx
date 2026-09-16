@@ -93,7 +93,11 @@ export function ProductCard({ product }: { product: ProductCardData }) {
         )}
 
         {owned && !isSoldOut && (
-          <span className="absolute right-1.5 top-1.5 rounded-full bg-green/90 px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
+          <span
+            className={`absolute right-1.5 rounded-full bg-black/55 backdrop-blur-sm px-1.5 py-[2px] text-[9px] font-semibold uppercase tracking-wide text-red-soft ${
+              product.type === "MERCH" ? "bottom-1.5" : "bottom-9"
+            }`}
+          >
             Owned
           </span>
         )}
