@@ -82,6 +82,12 @@ export function PurchasedTab() {
     else handlePlayTap(e);
   }
 
+  function handlePlayAll(items: LibraryEntitlement[]) {
+    const queue = items.flatMap(buildPlayable);
+    if (queue.length === 0) return;
+    player.play(queue[0], queue);
+  }
+
   async function handleShare(e: LibraryEntitlement) {
     const path = e.product.release ? `/r/${e.product.id}` : `/b/${e.product.id}`;
     try {
@@ -200,7 +206,12 @@ export function PurchasedTab() {
         <>
           {musicItems.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>MUSIC & BEATS</Text>
+              <View style={styles.sectionHeaderRow}>
+                <Text style={styles.sectionLabel}>MUSIC & BEATS</Text>
+                <TouchableOpacity style={styles.playAllButton} onPress={() => handlePlayAll(musicItems)}>
+                  <Text style={styles.playAllIcon}>▶</Text>
+                </TouchableOpacity>
+              </View>
               <View style={styles.grid}>
                 {musicItems.map((e) => {
                   const art = e.product.release ? artworkUrl(e.product.release) : beatCoverUrl(e.product.beat);
@@ -425,7 +436,17 @@ const styles = StyleSheet.create({
   signInButton: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 12 },
   signInButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   section: { marginBottom: 28 },
-  sectionLabel: { color: colors.ink3, fontSize: 12, fontWeight: "700", letterSpacing: 0.5, marginBottom: 10 },
+  sectionHeaderRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
+  sectionLabel: { color: colors.ink3, fontSize: 12, fontWeight: "700", letterSpacing: 0.5 },
+  playAllButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playAllIcon: { color: colors.ink, fontSize: 13, marginLeft: 2 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   artBox: { borderRadius: 8, backgroundColor: colors.surface2, overflow: "hidden", position: "relative", marginBottom: 6 },
   art: { width: "100%", height: "100%" },

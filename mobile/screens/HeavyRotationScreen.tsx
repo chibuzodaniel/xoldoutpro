@@ -12,8 +12,13 @@ import type { PlayableTrack } from "../lib/playerTypes";
 import { colors } from "../lib/theme";
 import { Grid } from "../components/Grid";
 import { ProductCard } from "../components/ProductCard";
+import { CollectionHero } from "../components/library/CollectionHero";
 
 const HORIZONTAL_PADDING = 16;
+
+function coverFor(p: HeavyRotationProduct) {
+  return p.release?.artworkLadder?.["1024"] ?? p.beat?.coverImageLadder?.["1024"] ?? p.merchItem?.imageLadder?.["1024"] ?? null;
+}
 
 // Automatic collection: your own most-played owned tracks/beats, last 60
 // days — mirrors web's /library/collections/heavy-rotation. Not a real
@@ -27,10 +32,7 @@ export function HeavyRotationScreen() {
 
   const [products, setProducts] = useState<HeavyRotationProduct[] | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    navigation.setOptions({ title: "Heavy Rotation" });
-  }, [navigation]);
+  const [playingAll, setPlayingAll] = useState(false);
 
   useEffect(() => {
     if (!firebaseUser) return;
@@ -88,6 +90,53 @@ export function HeavyRotationScreen() {
     }
   }
 
+  // Merch has no audio to play, so it's excluded from the queue — everything
+  // else needs its own lookup (a release's full tracklist isn't in this
+  // screen's summary card data; a beat's "track" is just the product itself).
+  async function handlePlayAll() {
+    if (!products || products.length === 0) return;
+    setPlayingAll(true);
+    try {
+      const groups = await Promise.all(
+        products
+          .filter((p) => p.type !== "MERCH")
+          .map(async (p): Promise<PlayableTrack[]> => {
+            if (p.type === "BEAT") {
+              return [
+                {
+                  trackId: p.id,
+                  title: p.title,
+                  artistName: p.creator.displayName,
+                  artworkUrl: p.beat?.coverImageLadder?.["1024"] ?? null,
+                  productId: p.id,
+                  lyricsText: null,
+                  kind: "beat",
+                },
+              ];
+            }
+            const data = await apiGet<{ product: ProductDetail }>(`/api/products/${p.id}`);
+            const tracks = data.product.release?.tracks ?? [];
+            const art = data.product.release?.artworkLadder?.["1024"] ?? null;
+            return tracks.map((t) => ({
+              trackId: t.id,
+              title: t.title,
+              artistName: data.product.creator.displayName,
+              artworkUrl: art,
+              productId: p.id,
+              lyricsText: null,
+              kind: "track",
+            }));
+          }),
+      );
+      const queue = groups.flat();
+      if (queue.length === 0) return;
+      player.play(queue[0], queue);
+      navigation.navigate("Player");
+    } finally {
+      setPlayingAll(false);
+    }
+  }
+
   if (!products) {
     return (
       <View style={styles.centered}>
@@ -98,9 +147,15 @@ export function HeavyRotationScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.subtitle}>
-        {products.length} item{products.length === 1 ? "" : "s"} · your most-played, last 60 days
-      </Text>
+      <CollectionHero
+        title="Heavy Rotation"
+        subtitle={`${products.length} item${products.length === 1 ? "" : "s"} · your most-played, last 60 days`}
+        coverImage={products[0] ? coverFor(products[0]) : null}
+        onPlay={handlePlayAll}
+        playBusy={playingAll}
+        playDisabled={products.length === 0}
+      />
+      <View style={styles.body}>
       {products.length === 0 ? (
         <Text style={styles.emptyText}>Nothing here yet — play something you own and it'll show up.</Text>
       ) : (
@@ -112,14 +167,15 @@ export function HeavyRotationScreen() {
           ))}
         </Grid>
       )}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: HORIZONTAL_PADDING, paddingBottom: 40 },
+  content: { paddingBottom: 40 },
+  body: { padding: HORIZONTAL_PADDING },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
-  subtitle: { color: colors.ink3, fontSize: 12, marginBottom: 16 },
   emptyText: { color: colors.ink3, fontSize: 13 },
 });

@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Image, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiGet, apiPost } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
-import { listDownloads } from "../../lib/offline/downloads";
-import type { Collection } from "../../lib/collectionTypes";
+import { usePlayer } from "../../lib/PlayerContext";
+import { listDownloads, type DownloadMeta } from "../../lib/offline/downloads";
+import type { Collection, CollectionDetailItem } from "../../lib/collectionTypes";
 import type { HeavyRotationProduct } from "../../lib/heavyRotationTypes";
+import type { ProductDetail } from "../../lib/productDetailTypes";
+import type { PlayableTrack } from "../../lib/playerTypes";
 import type { RootStackParamList } from "../../lib/navigation";
+import { buildPlayable } from "../../lib/libraryHelpers";
 import { colors } from "../../lib/theme";
 
 function CollectionCard({
@@ -15,27 +19,40 @@ function CollectionCard({
   covers,
   width,
   onPress,
+  onPlayAll,
+  playAllBusy,
 }: {
   name: string;
   itemCount: number;
   covers: string[];
   width: number;
   onPress: () => void;
+  onPlayAll?: () => void;
+  playAllBusy?: boolean;
 }) {
-  const shownCovers = covers.slice(0, 4);
+  // covers[0] is the most recently added item's artwork — the list API
+  // orders by addedAt desc — so the card's cover updates as the collection
+  // changes rather than freezing on whatever was first added.
+  const cover = covers[0] ?? null;
   return (
     <TouchableOpacity style={{ width }} onPress={onPress}>
       <View style={[styles.coverBox, { width, height: width }]}>
-        {shownCovers.length === 0 ? (
-          <View style={[styles.coverCell, styles.coverPlaceholder, { width, height: width }]} />
-        ) : shownCovers.length === 1 ? (
-          <Image source={{ uri: shownCovers[0] }} style={{ width, height: width }} />
+        {cover ? (
+          <Image source={{ uri: cover }} style={{ width, height: width }} />
         ) : (
-          <View style={styles.coverGrid}>
-            {shownCovers.map((url, i) => (
-              <Image key={i} source={{ uri: url }} style={[styles.coverCell, { width: width / 2 - 0.5, height: width / 2 - 0.5 }]} />
-            ))}
-          </View>
+          <View style={[styles.coverCell, styles.coverPlaceholder, { width, height: width }]} />
+        )}
+        {onPlayAll && itemCount > 0 && (
+          <TouchableOpacity
+            style={styles.playAllButton}
+            onPress={(e) => {
+              e.stopPropagation();
+              onPlayAll();
+            }}
+            disabled={playAllBusy}
+          >
+            {playAllBusy ? <ActivityIndicator size="small" color={colors.ink} /> : <Text style={styles.playAllIcon}>▶</Text>}
+          </TouchableOpacity>
         )}
       </View>
       <Text style={styles.cardTitle} numberOfLines={1}>
@@ -55,13 +72,14 @@ function imageUrlForHeavyRotation(p: HeavyRotationProduct) {
 export function CollectionsTab() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
+  const player = usePlayer();
+  const [playingAllId, setPlayingAllId] = useState<string | null>(null);
   const [collections, setCollections] = useState<Collection[] | null>(null);
-  const [downloadedCount, setDownloadedCount] = useState(0);
-  const [downloadedCovers, setDownloadedCovers] = useState<string[]>([]);
-  const [heavyRotationCount, setHeavyRotationCount] = useState(0);
-  const [heavyRotationCovers, setHeavyRotationCovers] = useState<string[]>([]);
+  const [downloads, setDownloads] = useState<DownloadMeta[]>([]);
+  const [heavyRotationProducts, setHeavyRotationProducts] = useState<HeavyRotationProduct[]>([]);
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
+  const [playingAllAuto, setPlayingAllAuto] = useState<"downloaded" | "heavyRotation" | null>(null);
 
   useEffect(() => {
     if (!firebaseUser) return;
@@ -71,20 +89,73 @@ export function CollectionsTab() {
       .then((data) => setCollections(data.collections))
       .catch(() => setCollections([]));
 
-    listDownloads().then((downloads) => {
-      setDownloadedCount(downloads.length);
-      setDownloadedCovers(downloads.map((d) => d.artworkUrl).filter((u): u is string => !!u));
-    });
+    listDownloads().then(setDownloads);
 
     firebaseUser
       .getIdToken()
       .then((idToken) => apiGet<{ products: HeavyRotationProduct[] }>("/api/library/heavy-rotation", idToken))
-      .then((data) => {
-        setHeavyRotationCount(data.products.length);
-        setHeavyRotationCovers(data.products.map(imageUrlForHeavyRotation).filter((u): u is string => !!u));
-      })
+      .then((data) => setHeavyRotationProducts(data.products))
       .catch(() => {});
   }, [firebaseUser]);
+
+  function handlePlayAllDownloaded() {
+    if (downloads.length === 0) return;
+    const queue: PlayableTrack[] = downloads.map((d) => ({
+      trackId: d.trackId,
+      title: d.title,
+      artistName: d.artistName,
+      artworkUrl: d.artworkUrl,
+      productId: d.productId,
+      lyricsText: null,
+      kind: "track",
+    }));
+    player.play(queue[0], queue);
+  }
+
+  // Merch has no audio and is excluded; a release needs its full tracklist
+  // fetched (this screen's summary card data doesn't carry it), a beat's
+  // "track" is just the product itself.
+  async function handlePlayAllHeavyRotation() {
+    if (heavyRotationProducts.length === 0) return;
+    setPlayingAllAuto("heavyRotation");
+    try {
+      const groups = await Promise.all(
+        heavyRotationProducts
+          .filter((p) => p.type !== "MERCH")
+          .map(async (p): Promise<PlayableTrack[]> => {
+            if (p.type === "BEAT") {
+              return [
+                {
+                  trackId: p.id,
+                  title: p.title,
+                  artistName: p.creator.displayName,
+                  artworkUrl: p.beat?.coverImageLadder?.["1024"] ?? null,
+                  productId: p.id,
+                  lyricsText: null,
+                  kind: "beat",
+                },
+              ];
+            }
+            const data = await apiGet<{ product: ProductDetail }>(`/api/products/${p.id}`);
+            const tracks = data.product.release?.tracks ?? [];
+            const art = data.product.release?.artworkLadder?.["1024"] ?? null;
+            return tracks.map((t) => ({
+              trackId: t.id,
+              title: t.title,
+              artistName: data.product.creator.displayName,
+              artworkUrl: art,
+              productId: p.id,
+              lyricsText: null,
+              kind: "track",
+            }));
+          }),
+      );
+      const queue = groups.flat();
+      if (queue.length > 0) player.play(queue[0], queue);
+    } finally {
+      setPlayingAllAuto(null);
+    }
+  }
 
   async function createCollection() {
     const name = newName.trim();
@@ -102,6 +173,22 @@ export function CollectionsTab() {
     }
   }
 
+  async function handlePlayAllCollection(c: Collection) {
+    if (!firebaseUser) return;
+    setPlayingAllId(c.id);
+    try {
+      const idToken = await firebaseUser.getIdToken();
+      const data = await apiGet<{ items: CollectionDetailItem[] }>(`/api/collections/${c.id}`, idToken);
+      const queue = data.items.map((i) => i.entitlement).flatMap(buildPlayable);
+      if (queue.length === 0) return;
+      player.play(queue[0], queue);
+    } catch {
+      // best-effort
+    } finally {
+      setPlayingAllId(null);
+    }
+  }
+
   if (collections === null) {
     return (
       <View style={styles.centered}>
@@ -113,7 +200,13 @@ export function CollectionsTab() {
   const cardWidth = 110;
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <View style={styles.createRow}>
         <TextInput
           style={styles.input}
@@ -127,24 +220,27 @@ export function CollectionsTab() {
         </TouchableOpacity>
       </View>
 
-      {(downloadedCount > 0 || heavyRotationCount > 0) && (
+      {(downloads.length > 0 || heavyRotationProducts.length > 0) && (
         <View style={[styles.grid, styles.autoGrid]}>
-          {downloadedCount > 0 && (
+          {downloads.length > 0 && (
             <CollectionCard
               name="Downloaded"
-              itemCount={downloadedCount}
-              covers={downloadedCovers}
+              itemCount={downloads.length}
+              covers={downloads.map((d) => d.artworkUrl).filter((u): u is string => !!u)}
               width={cardWidth}
               onPress={() => navigation.navigate("Downloaded")}
+              onPlayAll={handlePlayAllDownloaded}
             />
           )}
-          {heavyRotationCount > 0 && (
+          {heavyRotationProducts.length > 0 && (
             <CollectionCard
               name="Heavy Rotation"
-              itemCount={heavyRotationCount}
-              covers={heavyRotationCovers}
+              itemCount={heavyRotationProducts.length}
+              covers={heavyRotationProducts.map(imageUrlForHeavyRotation).filter((u): u is string => !!u)}
               width={cardWidth}
               onPress={() => navigation.navigate("HeavyRotation")}
+              onPlayAll={handlePlayAllHeavyRotation}
+              playAllBusy={playingAllAuto === "heavyRotation"}
             />
           )}
         </View>
@@ -162,11 +258,14 @@ export function CollectionsTab() {
               covers={c.covers}
               width={cardWidth}
               onPress={() => navigation.navigate("Collection", { id: c.id, name: c.name })}
+              onPlayAll={() => handlePlayAllCollection(c)}
+              playAllBusy={playingAllId === c.id}
             />
           ))}
         </View>
       )}
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -190,8 +289,19 @@ const styles = StyleSheet.create({
   createButton: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 16, justifyContent: "center" },
   createButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 14 },
-  coverBox: { borderRadius: 8, backgroundColor: colors.surface2, overflow: "hidden", marginBottom: 6 },
-  coverGrid: { flexDirection: "row", flexWrap: "wrap", gap: 1 },
+  coverBox: { borderRadius: 8, backgroundColor: colors.surface2, overflow: "hidden", marginBottom: 6, position: "relative" },
+  playAllButton: {
+    position: "absolute",
+    right: 6,
+    bottom: 6,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playAllIcon: { color: colors.ink, fontSize: 12, marginLeft: 1 },
   coverCell: {},
   coverPlaceholder: { backgroundColor: colors.surface2 },
   cardTitle: { color: colors.ink, fontSize: 13, fontWeight: "600" },

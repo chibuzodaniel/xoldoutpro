@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { Image, ScrollView, Text, TouchableOpacity, View, StyleSheet, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { listDownloads, type DownloadMeta } from "../lib/offline/downloads";
@@ -7,6 +7,10 @@ import { usePlayer } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
 import type { PlayableTrack } from "../lib/playerTypes";
 import { colors, fonts } from "../lib/theme";
+import { CollectionHero } from "../components/library/CollectionHero";
+import { Grid } from "../components/Grid";
+
+const HORIZONTAL_PADDING = 16;
 
 function toPlayable(d: DownloadMeta): PlayableTrack {
   return {
@@ -26,6 +30,8 @@ function toPlayable(d: DownloadMeta): PlayableTrack {
 export function DownloadedScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const player = usePlayer();
+  const { width } = useWindowDimensions();
+  const tileWidth = (width - HORIZONTAL_PADDING * 2 - 24) / 3;
   const [downloads, setDownloads] = useState<DownloadMeta[] | null>(null);
 
   // Tapping a track plays it (queuing the rest of the downloaded list, same
@@ -43,58 +49,85 @@ export function DownloadedScreen() {
   }
 
   useEffect(() => {
-    navigation.setOptions({ title: "Downloaded" });
-  }, [navigation]);
-
-  useEffect(() => {
     listDownloads().then((list) => setDownloads([...list].sort((a, b) => b.downloadedAt - a.downloadedAt)));
   }, []);
+
+  function handlePlayAll() {
+    if (!downloads || downloads.length === 0) return;
+    const queue = downloads.map(toPlayable);
+    player.play(queue[0], queue);
+    navigation.navigate("Player");
+  }
 
   if (!downloads) return null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.subtitle}>
-        {downloads.length} item{downloads.length === 1 ? "" : "s"} · playable offline on this device
-      </Text>
+      <CollectionHero
+        title="Downloaded"
+        subtitle={`${downloads.length} item${downloads.length === 1 ? "" : "s"} · playable offline on this device`}
+        coverImage={downloads[0]?.artworkUrl ?? null}
+        onPlay={handlePlayAll}
+        playDisabled={downloads.length === 0}
+      />
 
+      <View style={styles.body}>
       {downloads.length === 0 ? (
         <Text style={styles.emptyText}>Nothing downloaded on this device yet — save a track for offline from Purchased.</Text>
       ) : (
-        <View style={styles.list}>
-          {downloads.map((d) => (
-            <TouchableOpacity key={d.trackId} style={styles.row} onPress={() => handlePress(d)}>
-              {d.artworkUrl ? (
-                <Image source={{ uri: d.artworkUrl }} style={styles.artwork} />
-              ) : (
-                <View style={[styles.artwork, styles.artworkPlaceholder]} />
-              )}
-              <View style={styles.info}>
+        <Grid>
+          {downloads.map((d) => {
+            const isThisPlaying = player.isPlaying && player.current?.trackId === d.trackId;
+            return (
+              <TouchableOpacity key={d.trackId} style={{ width: tileWidth }} onPress={() => handlePress(d)}>
+                <View style={[styles.artBox, { width: tileWidth, height: tileWidth }]}>
+                  {d.artworkUrl ? (
+                    <Image source={{ uri: d.artworkUrl }} style={styles.art} />
+                  ) : (
+                    <View style={[styles.art, styles.artworkPlaceholder]} />
+                  )}
+                  {isThisPlaying && (
+                    <View style={styles.playingBadge}>
+                      <Text style={styles.playingBadgeText}>♫</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.title} numberOfLines={1}>
                   {d.title}
                 </Text>
                 <Text style={styles.artist} numberOfLines={1}>
                   {d.artistName}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
+              </TouchableOpacity>
+            );
+          })}
+        </Grid>
       )}
+      </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { padding: 16, paddingBottom: 40 },
-  subtitle: { color: colors.ink3, fontSize: 12, marginBottom: 16 },
+  content: { paddingBottom: 40 },
+  body: { padding: 16 },
   emptyText: { color: colors.ink3, fontSize: 13 },
-  list: {},
-  row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
-  artwork: { width: 44, height: 44, borderRadius: 6 },
+  artBox: { borderRadius: 8, backgroundColor: colors.surface2, overflow: "hidden", position: "relative", marginBottom: 6 },
+  art: { width: "100%", height: "100%" },
   artworkPlaceholder: { backgroundColor: colors.surface2 },
-  info: { flex: 1, minWidth: 0 },
-  title: { color: colors.ink, fontSize: 14, fontWeight: "600", fontFamily: fonts.serif },
+  playingBadge: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playingBadgeText: { color: colors.ink, fontSize: 11 },
+  title: { color: colors.ink, fontSize: 13, fontWeight: "600", fontFamily: fonts.serif },
   artist: { color: colors.ink3, fontSize: 12, marginTop: 1 },
 });

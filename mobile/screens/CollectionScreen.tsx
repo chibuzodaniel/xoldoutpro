@@ -7,8 +7,9 @@ import { useAuth } from "../lib/AuthContext";
 import { usePlayer } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
 import type { LibraryEntitlement } from "../lib/libraryTypes";
-import { colors, fonts } from "../lib/theme";
+import { colors } from "../lib/theme";
 import { ActionSheet } from "../components/ActionSheet";
+import { CollectionHero } from "../components/library/CollectionHero";
 import { TicketQrCode } from "../components/TicketQrCode";
 import { FULFILLMENT_LABEL, artworkUrl, beatCoverUrl, merchImageUrl, buildPlayable, formatEventDate } from "../lib/libraryHelpers";
 
@@ -67,6 +68,19 @@ export function CollectionScreen() {
     navigation.navigate("Player");
   }
 
+  function handlePlayAll(musicItems: LibraryEntitlement[], shuffle?: boolean) {
+    const queue = musicItems.flatMap(buildPlayable);
+    if (queue.length === 0) return;
+    if (shuffle) {
+      for (let i = queue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [queue[i], queue[j]] = [queue[j], queue[i]];
+      }
+    }
+    player.play(queue[0], queue);
+    navigation.navigate("Player");
+  }
+
   if (error) {
     return (
       <View style={styles.centered}>
@@ -87,11 +101,20 @@ export function CollectionScreen() {
   const ticketItems = items.filter((e) => e.product.ticketTier);
   const merchItems = items.filter((e) => e.product.merchItem);
   const cardWidth = (width - HORIZONTAL_PADDING * 2 - 16) / 2;
+  const heroCover = musicItems.length > 0 ? (musicItems[0].product.release ? artworkUrl(musicItems[0].product.release) : beatCoverUrl(musicItems[0].product.beat)) : null;
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.pageTitle}>{name}</Text>
+      <CollectionHero
+        title={name}
+        subtitle={`${items.length} item${items.length === 1 ? "" : "s"}`}
+        coverImage={heroCover ?? null}
+        onPlay={() => handlePlayAll(musicItems)}
+        onShuffle={musicItems.length > 1 ? () => handlePlayAll(musicItems, true) : undefined}
+        playDisabled={musicItems.length === 0}
+      />
 
+      <View style={styles.body}>
       {items.length === 0 ? (
         <Text style={styles.emptyText}>Nothing in this collection yet — add items from Purchased.</Text>
       ) : (
@@ -172,6 +195,7 @@ export function CollectionScreen() {
           )}
         </>
       )}
+      </View>
 
       {actionsFor && (
         <ActionSheet
@@ -187,10 +211,10 @@ export function CollectionScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
-  content: { paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 16, paddingBottom: 60 },
+  content: { paddingBottom: 60 },
+  body: { paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 16 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   errorText: { color: colors.redSoft, fontSize: 14 },
-  pageTitle: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 16 },
   emptyText: { color: colors.ink3, fontSize: 13, lineHeight: 19 },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 16 },
   artBox: { borderRadius: 8, backgroundColor: colors.surface2, overflow: "hidden", position: "relative", marginBottom: 6 },
