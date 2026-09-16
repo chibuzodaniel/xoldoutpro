@@ -1,8 +1,7 @@
-import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { setAudioModeAsync } from "expo-audio";
 import type { RootStackParamList } from "./lib/navigation";
 import { colors } from "./lib/theme";
 import { AuthProvider } from "./lib/AuthContext";
@@ -43,16 +42,8 @@ const navTheme = {
 };
 
 export default function App() {
-  useEffect(() => {
-    // shouldPlayInBackground keeps audio running once the app is
-    // backgrounded/locked — without it playback stops the moment the app
-    // loses focus, unlike Spotify/Apple Music. Also needs
-    // ios.infoPlist.UIBackgroundModes: ["audio"] in app.json (see there)
-    // for iOS to actually grant the background execution time.
-    setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: "duckOthers" });
-  }, []);
-
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <AuthProvider>
       <PlayerProvider>
         <ToastProvider>
@@ -105,5 +96,6 @@ export default function App() {
         </ToastProvider>
       </PlayerProvider>
     </AuthProvider>
+    </GestureHandlerRootView>
   );
 }

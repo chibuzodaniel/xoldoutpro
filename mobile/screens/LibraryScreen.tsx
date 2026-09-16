@@ -4,6 +4,8 @@ import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAuth } from "../lib/AuthContext";
 import type { BottomTabParamList } from "../lib/tabNavigation";
 import { colors, fonts } from "../lib/theme";
+import { AppLogoHeader } from "../components/AppLogoHeader";
+import { SwipeableIndexView } from "../components/SwipeableIndexView";
 import { PurchasedTab } from "../components/library/PurchasedTab";
 import { CollectionsTab } from "../components/library/CollectionsTab";
 import { GiftsTab } from "../components/library/GiftsTab";
@@ -42,6 +44,7 @@ export function LibraryScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <AppLogoHeader style={styles.logoHeader} />
         <Text style={styles.pageTitle}>Library</Text>
         <View style={styles.tabsRow}>
           {TABS.map((t) => (
@@ -53,9 +56,15 @@ export function LibraryScreen() {
         </View>
       </View>
 
-      {tab === "purchased" && <PurchasedTab />}
-      {tab === "collections" && <CollectionsTab />}
-      {tab === "gifts" && <GiftsTab />}
+      <SwipeableIndexView
+        index={TABS.findIndex((t) => t.key === tab)}
+        count={TABS.length}
+        onChangeIndex={(i) => setTab(TABS[i].key)}
+      >
+        {tab === "purchased" && <PurchasedTab />}
+        {tab === "collections" && <CollectionsTab />}
+        {tab === "gifts" && <GiftsTab />}
+      </SwipeableIndexView>
     </SafeAreaView>
   );
 }
@@ -67,6 +76,7 @@ const styles = StyleSheet.create({
   signInButton: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 12 },
   signInButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   header: { paddingHorizontal: 16, paddingTop: 50 },
+  logoHeader: { marginBottom: 16 },
   pageTitle: { color: colors.ink, fontSize: 24, fontFamily: fonts.serif, marginBottom: 16 },
   tabsRow: { flexDirection: "row", gap: 20, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   tabButton: { paddingBottom: 10 },

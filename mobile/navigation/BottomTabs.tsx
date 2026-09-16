@@ -9,6 +9,7 @@ import { apiGet, apiPost } from "../lib/api";
 import { colors } from "../lib/theme";
 import { DiscoverIcon, SocialsIcon, LibraryIcon, ProfileIcon, PlusIcon, ComposeIcon } from "../components/NavIcons";
 import { MiniPlayer } from "../components/MiniPlayer";
+import { SwipeableTabScreen } from "../components/SwipeableTabScreen";
 import { HomeScreen } from "../screens/HomeScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { LibraryScreen } from "../screens/LibraryScreen";
@@ -18,6 +19,39 @@ const TAB_BAR_HEIGHT = 60;
 const UNREAD_POLL_MS = 45000;
 
 const Tab = createBottomTabNavigator<BottomTabParamList>();
+
+// One per swipeable tab, not an inline arrow function — React Navigation
+// requires a stable component reference for `component`, and an inline
+// function there would remount the screen (losing scroll position/state)
+// on every render of BottomTabs.
+function SwipeableDiscover() {
+  return (
+    <SwipeableTabScreen tab="Discover">
+      <HomeScreen />
+    </SwipeableTabScreen>
+  );
+}
+function SwipeableSocials() {
+  return (
+    <SwipeableTabScreen tab="Socials">
+      <SocialsScreen />
+    </SwipeableTabScreen>
+  );
+}
+function SwipeableLibrary() {
+  return (
+    <SwipeableTabScreen tab="Library">
+      <LibraryScreen />
+    </SwipeableTabScreen>
+  );
+}
+function SwipeableProfile() {
+  return (
+    <SwipeableTabScreen tab="Profile">
+      <ProfileScreen />
+    </SwipeableTabScreen>
+  );
+}
 
 // Mirrors web's BottomNav.tsx unread-badge polling (lib/socials/unread.ts on
 // web) — separate signal from push notifications. Paused while already on
@@ -167,12 +201,12 @@ export function BottomTabs() {
       >
         <Tab.Screen
           name="Discover"
-          component={HomeScreen}
+          component={SwipeableDiscover}
           options={{ tabBarIcon: ({ color }) => <DiscoverIcon color={color} /> }}
         />
         <Tab.Screen
           name="Socials"
-          component={SocialsScreen}
+          component={SwipeableSocials}
           options={{ tabBarIcon: ({ color }) => <SocialsTabIcon color={color} /> }}
         />
         <Tab.Screen
@@ -190,12 +224,12 @@ export function BottomTabs() {
         />
         <Tab.Screen
           name="Library"
-          component={LibraryScreen}
+          component={SwipeableLibrary}
           options={{ tabBarIcon: ({ color }) => <LibraryIcon color={color} /> }}
         />
         <Tab.Screen
           name="Profile"
-          component={ProfileScreen}
+          component={SwipeableProfile}
           options={{ tabBarIcon: ({ color }) => <ProfileIcon color={color} /> }}
         />
       </Tab.Navigator>

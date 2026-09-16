@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   SafeAreaView,
   Text,
   TouchableOpacity,
@@ -16,6 +18,8 @@ import type { FeedPost, FollowedCreator } from "../lib/socialTypes";
 import type { RootStackParamList } from "../lib/navigation";
 import type { BottomTabParamList } from "../lib/tabNavigation";
 import { colors, fonts } from "../lib/theme";
+import { AppLogoHeader } from "../components/AppLogoHeader";
+import { SwipeableIndexView } from "../components/SwipeableIndexView";
 import { PostCard } from "../components/social/PostCard";
 import { PostComposer } from "../components/social/PostComposer";
 import { FanbaseTab } from "../components/fanbase/FanbaseTab";
@@ -41,6 +45,7 @@ export function SocialsScreen() {
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const feedListRef = useRef<FlatList<FeedPost>>(null);
 
   // The central "Drop" FAB opens the composer directly (instead of the
   // general Publish hub) when it's tapped while already on Socials — mirrors
@@ -95,6 +100,7 @@ export function SocialsScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
+        <AppLogoHeader style={styles.logoHeader} />
         <Text style={styles.pageTitle}>Socials</Text>
         <View style={styles.tabsRow}>
           {TABS.map((t) => (
@@ -106,14 +112,26 @@ export function SocialsScreen() {
         </View>
       </View>
 
+      <SwipeableIndexView
+        index={TABS.findIndex((t) => t.key === tab)}
+        count={TABS.length}
+        onChangeIndex={(i) => setTab(TABS[i].key)}
+      >
       {tab === "fanbase" ? (
         <FanbaseTab />
       ) : (
+        <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <FlatList
+          ref={feedListRef}
           style={styles.container}
           contentContainerStyle={styles.feedContent}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
           data={posts ?? []}
           keyExtractor={(p) => p.id}
+          onScrollToIndexFailed={({ index, averageItemLength }) => {
+            feedListRef.current?.scrollToOffset({ offset: index * averageItemLength, animated: true });
+          }}
           ListHeaderComponent={
             <>
               <View style={styles.feedModeRow}>
@@ -167,13 +185,19 @@ export function SocialsScreen() {
               )}
             </>
           }
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <View style={styles.postWrap}>
-              <PostCard post={item} onDeleted={(id) => setPosts((cur) => cur?.filter((p) => p.id !== id) ?? null)} />
+              <PostCard
+                post={item}
+                onDeleted={(id) => setPosts((cur) => cur?.filter((p) => p.id !== id) ?? null)}
+                onExpandComments={() => feedListRef.current?.scrollToIndex({ index, viewPosition: 1, animated: true })}
+              />
             </View>
           )}
         />
+        </KeyboardAvoidingView>
       )}
+      </SwipeableIndexView>
 
       {tab === "feed" && (
         <TouchableOpacity style={styles.fab} onPress={() => setComposerOpen(true)}>
@@ -198,6 +222,7 @@ const styles = StyleSheet.create({
   signInButton: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 12 },
   signInButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   header: { paddingHorizontal: 16, paddingTop: 50 },
+  logoHeader: { marginBottom: 16 },
   pageTitle: { color: colors.ink, fontSize: 24, fontFamily: fonts.serif, marginBottom: 16 },
   tabsRow: { flexDirection: "row", gap: 20, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   tabButton: { paddingBottom: 10 },
