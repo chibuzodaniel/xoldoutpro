@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { usePlayer } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors, fonts } from "../lib/theme";
+import { PlayIcon, PauseIcon, SkipNextIcon, SkipPreviousIcon } from "./PlayerIcons";
 
 // Rendered once, globally, above the bottom tab bar — persists across tab
 // switches the same way web's mini-player survives route changes. Tapping
@@ -34,18 +35,20 @@ export function MiniPlayer() {
           </Text>
         </View>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.skipButton} onPress={previous} disabled={!hasPrevious}>
-        <Text style={[styles.skipIcon, !hasPrevious && styles.skipIconDisabled]}>⏮</Text>
+      <TouchableOpacity style={[styles.skipButton, !hasPrevious && styles.roundButtonDisabled]} onPress={previous} disabled={!hasPrevious}>
+        <SkipPreviousIcon color={colors.ink} />
       </TouchableOpacity>
       <TouchableOpacity style={styles.playButton} onPress={togglePlay} disabled={loading}>
         {loading ? (
           <ActivityIndicator size="small" color={colors.ink} />
+        ) : isPlaying ? (
+          <PauseIcon color={colors.ink} />
         ) : (
-          <Text style={styles.playIcon}>{isPlaying ? "⏸" : "▶"}</Text>
+          <PlayIcon color={colors.ink} />
         )}
       </TouchableOpacity>
-      <TouchableOpacity style={styles.skipButton} onPress={next} disabled={!hasNext}>
-        <Text style={[styles.skipIcon, !hasNext && styles.skipIconDisabled]}>⏭</Text>
+      <TouchableOpacity style={[styles.skipButton, !hasNext && styles.roundButtonDisabled]} onPress={next} disabled={!hasNext}>
+        <SkipNextIcon color={colors.ink} />
       </TouchableOpacity>
     </View>
   );
@@ -69,15 +72,20 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontSize: 13, fontFamily: fonts.serif },
   artist: { color: colors.ink3, fontSize: 11, marginTop: 1 },
   playButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.red,
     alignItems: "center",
     justifyContent: "center",
   },
-  playIcon: { color: colors.ink, fontSize: 12 },
-  skipButton: { width: 28, height: 32, alignItems: "center", justifyContent: "center" },
-  skipIcon: { color: colors.ink2, fontSize: 15 },
-  skipIconDisabled: { color: colors.ink3, opacity: 0.4 },
+  skipButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  roundButtonDisabled: { opacity: 0.35 },
 });
