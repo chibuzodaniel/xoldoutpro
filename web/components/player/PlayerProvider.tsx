@@ -24,6 +24,12 @@ export type PlayableTrack = {
 
 type RepeatMode = "off" | "all" | "one";
 
+type AudioUrlData = { url: string; entitled: boolean; previewStartSec: number | null; previewEndSec: number | null };
+
+function audioUrlCacheKey(track: PlayableTrack) {
+  return `${track.kind ?? "track"}:${track.trackId}`;
+}
+
 type PlayerState = {
   current: PlayableTrack | null;
   isPlaying: boolean;
@@ -113,6 +119,15 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
   const objectUrlRef = useRef<string | null>(null);
 
+  // /api/tracks/[id]/audio-url signs its R2 URL for only 300s, and every
+  // play() used to hit it fresh even for a track played moments ago
+  // (pause/resume, replaying, revisiting a product page) — this is what
+  // made every single play show "loading" regardless of whether anything
+  // had actually changed server-side. Cached well under that TTL (with
+  // margin) so a repeat play of the same track skips the round-trip
+  // entirely instead of just fetching the same answer again.
+  const urlCacheRef = useRef<Map<string, { data: AudioUrlData; expiresAt: number }>>(new Map());
+
   // /api/tracks/[id]/audio-url signs its R2 URL for only 300s. Resuming via
   // a bare audio.play() after that window (e.g. pressing play again once a
   // track has fully ended and playback stopped) hits an expired URL: the
@@ -131,6 +146,26 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   // etc.) can't race — a call whose token has been superseded by a newer
   // one bails out after each await instead of mutating state out of order.
   const playTokenRef = useRef(0);
+
+  const fetchAudioUrl = useCallback(async (track: PlayableTrack): Promise<AudioUrlData> => {
+    const key = audioUrlCacheKey(track);
+    const cached = urlCacheRef.current.get(key);
+    if (cached && cached.expiresAt > Date.now()) return cached.data;
+    const kind = track.kind ?? "track";
+    const res = await apiFetch(kind === "beat" ? `/api/beats/${track.trackId}/audio-url` : `/api/tracks/${track.trackId}/audio-url`);
+    if (!res.ok) throw new Error("Could not load track");
+    const raw = await res.json();
+    const data: AudioUrlData = {
+      url: raw.url,
+      entitled: raw.entitled,
+      previewStartSec: raw.previewStartSec,
+      previewEndSec: raw.previewEndSec,
+    };
+    // 270s: comfortably under the server's 300s presign, so a cache hit is
+    // never handed a URL that's about to expire mid-request.
+    urlCacheRef.current.set(key, { data, expiresAt: Date.now() + 270_000 });
+    return data;
+  }, []);
 
   const play = useCallback(async (track: PlayableTrack, queueArg?: PlayableTrack[]) => {
     const myToken = ++playTokenRef.current;
@@ -171,10 +206,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const res = await apiFetch(kind === "beat" ? `/api/beats/${track.trackId}/audio-url` : `/api/tracks/${track.trackId}/audio-url`);
-      if (myToken !== playTokenRef.current) return;
-      if (!res.ok) throw new Error("Could not load track");
-      const data = await res.json();
+      const data = await fetchAudioUrl(track);
       if (myToken !== playTokenRef.current) return;
       setEntitled(data.entitled);
       setPreviewStartSec(data.previewStartSec);
@@ -189,12 +221,19 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     } finally {
       if (myToken === playTokenRef.current) setLoading(false);
     }
-  }, []);
+  }, [fetchAudioUrl]);
 
   const playRef = useRef(play);
   useEffect(() => {
     playRef.current = play;
   }, [play]);
+
+  // Warms the cache for whatever plays next, so tapping "skip" (or letting
+  // a track finish) hits the cache instead of waiting on a fresh presign.
+  useEffect(() => {
+    const upcoming = queue[queueIndex + 1];
+    if (upcoming) fetchAudioUrl(upcoming).catch(() => {});
+  }, [queue, queueIndex, fetchAudioUrl]);
 
   // Long-press "Play next" (Library) — inserts without touching whatever's
   // already playing, unlike play() which always replaces the queue and

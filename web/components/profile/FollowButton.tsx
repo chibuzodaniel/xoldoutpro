@@ -21,7 +21,6 @@ export function FollowButton({
   const { appUser } = useAuth();
   const toast = useToast();
   const [following, setFollowing] = useState<boolean | null>(initialFollowing ?? null);
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (!appUser || appUser.id === targetUserId || initialFollowing !== undefined) return;
@@ -33,23 +32,22 @@ export function FollowButton({
   if (!appUser || appUser.id === targetUserId) return null;
 
   async function toggle() {
-    setBusy(true);
-    try {
-      const res = await apiFetch(`/api/follow${following ? `?targetUserId=${targetUserId}` : ""}`, {
-        method: following ? "DELETE" : "POST",
-        body: following ? undefined : JSON.stringify({ targetUserId }),
-      });
-      if (res.ok) setFollowing(!following);
-      else toast.error(following ? "Couldn't unfollow. Try again." : "Couldn't follow. Try again.");
-    } finally {
-      setBusy(false);
+    const next = !following;
+    setFollowing(next);
+    const res = await apiFetch(`/api/follow${next ? "" : `?targetUserId=${targetUserId}`}`, {
+      method: next ? "POST" : "DELETE",
+      body: next ? JSON.stringify({ targetUserId }) : undefined,
+    });
+    if (!res.ok) {
+      setFollowing(!next);
+      toast.error(next ? "Couldn't follow. Try again." : "Couldn't unfollow. Try again.");
     }
   }
 
   return (
     <button
       onClick={toggle}
-      disabled={busy || following === null}
+      disabled={following === null}
       className={`shrink-0 rounded-lg border font-semibold transition-colors duration-150 ${
         size === "compact" ? "px-2.5 py-1 text-[11px]" : "px-4 py-1.5 text-xs"
       } ${
