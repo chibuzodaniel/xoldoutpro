@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, Modal, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useAuth } from "../lib/AuthContext";
 import { apiPost } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
@@ -60,7 +60,8 @@ export function ReportSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <TouchableOpacity style={styles.backdropTapArea} activeOpacity={1} onPress={handleClose} />
         <View style={styles.sheet}>
           {done ? (
             <View style={styles.doneWrap}>
@@ -103,13 +104,14 @@ export function ReportSheet({
             </>
           )}
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" },
+  backdropTapArea: { flex: 1 },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 16 },
   reasonList: { borderTopWidth: 1, borderColor: colors.lineSoft, marginBottom: 12 },

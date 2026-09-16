@@ -3,7 +3,9 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   Switch,
   Text,
@@ -20,7 +22,6 @@ import { firebaseAuth } from "../lib/firebase";
 import { useAuth } from "../lib/AuthContext";
 import { apiPatch, apiPost, apiDelete } from "../lib/api";
 import { uploadImage } from "../lib/uploadImage";
-import { enablePush, disablePush } from "../lib/push";
 import type { RootStackParamList } from "../lib/navigation";
 import type { SocialLink } from "../lib/authTypes";
 import { colors, fonts } from "../lib/theme";
@@ -45,8 +46,6 @@ export function EditProfileScreen() {
   const [coverPending, setCoverPending] = useState<{ uri: string; mimeType: string } | null>(null);
   const [digestSubscribed, setDigestSubscribed] = useState(appUser?.emailDigestSubscribed ?? false);
   const [digestBusy, setDigestBusy] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(appUser?.pushEnabled ?? false);
-  const [pushBusy, setPushBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -108,23 +107,6 @@ export function EditProfileScreen() {
     }
   }
 
-  async function handleTogglePush() {
-    if (!firebaseUser) return;
-    setPushBusy(true);
-    try {
-      if (pushEnabled) {
-        await disablePush(firebaseUser);
-        setPushEnabled(false);
-      } else {
-        const result = await enablePush(firebaseUser);
-        if (!result.ok) Alert.alert("Could not enable push", result.error);
-        else setPushEnabled(true);
-      }
-    } finally {
-      setPushBusy(false);
-    }
-  }
-
   async function handleSubmit() {
     if (!firebaseUser) return;
     setBusy(true);
@@ -181,7 +163,13 @@ export function EditProfileScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Text style={styles.sectionTitle}>Photos</Text>
       <Text style={styles.label}>Cover photo</Text>
       <TouchableOpacity style={styles.coverPicker} onPress={() => pickPhoto("cover")}>
@@ -279,14 +267,6 @@ export function EditProfileScreen() {
 
       <View style={styles.toggleRow}>
         <View style={styles.toggleInfo}>
-          <Text style={styles.toggleTitle}>Get notified in the background</Text>
-          <Text style={styles.toggleSubtitle}>New releases, purchases, and follows — even when the app isn't open.</Text>
-        </View>
-        <Switch value={pushEnabled} onValueChange={handleTogglePush} disabled={pushBusy} trackColor={{ true: colors.red }} />
-      </View>
-
-      <View style={styles.toggleRow}>
-        <View style={styles.toggleInfo}>
           <Text style={styles.toggleTitle}>Best-sellers, by email</Text>
           <Text style={styles.toggleSubtitle}>Weekly, monthly, and yearly top songs plus a few things worth checking out.</Text>
         </View>
@@ -309,7 +289,7 @@ export function EditProfileScreen() {
       </TouchableOpacity>
 
       <Modal visible={deleteSheetOpen} animationType="slide" transparent onRequestClose={() => setDeleteSheetOpen(false)}>
-        <View style={styles.overlay}>
+        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
           <View style={styles.sheet}>
             <Text style={styles.sheetTitle}>Delete account</Text>
             <Text style={styles.sheetBody}>
@@ -334,9 +314,10 @@ export function EditProfileScreen() {
               <Text style={styles.sheetCancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

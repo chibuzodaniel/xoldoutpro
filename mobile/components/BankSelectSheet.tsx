@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlatList, Modal, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { colors, fonts } from "../lib/theme";
 import type { Bank } from "../lib/walletTypes";
 
@@ -21,7 +21,8 @@ export function BankSelectSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <TouchableOpacity style={styles.backdropTapArea} activeOpacity={1} onPress={onClose} />
         <View style={styles.sheet}>
           <Text style={styles.title}>Select bank</Text>
           <TextInput
@@ -52,13 +53,14 @@ export function BankSelectSheet({
             <Text style={styles.closeText}>Close</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  backdropTapArea: { flex: 1 },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16, maxHeight: "75%" },
   title: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif, marginBottom: 12 },
   search: {

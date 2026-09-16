@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAuth } from "../lib/AuthContext";
 import { apiPost } from "../lib/api";
@@ -78,7 +78,13 @@ export function PublishEventScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Text style={styles.title}>Create Event</Text>
 
       <SquareImagePicker label="Cover image" placeholder="Add a cover image" ladder={coverLadder} onChange={setCoverLadder} wide />
@@ -166,6 +172,7 @@ export function PublishEventScreen() {
         {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitText}>Publish</Text>}
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

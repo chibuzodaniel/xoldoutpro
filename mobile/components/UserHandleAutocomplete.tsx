@@ -17,6 +17,7 @@ export function UserHandleAutocomplete({
   placeholder = "@handle",
   excludeUserId,
   style,
+  onFocus,
 }: {
   value: string;
   onChangeText: (v: string) => void;
@@ -24,6 +25,7 @@ export function UserHandleAutocomplete({
   placeholder?: string;
   excludeUserId?: string;
   style?: object;
+  onFocus?: () => void;
 }) {
   const [suggestions, setSuggestions] = useState<UserSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -56,7 +58,10 @@ export function UserHandleAutocomplete({
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        onFocus={() => suggestions.length > 0 && setOpen(true)}
+        onFocus={() => {
+          if (suggestions.length > 0) setOpen(true);
+          onFocus?.();
+        }}
         placeholder={placeholder}
         placeholderTextColor={colors.ink3}
         autoCapitalize="none"

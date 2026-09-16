@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiGet, apiPost } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
@@ -71,7 +71,13 @@ export function FanbaseTab() {
   const toDiscover = discover.filter((g) => !mine.some((m) => m.id === g.id));
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Text style={styles.introText}>Private groups for your biggest fans — create your own, or request to join one.</Text>
 
       <TextInput
@@ -140,6 +146,7 @@ export function FanbaseTab() {
         }}
       />
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

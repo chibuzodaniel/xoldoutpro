@@ -5,6 +5,7 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
@@ -96,7 +97,13 @@ export function CreateFanbaseSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={styles.backdrop}>
-        <View style={styles.sheet}>
+        <TouchableOpacity style={styles.backdropTapArea} activeOpacity={1} onPress={onClose} />
+        <ScrollView
+          style={styles.sheetScroll}
+          contentContainerStyle={styles.sheet}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets
+        >
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeText}>✕</Text>
           </TouchableOpacity>
@@ -155,7 +162,7 @@ export function CreateFanbaseSheet({
               <Text style={styles.submitButtonText}>Create Fanbase</Text>
             )}
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -163,6 +170,8 @@ export function CreateFanbaseSheet({
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" },
+  backdropTapArea: { flex: 1 },
+  sheetScroll: { maxHeight: "85%", flexGrow: 0 },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 32 },
   closeButton: {
     position: "absolute",

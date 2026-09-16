@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../lib/AuthContext";
@@ -87,7 +87,13 @@ export function WithdrawScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      automaticallyAdjustKeyboardInsets
+    >
       <Text style={styles.availableText}>{availableKobo !== null ? `${formatNaira(availableKobo)} available` : "Loading…"}</Text>
       <Text style={styles.minText}>Minimum withdrawal: {formatNaira(MINIMUM_WITHDRAWAL_KOBO)}</Text>
 
@@ -138,6 +144,7 @@ export function WithdrawScreen() {
         {busy ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitButtonText}>Withdraw</Text>}
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

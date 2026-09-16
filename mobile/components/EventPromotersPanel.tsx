@@ -13,7 +13,21 @@ type Promoter = { id: string; sharePercent: number; code: string; referredCount:
 // renders nothing for anyone but the event's own creator. Note this is a
 // per-event revenue split the creator sets up, not a purchase flow — buying
 // tickets stays web-only, same as every other product type.
-export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventId: string; eventTitle: string; creatorId: string }) {
+export function EventPromotersPanel({
+  eventId,
+  eventTitle,
+  creatorId,
+  onFocusInput,
+}: {
+  eventId: string;
+  eventTitle: string;
+  creatorId: string;
+  // This panel sits at the very bottom of EventScreen's ScrollView, well
+  // below the fold — automaticallyAdjustKeyboardInsets alone doesn't
+  // reliably scroll a distant, deeply-nested input into view once the
+  // keyboard opens, so the screen scrolls itself to the end on focus instead.
+  onFocusInput?: () => void;
+}) {
   const { appUser, firebaseUser } = useAuth();
   const toast = useToast();
   const [promoters, setPromoters] = useState<Promoter[] | null>(null);
@@ -132,6 +146,7 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
                         onChangeText={setEditPercent}
                         keyboardType="numeric"
                         autoFocus
+                        onFocus={onFocusInput}
                         style={[styles.input, styles.editPercentInput]}
                       />
                       <Text style={styles.rowMeta}>% of your net</Text>
@@ -182,6 +197,7 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
             onSelect={(u) => setHandle(u.handle)}
             excludeUserId={appUser?.id}
             style={styles.handleInput}
+            onFocus={onFocusInput}
           />
         </View>
         <View>
@@ -191,6 +207,7 @@ export function EventPromotersPanel({ eventId, eventTitle, creatorId }: { eventI
             onChangeText={setSharePercent}
             keyboardType="numeric"
             accessibilityLabel="Percentage of your own net you'll pay this promoter per ticket sold"
+            onFocus={onFocusInput}
             style={[styles.input, styles.percentInput]}
           />
         </View>
