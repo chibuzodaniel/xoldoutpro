@@ -1479,7 +1479,19 @@ function BillboardsPanel() {
               <div className="min-w-0 flex-1">
                 <p className="text-sm truncate">
                   {b.creator ? `@${b.creator.handle}` : "House ad"}{" "}
-                  <span className="text-[10px] uppercase tracking-widest text-ink-3">{BILLBOARD_STATUS_LABEL[b.status]}</span>
+                  {b.status === "ACTIVE" && b.expiresAt && new Date(b.expiresAt) <= new Date() ? (
+                    <button
+                      type="button"
+                      onClick={() => act(b.id, { extendDays: 1 })}
+                      disabled={busyId === b.id}
+                      title="Tap to reactivate for 1 day"
+                      className="text-[10px] uppercase tracking-widest text-red-soft underline decoration-dotted disabled:opacity-40"
+                    >
+                      Expired
+                    </button>
+                  ) : (
+                    <span className="text-[10px] uppercase tracking-widest text-ink-3">{BILLBOARD_STATUS_LABEL[b.status]}</span>
+                  )}
                 </p>
                 <p className="text-xs text-ink-3">
                   {b.expiresAt ? `Until ${new Date(b.expiresAt).toLocaleString("en-NG")}` : `${b.days} day${b.days === 1 ? "" : "s"}`}
