@@ -258,14 +258,15 @@ const styles = StyleSheet.create({
   miniPlayerSlot: { position: "absolute", left: 0, right: 0, zIndex: 5, elevation: 5 },
   // No fixed height — sizes to its content (button + gap + label) and grows
   // upward from this `bottom` anchor, same as a normal flex column would.
-  // 20 puts the button's top edge ~22px above the tab bar's own top edge
-  // (matching the original raised-FAB offset) with the label following
-  // directly under it at the same small gap every other tab uses.
+  // Explicit ask, 2026-09-19: the original 20 raised the button/label enough
+  // that "Drop" sat well above the other four tabs' labels instead of
+  // reading as part of the same row — 8 keeps a slight raise (still reads as
+  // a FAB) while landing the label much closer to the other tabs' baseline.
   dropOverlay: {
     position: "absolute",
     left: 0,
     right: 0,
-    bottom: 20,
+    bottom: 8,
     alignItems: "center",
     zIndex: 10,
     elevation: 10,
