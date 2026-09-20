@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
 
 const tierSchema = z.object({
   name: z.string().min(1).max(60),
@@ -27,6 +28,7 @@ export async function POST(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
     const body = createSchema.parse(await req.json());
+    await assertCanPublish(user, body.tiers.length);
 
     const event = await db.$transaction(async (tx) => {
       const created = await tx.event.create({
@@ -65,10 +67,12 @@ export async function POST(req: NextRequest) {
         include: { tiers: { include: { product: { include: { stockPolicy: true } } }, orderBy: { order: "asc" } } },
       });
     });
+    await recordProductsPublished(user.id, body.tiers.length);
 
     return NextResponse.json({ event }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof UploadCapError) return NextResponse.json({ error: err.message, reason: err.reason }, { status: 403 });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
     console.error(err);
     return NextResponse.json({ error: "Could not publish event" }, { status: 500 });

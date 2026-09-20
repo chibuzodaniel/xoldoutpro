@@ -11,6 +11,7 @@ import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { resolveGuestBuyer, sendGuestAccountSetupEmail } from "@/lib/commerce/guestCheckout";
 import { adminAuth } from "@/lib/firebase/admin";
+import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
 
 const shippingSchema = z.object({
   recipientName: z.string().min(1).max(120),
@@ -93,7 +94,7 @@ export async function POST(req: NextRequest) {
     // (Beat/Merch now; Event has its own tier-as-Product purchase path).
     const product = await db.product.findUnique({
       where: { id: productId },
-      include: { release: true, beat: true, merchItem: true, ticketTier: true },
+      include: { release: true, beat: true, merchItem: true, ticketTier: true, creator: { select: { creatorPlan: true } } },
     });
     const hasSubtype =
       product?.type === "RELEASE"
@@ -151,7 +152,14 @@ export async function POST(req: NextRequest) {
     // Snapshotted onto MerchOrderFulfillment so a later fee edit never
     // changes what a past buyer paid (same pattern as OrderItem.priceKobo).
     const shippingFeeKobo = product.type === "MERCH" ? (product.merchItem?.shippingFeeKobo ?? 0) : 0;
-    const amountKobo = product.priceKobo * quantity + shippingFeeKobo;
+    const baseKobo = product.priceKobo * quantity + shippingFeeKobo;
+    // Creator plans (DECISIONS.md): a BUYER_PAYS_FEE seller's service charge
+    // is added on top here, shown to the buyer as such (checkout UI) —
+    // commissionOverrideKobo is snapshotted onto the Order below so
+    // lib/commerce/confirmPayment.ts's finalizePayment charges the seller
+    // (via recordSale) exactly what was actually collected, regardless of
+    // any plan change between now and webhook confirmation.
+    const { amountKobo, commissionOverrideKobo } = await computeCreatorPlanCheckout(product.creator.creatorPlan, baseKobo);
 
     // Repeat/multi-unit purchases are the whole point for EVENT/MERCH — this
     // guard now only protects RELEASE/BEAT, which never had a reason to be
@@ -184,6 +192,7 @@ export async function POST(req: NextRequest) {
               status: "PAID",
               isGift,
               promoterId,
+              commissionOverrideKobo,
               items: { create: { productId, priceKobo: 0, quantity } },
               merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
             },
@@ -231,6 +240,7 @@ export async function POST(req: NextRequest) {
           status: "PENDING",
           isGift,
           promoterId,
+          commissionOverrideKobo,
           items: { create: { productId, priceKobo: product.priceKobo, quantity } },
           merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
         },

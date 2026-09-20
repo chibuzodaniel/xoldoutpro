@@ -10,6 +10,7 @@ import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBa
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 import { SalesMilestoneSheet } from "@/components/profile/SalesMilestoneSheet";
+import { PlanCapNudgeSheet } from "@/components/plans/PlanCapNudgeSheet";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const FEEDBACK_REASONS = [
@@ -326,6 +327,7 @@ export default function ProfilePage() {
         detailsPlaceholder="What's broken, or what would you like to see?"
       />
       <SalesMilestoneSheet />
+      <PlanCapNudgeSheet />
     </div>
   );
 }

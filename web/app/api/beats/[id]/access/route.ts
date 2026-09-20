@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { downloadsEnabled } from "@/lib/audio/serveDownload";
+import { getSellerServiceChargePercent } from "@/lib/commerce/creatorPlans";
 
 // Public browsing info — served to signed-out visitors too (entitled/isOwner
 // default false). Only /api/orders (the actual purchase) requires a signed-in user.
@@ -22,6 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // the Download button should disappear entirely (not just error on
     // click) — in-app streaming keeps working either way.
     downloadsEnabled: await downloadsEnabled(),
+    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId),
     durationSec: product.beat.durationSec,
     previewStartSec: product.beat.previewStartSec,
     previewEndSec: product.beat.previewEndSec,

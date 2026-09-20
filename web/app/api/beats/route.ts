@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generatePreviewClip } from "@/lib/audio/generatePreviewClip";
+import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
 
 export const maxDuration = 120; // trimming a real preview clip (ffmpeg), mirrors the ingest route's own limit
 
@@ -35,6 +36,7 @@ const createSchema = z
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
+    await assertCanPublish(user);
     const body = createSchema.parse(await req.json());
 
     // Cut before the DB write, not inside the transaction below — this is
@@ -82,10 +84,12 @@ export async function POST(req: NextRequest) {
 
       return created;
     });
+    await recordProductsPublished(user.id, 1);
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof UploadCapError) return NextResponse.json({ error: err.message, reason: err.reason }, { status: 403 });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
     console.error(err);
     return NextResponse.json({ error: "Could not publish beat" }, { status: 500 });

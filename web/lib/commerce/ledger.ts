@@ -83,6 +83,17 @@ export async function recordSale(
     // referred person's own first-transaction status.
     buyerReferredByAmbassadorId?: string | null;
     sellerReferredByAmbassadorId?: string | null;
+    // Creator plans (DECISIONS.md): when set, used instead of the live
+    // per-type rate below — snapshotted at checkout time onto
+    // Order.commissionOverrideKobo (app/api/orders/route.ts) from the
+    // seller's CreatorPlan at that moment, so the amount actually charged to
+    // the buyer and the amount actually deducted here always agree even if
+    // the seller's plan changes in between. 0 for LIMITED (seller keeps
+    // 100%); the buyer's added service charge for BUYER_PAYS_FEE (seller
+    // still nets exactly their listed price, since grossKobo here already
+    // includes that same service charge). Absent/undefined for UNLIMITED —
+    // today's live-rate behavior, unchanged.
+    commissionOverrideKobo?: number | null;
   },
 ) {
   // Settlement hold deactivated for launch (see SETTLEMENT_WINDOW_DAYS's own
@@ -92,7 +103,8 @@ export async function recordSale(
   const availableAt: Date | null = null;
   const status = availableAt ? "PENDING" : "AVAILABLE";
   const rates = await getCommissionRates(tx);
-  const commissionKobo = Math.round(args.grossKobo * rates[args.productType]);
+  const commissionKobo =
+    args.commissionOverrideKobo != null ? args.commissionOverrideKobo : Math.round(args.grossKobo * rates[args.productType]);
   const promoterKobo = args.promoter
     ? Math.round((args.grossKobo - commissionKobo) * (args.promoter.sharePercent / 100))
     : 0;

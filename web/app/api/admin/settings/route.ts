@@ -6,14 +6,40 @@ import { db } from "@/lib/db";
 // Super-moderator-only platform toggles: the real-file-download feature for
 // songs/beats (lib/audio/serveDownload.ts's downloadsEnabled()) and the
 // Billboard daily rate (lib/commerce/billboards.ts's getBillboardDailyRateKobo()).
-function serialize(row: { downloadsEnabled: boolean; billboardDailyRateKobo: number; commissionReleasePercent: number; commissionBeatPercent: number; commissionMerchPercent: number; commissionEventPercent: number } | null) {
+// Creator-plan fields (DECISIONS.md) mirror lib/commerce/creatorPlans.ts's
+// getCreatorPlanSettings() defaults exactly — kept in sync manually, same as
+// every other field here already was before this feature existed.
+function serialize(
+  row: {
+    downloadsEnabled: boolean;
+    billboardDailyRateKobo: number;
+    commissionReleasePercent: number;
+    commissionBeatPercent: number;
+    commissionMerchPercent: number;
+    commissionEventPercent: number;
+    buyerPaysFeePercent: number;
+    buyerPaysFeeUploadCap: number;
+    buyerPaysFeeSlotPackSize: number;
+    buyerPaysFeeSlotPackFeeKobo: number;
+    limitedPlanFeeKobo: number;
+    limitedPlanUploadCap: number;
+    limitedPlanSalesCap: number;
+  } | null,
+) {
   return {
     downloadsEnabled: row?.downloadsEnabled ?? true,
     billboardDailyRateKobo: row?.billboardDailyRateKobo ?? 500_000,
-    commissionReleasePercent: row?.commissionReleasePercent ?? 12,
-    commissionBeatPercent: row?.commissionBeatPercent ?? 12,
-    commissionMerchPercent: row?.commissionMerchPercent ?? 12,
-    commissionEventPercent: row?.commissionEventPercent ?? 5,
+    commissionReleasePercent: row?.commissionReleasePercent ?? 15,
+    commissionBeatPercent: row?.commissionBeatPercent ?? 15,
+    commissionMerchPercent: row?.commissionMerchPercent ?? 15,
+    commissionEventPercent: row?.commissionEventPercent ?? 15,
+    buyerPaysFeePercent: row?.buyerPaysFeePercent ?? 12,
+    buyerPaysFeeUploadCap: row?.buyerPaysFeeUploadCap ?? 50,
+    buyerPaysFeeSlotPackSize: row?.buyerPaysFeeSlotPackSize ?? 50,
+    buyerPaysFeeSlotPackFeeKobo: row?.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
+    limitedPlanFeeKobo: row?.limitedPlanFeeKobo ?? 400_000,
+    limitedPlanUploadCap: row?.limitedPlanUploadCap ?? 100,
+    limitedPlanSalesCap: row?.limitedPlanSalesCap ?? 100,
   };
 }
 
@@ -29,8 +55,8 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// Commission rates capped at 90% (same ceiling EventPromoter's own
-// sharePercent uses) — a moderator fat-fingering 100 would leave sellers
+// Commission/service-charge rates capped at 90% (same ceiling EventPromoter's
+// own sharePercent uses) — a moderator fat-fingering 100 would leave sellers
 // with nothing, and there's no legitimate reason to go that high.
 const patchSchema = z.object({
   downloadsEnabled: z.boolean().optional(),
@@ -39,6 +65,13 @@ const patchSchema = z.object({
   commissionBeatPercent: z.number().int().min(0).max(90).optional(),
   commissionMerchPercent: z.number().int().min(0).max(90).optional(),
   commissionEventPercent: z.number().int().min(0).max(90).optional(),
+  buyerPaysFeePercent: z.number().int().min(0).max(90).optional(),
+  buyerPaysFeeUploadCap: z.number().int().positive().optional(),
+  buyerPaysFeeSlotPackSize: z.number().int().positive().optional(),
+  buyerPaysFeeSlotPackFeeKobo: z.number().int().min(0).optional(),
+  limitedPlanFeeKobo: z.number().int().min(0).optional(),
+  limitedPlanUploadCap: z.number().int().positive().optional(),
+  limitedPlanSalesCap: z.number().int().positive().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -55,10 +88,17 @@ export async function PATCH(req: NextRequest) {
         id: "singleton",
         downloadsEnabled: patch.downloadsEnabled ?? true,
         billboardDailyRateKobo: patch.billboardDailyRateKobo ?? 500_000,
-        commissionReleasePercent: patch.commissionReleasePercent ?? 12,
-        commissionBeatPercent: patch.commissionBeatPercent ?? 12,
-        commissionMerchPercent: patch.commissionMerchPercent ?? 12,
-        commissionEventPercent: patch.commissionEventPercent ?? 5,
+        commissionReleasePercent: patch.commissionReleasePercent ?? 15,
+        commissionBeatPercent: patch.commissionBeatPercent ?? 15,
+        commissionMerchPercent: patch.commissionMerchPercent ?? 15,
+        commissionEventPercent: patch.commissionEventPercent ?? 15,
+        buyerPaysFeePercent: patch.buyerPaysFeePercent ?? 12,
+        buyerPaysFeeUploadCap: patch.buyerPaysFeeUploadCap ?? 50,
+        buyerPaysFeeSlotPackSize: patch.buyerPaysFeeSlotPackSize ?? 50,
+        buyerPaysFeeSlotPackFeeKobo: patch.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
+        limitedPlanFeeKobo: patch.limitedPlanFeeKobo ?? 400_000,
+        limitedPlanUploadCap: patch.limitedPlanUploadCap ?? 100,
+        limitedPlanSalesCap: patch.limitedPlanSalesCap ?? 100,
         updatedBy: user.id,
       },
       update: { ...patch, updatedBy: user.id },

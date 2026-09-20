@@ -303,7 +303,39 @@ const COMMISSION_LABEL: Record<CommissionKey, string> = {
   commissionMerchPercent: "Merchandise",
   commissionEventPercent: "Events (tickets)",
 };
-type SettingsResponse = { downloadsEnabled: boolean; billboardDailyRateKobo: number } & Record<CommissionKey, number>;
+
+// Creator plans (DECISIONS.md) — Buyer Pays Fee's flat service-charge rate
+// and upload cap/slot-pack pricing, and Limited's join/renewal fee and
+// upload/sales caps. Percent fields share COMMISSION_KEYS' 0-90 bound; the
+// rest are plain positive integers (or kobo, shown as naira same as
+// billboardDailyRateKobo below).
+type CreatorPlanPercentKey = "buyerPaysFeePercent";
+type CreatorPlanCapKey = "buyerPaysFeeUploadCap" | "buyerPaysFeeSlotPackSize" | "limitedPlanUploadCap" | "limitedPlanSalesCap";
+type CreatorPlanKoboKey = "buyerPaysFeeSlotPackFeeKobo" | "limitedPlanFeeKobo";
+type CreatorPlanKey = CreatorPlanPercentKey | CreatorPlanCapKey | CreatorPlanKoboKey;
+const CREATOR_PLAN_KEYS: CreatorPlanKey[] = [
+  "buyerPaysFeePercent",
+  "buyerPaysFeeUploadCap",
+  "buyerPaysFeeSlotPackSize",
+  "buyerPaysFeeSlotPackFeeKobo",
+  "limitedPlanFeeKobo",
+  "limitedPlanUploadCap",
+  "limitedPlanSalesCap",
+];
+const CREATOR_PLAN_KOBO_KEYS = new Set<CreatorPlanKey>(["buyerPaysFeeSlotPackFeeKobo", "limitedPlanFeeKobo"]);
+const CREATOR_PLAN_PERCENT_KEYS = new Set<CreatorPlanKey>(["buyerPaysFeePercent"]);
+const CREATOR_PLAN_LABEL: Record<CreatorPlanKey, string> = {
+  buyerPaysFeePercent: "Service charge",
+  buyerPaysFeeUploadCap: "Free upload cap",
+  buyerPaysFeeSlotPackSize: "Slots per pack",
+  buyerPaysFeeSlotPackFeeKobo: "Price per pack",
+  limitedPlanFeeKobo: "Join/renewal fee",
+  limitedPlanUploadCap: "Upload cap",
+  limitedPlanSalesCap: "Sales cap before renewal",
+};
+
+type SettingsResponse = { downloadsEnabled: boolean; billboardDailyRateKobo: number } & Record<CommissionKey, number> &
+  Record<CreatorPlanKey, number>;
 
 // Super-moderator-only: platform-wide toggles (real-file downloads for
 // songs/beats, per-type commission rates — lib/commerce/ledger.ts's
@@ -331,6 +363,16 @@ function SiteControlsPanel({
     commissionMerchPercent: "",
     commissionEventPercent: "",
   });
+  const [creatorPlanLoaded, setCreatorPlanLoaded] = useState(false);
+  const [creatorPlanInputs, setCreatorPlanInputs] = useState<Record<CreatorPlanKey, string>>({
+    buyerPaysFeePercent: "",
+    buyerPaysFeeUploadCap: "",
+    buyerPaysFeeSlotPackSize: "",
+    buyerPaysFeeSlotPackFeeKobo: "",
+    limitedPlanFeeKobo: "",
+    limitedPlanUploadCap: "",
+    limitedPlanSalesCap: "",
+  });
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -348,6 +390,16 @@ function SiteControlsPanel({
         commissionEventPercent: String(data.commissionEventPercent),
       });
       setCommissionLoaded(true);
+      setCreatorPlanInputs({
+        buyerPaysFeePercent: String(data.buyerPaysFeePercent),
+        buyerPaysFeeUploadCap: String(data.buyerPaysFeeUploadCap),
+        buyerPaysFeeSlotPackSize: String(data.buyerPaysFeeSlotPackSize),
+        buyerPaysFeeSlotPackFeeKobo: String(data.buyerPaysFeeSlotPackFeeKobo / 100),
+        limitedPlanFeeKobo: String(data.limitedPlanFeeKobo / 100),
+        limitedPlanUploadCap: String(data.limitedPlanUploadCap),
+        limitedPlanSalesCap: String(data.limitedPlanSalesCap),
+      });
+      setCreatorPlanLoaded(true);
     }
     load();
   }, []);
@@ -367,6 +419,42 @@ function SiteControlsPanel({
       const res = await apiFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify(patch) });
       if (!res.ok) throw new Error("Could not update commission rates");
       toast.success("Commission rates updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCreatorPlanSettings() {
+    const patch: Partial<Record<CreatorPlanKey, number>> = {};
+    for (const key of CREATOR_PLAN_KEYS) {
+      const raw = Number(creatorPlanInputs[key]);
+      if (CREATOR_PLAN_PERCENT_KEYS.has(key)) {
+        if (!Number.isInteger(raw) || raw < 0 || raw > 90) {
+          toast.error("Creator plan rates must be whole numbers between 0 and 90.");
+          return;
+        }
+        patch[key] = raw;
+      } else if (CREATOR_PLAN_KOBO_KEYS.has(key)) {
+        if (!Number.isFinite(raw) || raw < 0) {
+          toast.error("Creator plan fees must be a valid amount.");
+          return;
+        }
+        patch[key] = Math.round(raw * 100);
+      } else {
+        if (!Number.isInteger(raw) || raw <= 0) {
+          toast.error("Creator plan caps must be whole numbers greater than 0.");
+          return;
+        }
+        patch[key] = raw;
+      }
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify(patch) });
+      if (!res.ok) throw new Error("Could not update creator plan settings");
+      toast.success("Creator plan settings updated.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -476,8 +564,11 @@ function SiteControlsPanel({
       </div>
 
       <div className="py-2.5 border-b border-line-soft mb-3">
-        <p className="text-sm font-semibold mb-0.5">Platform commission</p>
-        <p className="text-xs text-ink-3 mb-3">What XOLDOUT keeps per sale, by product type — the rest goes to the seller.</p>
+        <p className="text-sm font-semibold mb-0.5">Unlimited plan commission</p>
+        <p className="text-xs text-ink-3 mb-3">
+          What XOLDOUT keeps per sale, by product type, for creators on the Unlimited plan — the rest goes to the seller.
+          Buyer Pays Fee and Limited plan sellers use the rates below instead.
+        </p>
         {!commissionLoaded ? (
           <p className="text-xs text-ink-3">Loading…</p>
         ) : (
@@ -507,6 +598,64 @@ function SiteControlsPanel({
               className="rounded-full bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
             >
               Save commission rates
+            </button>
+          </>
+        )}
+      </div>
+
+      <div className="py-2.5 border-b border-line-soft mb-3">
+        <p className="text-sm font-semibold mb-0.5">Creator plans</p>
+        <p className="text-xs text-ink-3 mb-3">Buyer Pays Fee&rsquo;s service charge and storage, and Limited&rsquo;s join/renewal fee and caps.</p>
+        {!creatorPlanLoaded ? (
+          <p className="text-xs text-ink-3">Loading…</p>
+        ) : (
+          <>
+            <p className="text-xs font-semibold text-ink-2 mb-1.5">Buyer Pays Fee</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(["buyerPaysFeePercent", "buyerPaysFeeUploadCap", "buyerPaysFeeSlotPackSize", "buyerPaysFeeSlotPackFeeKobo"] as const).map(
+                (key) => (
+                  <div key={key} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
+                    <span className="text-xs text-ink-2">{CREATOR_PLAN_LABEL[key]}</span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {CREATOR_PLAN_KOBO_KEYS.has(key) && <span className="text-xs text-ink-3">₦</span>}
+                      <input
+                        type="number"
+                        min={0}
+                        value={creatorPlanInputs[key]}
+                        onChange={(e) => setCreatorPlanInputs((cur) => ({ ...cur, [key]: e.target.value }))}
+                        className="w-16 rounded-lg border border-line bg-surface px-1.5 py-1 text-xs text-right"
+                      />
+                      {CREATOR_PLAN_PERCENT_KEYS.has(key) && <span className="text-xs text-ink-3">%</span>}
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+            <p className="text-xs font-semibold text-ink-2 mb-1.5">Limited</p>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {(["limitedPlanFeeKobo", "limitedPlanUploadCap", "limitedPlanSalesCap"] as const).map((key) => (
+                <div key={key} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
+                  <span className="text-xs text-ink-2">{CREATOR_PLAN_LABEL[key]}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {CREATOR_PLAN_KOBO_KEYS.has(key) && <span className="text-xs text-ink-3">₦</span>}
+                    <input
+                      type="number"
+                      min={0}
+                      value={creatorPlanInputs[key]}
+                      onChange={(e) => setCreatorPlanInputs((cur) => ({ ...cur, [key]: e.target.value }))}
+                      className="w-16 rounded-lg border border-line bg-surface px-1.5 py-1 text-xs text-right"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={saveCreatorPlanSettings}
+              disabled={busy}
+              className="rounded-full bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Save creator plan settings
             </button>
           </>
         )}

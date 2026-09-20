@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { downloadsEnabled } from "@/lib/audio/serveDownload";
+import { getSellerServiceChargePercent } from "@/lib/commerce/creatorPlans";
 
 // Track list + preview windows are public browsing info — served to signed-out
 // visitors too (entitled/isOwner just default false). Only /api/orders (the
@@ -26,6 +27,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // the Download button should disappear entirely (not just error on
     // click) — in-app streaming keeps working either way.
     downloadsEnabled: await downloadsEnabled(),
+    // Creator plans (DECISIONS.md): null unless this seller is on
+    // BUYER_PAYS_FEE, in which case the buyer sees this as an added
+    // "service charge" before checkout (app/api/orders/route.ts charges the
+    // exact same rate).
+    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId),
     tracks: product.release.tracks.map((t) => ({
       id: t.id,
       title: t.title,

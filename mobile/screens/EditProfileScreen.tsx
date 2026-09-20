@@ -26,9 +26,15 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { SocialLink } from "../lib/authTypes";
 import { colors, fonts } from "../lib/theme";
 import { Pill } from "../components/creator/Pill";
+import { PlanPickerModal } from "../components/PlanPickerModal";
 
 const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
+const PLAN_LABEL: Record<"UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED", string> = {
+  UNLIMITED: "Unlimited",
+  BUYER_PAYS_FEE: "Buyer Pays Fee",
+  LIMITED: "Limited",
+};
 
 export function EditProfileScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -49,6 +55,7 @@ export function EditProfileScreen() {
   const [busy, setBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [planModalOpen, setPlanModalOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
   useEffect(() => {
@@ -265,6 +272,14 @@ export function EditProfileScreen() {
         {busy ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitButtonText}>Save Changes</Text>}
       </TouchableOpacity>
 
+      <TouchableOpacity style={styles.toggleRow} onPress={() => setPlanModalOpen(true)}>
+        <View style={styles.toggleInfo}>
+          <Text style={styles.toggleTitle}>Creator plan</Text>
+          <Text style={styles.toggleSubtitle}>{appUser?.creatorPlan ? PLAN_LABEL[appUser.creatorPlan] : "Not chosen"}</Text>
+        </View>
+        <Text style={styles.chevronText}>Change ›</Text>
+      </TouchableOpacity>
+
       <View style={styles.toggleRow}>
         <View style={styles.toggleInfo}>
           <Text style={styles.toggleTitle}>Best-sellers, by email</Text>
@@ -316,6 +331,7 @@ export function EditProfileScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+      <PlanPickerModal visible={planModalOpen} onClose={() => setPlanModalOpen(false)} />
     </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -364,6 +380,7 @@ const styles = StyleSheet.create({
   toggleInfo: { flex: 1 },
   toggleTitle: { color: colors.ink, fontSize: 13, fontWeight: "600", marginBottom: 2 },
   toggleSubtitle: { color: colors.ink3, fontSize: 11.5, lineHeight: 16 },
+  chevronText: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
   logoutButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginTop: 24 },
   logoutText: { color: colors.redSoft, fontSize: 14, fontWeight: "600" },
   dangerTitle: { marginTop: 24 },

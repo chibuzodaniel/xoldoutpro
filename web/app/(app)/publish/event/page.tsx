@@ -7,6 +7,7 @@ import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
 
 type TierDraft = { localId: string; name: string; priceNaira: string; hasCap: boolean; capValue: string };
 
@@ -17,6 +18,7 @@ function newTier(name = ""): TierDraft {
 export default function CreateEventPage() {
   const router = useRouter();
   const toast = useToast();
+  useRequireCreatorPlan();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

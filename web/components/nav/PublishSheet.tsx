@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { PUBLISH_OPTIONS } from "@/lib/publishOptions";
+import { PublishOptionsList } from "@/components/publish/PublishOptionsList";
 
 type Props = {
   open: boolean;
@@ -28,25 +27,8 @@ export function PublishSheet({ open, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <h1 className="font-serif text-2xl mb-6">What are you publishing?</h1>
-        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-3">
-          {PUBLISH_OPTIONS.map((opt) =>
-            opt.enabled ? (
-              <Link key={opt.title} href={opt.href} onClick={onClose} className="flex items-center justify-between py-4">
-                <div>
-                  <div className="text-sm font-semibold">{opt.title}</div>
-                  <div className="text-xs text-ink-3">{opt.subtitle}</div>
-                </div>
-                <span className="text-ink-3">›</span>
-              </Link>
-            ) : (
-              <div key={opt.title} className="flex items-center justify-between py-4 opacity-40">
-                <div>
-                  <div className="text-sm font-semibold">{opt.title}</div>
-                  <div className="text-xs text-ink-3">Coming soon</div>
-                </div>
-              </div>
-            ),
-          )}
+        <div className="mb-3">
+          <PublishOptionsList onNavigate={onClose} />
         </div>
         <button
           type="button"

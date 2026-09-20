@@ -35,6 +35,13 @@ function formatNaira(kobo: number) {
   return `Buy · ${formatNairaPlain(kobo)}`;
 }
 
+function breakdownText(priceTotalKobo: number, shippingFeeKobo: number, serviceChargePercent: number | null, serviceChargeKobo: number) {
+  const parts = [formatNairaPlain(priceTotalKobo)];
+  if (shippingFeeKobo > 0) parts.push(`${formatNairaPlain(shippingFeeKobo)} shipping`);
+  if (serviceChargePercent != null) parts.push(`${formatNairaPlain(serviceChargeKobo)} service charge (${serviceChargePercent}%)`);
+  return `${parts.join(" + ")} = ${formatNairaPlain(priceTotalKobo + shippingFeeKobo + serviceChargeKobo)} total`;
+}
+
 const STATUS_LABEL: Record<NonNullable<Fulfillment["status"]>, string> = {
   TO_SHIP: "Preparing to ship",
   SHIPPED: "Shipped",
@@ -53,7 +60,12 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
   const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
-  const totalKobo = priceKobo * quantity + shippingFeeKobo;
+  const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
+  const baseKobo = priceKobo * quantity + shippingFeeKobo;
+  // Creator plans (DECISIONS.md): same formula app/api/orders/route.ts uses
+  // to compute the actual charge for a BUYER_PAYS_FEE seller.
+  const serviceChargeKobo = serviceChargePercent != null ? Math.round((baseKobo * serviceChargePercent) / 100) : 0;
+  const totalKobo = baseKobo + serviceChargeKobo;
 
   const [recipientName, setRecipientName] = useState("");
   const [phone, setPhone] = useState("");
@@ -68,6 +80,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     const data = await res.json();
     setIsOwner(data.isOwner);
     setFulfillments(data.fulfillments ?? []);
+    setServiceChargePercent(data.serviceChargePercent ?? null);
   }
 
   useEffect(() => {
@@ -190,10 +203,8 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
               {formatNaira(priceKobo * quantity)}
             </button>
           </div>
-          {shippingFeeKobo > 0 && (
-            <p className="text-xs text-ink-3">
-              {formatNairaPlain(priceKobo * quantity)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
-            </p>
+          {(shippingFeeKobo > 0 || serviceChargePercent != null) && (
+            <p className="text-xs text-ink-3">{breakdownText(priceKobo * quantity, shippingFeeKobo, serviceChargePercent, serviceChargeKobo)}</p>
           )}
         </div>
         <GuestInfoSheet open={guestInfoSheetOpen} onSubmit={handleGuestInfoSubmit} onClose={closeGuestInfoSheet} />
@@ -250,10 +261,8 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
         />
       </div>
 
-      {shippingFeeKobo > 0 && (
-        <p className="text-xs text-ink-3">
-          {formatNairaPlain(priceKobo * quantity)} + {formatNairaPlain(shippingFeeKobo)} shipping = {formatNairaPlain(totalKobo)}
-        </p>
+      {(shippingFeeKobo > 0 || serviceChargePercent != null) && (
+        <p className="text-xs text-ink-3">{breakdownText(priceKobo * quantity, shippingFeeKobo, serviceChargePercent, serviceChargeKobo)}</p>
       )}
 
       <button

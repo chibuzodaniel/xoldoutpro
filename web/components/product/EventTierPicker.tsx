@@ -22,6 +22,10 @@ function formatNaira(kobo: number) {
   return `Buy · ₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 }
 
+function nairaAmount(kobo: number) {
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
+
 // useSearchParams (for the `?promo=` promoter link) requires a Suspense
 // boundary — same pattern as app/(app)/library/page.tsx's own wrapper.
 export function EventTierPicker(props: { eventId: string; tiers: Tier[] }) {
@@ -44,6 +48,7 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
   const [giftingProductId, setGiftingProductId] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
+  const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -52,6 +57,7 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
     if (!res.ok) return;
     const data = await res.json();
     setIsOwner(data.isOwner);
+    setServiceChargePercent(data.serviceChargePercent ?? null);
     const map: Record<string, AccessTier> = {};
     for (const t of data.tiers as AccessTier[]) map[t.productId] = t;
     setAccess(map);
@@ -169,7 +175,15 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
               </div>
             )}
             {!tier.isSoldOut && (
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-1.5">
+                {tier.priceKobo > 0 && serviceChargePercent != null && (
+                  <p className="text-xs text-ink-3">
+                    {nairaAmount(tier.priceKobo * qty)} + {nairaAmount(Math.round((tier.priceKobo * qty * serviceChargePercent) / 100))} service
+                    charge ({serviceChargePercent}%) = {nairaAmount(tier.priceKobo * qty + Math.round((tier.priceKobo * qty * serviceChargePercent) / 100))}{" "}
+                    total
+                  </p>
+                )}
+                <div className="flex gap-2">
                 <div className="flex items-center rounded-lg border border-line shrink-0">
                   <button
                     type="button"
@@ -197,7 +211,11 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
                 >
                   {busyProductId === tier.productId
                     ? "Starting checkout…"
-                    : `${tier.name} · ${formatNaira(tier.priceKobo * qty)}`}
+                    : `${tier.name} · ${formatNaira(
+                        serviceChargePercent != null
+                          ? tier.priceKobo * qty + Math.round((tier.priceKobo * qty * serviceChargePercent) / 100)
+                          : tier.priceKobo * qty,
+                      )}`}
                 </button>
                 {qty === 1 && (
                   <button
@@ -208,6 +226,7 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
                     {giftingProductId === tier.productId ? "Starting…" : "Gift"}
                   </button>
                 )}
+                </div>
               </div>
             )}
             {tier.isSoldOut && owned.length === 0 && (

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAuth } from "../lib/AuthContext";
+import { useRequireCreatorPlan } from "../lib/useRequireCreatorPlan";
 import { apiPost } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
 import type { RootStackParamList } from "../lib/navigation";
@@ -20,6 +21,7 @@ function newTier(name = ""): TierDraft {
 export function PublishEventScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
+  useRequireCreatorPlan();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

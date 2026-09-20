@@ -32,6 +32,7 @@ type PaymentForConfirm = {
     buyerId: string;
     isGift: boolean;
     promoterId: string | null;
+    commissionOverrideKobo: number | null;
     items: { productId: string; quantity: number }[];
     buyer: { referredByAmbassadorId: string | null };
   };
@@ -146,7 +147,18 @@ export async function finalizePayment(
       promoter,
       buyerReferredByAmbassadorId: payment.order.buyer.referredByAmbassadorId,
       sellerReferredByAmbassadorId: product.creator.referredByAmbassadorId,
+      commissionOverrideKobo: payment.order.commissionOverrideKobo,
     });
+
+    // Creator plans (DECISIONS.md): LIMITED plan sales count toward its
+    // moderator-editable sales cap (PlatformSettings.limitedPlanSalesCap) —
+    // one increment per paid order, not per unit/quantity within it. Read
+    // live here (not snapshotted, unlike commissionOverrideKobo above) so a
+    // seller who switched off LIMITED between checkout and confirmation
+    // stops counting toward a cap that no longer applies to them.
+    if (product.creator.creatorPlan === "LIMITED") {
+      await tx.user.update({ where: { id: product.creatorId }, data: { limitedSalesCount: { increment: 1 } } });
+    }
   });
 
   const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });
@@ -181,8 +193,18 @@ export async function finalizePayment(
     });
 
     const { availableKobo, pendingKobo } = await getWalletBalances(product.creatorId);
-    const rates = await getCommissionRates();
-    const netKobo = payment.amountKobo - Math.round(payment.amountKobo * rates[product.type]);
+    // Same override precedence as recordSale itself (creator plans,
+    // DECISIONS.md) — recomputing from the live rate here would show the
+    // wrong net for a LIMITED (0% taken) or BUYER_PAYS_FEE (commission is
+    // the buyer's added charge, not a cut of amountKobo) seller.
+    let commissionKobo: number;
+    if (payment.order.commissionOverrideKobo != null) {
+      commissionKobo = payment.order.commissionOverrideKobo;
+    } else {
+      const rates = await getCommissionRates();
+      commissionKobo = Math.round(payment.amountKobo * rates[product.type]);
+    }
+    const netKobo = payment.amountKobo - commissionKobo;
     void sendSaleNotificationEmail({
       to: product.creator.email,
       productTitle: product.title,

@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Image, ScrollView, Text, TouchableOpacity, Vi
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../lib/AuthContext";
+import { useRequireCreatorPlan } from "../lib/useRequireCreatorPlan";
 import { apiPost } from "../lib/api";
 import { uploadAndFinalizeArtwork } from "../lib/uploadImage";
 import { colors, fonts } from "../lib/theme";
@@ -17,6 +18,7 @@ const MAX_GALLERY = 8;
 export function PublishMerchScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
+  useRequireCreatorPlan();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

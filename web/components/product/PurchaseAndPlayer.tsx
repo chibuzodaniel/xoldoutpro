@@ -36,6 +36,10 @@ function formatNaira(kobo: number) {
   return `Buy · ₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
 }
 
+function nairaAmount(kobo: number) {
+  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+}
+
 function formatTime(sec: number) {
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
@@ -56,6 +60,10 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   // Defaults true (the common case) so the button doesn't flash in then out
   // for everyone — corrected from the access response once it loads.
   const [downloadsAllowed, setDownloadsAllowed] = useState(true);
+  // Creator plans (DECISIONS.md): set only when this seller is on
+  // BUYER_PAYS_FEE — shown as an added "service charge" before checkout,
+  // app/api/orders/route.ts charges the exact same rate on top of priceKobo.
+  const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -67,6 +75,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     setIsOwner(data.isOwner);
     setTracks(data.tracks);
     setDownloadsAllowed(data.downloadsEnabled ?? true);
+    setServiceChargePercent(data.serviceChargePercent ?? null);
   }
 
   useEffect(() => {
@@ -157,8 +166,15 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     player.setExpanded(true);
   }
 
+  const serviceChargeKobo = serviceChargePercent != null ? Math.round((priceKobo * serviceChargePercent) / 100) : 0;
+
   return (
     <div>
+      {!entitled && !isOwner && priceKobo > 0 && serviceChargePercent != null && (
+        <p className="text-xs text-ink-3 mb-1.5">
+          {nairaAmount(priceKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(priceKobo + serviceChargeKobo)} total
+        </p>
+      )}
       <div className="flex gap-2 mb-4">
         {!entitled && !isOwner && (
           <button
@@ -166,7 +182,13 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
             disabled={busy || isSoldOut}
             className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
-            {isSoldOut ? "Sold out" : busy ? "Starting checkout…" : formatNaira(priceKobo)}
+            {isSoldOut
+              ? "Sold out"
+              : busy
+                ? "Starting checkout…"
+                : serviceChargePercent != null && priceKobo > 0
+                  ? `Buy · ${nairaAmount(priceKobo + serviceChargeKobo)}`
+                  : formatNaira(priceKobo)}
           </button>
         )}
         {!isOwner && !isSoldOut && (

@@ -97,6 +97,28 @@ model User {
   // after that, unlike Beat.ownershipConfirmedAt below, which is per-beat.
   producerAgreementAcceptedAt DateTime?
 
+  // ─── Creator monetization plan (DECISIONS.md) ─────────────────────────
+  // Null until first chosen — lib/commerce/creatorPlans.ts's
+  // assertCanPublish() blocks publishing until it's set. Switching between
+  // UNLIMITED/BUYER_PAYS_FEE is free/instant; switching into/renewing
+  // LIMITED costs PlatformSettings.limitedPlanFeeKobo (wallet-or-Bachs, same
+  // pattern as a Billboard purchase — lib/commerce/billboards.ts).
+  creatorPlan            CreatorPlan?
+  // LIMITED-only: resettable counters, both reset to 0 by every successful
+  // join/renewal payment so a fresh cycle always starts at 100/100 (whatever
+  // PlatformSettings.limitedPlan{Upload,Sales}Cap currently say). Needs an
+  // explicit counter (not a live product count) specifically because
+  // renewal must grant fresh capacity without deleting anything already
+  // posted.
+  limitedUploadsUsed     Int          @default(0)
+  limitedSalesCount      Int          @default(0)
+  limitedPlanActivatedAt DateTime?
+  // BUYER_PAYS_FEE-only: additive, never reset — assertCanPublish() compares
+  // a LIVE product count against buyerPaysFeeUploadCap + this, so no
+  // separate "uploads used" counter is needed (unlike LIMITED above, this
+  // cap never resets, it only ever grows via a slot-pack purchase).
+  buyerPaysFeeBonusSlots Int          @default(0)
+
   // ─── Ambassador program ───────────────────────────────────────────────
   // Platform-wide referral role (not tied to any one creator — see
   // AmbassadorApplication below). isAmbassador flips true on approval;
@@ -412,6 +434,31 @@ enum LedgerKind {
   // (lib/commerce/billboards.ts's rejectBillboard) — a Bachs-paid billboard
   // is refunded via a real Bachs refund instead, not this.
   BILLBOARD_REFUND
+  // Wallet-funded creator-plan charge (lib/commerce/creatorPlans.ts) — same
+  // shape as BILLBOARD_FEE, covers both a LIMITED join/renewal and a
+  // BUYER_PAYS_FEE slot-pack purchase (Payment.creatorPlanPaymentKind tells
+  // the two apart at the Bachs-webhook level; the ledger doesn't need to).
+  CREATOR_PLAN_FEE
+}
+
+// Three creator-selectable monetization plans (DECISIONS.md) — see
+// lib/commerce/creatorPlans.ts and lib/commerce/ledger.ts's recordSale
+// (Order.commissionOverrideKobo) for how each actually changes the money
+// split. Null on User.creatorPlan means "not chosen yet."
+enum CreatorPlan {
+  // Today's model: platform commission (PlatformSettings.commission*Percent)
+  // deducted from the seller's own proceeds. No upload cap.
+  UNLIMITED
+  // Commission (PlatformSettings.buyerPaysFeePercent, flat) added on top of
+  // the price at checkout and paid by the buyer as a displayed "service
+  // charge" — seller keeps 100% of their listed price. Capped at
+  // buyerPaysFeeUploadCap + User.buyerPaysFeeBonusSlots live listings.
+  BUYER_PAYS_FEE
+  // No commission at all — seller keeps 100%. Costs
+  // PlatformSettings.limitedPlanFeeKobo to join/renew, capped at
+  // limitedPlanUploadCap uploads and limitedPlanSalesCap sales per cycle
+  // (User.limitedUploadsUsed/limitedSalesCount, reset on every renewal).
+  LIMITED
 }
 
 enum LedgerStatus {
@@ -742,6 +789,17 @@ model Order {
   promoterId String?
   promoter   EventPromoter? @relation(fields: [promoterId], references: [id])
 
+  // Snapshotted at checkout time (app/api/orders/route.ts) from the
+  // seller's CreatorPlan at that moment — same "lock in what was actually
+  // charged" reasoning as OrderItem.priceKobo, since Payment.amountKobo is
+  // also fixed at checkout and the two have to stay consistent even if the
+  // seller's plan changes before the webhook confirms payment. Read back by
+  // lib/commerce/confirmPayment.ts's finalizePayment and passed straight
+  // through to recordSale's commissionOverrideKobo. Null = UNLIMITED (use
+  // the live per-type rate, today's unchanged behavior); 0 = LIMITED (no
+  // commission); the buyer's added service charge = BUYER_PAYS_FEE.
+  commissionOverrideKobo Int?
+
   items            OrderItem[]
   payment          Payment?
   entitlements     Entitlement[]
@@ -773,27 +831,37 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                    String        @id @default(cuid())
-  // Exactly one of orderId/billboardId is ever set — same optional-FK
-  // side-by-side pattern as WalletLedgerEntry's orderId/payoutId. A
-  // Billboard's Bachs checkout (lib/commerce/billboards.ts) is the only
-  // other thing this Payment/webhook pipeline pays for besides an Order.
-  orderId               String?       @unique
-  order                 Order?        @relation(fields: [orderId], references: [id])
-  billboardId           String?       @unique
-  billboard             Billboard?    @relation(fields: [billboardId], references: [id])
-  processor             String        @default("flutterwave")
-  processorRef          String        @unique // tx_ref; webhook idempotency key
+  id                     String        @id @default(cuid())
+  // Exactly one of orderId/billboardId/creatorPlanUserId is ever set — same
+  // optional-FK side-by-side pattern as WalletLedgerEntry's
+  // orderId/payoutId. A Billboard's Bachs checkout (lib/commerce/
+  // billboards.ts) and a creator-plan charge (lib/commerce/creatorPlans.ts)
+  // are the only other things this Payment/webhook pipeline pays for
+  // besides an Order.
+  orderId                String?       @unique
+  order                  Order?        @relation(fields: [orderId], references: [id])
+  billboardId            String?       @unique
+  billboard              Billboard?    @relation(fields: [billboardId], references: [id])
+  // A LIMITED join/renewal or a BUYER_PAYS_FEE slot-pack purchase —
+  // creatorPlanPaymentKind tells the Bachs webhook which of the two to
+  // apply on success (lib/commerce/creatorPlans.ts's
+  // finalizeCreatorPlanFeePayment). Not a relation to a dedicated model
+  // (unlike Billboard) since there's no separate approval-state entity —
+  // success just updates the User row directly.
+  creatorPlanUserId      String?
+  creatorPlanPaymentKind String? // "LIMITED_ACTIVATION" | "SLOT_PACK"
+  processor              String        @default("flutterwave")
+  processorRef           String        @unique // tx_ref; webhook idempotency key
   // Flutterwave's own numeric transaction id (verifyTransaction()'s `id`) —
   // distinct from processorRef/tx_ref, which is ours. The refund endpoint
   // (POST /transactions/{id}/refund) takes this one, not the tx_ref, so it
   // has to be captured at webhook time or a refund has nothing to call.
-  providerTransactionId String?
-  status                PaymentStatus @default(INITIATED)
-  amountKobo            Int
-  webhookReceivedAt     DateTime?
-  rawPayload            Json?
-  createdAt             DateTime      @default(now())
+  providerTransactionId  String?
+  status                 PaymentStatus @default(INITIATED)
+  amountKobo             Int
+  webhookReceivedAt      DateTime?
+  rawPayload             Json?
+  createdAt              DateTime      @default(now())
 }
 
 // The header bell — deliberately transactional/money-related only (a sale
@@ -1162,25 +1230,55 @@ model AmbassadorTierRate {
 // (PurchaseAndPlayer/BeatPurchaseAndPlayer's Download button and the
 // /api/tracks|beats/[id]/audio-url?download=1 routes both check this).
 model PlatformSettings {
-  id                     String   @id @default("singleton")
-  downloadsEnabled       Boolean  @default(true)
+  id                          String    @id @default("singleton")
+  downloadsEnabled            Boolean   @default(true)
   // ₦5,000/day starting default — see lib/commerce/billboards.ts's
   // getBillboardDailyRateKobo(). What a creator pays for one day of the
   // Discover billboard rail; moderator-editable via SiteControlsPanel.
-  billboardDailyRateKobo Int      @default(500000)
-  // Per-product-type platform commission, super-moderator-editable via
-  // SiteControlsPanel (lib/commerce/ledger.ts's getCommissionRates() reads
-  // these; lib/commerce/constants.ts's COMMISSION_RATE/EVENT_COMMISSION_RATE
-  // are now just the starting defaults below, not the live rate). Whole
-  // percent, matching AmbassadorTierRate's own convention — DECISIONS.md:
-  // 12% on music/beats/merch, 5% on tickets (a lower take since the
-  // creator still bears the real-world cost of putting the show on).
-  commissionReleasePercent Int @default(12)
-  commissionBeatPercent    Int @default(12)
-  commissionMerchPercent   Int @default(12)
-  commissionEventPercent   Int @default(5)
-  updatedAt              DateTime @updatedAt
-  updatedBy              String?
+  billboardDailyRateKobo      Int       @default(500000)
+  // Per-product-type commission for CreatorPlan.UNLIMITED sellers only
+  // (DECISIONS.md) — super-moderator-editable via SiteControlsPanel
+  // (lib/commerce/ledger.ts's getCommissionRates() reads these;
+  // lib/commerce/constants.ts's COMMISSION_RATE/EVENT_COMMISSION_RATE are
+  // now just the starting defaults below, not the live rate). Whole
+  // percent, matching AmbassadorTierRate's own convention. BUYER_PAYS_FEE
+  // has its own separate flat rate (buyerPaysFeePercent below) and LIMITED
+  // has none at all — this table no longer applies platform-wide.
+  commissionReleasePercent    Int       @default(15)
+  commissionBeatPercent       Int       @default(15)
+  commissionMerchPercent      Int       @default(15)
+  commissionEventPercent      Int       @default(15)
+  // ─── Creator plans: BUYER_PAYS_FEE ─────────────────────────────────────
+  // Flat (not per-type, unlike the UNLIMITED table above) service-charge
+  // rate added on top of the price at checkout and paid by the buyer —
+  // lib/commerce/creatorPlans.ts, app/api/orders/route.ts. Upload cap is
+  // live-product-count-based (User has no counter for it, see User's own
+  // comment) — buyerPaysFeeSlotPackFeeKobo buys buyerPaysFeeSlotPackSize
+  // more room, stacking indefinitely, whenever a creator hits the cap.
+  buyerPaysFeePercent         Int       @default(12)
+  buyerPaysFeeUploadCap       Int       @default(50)
+  buyerPaysFeeSlotPackSize    Int       @default(50)
+  buyerPaysFeeSlotPackFeeKobo Int       @default(400000)
+  // ─── Creator plans: LIMITED ─────────────────────────────────────────────
+  // Flat one-time fee (wallet-or-Bachs, lib/commerce/creatorPlans.ts) to
+  // join OR renew — both charge the same amount and both reset
+  // User.limitedUploadsUsed/limitedSalesCount to 0 for a fresh cycle.
+  limitedPlanFeeKobo          Int       @default(400000)
+  limitedPlanUploadCap        Int       @default(100)
+  limitedPlanSalesCap         Int       @default(100)
+  // The most recently published Android APK — written by mobile's
+  // `npm run publish-apk` script (POST /api/internal/apk-release, secret-
+  // gated) after it builds via EAS and uploads the artifact to R2. Read by
+  // GET /api/mobile/version, which both the web Android-install banner and
+  // the mobile app's own in-app update check poll. buildNumber is our own
+  // monotonic counter (mobile/app.json's extra.buildNumber) — not Android's
+  // versionCode, which EAS's `preview` profile doesn't auto-increment.
+  latestApkVersion            String?
+  latestApkBuildNumber        Int?
+  latestApkUrl                String?
+  latestApkReleasedAt         DateTime?
+  updatedAt                   DateTime  @updatedAt
+  updatedBy                   String?
 }
 
 // ─── Billboards ─────────────────────────────────────────────────────────
@@ -1194,19 +1292,19 @@ model PlatformSettings {
 // past the 1-day default.
 enum BillboardStatus {
   PENDING_PAYMENT // Bachs checkout started, not yet confirmed
-  PENDING_REVIEW  // paid (wallet or Bachs), awaiting moderator approval
+  PENDING_REVIEW // paid (wallet or Bachs), awaiting moderator approval
   ACTIVE
-  REJECTED        // moderator declined — always refunded, always has a reason
-  REMOVED         // moderator-deactivated an ACTIVE one, or an abandoned PENDING_PAYMENT swept
+  REJECTED // moderator declined — always refunded, always has a reason
+  REMOVED // moderator-deactivated an ACTIVE one, or an abandoned PENDING_PAYMENT swept
 }
 
 model Billboard {
-  id               String          @id @default(cuid())
+  id               String              @id @default(cuid())
   creatorId        String?
-  creator          User?           @relation(fields: [creatorId], references: [id])
+  creator          User?               @relation(fields: [creatorId], references: [id])
   artworkUrl       String
-  status           BillboardStatus @default(PENDING_PAYMENT)
-  isModeratorAdded Boolean         @default(false)
+  status           BillboardStatus     @default(PENDING_PAYMENT)
+  isModeratorAdded Boolean             @default(false)
   // Creator-chosen at purchase time (explicit ask: "they should also be
   // allowed to choose how many days ... that will determine how much they
   // are paying") — paidKobo = days * PlatformSettings.billboardDailyRateKobo
@@ -1214,12 +1312,12 @@ model Billboard {
   // expiresAt-activatedAt) so a Bachs purchase still knows how many days to
   // grant once the webhook actually confirms payment, and so a moderator's
   // "extend" action has a real unit to add to.
-  days             Int             @default(1)
-  paidKobo         Int             @default(0)
+  days             Int                 @default(1)
+  paidKobo         Int                 @default(0)
   activatedAt      DateTime?
   expiresAt        DateTime?
   rejectionReason  String?
-  createdAt        DateTime        @default(now())
+  createdAt        DateTime            @default(now())
   updatedBy        String?
   payment          Payment?
   ledgerEntries    WalletLedgerEntry[]

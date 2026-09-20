@@ -9,6 +9,7 @@ import { TrackUploader, type TrackDraft, effectivePreviewLength } from "@/compon
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
 
 function newTrack(): TrackDraft {
   return {
@@ -28,6 +29,7 @@ type ReleaseType = "SINGLE" | "EP" | "ALBUM";
 export default function UploadMusicPage() {
   const router = useRouter();
   const toast = useToast();
+  useRequireCreatorPlan();
 
   const [releaseType, setReleaseType] = useState<ReleaseType>("SINGLE");
   const [title, setTitle] = useState("");

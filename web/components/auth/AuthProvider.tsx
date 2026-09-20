@@ -26,6 +26,12 @@ export type AppUser = {
   isVerified: boolean;
   verificationBadges: string[];
   isAmbassador: boolean;
+  // Creator plans (DECISIONS.md) — null until first chosen. See
+  // lib/commerce/creatorPlans.ts.
+  creatorPlan: "UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED" | null;
+  limitedUploadsUsed: number;
+  limitedSalesCount: number;
+  buyerPaysFeeBonusSlots: number;
 };
 
 type AuthState = {

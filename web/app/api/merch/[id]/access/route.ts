@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { getSellerServiceChargePercent } from "@/lib/commerce/creatorPlans";
 
 // Public browsing info — served to signed-out visitors too (entitled/isOwner
 // default false, no fulfillment). Only /api/orders (the actual purchase)
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     entitled: entitlements.length > 0,
     isOwner: user ? product.creatorId === user.id : false,
+    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId),
     fulfillments,
   });
 }

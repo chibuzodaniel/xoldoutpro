@@ -7,10 +7,12 @@ import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
 
 export default function UploadMerchPage() {
   const router = useRouter();
   const toast = useToast();
+  useRequireCreatorPlan();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

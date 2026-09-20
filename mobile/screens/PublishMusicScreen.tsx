@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { useAuth } from "../lib/AuthContext";
+import { useRequireCreatorPlan } from "../lib/useRequireCreatorPlan";
 import { apiPost } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
 import type { RootStackParamList } from "../lib/navigation";
@@ -40,6 +41,7 @@ function newTrack(): TrackDraft {
 export function PublishMusicScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
+  useRequireCreatorPlan();
 
   const [releaseType, setReleaseType] = useState<ReleaseType>("SINGLE");
   const [title, setTitle] = useState("");

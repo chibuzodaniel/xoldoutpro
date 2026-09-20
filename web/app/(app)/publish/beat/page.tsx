@@ -9,6 +9,7 @@ import { WaveformScrubber } from "@/components/upload/WaveformScrubber";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
 import Link from "next/link";
 
 type AudioState = {
@@ -28,6 +29,7 @@ function effectivePreviewLength(durationSec: number, length: 30 | 50 | "custom",
 export default function UploadBeatPage() {
   const router = useRouter();
   const toast = useToast();
+  useRequireCreatorPlan();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

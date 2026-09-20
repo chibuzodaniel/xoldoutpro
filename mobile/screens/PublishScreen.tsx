@@ -1,8 +1,11 @@
+import { useState } from "react";
 import { Pressable, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors, fonts } from "../lib/theme";
+import { useAuth } from "../lib/AuthContext";
+import { PlanPickerModal } from "../components/PlanPickerModal";
 
 const OPTIONS = [
   { key: "PublishMusic" as const, title: "Upload Music", subtitle: "Single, EP, or album, free or paid" },
@@ -11,24 +14,50 @@ const OPTIONS = [
   { key: "PublishMerch" as const, title: "Add Merchandise", subtitle: "Apparel, posters, digital or physical goods" },
 ];
 
+const PLAN_LABEL: Record<"UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED", string> = {
+  UNLIMITED: "Unlimited",
+  BUYER_PAYS_FEE: "Buyer Pays Fee",
+  LIMITED: "Limited",
+};
+
 // Mirrors web's components/nav/PublishSheet.tsx: a bottom sheet sized to
 // its own content, not a full-screen page — rendered here as a
 // transparentModal stack screen (see App.tsx) so this component owns the
 // backdrop and sheet sizing itself, the same way the web version does.
+//
+// A plan is required before publishing at all (forced PlanPickerModal if
+// unset); even once one is set, "Plan: X · Switch" stays visible here so
+// switching doesn't require a detour through Edit Profile first (explicit
+// ask, same as web's PublishOptionsList).
 export function PublishScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { appUser } = useAuth();
+  const [planModalOpen, setPlanModalOpen] = useState(false);
+  const plan = appUser?.creatorPlan ?? null;
+
+  function handleOptionPress(key: (typeof OPTIONS)[number]["key"]) {
+    if (!plan) {
+      setPlanModalOpen(true);
+      return;
+    }
+    navigation.replace(key);
+  }
 
   return (
     <View style={styles.overlay}>
       <Pressable style={StyleSheet.absoluteFill} onPress={() => navigation.goBack()} />
       <View style={styles.sheet}>
         <Text style={styles.title}>What are you publishing?</Text>
+        <TouchableOpacity style={styles.planRow} onPress={() => setPlanModalOpen(true)}>
+          <Text style={styles.planRowText}>Plan: {plan ? PLAN_LABEL[plan] : "Not chosen"}</Text>
+          <Text style={styles.planRowSwitch}>Switch</Text>
+        </TouchableOpacity>
         <View style={styles.list}>
           {OPTIONS.map((opt) => (
             <TouchableOpacity
               key={opt.key}
               style={styles.row}
-              onPress={() => navigation.replace(opt.key)}
+              onPress={() => handleOptionPress(opt.key)}
             >
               <View>
                 <Text style={styles.rowTitle}>{opt.title}</Text>
@@ -42,6 +71,7 @@ export function PublishScreen() {
           <Text style={styles.cancelText}>Cancel</Text>
         </TouchableOpacity>
       </View>
+      <PlanPickerModal visible={planModalOpen} onClose={() => setPlanModalOpen(false)} />
     </View>
   );
 }
@@ -59,6 +89,19 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 20 },
+  planRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.line,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  planRowText: { color: colors.ink, fontSize: 13, fontWeight: "600" },
+  planRowSwitch: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
   list: { borderTopWidth: 1, borderColor: colors.lineSoft, marginBottom: 14 },
   row: {
     flexDirection: "row",

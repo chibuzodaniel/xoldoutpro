@@ -4,18 +4,25 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
-import { useAuth, type SocialLink } from "@/components/auth/AuthProvider";
+import { useAuth, type SocialLink, type AppUser } from "@/components/auth/AuthProvider";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { enablePush, disablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
+import { PlanPickerSheet } from "@/components/plans/PlanPickerSheet";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
+
+const PLAN_LABEL: Record<NonNullable<AppUser["creatorPlan"]>, string> = {
+  UNLIMITED: "Unlimited",
+  BUYER_PAYS_FEE: "Buyer Pays Fee",
+  LIMITED: "Limited",
+};
 
 export default function EditProfilePage() {
   const router = useRouter();
@@ -39,6 +46,7 @@ export default function EditProfilePage() {
   const [digestBusy, setDigestBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
+  const [planSheetOpen, setPlanSheetOpen] = useState(false);
 
   function addTag() {
     const t = tagInput.trim();
@@ -329,11 +337,20 @@ export default function EditProfilePage() {
       <div className="px-4 max-w-sm mx-auto mt-8">
         <Link
           href="/verification"
-          className="flex items-center justify-between rounded-lg border border-line px-4 py-3.5 text-sm font-semibold mb-8"
+          className="flex items-center justify-between rounded-lg border border-line px-4 py-3.5 text-sm font-semibold mb-4"
         >
           {appUser.isVerified ? "Verification" : "Get verified"}
           <span className="text-ink-3">›</span>
         </Link>
+
+        <button
+          type="button"
+          onClick={() => setPlanSheetOpen(true)}
+          className="flex w-full items-center justify-between rounded-lg border border-line px-4 py-3.5 text-sm font-semibold mb-8"
+        >
+          <span>Creator plan: {appUser.creatorPlan ? PLAN_LABEL[appUser.creatorPlan] : "Not chosen"}</span>
+          <span className="text-ink-3 font-normal">Change ›</span>
+        </button>
 
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
         <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
@@ -406,6 +423,7 @@ export default function EditProfilePage() {
       </div>
 
       <DeleteAccountSheet open={deleteSheetOpen} onClose={() => setDeleteSheetOpen(false)} handle={appUser.handle} />
+      <PlanPickerSheet open={planSheetOpen} onClose={() => setPlanSheetOpen(false)} />
     </div>
   );
 }

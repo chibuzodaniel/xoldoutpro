@@ -14,4 +14,9 @@ export type AppUser = {
   verificationBadges: string[];
   pushEnabled: boolean;
   emailDigestSubscribed: boolean;
+  // Creator plans (DECISIONS.md) — null until first chosen.
+  creatorPlan: "UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED" | null;
+  limitedUploadsUsed: number;
+  limitedSalesCount: number;
+  buyerPaysFeeBonusSlots: number;
 };

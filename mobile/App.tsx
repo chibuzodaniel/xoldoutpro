@@ -7,6 +7,7 @@ import { colors } from "./lib/theme";
 import { AuthProvider } from "./lib/AuthContext";
 import { PlayerProvider } from "./lib/PlayerContext";
 import { ToastProvider } from "./components/ToastProvider";
+import { UpdateBanner } from "./components/UpdateBanner";
 import { BottomTabs } from "./navigation/BottomTabs";
 import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
@@ -47,6 +48,7 @@ export default function App() {
     <AuthProvider>
       <PlayerProvider>
         <ToastProvider>
+        <UpdateBanner />
         <NavigationContainer theme={navTheme}>
           <Stack.Navigator
             screenOptions={{

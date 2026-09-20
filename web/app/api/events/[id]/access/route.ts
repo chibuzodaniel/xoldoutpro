@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { getSellerServiceChargePercent } from "@/lib/commerce/creatorPlans";
 
 // Public browsing info — served to signed-out visitors too (isOwner/entitled
 // default false, no check-in codes). Only /api/orders (the actual ticket
@@ -34,6 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     isOwner: user ? event.creatorId === user.id : false,
+    serviceChargePercent: await getSellerServiceChargePercent(event.creatorId),
     tiers: event.tiers.map((tier) => {
       const owned = byProductId.get(tier.productId) ?? [];
       return {
