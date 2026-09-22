@@ -104,14 +104,15 @@ model User {
   // LIMITED costs PlatformSettings.limitedPlanFeeKobo (wallet-or-Bachs, same
   // pattern as a Billboard purchase — lib/commerce/billboards.ts).
   creatorPlan            CreatorPlan?
-  // LIMITED-only: resettable counters, both reset to 0 by every successful
-  // join/renewal payment so a fresh cycle always starts at 100/100 (whatever
-  // PlatformSettings.limitedPlan{Upload,Sales}Cap currently say). Needs an
-  // explicit counter (not a live product count) specifically because
-  // renewal must grant fresh capacity without deleting anything already
-  // posted.
+  // LIMITED-only: resettable counter, reset to 0 by every successful
+  // join/renewal payment so a fresh cycle always starts at
+  // PlatformSettings.limitedPlanUploadCap uploads. Explicit ask,
+  // 2026-09-22: sales are unlimited on this plan — renewal is triggered
+  // only by hitting the upload limit, never by a sales count (there is no
+  // sales cap at all). Needs an explicit counter (not a live product count)
+  // specifically because renewal must grant fresh capacity without
+  // deleting anything already posted.
   limitedUploadsUsed     Int          @default(0)
-  limitedSalesCount      Int          @default(0)
   limitedPlanActivatedAt DateTime?
   // BUYER_PAYS_FEE-only: additive, never reset — assertCanPublish() compares
   // a LIVE product count against buyerPaysFeeUploadCap + this, so no
@@ -454,10 +455,11 @@ enum CreatorPlan {
   // charge" — seller keeps 100% of their listed price. Capped at
   // buyerPaysFeeUploadCap + User.buyerPaysFeeBonusSlots live listings.
   BUYER_PAYS_FEE
-  // No commission at all — seller keeps 100%. Costs
+  // No commission at all — seller keeps 100%, unlimited sales. Costs
   // PlatformSettings.limitedPlanFeeKobo to join/renew, capped at
-  // limitedPlanUploadCap uploads and limitedPlanSalesCap sales per cycle
-  // (User.limitedUploadsUsed/limitedSalesCount, reset on every renewal).
+  // limitedPlanUploadCap uploads per cycle (User.limitedUploadsUsed, reset
+  // on every renewal) — renewal is triggered only by hitting that upload
+  // limit, never by a sales count.
   LIMITED
 }
 
@@ -1244,28 +1246,41 @@ model PlatformSettings {
   // percent, matching AmbassadorTierRate's own convention. BUYER_PAYS_FEE
   // has its own separate flat rate (buyerPaysFeePercent below) and LIMITED
   // has none at all — this table no longer applies platform-wide.
-  commissionReleasePercent    Int       @default(15)
-  commissionBeatPercent       Int       @default(15)
-  commissionMerchPercent      Int       @default(15)
-  commissionEventPercent      Int       @default(15)
+  // Explicit ask, 2026-09-22: "no upfront plan fee, 12% Xoldout fee, you
+  // keep 88%" for Unlimited — Release/Beat/Merch moved to 12% (matches
+  // what production's own pre-existing singleton row already held — the
+  // earlier bump to 15 here only ever affected a brand-new row's default,
+  // never actually applied in production). Event stays separate at its
+  // original 5% (creator still bears the real-world cost of the show) —
+  // confirmed with the user: tickets are NOT folded into the flat 12%.
+  commissionReleasePercent    Int       @default(12)
+  commissionBeatPercent       Int       @default(12)
+  commissionMerchPercent      Int       @default(12)
+  commissionEventPercent      Int       @default(5)
   // ─── Creator plans: BUYER_PAYS_FEE ─────────────────────────────────────
-  // Flat (not per-type, unlike the UNLIMITED table above) service-charge
-  // rate added on top of the price at checkout and paid by the buyer —
-  // lib/commerce/creatorPlans.ts, app/api/orders/route.ts. Upload cap is
-  // live-product-count-based (User has no counter for it, see User's own
-  // comment) — buyerPaysFeeSlotPackFeeKobo buys buyerPaysFeeSlotPackSize
-  // more room, stacking indefinitely, whenever a creator hits the cap.
+  // Service-charge rate added on top of the price at checkout and paid by
+  // the buyer — lib/commerce/creatorPlans.ts, app/api/orders/route.ts.
+  // Explicit ask, 2026-09-22: Events get their own separate rate
+  // (buyerPaysFeeEventPercent) — same reasoning as the UNLIMITED table
+  // singling out tickets, ticket economics differ from a digital-goods
+  // sale. Release/Beat/Merch still share the one flat buyerPaysFeePercent.
+  // Upload cap is live-product-count-based (User has no counter for it, see
+  // User's own comment) — buyerPaysFeeSlotPackFeeKobo buys
+  // buyerPaysFeeSlotPackSize more room, stacking indefinitely, whenever a
+  // creator hits the cap.
   buyerPaysFeePercent         Int       @default(12)
+  buyerPaysFeeEventPercent    Int       @default(12)
   buyerPaysFeeUploadCap       Int       @default(50)
   buyerPaysFeeSlotPackSize    Int       @default(50)
   buyerPaysFeeSlotPackFeeKobo Int       @default(400000)
   // ─── Creator plans: LIMITED ─────────────────────────────────────────────
   // Flat one-time fee (wallet-or-Bachs, lib/commerce/creatorPlans.ts) to
   // join OR renew — both charge the same amount and both reset
-  // User.limitedUploadsUsed/limitedSalesCount to 0 for a fresh cycle.
+  // User.limitedUploadsUsed to 0 for a fresh cycle. Explicit ask,
+  // 2026-09-22: sales are unlimited on this plan — there is no sales cap,
+  // renewal is only ever triggered by hitting limitedPlanUploadCap.
   limitedPlanFeeKobo          Int       @default(400000)
   limitedPlanUploadCap        Int       @default(100)
-  limitedPlanSalesCap         Int       @default(100)
   // The most recently published Android APK — written by mobile's
   // `npm run publish-apk` script (POST /api/internal/apk-release, secret-
   // gated) after it builds via EAS and uploads the artifact to R2. Read by

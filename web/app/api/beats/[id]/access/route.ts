@@ -23,7 +23,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // the Download button should disappear entirely (not just error on
     // click) — in-app streaming keeps working either way.
     downloadsEnabled: await downloadsEnabled(),
-    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId),
+    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId, "BEAT"),
     durationSec: product.beat.durationSec,
     previewStartSec: product.beat.previewStartSec,
     previewEndSec: product.beat.previewEndSec,

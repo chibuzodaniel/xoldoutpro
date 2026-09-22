@@ -149,16 +149,6 @@ export async function finalizePayment(
       sellerReferredByAmbassadorId: product.creator.referredByAmbassadorId,
       commissionOverrideKobo: payment.order.commissionOverrideKobo,
     });
-
-    // Creator plans (DECISIONS.md): LIMITED plan sales count toward its
-    // moderator-editable sales cap (PlatformSettings.limitedPlanSalesCap) —
-    // one increment per paid order, not per unit/quantity within it. Read
-    // live here (not snapshotted, unlike commissionOverrideKobo above) so a
-    // seller who switched off LIMITED between checkout and confirmation
-    // stops counting toward a cap that no longer applies to them.
-    if (product.creator.creatorPlan === "LIMITED") {
-      await tx.user.update({ where: { id: product.creatorId }, data: { limitedSalesCount: { increment: 1 } } });
-    }
   });
 
   const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });

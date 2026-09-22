@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     isOwner: user ? event.creatorId === user.id : false,
-    serviceChargePercent: await getSellerServiceChargePercent(event.creatorId),
+    serviceChargePercent: await getSellerServiceChargePercent(event.creatorId, "EVENT"),
     tiers: event.tiers.map((tier) => {
       const owned = byProductId.get(tier.productId) ?? [];
       return {

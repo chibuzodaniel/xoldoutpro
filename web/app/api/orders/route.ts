@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
     // lib/commerce/confirmPayment.ts's finalizePayment charges the seller
     // (via recordSale) exactly what was actually collected, regardless of
     // any plan change between now and webhook confirmation.
-    const { amountKobo, commissionOverrideKobo } = await computeCreatorPlanCheckout(product.creator.creatorPlan, baseKobo);
+    const { amountKobo, commissionOverrideKobo } = await computeCreatorPlanCheckout(product.creator.creatorPlan, baseKobo, product.type);
 
     // Repeat/multi-unit purchases are the whole point for EVENT/MERCH — this
     // guard now only protects RELEASE/BEAT, which never had a reason to be

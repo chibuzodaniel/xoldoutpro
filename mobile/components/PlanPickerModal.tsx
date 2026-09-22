@@ -8,7 +8,11 @@ import { colors, fonts } from "../lib/theme";
 type Plan = "UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED";
 
 const OPTIONS: { value: Plan; label: string; description: string }[] = [
-  { value: "UNLIMITED", label: "Unlimited", description: "XOLDOUT takes a commission per sale. No upload limit, keep publishing freely." },
+  {
+    value: "UNLIMITED",
+    label: "Unlimited",
+    description: "No upfront plan fee. XOLDOUT takes 12% per sale (music/beats/merch), you keep 88%. Unlimited uploads, unlimited sales.",
+  },
   {
     value: "BUYER_PAYS_FEE",
     label: "Buyer Pays Fee",
@@ -17,7 +21,7 @@ const OPTIONS: { value: Plan; label: string; description: string }[] = [
   {
     value: "LIMITED",
     label: "Limited",
-    description: "Pay a flat fee to unlock a batch of uploads and keep 100% of every sale. Renew (same fee) once you hit the sales cap.",
+    description: "Pay a flat fee to unlock 100 uploads and keep 100% of unlimited sales. Renew (same fee) once you hit your upload limit.",
   },
 ];
 

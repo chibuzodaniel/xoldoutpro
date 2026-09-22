@@ -21,7 +21,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       plan: user.creatorPlan,
       limitedUploadsUsed: user.limitedUploadsUsed,
-      limitedSalesCount: user.limitedSalesCount,
       buyerPaysFeeBonusSlots: user.buyerPaysFeeBonusSlots,
       liveProductCount,
       settings,

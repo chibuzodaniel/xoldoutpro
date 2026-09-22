@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { initializePayment } from "@/lib/bachs";
-import type { CreatorPlan, Prisma } from "@/generated/prisma/client";
+import type { CreatorPlan, Prisma, ProductType } from "@/generated/prisma/client";
 
 /**
  * Moderator-configurable creator-plan knobs (SiteControlsPanel, PATCH
@@ -11,13 +11,23 @@ export async function getCreatorPlanSettings() {
   const row = await db.platformSettings.findUnique({ where: { id: "singleton" } });
   return {
     buyerPaysFeePercent: row?.buyerPaysFeePercent ?? 12,
+    // Events get their own separate Buyer-Pays-Fee rate (explicit ask,
+    // 2026-09-22) — same reasoning as the UNLIMITED commission table
+    // singling out tickets: ticket economics differ from a digital-goods
+    // sale. Release/Beat/Merch still share buyerPaysFeePercent above.
+    buyerPaysFeeEventPercent: row?.buyerPaysFeeEventPercent ?? 12,
     buyerPaysFeeUploadCap: row?.buyerPaysFeeUploadCap ?? 50,
     buyerPaysFeeSlotPackSize: row?.buyerPaysFeeSlotPackSize ?? 50,
     buyerPaysFeeSlotPackFeeKobo: row?.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
     limitedPlanFeeKobo: row?.limitedPlanFeeKobo ?? 400_000,
     limitedPlanUploadCap: row?.limitedPlanUploadCap ?? 100,
-    limitedPlanSalesCap: row?.limitedPlanSalesCap ?? 100,
   };
+}
+
+/** Which of getCreatorPlanSettings()'s two BUYER_PAYS_FEE rates applies to a given product type. */
+export async function getBuyerPaysFeePercentFor(productType: ProductType): Promise<number> {
+  const { buyerPaysFeePercent, buyerPaysFeeEventPercent } = await getCreatorPlanSettings();
+  return productType === "EVENT" ? buyerPaysFeeEventPercent : buyerPaysFeePercent;
 }
 
 /**
@@ -31,10 +41,11 @@ export async function getCreatorPlanSettings() {
 export async function computeCreatorPlanCheckout(
   sellerPlan: CreatorPlan | null,
   baseKobo: number,
+  productType: ProductType,
 ): Promise<{ amountKobo: number; commissionOverrideKobo: number | null }> {
   if (sellerPlan === "BUYER_PAYS_FEE") {
-    const { buyerPaysFeePercent } = await getCreatorPlanSettings();
-    const serviceChargeKobo = Math.round((baseKobo * buyerPaysFeePercent) / 100);
+    const percent = await getBuyerPaysFeePercentFor(productType);
+    const serviceChargeKobo = Math.round((baseKobo * percent) / 100);
     return { amountKobo: baseKobo + serviceChargeKobo, commissionOverrideKobo: serviceChargeKobo };
   }
   if (sellerPlan === "LIMITED") {
@@ -53,11 +64,10 @@ export async function computeCreatorPlanCheckout(
  * as an added "service charge" before checkout (same rate
  * computeCreatorPlanCheckout actually charges).
  */
-export async function getSellerServiceChargePercent(creatorId: string): Promise<number | null> {
+export async function getSellerServiceChargePercent(creatorId: string, productType: ProductType): Promise<number | null> {
   const seller = await db.user.findUnique({ where: { id: creatorId }, select: { creatorPlan: true } });
   if (seller?.creatorPlan !== "BUYER_PAYS_FEE") return null;
-  const { buyerPaysFeePercent } = await getCreatorPlanSettings();
-  return buyerPaysFeePercent;
+  return getBuyerPaysFeePercentFor(productType);
 }
 
 export class PlanRequiredError extends Error {}
@@ -66,7 +76,7 @@ export class UploadCapError extends Error {
     message: string,
     // Distinguishes "switch or renew" (LIMITED) from "buy more storage"
     // (BUYER_PAYS_FEE) so the client can offer the right action.
-    public readonly reason: "no_plan" | "limited_upload_cap" | "limited_sales_cap" | "buyer_pays_fee_storage_full",
+    public readonly reason: "no_plan" | "limited_upload_cap" | "buyer_pays_fee_storage_full",
   ) {
     super(message);
   }
@@ -76,7 +86,6 @@ type PublishEligibilityUser = {
   id: string;
   creatorPlan: CreatorPlan | null;
   limitedUploadsUsed: number;
-  limitedSalesCount: number;
   buyerPaysFeeBonusSlots: number;
 };
 
@@ -95,12 +104,8 @@ export async function assertCanPublish(user: PublishEligibilityUser, newProductC
 
   if (user.creatorPlan === "LIMITED") {
     const settings = await getCreatorPlanSettings();
-    if (user.limitedSalesCount >= settings.limitedPlanSalesCap) {
-      throw new UploadCapError(
-        "You've hit your Limited plan's sales cap — switch plans or renew to keep publishing.",
-        "limited_sales_cap",
-      );
-    }
+    // Sales are unlimited on this plan (explicit ask, 2026-09-22) — the
+    // only reason to switch or renew is running out of upload slots.
     if (user.limitedUploadsUsed + newProductCount > settings.limitedPlanUploadCap) {
       throw new UploadCapError(
         "You've used all of your Limited plan's uploads — switch plans or renew to publish more.",
@@ -223,7 +228,7 @@ export async function activateOrRenewLimitedPlan(args: {
     applyOnSuccess: async (tx, userId) => {
       await tx.user.update({
         where: { id: userId },
-        data: { creatorPlan: "LIMITED", limitedUploadsUsed: 0, limitedSalesCount: 0, limitedPlanActivatedAt: new Date() },
+        data: { creatorPlan: "LIMITED", limitedUploadsUsed: 0, limitedPlanActivatedAt: new Date() },
       });
     },
   });
@@ -291,7 +296,7 @@ export async function finalizeCreatorPlanFeePayment(
   if (payment.creatorPlanPaymentKind === "LIMITED_ACTIVATION") {
     await db.user.update({
       where: { id: payment.creatorPlanUserId },
-      data: { creatorPlan: "LIMITED", limitedUploadsUsed: 0, limitedSalesCount: 0, limitedPlanActivatedAt: new Date() },
+      data: { creatorPlan: "LIMITED", limitedUploadsUsed: 0, limitedPlanActivatedAt: new Date() },
     });
   } else if (payment.creatorPlanPaymentKind === "SLOT_PACK") {
     const settings = await getCreatorPlanSettings();

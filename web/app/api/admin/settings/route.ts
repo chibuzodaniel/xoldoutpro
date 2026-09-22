@@ -18,28 +18,32 @@ function serialize(
     commissionMerchPercent: number;
     commissionEventPercent: number;
     buyerPaysFeePercent: number;
+    buyerPaysFeeEventPercent: number;
     buyerPaysFeeUploadCap: number;
     buyerPaysFeeSlotPackSize: number;
     buyerPaysFeeSlotPackFeeKobo: number;
     limitedPlanFeeKobo: number;
     limitedPlanUploadCap: number;
-    limitedPlanSalesCap: number;
   } | null,
 ) {
   return {
     downloadsEnabled: row?.downloadsEnabled ?? true,
     billboardDailyRateKobo: row?.billboardDailyRateKobo ?? 500_000,
-    commissionReleasePercent: row?.commissionReleasePercent ?? 15,
-    commissionBeatPercent: row?.commissionBeatPercent ?? 15,
-    commissionMerchPercent: row?.commissionMerchPercent ?? 15,
-    commissionEventPercent: row?.commissionEventPercent ?? 15,
+    // Explicit ask, 2026-09-22: "no upfront plan fee, 12% Xoldout fee, you
+    // keep 88%" for Unlimited on Release/Beat/Merch. Event kept separate
+    // at its original 5% (creator still bears the real-world cost of the
+    // show) — confirmed with the user, not folded into the flat 12%.
+    commissionReleasePercent: row?.commissionReleasePercent ?? 12,
+    commissionBeatPercent: row?.commissionBeatPercent ?? 12,
+    commissionMerchPercent: row?.commissionMerchPercent ?? 12,
+    commissionEventPercent: row?.commissionEventPercent ?? 5,
     buyerPaysFeePercent: row?.buyerPaysFeePercent ?? 12,
+    buyerPaysFeeEventPercent: row?.buyerPaysFeeEventPercent ?? 12,
     buyerPaysFeeUploadCap: row?.buyerPaysFeeUploadCap ?? 50,
     buyerPaysFeeSlotPackSize: row?.buyerPaysFeeSlotPackSize ?? 50,
     buyerPaysFeeSlotPackFeeKobo: row?.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
     limitedPlanFeeKobo: row?.limitedPlanFeeKobo ?? 400_000,
     limitedPlanUploadCap: row?.limitedPlanUploadCap ?? 100,
-    limitedPlanSalesCap: row?.limitedPlanSalesCap ?? 100,
   };
 }
 
@@ -66,12 +70,12 @@ const patchSchema = z.object({
   commissionMerchPercent: z.number().int().min(0).max(90).optional(),
   commissionEventPercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeePercent: z.number().int().min(0).max(90).optional(),
+  buyerPaysFeeEventPercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeeUploadCap: z.number().int().positive().optional(),
   buyerPaysFeeSlotPackSize: z.number().int().positive().optional(),
   buyerPaysFeeSlotPackFeeKobo: z.number().int().min(0).optional(),
   limitedPlanFeeKobo: z.number().int().min(0).optional(),
   limitedPlanUploadCap: z.number().int().positive().optional(),
-  limitedPlanSalesCap: z.number().int().positive().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -88,17 +92,17 @@ export async function PATCH(req: NextRequest) {
         id: "singleton",
         downloadsEnabled: patch.downloadsEnabled ?? true,
         billboardDailyRateKobo: patch.billboardDailyRateKobo ?? 500_000,
-        commissionReleasePercent: patch.commissionReleasePercent ?? 15,
-        commissionBeatPercent: patch.commissionBeatPercent ?? 15,
-        commissionMerchPercent: patch.commissionMerchPercent ?? 15,
-        commissionEventPercent: patch.commissionEventPercent ?? 15,
+        commissionReleasePercent: patch.commissionReleasePercent ?? 12,
+        commissionBeatPercent: patch.commissionBeatPercent ?? 12,
+        commissionMerchPercent: patch.commissionMerchPercent ?? 12,
+        commissionEventPercent: patch.commissionEventPercent ?? 5,
         buyerPaysFeePercent: patch.buyerPaysFeePercent ?? 12,
+        buyerPaysFeeEventPercent: patch.buyerPaysFeeEventPercent ?? 12,
         buyerPaysFeeUploadCap: patch.buyerPaysFeeUploadCap ?? 50,
         buyerPaysFeeSlotPackSize: patch.buyerPaysFeeSlotPackSize ?? 50,
         buyerPaysFeeSlotPackFeeKobo: patch.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
         limitedPlanFeeKobo: patch.limitedPlanFeeKobo ?? 400_000,
         limitedPlanUploadCap: patch.limitedPlanUploadCap ?? 100,
-        limitedPlanSalesCap: patch.limitedPlanSalesCap ?? 100,
         updatedBy: user.id,
       },
       update: { ...patch, updatedBy: user.id },

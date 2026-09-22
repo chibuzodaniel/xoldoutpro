@@ -8,10 +8,10 @@ import { PlanPickerSheet } from "@/components/plans/PlanPickerSheet";
 
 type PlanStatus = {
   plan: "UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED" | null;
-  limitedSalesCount: number;
+  limitedUploadsUsed: number;
   buyerPaysFeeBonusSlots: number;
   liveProductCount: number;
-  settings: { limitedPlanSalesCap: number; buyerPaysFeeUploadCap: number };
+  settings: { limitedPlanUploadCap: number; buyerPaysFeeUploadCap: number };
 };
 
 const DISMISS_KEY = "xoldout_plan_cap_nudge_dismissed";
@@ -24,6 +24,10 @@ const DISMISS_KEY = "xoldout_plan_cap_nudge_dismissed";
 // per-build dismiss), tracked client-side (localStorage) rather than a new
 // server-side "seen" column, since this is a lower-stakes nudge than the
 // verification milestone SalesMilestoneSheet guards.
+//
+// Limited's trigger is the upload cap, not a sales count — explicit ask,
+// 2026-09-22: sales are unlimited on Limited, renewal only ever happens
+// because uploads ran out ("Renew when you reach your upload limit").
 export function PlanCapNudgeSheet() {
   const toast = useToast();
   const router = useRouter();
@@ -40,8 +44,8 @@ export function PlanCapNudgeSheet() {
       setStatus(data);
 
       let dismissKey: string | null = null;
-      if (data.plan === "LIMITED" && data.limitedSalesCount >= data.settings.limitedPlanSalesCap) {
-        dismissKey = `limited-sales-${data.limitedSalesCount}`;
+      if (data.plan === "LIMITED" && data.limitedUploadsUsed >= data.settings.limitedPlanUploadCap) {
+        dismissKey = `limited-uploads-${data.limitedUploadsUsed}`;
       } else if (
         data.plan === "BUYER_PAYS_FEE" &&
         data.liveProductCount >= data.settings.buyerPaysFeeUploadCap + data.buyerPaysFeeBonusSlots
@@ -92,7 +96,7 @@ export function PlanCapNudgeSheet() {
 
   if (!status) return null;
 
-  const isLimitedCapped = status.plan === "LIMITED" && status.limitedSalesCount >= status.settings.limitedPlanSalesCap;
+  const isLimitedCapped = status.plan === "LIMITED" && status.limitedUploadsUsed >= status.settings.limitedPlanUploadCap;
   const isStorageFull =
     status.plan === "BUYER_PAYS_FEE" &&
     status.liveProductCount >= status.settings.buyerPaysFeeUploadCap + status.buyerPaysFeeBonusSlots;
@@ -103,7 +107,7 @@ export function PlanCapNudgeSheet() {
         className={`fixed inset-0 z-50 flex items-end transition-colors duration-300 ${
           open ? "bg-black/60" : "pointer-events-none bg-black/0"
         }`}
-        onClick={() => dismiss(isLimitedCapped ? `limited-sales-${status.limitedSalesCount}` : `bpf-storage-${status.liveProductCount}`)}
+        onClick={() => dismiss(isLimitedCapped ? `limited-uploads-${status.limitedUploadsUsed}` : `bpf-storage-${status.liveProductCount}`)}
         aria-hidden={!open}
       >
         <div
@@ -114,15 +118,15 @@ export function PlanCapNudgeSheet() {
         >
           {isLimitedCapped ? (
             <>
-              <h2 className="font-serif text-xl mb-2">You&apos;ve hit your Limited plan&apos;s sales cap</h2>
+              <h2 className="font-serif text-xl mb-2">You&apos;ve hit your Limited plan&apos;s upload limit</h2>
               <p className="text-sm text-ink-2 mb-6">
-                You&apos;ve made {status.limitedSalesCount} sales on your Limited plan. Switch to Unlimited or Buyer Pays Fee, or renew
-                Limited, to keep publishing.
+                You&apos;ve used all {status.settings.limitedPlanUploadCap} uploads on your Limited plan. Switch to Unlimited or Buyer
+                Pays Fee, or renew Limited, to keep publishing.
               </p>
               <div className="flex gap-2">
                 <button
                   type="button"
-                  onClick={() => dismiss(`limited-sales-${status.limitedSalesCount}`)}
+                  onClick={() => dismiss(`limited-uploads-${status.limitedUploadsUsed}`)}
                   className="flex-1 rounded-lg border border-line px-4 py-3 text-sm font-semibold"
                 >
                   Not now
@@ -131,7 +135,7 @@ export function PlanCapNudgeSheet() {
                   type="button"
                   onClick={() => {
                     setPlanSheetOpen(true);
-                    dismiss(`limited-sales-${status.limitedSalesCount}`);
+                    dismiss(`limited-uploads-${status.limitedUploadsUsed}`);
                   }}
                   className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white"
                 >

@@ -31,7 +31,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // BUYER_PAYS_FEE, in which case the buyer sees this as an added
     // "service charge" before checkout (app/api/orders/route.ts charges the
     // exact same rate).
-    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId),
+    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId, "RELEASE"),
     tracks: product.release.tracks.map((t) => ({
       id: t.id,
       title: t.title,

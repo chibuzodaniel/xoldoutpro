@@ -49,7 +49,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     entitled: entitlements.length > 0,
     isOwner: user ? product.creatorId === user.id : false,
-    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId),
+    serviceChargePercent: await getSellerServiceChargePercent(product.creatorId, "MERCH"),
     fulfillments,
   });
 }

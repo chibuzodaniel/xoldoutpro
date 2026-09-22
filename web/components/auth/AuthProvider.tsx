@@ -30,7 +30,6 @@ export type AppUser = {
   // lib/commerce/creatorPlans.ts.
   creatorPlan: "UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED" | null;
   limitedUploadsUsed: number;
-  limitedSalesCount: number;
   buyerPaysFeeBonusSlots: number;
 };
 
