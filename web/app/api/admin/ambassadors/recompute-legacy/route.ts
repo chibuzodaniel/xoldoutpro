@@ -120,10 +120,15 @@ export async function POST(req: NextRequest) {
 
     for (const order of orders) {
       const saleCredit = order.ledgerEntries.find((e) => e.kind === "SALE_CREDIT");
-      const commissionFee = order.ledgerEntries.find((e) => e.kind === "COMMISSION_FEE");
-      if (!saleCredit || !commissionFee) continue; // shouldn't happen for a PAID order, but never guess at money
+      // Summed, not a single row: a legacy commission correction (app/api/
+      // admin/events/recompute-commission/route.ts) writes an additional
+      // delta COMMISSION_FEE entry rather than editing the original — this
+      // has to see the corrected total, or an ambassador's clamp here would
+      // be computed against a stale, pre-correction commission.
+      const commissionFeeEntries = order.ledgerEntries.filter((e) => e.kind === "COMMISSION_FEE");
+      if (!saleCredit || commissionFeeEntries.length === 0) continue; // shouldn't happen for a PAID order, but never guess at money
       const grossKobo = saleCredit.amountKobo;
-      const commissionKobo = -commissionFee.amountKobo;
+      const commissionKobo = -commissionFeeEntries.reduce((sum, e) => sum + e.amountKobo, 0);
 
       const targets = new Map<string, number>();
       const buyerAmbassadorId = order.buyer.referredByAmbassadorId;

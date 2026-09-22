@@ -5,13 +5,16 @@ import { db } from "@/lib/db";
 
 // Which moderation-dashboard panels a *regular* moderator sees — see the
 // ModerationPanelVisibility model's own comment. Keys here must match
-// PANEL_KEYS in app/(app)/moderation/page.tsx.
+// PANEL_LABEL in components/moderation/panelKeys.ts.
 const PANEL_KEYS = [
   "finance",
   "stats",
   "users",
+  "products",
   "ambassadors",
-  "ambassadorRecompute",
+  // ambassadorRecompute/eventCommissionRecompute deliberately excluded
+  // (explicit ask, 2026-09-22) — see components/moderation/panelKeys.ts's
+  // own comment; both are hardcoded super-mod-only, not toggleable.
   "eventPromoters",
   "billboards",
   "verifyCreator",

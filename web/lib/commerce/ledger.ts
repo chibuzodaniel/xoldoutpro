@@ -296,19 +296,27 @@ async function recordAmbassadorCommission(
  * the only path that ever produces a paid order — so that entry existing
  * isn't optional to handle, it's guaranteed. PROMOTER_FEE/AMBASSADOR_
  * COMMISSION are optional, since not every sale has either.
+ *
+ * COMMISSION_FEE is summed, not read as a single row: a moderator's legacy
+ * commission correction (app/api/admin/events/recompute-commission/
+ * route.ts) writes an additional delta COMMISSION_FEE entry for an order
+ * rather than editing the original (money is a ledger, never a mutable
+ * balance) — summing here is what keeps a later refund/takedown correct
+ * for an order that's been through that correction.
  */
 export async function recordRefund(
   tx: Prisma.TransactionClient,
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
-  const [commissionEntry, promoterFeeEntry, ambassadorEntries] = await Promise.all([
-    tx.walletLedgerEntry.findFirstOrThrow({ where: { orderId: args.orderId, kind: "COMMISSION_FEE" } }),
+  const [commissionEntries, promoterFeeEntry, ambassadorEntries] = await Promise.all([
+    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "COMMISSION_FEE" } }),
     tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "PROMOTER_FEE" } }),
     // Up to two — a sale can credit an ambassador on the buyer's side, the
     // seller's side, or both (recordSale above), each its own row.
     tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "AMBASSADOR_COMMISSION" } }),
   ]);
-  const commissionKobo = -commissionEntry.amountKobo;
+  if (commissionEntries.length === 0) throw new Error(`No COMMISSION_FEE entry found for order ${args.orderId}`);
+  const commissionKobo = -commissionEntries.reduce((sum, e) => sum + e.amountKobo, 0);
   const promoterKobo = promoterFeeEntry ? -promoterFeeEntry.amountKobo : 0;
   const netKobo = args.grossKobo - commissionKobo - promoterKobo;
 

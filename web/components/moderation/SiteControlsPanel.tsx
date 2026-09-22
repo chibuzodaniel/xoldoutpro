@@ -292,7 +292,7 @@ export function SiteControlsPanel({
           <p className="text-xs text-ink-3">Loading…</p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
               {COMMISSION_KEYS.map((key) => (
                 <div key={key} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
                   <span className="text-xs text-ink-2">{COMMISSION_LABEL[key]}</span>
@@ -330,7 +330,7 @@ export function SiteControlsPanel({
         ) : (
           <>
             <p className="text-xs font-semibold text-ink-2 mb-1.5">Buyer Pays Fee</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
               {(
                 ["buyerPaysFeePercent", "buyerPaysFeeEventPercent", "buyerPaysFeeUploadCap", "buyerPaysFeeSlotPackSize", "buyerPaysFeeSlotPackFeeKobo"] as const
               ).map(
@@ -353,7 +353,7 @@ export function SiteControlsPanel({
               )}
             </div>
             <p className="text-xs font-semibold text-ink-2 mb-1.5">Limited</p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
               {(["limitedPlanFeeKobo", "limitedPlanUploadCap"] as const).map((key) => (
                 <div key={key} className="flex items-center justify-between gap-2 rounded-lg border border-line px-3 py-2">
                   <span className="text-xs text-ink-2">{CREATOR_PLAN_LABEL[key]}</span>

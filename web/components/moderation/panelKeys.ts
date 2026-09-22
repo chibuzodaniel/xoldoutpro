@@ -11,7 +11,10 @@ export const PANEL_LABEL: Record<string, string> = {
   // take down for any reason.
   products: "Products",
   ambassadors: "Ambassadors",
-  ambassadorRecompute: "Legacy ambassador recompute",
+  // ambassadorRecompute/eventCommissionRecompute are NOT here (explicit
+  // ask, 2026-09-22) — both write real ledger corrections, so they're
+  // hardcoded super-mod-only in ModerationShell.tsx, same as Site
+  // controls/Manage moderators, not part of the regular-moderator toggle.
   eventPromoters: "Ticket promoters",
   billboards: "Billboards",
   verifyCreator: "Verify creator",
