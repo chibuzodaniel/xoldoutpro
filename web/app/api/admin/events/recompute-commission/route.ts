@@ -11,24 +11,38 @@ import { getCreatorPlanSettings } from "@/lib/commerce/creatorPlans";
 // /api/admin/ambassadors/recompute-legacy (preview/apply split, idempotent
 // delta entries, refuses to claw back a paid payout).
 //
-// Per-plan handling (confirmed with the user — "all plans, best-effort"):
-//  - UNLIMITED (or a null plan, same fallback computeCreatorPlanCheckout
-//    uses): target = round(grossKobo * commissionEventPercent). The buyer's
+// Bug fixed 2026-09-22 (found live on @2410, whose already-correct
+// Unlimited-plan sales got miscorrected): which formula applies to an order
+// must be decided from THAT ORDER's own `commissionOverrideKobo` — the plan
+// actually in effect when it was placed — never from the seller's CURRENT
+// `creatorPlan`. A seller can switch plans after a sale; reading the live
+// plan reclassified old, already-correct orders under the wrong formula.
+// `commissionOverrideKobo` is exactly the field Order already snapshots for
+// this reason (see lib/commerce/ledger.ts's recordSale doc comment) — null
+// means Unlimited-at-checkout, 0 means Limited-at-checkout, a positive
+// number means Buyer-Pays-Fee-at-checkout with that exact original fee.
+//
+// Per-order handling (confirmed with the user — "all plans, best-effort"):
+//  - null override (Unlimited, or a null-plan fallback, at checkout time):
+//    target = round(grossKobo * commissionEventPercent). The buyer's
 //    payment is never touched here — this only ever reallocates the split
 //    between seller and platform, so it's exactly right, not an
 //    approximation.
-//  - BUYER_PAYS_FEE: the buyer's original payment already baked in the OLD
-//    buyerPaysFeeEventPercent as an added service charge — there is no way
-//    to retroactively change what they were charged without a real refund/
-//    re-charge, which this endpoint never does. Best effort instead: the
-//    base price is reconstructed (grossKobo - existing commission, since
-//    the original commission *was* exactly the old service charge) and the
-//    CURRENT rate is applied against that reconstructed base, not against
-//    grossKobo directly (which would double-count the old service charge).
-//    The seller's net after this may not land on exactly 100% of their
-//    listed price for orders placed before the rate changed — an accepted,
-//    explicit tradeoff, not a bug.
-//  - LIMITED: commission is always 0, nothing to correct.
+//  - a positive override (Buyer-Pays-Fee at checkout time): the buyer's
+//    original payment already baked in that OLD override as an added
+//    service charge — there is no way to retroactively change what they
+//    were charged without a real refund/re-charge, which this endpoint
+//    never does. Best effort instead: the base price is reconstructed as
+//    grossKobo - order.commissionOverrideKobo (that order's own immutable
+//    original snapshot — NEVER the live/cumulative existingCommissionKobo,
+//    which includes any prior correction and would make this non-
+//    idempotent, drifting further every time it's run) and the CURRENT
+//    rate is applied against that reconstructed base. The seller's net
+//    after this may not land on exactly 100% of their listed price for
+//    orders placed before the rate changed — an accepted, explicit
+//    tradeoff, not a bug.
+//  - 0 override (Limited at checkout time): commission is always 0,
+//    nothing to correct.
 //
 // Deliberately out of scope: ticket-promoter splits (EventPromoter,
 // PROMOTER_FEE/PROMOTER_CREDIT) are computed from the seller's net after
@@ -36,10 +50,12 @@ import { getCreatorPlanSettings } from "@/lib/commerce/creatorPlans";
 // own commission cut, same narrow scope as the ambassador tool touching
 // only the ambassador's cut.
 //
-// Idempotent by construction: existingCommissionKobo is the SUM of every
-// COMMISSION_FEE entry already on the order (original plus any prior
-// correction from a previous run), so only the remaining delta is written —
-// running this twice in a row is a no-op the second time.
+// Idempotent by construction: existingCommissionKobo (the live/cumulative
+// sum of every COMMISSION_FEE entry on the order) is only ever compared
+// against a target computed from immutable inputs (grossKobo, the order's
+// own original commissionOverrideKobo, and today's live rate) — never from
+// existingCommissionKobo itself — so only the remaining delta is written,
+// and running this twice in a row is a genuine no-op the second time.
 
 const bodySchema = z.object({ apply: z.boolean().optional().default(false) });
 
@@ -63,9 +79,14 @@ export async function POST(req: NextRequest) {
         where: { status: "PAID", items: { some: { product: { type: "EVENT" } } } },
         select: {
           id: true,
+          // The plan actually in effect when THIS order was placed — see
+          // the file-level comment above for why this drives the branch
+          // below instead of the seller's current, possibly-since-changed
+          // creatorPlan.
+          commissionOverrideKobo: true,
           items: {
             take: 1,
-            select: { product: { select: { creatorId: true, creator: { select: { creatorPlan: true } } } } },
+            select: { product: { select: { creatorId: true } } },
           },
           ledgerEntries: {
             where: { kind: { in: ["SALE_CREDIT", "COMMISSION_FEE"] } },
@@ -89,10 +110,10 @@ export async function POST(req: NextRequest) {
       const existingCommissionKobo = -commissionFeeEntries.reduce((sum, e) => sum + e.amountKobo, 0);
 
       let targetCommissionKobo: number;
-      if (seller.creator.creatorPlan === "LIMITED") {
+      if (order.commissionOverrideKobo === 0) {
         targetCommissionKobo = 0;
-      } else if (seller.creator.creatorPlan === "BUYER_PAYS_FEE") {
-        const basePriceKobo = grossKobo - existingCommissionKobo;
+      } else if (order.commissionOverrideKobo != null) {
+        const basePriceKobo = grossKobo - order.commissionOverrideKobo;
         targetCommissionKobo = Math.round((basePriceKobo * planSettings.buyerPaysFeeEventPercent) / 100);
       } else {
         targetCommissionKobo = Math.round(grossKobo * rates.EVENT);
