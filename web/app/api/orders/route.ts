@@ -109,6 +109,11 @@ export async function POST(req: NextRequest) {
     if (!product || product.status !== "PUBLISHED" || !hasSubtype) {
       return NextResponse.json({ error: "Not available" }, { status: 404 });
     }
+    // Creator paused this tier (app/api/events/[id]/tiers/[tierId]'s PATCH) —
+    // stops new sales without touching the Product/tickets already sold.
+    if (product.type === "EVENT" && product.ticketTier?.pausedAt) {
+      return NextResponse.json({ error: "This ticket isn't on sale right now" }, { status: 409 });
+    }
     if (product.creatorId === buyer.id) {
       return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
     }

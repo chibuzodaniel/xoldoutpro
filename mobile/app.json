@@ -28,7 +28,8 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.CAMERA"
       ]
     },
     "web": {
@@ -43,6 +44,12 @@
         {
           "icon": "./assets/android-icon-monochrome.png",
           "color": "#e11d2e"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "XOLDOUT uses your camera to scan ticket QR codes when checking guests in at your events."
         }
       ]
     ],

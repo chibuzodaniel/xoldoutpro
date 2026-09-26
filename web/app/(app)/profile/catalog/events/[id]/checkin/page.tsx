@@ -2,20 +2,16 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
+import jsQR from "jsqr";
 import { apiFetch } from "@/lib/api";
 import { BackHeader } from "@/components/ui/BackHeader";
 
 type ScanResult = { ok: true; tierName?: string; buyer?: string } | { ok: false; error: string };
 
-// BarcodeDetector isn't in TypeScript's DOM lib yet on every target, and
-// isn't available in every browser (notably desktop Safari/Firefox) — this
-// is a progressive enhancement over the manual code-entry form below, never
-// the only way to check someone in.
-type BarcodeDetectorLike = { detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]> };
-
 export default function EventCheckInPage() {
   const params = useParams<{ id: string }>();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [cameraSupported, setCameraSupported] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [manualCode, setManualCode] = useState("");
@@ -25,7 +21,7 @@ export default function EventCheckInPage() {
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- feature detection can't run during SSR; must happen post-mount
-    setCameraSupported(typeof window !== "undefined" && "BarcodeDetector" in window);
+    setCameraSupported(typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia));
   }, []);
 
   useEffect(() => {
@@ -60,29 +56,35 @@ export default function EventCheckInPage() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       const video = videoRef.current;
-      if (!video) return;
+      const canvas = canvasRef.current;
+      if (!video || !canvas) return;
       video.srcObject = stream;
       await video.play();
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Detector = (window as any).BarcodeDetector as new (opts: { formats: string[] }) => BarcodeDetectorLike;
-      const detector = new Detector({ formats: ["qr_code"] });
-
-      const tick = async () => {
-        if (!videoRef.current || videoRef.current.readyState < 2) {
-          if (scanning) requestAnimationFrame(tick);
+      // jsQR decodes from raw pixel data via canvas, so it works in every
+      // browser with getUserMedia (notably iOS/desktop Safari and Firefox,
+      // which never shipped the native BarcodeDetector API) — unlike that
+      // API, this is never the only way to check someone in; manual entry
+      // below always works too.
+      let stopped = false;
+      const tick = () => {
+        if (stopped || !videoRef.current || !ctx) return;
+        if (videoRef.current.readyState < 2) {
+          requestAnimationFrame(tick);
           return;
         }
-        try {
-          const codes = await detector.detect(videoRef.current);
-          if (codes[0]) {
-            stream.getTracks().forEach((t) => t.stop());
-            setScanning(false);
-            await submitCode(codes[0].rawValue);
-            return;
-          }
-        } catch {
-          // detection hiccup on a single frame — keep scanning
+        canvas.width = videoRef.current.videoWidth;
+        canvas.height = videoRef.current.videoHeight;
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(frame.data, frame.width, frame.height);
+        if (code) {
+          stopped = true;
+          stream.getTracks().forEach((t) => t.stop());
+          setScanning(false);
+          void submitCode(code.data);
+          return;
         }
         requestAnimationFrame(tick);
       };
@@ -111,6 +113,7 @@ export default function EventCheckInPage() {
               Scan QR code
             </button>
           )}
+          <canvas ref={canvasRef} className="hidden" />
         </div>
       )}
 

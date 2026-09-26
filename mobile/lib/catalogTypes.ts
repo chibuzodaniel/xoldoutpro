@@ -36,6 +36,7 @@ export type CatalogMerchItem = {
 export type CatalogTier = {
   productId: string;
   name: string;
+  pausedAt: string | null;
   product: {
     priceKobo: number;
     publishedAt: string | null;

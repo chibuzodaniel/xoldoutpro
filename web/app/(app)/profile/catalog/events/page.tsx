@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 type CatalogTier = {
   productId: string;
   name: string;
+  pausedAt: string | null;
   product: {
     priceKobo: number;
     publishedAt: string | null;
@@ -42,17 +43,39 @@ function formatNaira(kobo: number) {
 }
 
 // Tiers are frozen once created — a buyer's receipt should always match
-// what they saw at purchase, so the only mutation left is pulling one off
-// sale entirely (see the API's DELETE). Changing a price or adding stock
-// happens by adding a new tier instead (NewTierForm below).
-function TierRow({ eventId, tier, onDeleted }: { eventId: string; tier: CatalogTier; onDeleted: () => void }) {
+// what they saw at purchase, so the only mutations left are pausing (an
+// any-time-reversible "hide from sale") and deleting (permanent). Changing
+// a price or adding stock happens by adding a new tier instead (NewTierForm
+// below).
+function TierRow({ eventId, tier, onChanged }: { eventId: string; tier: CatalogTier; onChanged: () => void }) {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const hasCap = tier.product.stockPolicy?.cap != null;
   const sold = tier.product.stockPolicy?.sold ?? 0;
+  const isPaused = Boolean(tier.pausedAt);
+
+  async function handleTogglePause() {
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/events/${eventId}/tiers/${tier.productId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ paused: !isPaused }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not update tier");
+      }
+      toast.success(isPaused ? "Tier back on sale." : "Tier hidden — no one can buy it until you unhide it.");
+      onChanged();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function handleDelete() {
-    if (!confirm(`Take "${tier.name}" off sale? Anyone who already bought this tier keeps their ticket — this is not a refund.`)) {
+    if (!confirm(`Take "${tier.name}" off sale permanently? Anyone who already bought this tier keeps their ticket — this is not a refund.`)) {
       return;
     }
     setBusy(true);
@@ -63,7 +86,7 @@ function TierRow({ eventId, tier, onDeleted }: { eventId: string; tier: CatalogT
         throw new Error(typeof data.error === "string" ? data.error : "Could not delete tier");
       }
       toast.success("Tier removed from sale.");
-      onDeleted();
+      onChanged();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
       setBusy(false);
@@ -73,14 +96,22 @@ function TierRow({ eventId, tier, onDeleted }: { eventId: string; tier: CatalogT
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <span className="text-xs font-semibold">{tier.name}</span>
+        <span className="text-xs font-semibold">
+          {tier.name}
+          {isPaused && <span className="ml-2 text-[10px] uppercase tracking-widest text-ink-3">Hidden</span>}
+        </span>
         <p className="text-[11px] text-ink-3">
           {formatNaira(tier.product.priceKobo)} · {sold} sold{hasCap ? ` of ${tier.product.stockPolicy?.cap}` : ""}
         </p>
       </div>
-      <button onClick={handleDelete} disabled={busy} className="text-[11px] text-ink-3 uppercase tracking-widest disabled:opacity-50">
-        {busy ? "Removing…" : "Delete"}
-      </button>
+      <div className="flex items-center gap-3 shrink-0">
+        <button onClick={handleTogglePause} disabled={busy} className="text-[11px] text-red-soft font-semibold uppercase tracking-widest disabled:opacity-50">
+          {busy ? "…" : isPaused ? "Unhide" : "Hide"}
+        </button>
+        <button onClick={handleDelete} disabled={busy} className="text-[11px] text-ink-3 uppercase tracking-widest disabled:opacity-50">
+          Delete
+        </button>
+      </div>
     </div>
   );
 }
@@ -394,7 +425,7 @@ export default function EventCatalogPage() {
                     <EventEditor event={ev} onSaved={load} />
                     <div className="flex flex-col divide-y divide-line-soft">
                       {ev.tiers.map((tier) => (
-                        <TierRow key={tier.productId} eventId={ev.id} tier={tier} onDeleted={load} />
+                        <TierRow key={tier.productId} eventId={ev.id} tier={tier} onChanged={load} />
                       ))}
                       <NewTierForm eventId={ev.id} onAdded={load} />
                     </div>

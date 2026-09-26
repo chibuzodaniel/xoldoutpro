@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Image, Text, TouchableOpacity, View
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../lib/AuthContext";
-import { apiGet, apiDelete } from "../lib/api";
+import { apiGet, apiDelete, apiPatch } from "../lib/api";
 import { formatNaira, formatDate } from "../lib/format";
 import type { RootStackParamList } from "../lib/navigation";
 import type { CatalogEvent } from "../lib/catalogTypes";
@@ -38,7 +38,7 @@ export function CatalogEventsScreen() {
 
   async function handleRemoveTier(eventId: string, tierProductId: string, tierName: string) {
     if (!firebaseUser) return;
-    Alert.alert(`Take "${tierName}" off sale?`, "Anyone who already bought this tier keeps their ticket — this is not a refund.", [
+    Alert.alert(`Take "${tierName}" off sale permanently?`, "Anyone who already bought this tier keeps their ticket — this is not a refund.", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Remove",
@@ -54,6 +54,19 @@ export function CatalogEventsScreen() {
         },
       },
     ]);
+  }
+
+  // Reversible any-time pause, distinct from the permanent Remove above —
+  // stops new sales without touching tickets already sold.
+  async function handleTogglePause(eventId: string, tierProductId: string, paused: boolean) {
+    if (!firebaseUser) return;
+    const idToken = await firebaseUser.getIdToken();
+    try {
+      await apiPatch(`/api/events/${eventId}/tiers/${tierProductId}`, idToken, { paused });
+      load();
+    } catch {
+      Alert.alert(paused ? "Could not hide tier" : "Could not unhide tier");
+    }
   }
 
   if (!events) {
@@ -96,22 +109,35 @@ export function CatalogEventsScreen() {
                 const sold = tier.product.stockPolicy?.sold ?? 0;
                 const isSoldOut = Boolean(tier.product.stockPolicy?.soldOutAt);
                 const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
+                const isPaused = Boolean(tier.pausedAt);
                 return (
                   <View key={tier.productId} style={styles.tierRow}>
                     <View style={styles.tierInfo}>
-                      <Text style={styles.tierName}>{tier.name}</Text>
+                      <Text style={styles.tierName}>
+                        {tier.name}
+                        {isPaused && <Text style={styles.hiddenBadge}> · Hidden</Text>}
+                      </Text>
                       <Text style={styles.tierMeta}>
                         {formatNaira(tier.product.priceKobo)} ·{" "}
                         {remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} left`) : `${sold} sold`}
                       </Text>
                     </View>
-                    <TouchableOpacity onPress={() => handleRemoveTier(event.id, tier.productId, tier.name)}>
-                      <Text style={styles.removeTier}>Remove</Text>
-                    </TouchableOpacity>
+                    <View style={styles.tierActions}>
+                      <TouchableOpacity onPress={() => handleTogglePause(event.id, tier.productId, !isPaused)}>
+                        <Text style={styles.pauseTier}>{isPaused ? "Unhide" : "Hide"}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => handleRemoveTier(event.id, tier.productId, tier.name)}>
+                        <Text style={styles.removeTier}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 );
               })}
             </View>
+
+            <TouchableOpacity onPress={() => navigation.navigate("EventCheckIn", { id: event.id })}>
+              <Text style={styles.manageLink}>Check in tickets →</Text>
+            </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate("Event", { id: event.id })}>
               <Text style={styles.manageLink}>Manage event →</Text>
@@ -149,7 +175,10 @@ const styles = StyleSheet.create({
   },
   tierInfo: { flex: 1, minWidth: 0 },
   tierName: { color: colors.ink, fontSize: 13, fontWeight: "600" },
+  hiddenBadge: { color: colors.ink3, fontSize: 11, fontWeight: "600" },
   tierMeta: { color: colors.ink3, fontSize: 11.5, marginTop: 1 },
+  tierActions: { flexDirection: "row", gap: 14 },
+  pauseTier: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
   removeTier: { color: colors.ink3, fontSize: 12 },
   manageLink: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
 });

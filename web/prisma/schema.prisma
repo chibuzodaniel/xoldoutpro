@@ -713,12 +713,13 @@ model Event {
 }
 
 model TicketTier {
-  productId String  @id
-  product   Product @relation(fields: [productId], references: [id])
+  productId String    @id
+  product   Product   @relation(fields: [productId], references: [id])
   eventId   String
-  event     Event   @relation(fields: [eventId], references: [id])
+  event     Event     @relation(fields: [eventId], references: [id])
   name      String // "Early Bird", "Regular", "VIP"
   order     Int
+  pausedAt  DateTime? // creator hid it from sale; reversible any time (unlike TicketTier DELETE), existing tickets/entitlements untouched
 
   @@index([eventId])
 }

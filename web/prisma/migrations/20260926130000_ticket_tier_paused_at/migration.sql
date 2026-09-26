@@ -1,0 +1,1 @@
+ALTER TABLE "TicketTier" ADD COLUMN "pausedAt" TIMESTAMP(3);

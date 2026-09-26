@@ -10,6 +10,7 @@ export type RootStackParamList = {
   Product: { id: string };
   Creator: { handle: string };
   Event: { id: string };
+  EventCheckIn: { id: string };
   Collection: { id: string; name: string };
   Notifications: undefined;
   Group: { id: string; name: string };

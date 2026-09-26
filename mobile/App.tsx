@@ -24,6 +24,7 @@ import { PublishEventScreen } from "./screens/PublishEventScreen";
 import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { CatalogScreen } from "./screens/CatalogScreen";
 import { CatalogEventsScreen } from "./screens/CatalogEventsScreen";
+import { EventCheckInScreen } from "./screens/EventCheckInScreen";
 import { CatalogMerchScreen } from "./screens/CatalogMerchScreen";
 import { WalletScreen } from "./screens/WalletScreen";
 import { PayoutAccountsScreen } from "./screens/PayoutAccountsScreen";
@@ -82,6 +83,7 @@ export default function App() {
             <Stack.Screen name="CatalogMusic" component={CatalogScreen} options={{ title: "" }} />
             <Stack.Screen name="CatalogBeats" component={CatalogScreen} options={{ title: "" }} />
             <Stack.Screen name="CatalogEvents" component={CatalogEventsScreen} options={{ title: "" }} />
+            <Stack.Screen name="EventCheckIn" component={EventCheckInScreen} options={{ title: "" }} />
             <Stack.Screen name="CatalogMerch" component={CatalogMerchScreen} options={{ title: "" }} />
             <Stack.Screen name="Wallet" component={WalletScreen} options={{ title: "" }} />
             <Stack.Screen name="PayoutAccounts" component={PayoutAccountsScreen} options={{ title: "" }} />

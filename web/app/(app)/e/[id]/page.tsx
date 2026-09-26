@@ -58,6 +58,11 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
   const cover = (event.coverImageLadder as Record<string, string>)["1024"];
 
+  // A deleted tier (permanent) or a paused one (creator-toggled, reversible —
+  // see app/api/events/[id]/tiers/[tierId]'s PATCH) is off sale: skip it here.
+  // Owned tickets from either state still show in the buyer's Library.
+  const visibleTiers = event.tiers.filter((t) => t.product.status === "PUBLISHED" && !t.pausedAt);
+
   return (
     <div className="pb-10">
       <div className="relative aspect-[4/3] w-full bg-surface-2">
@@ -94,7 +99,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Tickets</h2>
         <div className="flex flex-col gap-2 mb-6">
-          {event.tiers.map((tier) => {
+          {visibleTiers.map((tier) => {
             const isSoldOut = Boolean(tier.product.stockPolicy?.soldOutAt);
             const cap = tier.product.stockPolicy?.cap ?? null;
             const sold = tier.product.stockPolicy?.sold ?? 0;
@@ -121,7 +126,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
 
         <EventTierPicker
           eventId={event.id}
-          tiers={event.tiers.map((t) => ({
+          tiers={visibleTiers.map((t) => ({
             productId: t.productId,
             name: t.name,
             priceKobo: t.product.priceKobo,
