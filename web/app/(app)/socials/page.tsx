@@ -10,12 +10,14 @@ import { PostCard, type FeedPost } from "@/components/social/PostCard";
 import { FanbaseTab } from "@/components/groups/FanbaseTab";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { AppHeader } from "@/components/nav/AppHeader";
+import { LiveNowPanel } from "@/components/live/LiveNowPanel";
 
 type FollowedCreator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
 const TABS = [
-  { key: "feed", label: "Feed" },
-  { key: "fanbase", label: "Fanbase" },
+  { key: "feed", label: "Feed", dot: false },
+  { key: "live", label: "Go Live", dot: true },
+  { key: "fanbase", label: "Fanbase", dot: false },
 ] as const;
 type SocialsTab = (typeof TABS)[number]["key"];
 
@@ -40,7 +42,10 @@ export default function SocialsPage() {
 function SocialsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [tab, setTab] = useState<SocialsTab>(searchParams.get("tab") === "fanbase" ? "fanbase" : "feed");
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState<SocialsTab>(
+    initialTab === "fanbase" || initialTab === "live" ? initialTab : "feed",
+  );
   const [feedMode, setFeedMode] = useState<FeedMode>("forYou");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
@@ -88,12 +93,17 @@ function SocialsPageInner() {
                 tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
               }`}
             >
-              {t.label}
+              <span className="flex items-center gap-1.5">
+                {t.label}
+                {t.dot && <span className="h-1.5 w-1.5 rounded-full bg-red/80" aria-hidden />}
+              </span>
             </button>
           ))}
         </div>
 
         {tab === "fanbase" && <FanbaseTab />}
+
+        {tab === "live" && <LiveNowPanel />}
 
         {tab === "feed" && (
           <>

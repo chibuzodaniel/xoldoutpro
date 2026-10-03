@@ -10,15 +10,11 @@ import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { SoldCount } from "@/components/product/SoldCount";
 import { EventPromotersPanel } from "@/components/product/EventPromotersPanel";
 import { buildOgMetadata } from "@/lib/og";
+import { Price } from "@/components/currency/CurrencyProvider";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
-export const revalidate = 30;
-
-function formatNaira(kobo: number) {
-  if (kobo === 0) return "Free";
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
-}
+export const revalidate = 120;
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
@@ -108,7 +104,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
               <div key={tier.productId} className="rounded-lg border border-line bg-surface px-4 py-3">
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-sm font-semibold">{tier.name}</span>
-                  <span className="font-serif text-sm">{formatNaira(tier.product.priceKobo)}</span>
+                  <span className="font-serif text-sm"><Price kobo={tier.product.priceKobo} freeLabel="Free" /></span>
                 </div>
                 <span className="text-xs text-ink-3">
                   {isSoldOut ? (

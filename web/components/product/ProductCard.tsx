@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { SoldCount } from "@/components/product/SoldCount";
 import { useOwnedProducts } from "@/components/product/OwnedBadges";
+import { Price } from "@/components/currency/CurrencyProvider";
 
 export type ProductCardData = {
   id: string;
@@ -20,11 +21,6 @@ export type ProductCardData = {
   merchItem: { imageLadder: unknown } | null;
   stockPolicy: { cap: number | null; sold: number; soldOutAt: Date | null } | null;
 };
-
-function formatNaira(kobo: number) {
-  if (kobo === 0) return "Free";
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
-}
 
 function ladderUrl(ladder: unknown, size: "64" | "256" | "1024") {
   return (ladder as Record<string, string> | undefined)?.[size];
@@ -105,7 +101,7 @@ export function ProductCard({ product }: { product: ProductCardData }) {
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{product.title}</p>
       <p className="text-[12px] text-ink-3 line-clamp-1">{product.creator.displayName}</p>
       <div className="flex items-center justify-between mt-0.5">
-        <span className="text-[12px] font-serif">{formatNaira(product.priceKobo)}</span>
+        <span className="text-[12px] font-serif"><Price kobo={product.priceKobo} freeLabel="Free" /></span>
         {remaining !== null ? (
           <span className="text-[12px] font-semibold text-red-soft">
             {isSoldOut ? "Sold out" : `${remaining} left`}

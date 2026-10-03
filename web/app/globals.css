@@ -97,6 +97,84 @@ select {
   animation: spin-breathe 1.8s ease-in-out infinite;
 }
 
+/* Xoldout Live's gift-received celebration (app/(app)/live/[id]/page.tsx) —
+   pop in with a slight overshoot, hold, fade out. The element is keyed by
+   giftId so React remounts (and thus replays) this animation for every new
+   gift, even a repeat of the same type in a row. */
+@keyframes gift-toast {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(12px);
+  }
+  15% {
+    opacity: 1;
+    transform: scale(1.1) translateY(0);
+  }
+  25% {
+    transform: scale(1);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.05) translateY(-12px);
+  }
+}
+
+.animate-gift-toast {
+  animation: gift-toast 2.6s ease-out forwards;
+}
+
+/* The red "X sent Y" pill under a Live's header — slides in from the left. */
+@keyframes gift-banner {
+  0% {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  12% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animate-gift-banner {
+  animation: gift-banner 3.2s ease-out forwards;
+}
+
+/* Money Spray: each bill falls the full stage height with a little sway.
+   Duration/delay are set per bill inline (components/live/LiveFeed.tsx). */
+@keyframes money-fall {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  10% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(18px, 50vh);
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-12px, 105vh);
+  }
+}
+
+.animate-money-fall {
+  animation: money-fall 2.2s ease-in forwards;
+}
+
 /* react-toastify (components/ui/ToastProvider.tsx) — restyled from the
    library's default light-card look to this app's dark surface + red/green
    accents, matching the hand-rolled toast it replaced. Timing/position/icons

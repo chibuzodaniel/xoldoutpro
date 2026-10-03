@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
-import { sendPushToUser } from "@/lib/push/send";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 const bodySchema = z.object({ targetUserId: z.string().min(1) });
 
@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
       }
     }
     if (isNewFollow) {
-      sendPushToUser(targetUserId, {
+      notifyUsersAfterResponse([targetUserId], {
+        kind: "FOLLOW",
         title: "New follower",
         body: `${user.displayName} started following you`,
         url: `/u/${user.handle}`,

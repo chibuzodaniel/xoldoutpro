@@ -8,7 +8,7 @@ import { useAuth, type SocialLink, type AppUser } from "@/components/auth/AuthPr
 import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
-import { enablePush, disablePush } from "@/lib/push";
+import { CountryPicker } from "@/components/currency/CountryPicker";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { DeleteAccountSheet } from "@/components/profile/DeleteAccountSheet";
 import { PlanPickerSheet } from "@/components/plans/PlanPickerSheet";
@@ -40,8 +40,6 @@ export default function EditProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(appUser?.avatarUrl ?? null);
   const [coverPreview, setCoverPreview] = useState<string | null>(appUser?.coverUrl ?? null);
   const [cropTarget, setCropTarget] = useState<{ file: File; kind: "avatar" | "cover" } | null>(null);
-  const [pushEnabled, setPushEnabled] = useState(appUser?.pushEnabled ?? false);
-  const [pushBusy, setPushBusy] = useState(false);
   const [digestSubscribed, setDigestSubscribed] = useState(appUser?.emailDigestSubscribed ?? false);
   const [digestBusy, setDigestBusy] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -72,24 +70,6 @@ export default function EditProfilePage() {
     setSocialLinks((cur) => cur.filter((_, i) => i !== index));
   }
 
-  async function handleTogglePush() {
-    setPushBusy(true);
-    try {
-      if (pushEnabled) {
-        await disablePush();
-        setPushEnabled(false);
-      } else {
-        const result = await enablePush();
-        if (!result.ok) {
-          toast.error(result.error);
-        } else {
-          setPushEnabled(true);
-        }
-      }
-    } finally {
-      setPushBusy(false);
-    }
-  }
 
   async function handleToggleDigest() {
     setDigestBusy(true);
@@ -352,38 +332,8 @@ export default function EditProfilePage() {
           <span className="text-ink-3 font-normal">Change ›</span>
         </button>
 
-        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
-          <div>
-            <p className="text-sm font-semibold mb-0.5">Get notified in the background</p>
-            <p className="text-xs text-ink-3">New releases, purchases, and follows — even when the app isn&apos;t open.</p>
-          </div>
-          <button
-            type="button"
-            onClick={handleTogglePush}
-            disabled={pushBusy}
-            aria-pressed={pushEnabled}
-            className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
-          >
-            {/* left-0 is load-bearing, not decorative: the dot is a plain
-                <span>, naturally inline, and buttons default to
-                text-align: center — without an explicit left, its "auto"
-                static position resolves against that centering instead of
-                the track's edge, landing it off to the right (worse once
-                translated further right for "on"). left-0 anchors it to a
-                known 0, so translate-x-0.5/-5 (2px/20px) move it a
-                predictable amount from the track's actual left edge.
-                Track is 44px (w-11) with a 1px border each side, so the
-                padding box the dot positions within is 42px, not 44 —
-                translate-x-5 leaves a clean ~2px inset on the right,
-                matching the 2px left inset when off. */}
-            <span
-              className={`absolute left-0 top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
-                pushEnabled ? "translate-x-5 bg-red" : "translate-x-0.5 bg-white"
-              }`}
-            />
-          </button>
-        </div>
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Country &amp; Currency</h2>
+        <CountryPicker />
 
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Email Digest</h2>
         <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface p-4 mb-8">
@@ -398,6 +348,9 @@ export default function EditProfilePage() {
             aria-pressed={digestSubscribed}
             className="relative h-6 w-11 rounded-full shrink-0 border border-line bg-surface-2 transition-colors disabled:opacity-50"
           >
+            {/* left-0 is load-bearing: buttons center inline content, so without an
+                explicit left the dot's static position lands off-center and the
+                translate-x-0.5/-5 offsets miss the 42px padding box. */}
             <span
               className={`absolute left-0 top-0.5 h-5 w-5 rounded-full transition-[transform,background-color] ${
                 digestSubscribed ? "translate-x-5 bg-red" : "translate-x-0.5 bg-white"

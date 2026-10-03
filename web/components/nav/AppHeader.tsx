@@ -11,15 +11,29 @@ export function AppHeader() {
   const [open, setOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
-  // One-time fetch on mount, just to size the bell's badge — the sheet
-  // itself refetches the full list (and marks it read) when opened.
+  // Sizes the bell's badge on mount, and again whenever a push arrives while
+  // the app is open (components/push/PushAutoEnroll fires this event) or the
+  // tab comes back into view — the sheet itself refetches the full list
+  // (and marks it read) when opened.
   useEffect(() => {
     if (!appUser) return;
-    apiFetch("/api/notifications")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (data) setUnreadCount(data.unreadCount);
-      });
+    const refresh = () =>
+      apiFetch("/api/notifications")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data) setUnreadCount(data.unreadCount);
+        })
+        .catch(() => {});
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refresh();
+    };
+    refresh();
+    window.addEventListener("xoldout:notifications-changed", refresh);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.removeEventListener("xoldout:notifications-changed", refresh);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [appUser]);
 
   return (

@@ -18,7 +18,7 @@ const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = 
 
 // Public, non-personalized profile data — cache and serve from the CDN,
 // revalidating in the background rather than hitting the DB on every view.
-export const revalidate = 30;
+export const revalidate = 300;
 
 const SOCIAL_ICONS: Record<string, React.ReactNode> = {
   Instagram: (

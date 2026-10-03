@@ -1,4 +1,17 @@
-export type NotificationKind = "SALE" | "ORDER_PAID" | "PAYOUT_INITIATED" | "PAYOUT_FAILED" | "PAYOUT_PAID" | "REFUND";
+export type NotificationKind =
+  | "SALE"
+  | "ORDER_PAID"
+  | "PAYOUT_INITIATED"
+  | "PAYOUT_FAILED"
+  | "PAYOUT_PAID"
+  | "REFUND"
+  | "MODERATION"
+  | "FOLLOW"
+  | "LIKE"
+  | "COMMENT"
+  | "FANBASE"
+  | "REMINDER"
+  | "VERIFICATION";
 
 export type NotificationRow = {
   id: string;

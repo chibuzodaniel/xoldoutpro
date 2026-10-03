@@ -24,17 +24,55 @@ const messaging = firebase.messaging();
 // deliberately sends data-only payloads. A `notification` field makes the
 // browser auto-display the push itself in the background *in addition to*
 // this handler calling showNotification(), doubling every notification.
-messaging.onBackgroundMessage((payload) => {
-  const { title, body, url, icon } = payload.data ?? {};
-  self.registration.showNotification(title ?? "XOLDOUT", {
+// Persistent + aggressive by design (explicit ask):
+// - requireInteraction: stays on screen until the user clicks or dismisses it
+//   (browsers otherwise auto-hide after a few seconds);
+// - a tag groups related alerts (one entry per Fanbase/post) and renotify
+//   makes a replacement sound/vibrate again instead of updating silently;
+// - vibrate + never silent;
+// - the unread bell count goes on the installed app's icon.
+// Also exposed as self.xoShow so the page can reuse it for pushes that
+// arrive while XOLDOUT is open in the foreground (components/push).
+function xoShow(data) {
+  const { title, body, url, icon, tag, badge } = data ?? {};
+  const count = Number(badge);
+  if (count > 0 && self.navigator.setAppBadge) self.navigator.setAppBadge(count).catch(() => {});
+  return self.registration.showNotification(title ?? "XOLDOUT", {
     body,
     icon: icon || "/xoldout-icon-transparent.png",
+    badge: "/xoldout-icon-transparent.png",
+    tag: tag || undefined,
+    renotify: Boolean(tag),
+    requireInteraction: true,
+    silent: false,
+    vibrate: [200, 100, 200, 100, 300],
+    timestamp: Date.now(),
     data: { url },
   });
+}
+
+messaging.onBackgroundMessage((payload) => xoShow(payload.data));
+
+// The page posts {type:"xo-show", data} for foreground pushes.
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "xo-show") event.waitUntil(xoShow(event.data.data));
 });
 
+// Focus an already-open XOLDOUT tab and send it to the link, rather than
+// stacking up new tabs; only open a new window when none is open.
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const url = event.notification.data?.url ?? "/";
-  event.waitUntil(self.clients.openWindow(url));
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = windows.find((w) => new URL(w.url).origin === self.location.origin);
+      if (existing) {
+        await existing.focus();
+        if ("navigate" in existing) await existing.navigate(url).catch(() => {});
+        return;
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
 });

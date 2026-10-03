@@ -4,7 +4,7 @@ import { FallbackImg } from "@/components/ui/FallbackImg";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { getWeeklyTopCreators } from "@/lib/discover/weeklyTopCreators";
 
-export const revalidate = 20;
+export const revalidate = 300;
 
 export default async function TopCreatorsPage() {
   const creators = await getWeeklyTopCreators(20);

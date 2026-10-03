@@ -10,7 +10,8 @@ import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestIn
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
-import { downloadFileFromResponse } from "@/lib/downloadFile";
+import { downloadViaSignedLink } from "@/lib/downloadFile";
+import { ChargeNote } from "@/components/currency/CurrencyProvider";
 
 type Props = {
   productId: string;
@@ -95,12 +96,12 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
     // the tap feel like it registered immediately instead of doing nothing.
     setDownloading(true);
     try {
-      const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
+      const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1&link=1`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not download beat");
       }
-      await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
+      await downloadViaSignedLink(res);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
     } finally {
@@ -162,6 +163,9 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
         <p className="text-xs text-ink-3 mb-1.5">
           {nairaAmount(priceKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(priceKobo + serviceChargeKobo)} total
         </p>
+      )}
+      {!entitled && !isOwner && !isSoldOut && (
+        <ChargeNote kobo={serviceChargePercent != null ? priceKobo + serviceChargeKobo : priceKobo} className="mb-2" />
       )}
       <div className="flex gap-2 mb-4">
         {!entitled && !isOwner && (

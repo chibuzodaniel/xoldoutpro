@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { sendPushToUser } from "@/lib/push/send";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 // Flat comments (PRD §11 Phase 2 "member participation") — reachable on any
 // Post, but the only UI that renders them is the group post view; the MVP
@@ -37,7 +37,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       include: { author: { select: { handle: true, displayName: true, avatarUrl: true } } },
     });
     if (post.authorId !== user.id) {
-      sendPushToUser(post.authorId, { title: "New comment", body: `${user.displayName} commented on your post`, url: `/socials` });
+      notifyUsersAfterResponse([post.authorId], {
+        kind: "COMMENT",
+        title: "New comment",
+        body: `${user.displayName}: ${body.slice(0, 120)}`,
+        url: post.groupId ? `/groups/${post.groupId}` : `/socials`,
+        icon: comment.author.avatarUrl ?? undefined,
+        tag: `comment-${id}`,
+      });
     }
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {

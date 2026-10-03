@@ -6,6 +6,7 @@ import { getWalletBalances } from "@/lib/commerce/ledger";
 import { MINIMUM_WITHDRAWAL_KOBO } from "@/lib/commerce/constants";
 import { initiatePayout } from "@/lib/bachs";
 import { createNotification } from "@/lib/notifications/create";
+import { alertModerators } from "@/lib/moderation/attention";
 
 function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
@@ -106,6 +107,11 @@ export async function POST(req: NextRequest) {
         title: "Withdrawal failed",
         body: `${formatNaira(netKobo)} could not be sent — your balance has been restored.`,
         url: "/wallet",
+      });
+      alertModerators({
+        panel: "finance",
+        title: "Withdrawal failed",
+        body: `@${user.handle}'s ${formatNaira(netKobo)} withdrawal could not start — check the payout provider.`,
       });
       return NextResponse.json({ error: "Could not start the transfer. Your balance has been restored." }, { status: 502 });
     }

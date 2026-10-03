@@ -9,6 +9,7 @@ import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestIn
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ChargeNote } from "@/components/currency/CurrencyProvider";
 
 type Props = { productId: string; priceKobo: number; shippingFeeKobo: number; isSoldOut: boolean };
 
@@ -261,6 +262,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
         />
       </div>
 
+      <ChargeNote kobo={totalKobo} />
       {(shippingFeeKobo > 0 || serviceChargePercent != null) && (
         <p className="text-xs text-ink-3">{breakdownText(priceKobo * quantity, shippingFeeKobo, serviceChargePercent, serviceChargeKobo)}</p>
       )}

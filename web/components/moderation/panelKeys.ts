@@ -5,6 +5,7 @@
 export const PANEL_LABEL: Record<string, string> = {
   finance: "Platform finance",
   stats: "Platform growth",
+  visits: "Site visits",
   users: "User directory",
   // New (DECISIONS.md): the moderator-dashboard product-management panel —
   // browse every product, see owner/sales/ambassador attribution, edit,
@@ -21,5 +22,6 @@ export const PANEL_LABEL: Record<string, string> = {
   verifyGroup: "Verify group",
   verificationQueue: "Verification queue",
   restoreAccount: "Restore account",
+  restoreEvent: "Restore event",
 };
 export const PANEL_KEYS = Object.keys(PANEL_LABEL);

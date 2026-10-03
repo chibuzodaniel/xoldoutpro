@@ -25,7 +25,51 @@ type Billboard = {
   paidKobo: number;
   expiresAt: string | null;
   rejectionReason: string | null;
+  productId: string | null;
+  eventId: string | null;
+  viewCount: number;
 };
+
+type PromotableItem = { kind: "RELEASE" | "BEAT" | "MERCH" | "EVENT"; id: string; title: string };
+
+const KIND_LABEL: Record<PromotableItem["kind"], string> = { RELEASE: "Song", BEAT: "Beat", MERCH: "Merch", EVENT: "Event" };
+
+// "KIND:id" — one <select> value per item; "" = link to my profile.
+function itemValue(item: { kind: string; id: string } | null) {
+  return item ? `${item.kind}:${item.id}` : "";
+}
+
+function parseItemValue(value: string): { kind: PromotableItem["kind"]; id: string } | null {
+  if (!value) return null;
+  const [kind, id] = value.split(":");
+  return { kind: kind as PromotableItem["kind"], id };
+}
+
+function PromotePicker({ items, value, onChange, disabled }: { items: PromotableItem[]; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      className="w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-red disabled:opacity-50"
+    >
+      <option value="">My profile</option>
+      {(["RELEASE", "BEAT", "MERCH", "EVENT"] as const).map((kind) => {
+        const group = items.filter((i) => i.kind === kind);
+        if (group.length === 0) return null;
+        return (
+          <optgroup key={kind} label={`${KIND_LABEL[kind]}s`}>
+            {group.map((i) => (
+              <option key={i.id} value={itemValue(i)}>
+                {i.title}
+              </option>
+            ))}
+          </optgroup>
+        );
+      })}
+    </select>
+  );
+}
 
 type MeResponse = { billboard: Billboard | null; dailyRateKobo: number; minDays: number; maxDays: number };
 
@@ -53,6 +97,9 @@ export default function BillboardsPage() {
   const [cropFile, setCropFile] = useState<File | null>(null);
   const [days, setDays] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [promotable, setPromotable] = useState<PromotableItem[]>([]);
+  const [promoteValue, setPromoteValue] = useState("");
+  const [savingPromote, setSavingPromote] = useState(false);
 
   async function load() {
     const res = await apiFetch("/api/billboards");
@@ -65,7 +112,27 @@ export default function BillboardsPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time fetch on mount, not derived render state
     load();
+    apiFetch("/api/billboards/promotable")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => data && setPromotable(data.items));
   }, []);
+
+  // Change what the current billboard links to (PATCH /api/billboards/[id]).
+  async function handleChangePromoted(value: string) {
+    if (!me?.billboard) return;
+    setSavingPromote(true);
+    try {
+      const res = await apiFetch(`/api/billboards/${me.billboard.id}`, { method: "PATCH", body: JSON.stringify({ promoted: parseItemValue(value) }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not update your billboard");
+      toast.success(value ? "Billboard now links to your pick" : "Billboard now links to your profile");
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSavingPromote(false);
+    }
+  }
 
   function handlePickFile(f: File | null) {
     setFile(f);
@@ -78,7 +145,7 @@ export default function BillboardsPage() {
     setBusy(true);
     try {
       const key = await uploadImage(file, "billboard");
-      const res = await apiFetch("/api/billboards", { method: "POST", body: JSON.stringify({ key, days }) });
+      const res = await apiFetch("/api/billboards", { method: "POST", body: JSON.stringify({ key, days, promoted: parseItemValue(promoteValue) }) });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not start your billboard");
 
@@ -131,6 +198,33 @@ export default function BillboardsPage() {
           {me.billboard.status === "ACTIVE" && me.billboard.expiresAt && (
             <p className="text-xs text-ink-3">Live until {formatDate(me.billboard.expiresAt)}.</p>
           )}
+          {(me.billboard.status === "ACTIVE" || me.billboard.viewCount > 0) && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-ink-3" aria-hidden>
+                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" strokeLinejoin="round" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {me.billboard.viewCount.toLocaleString("en-NG")} view{me.billboard.viewCount === 1 ? "" : "s"}
+              <span className="text-xs font-normal text-ink-3">· every time it&apos;s shown</span>
+            </p>
+          )}
+          {blocking && (
+            <div className="mt-3">
+              <p className="text-xs text-ink-3 mb-1.5">Tapping it opens</p>
+              <PromotePicker
+                items={promotable}
+                value={itemValue(
+                  me.billboard.eventId
+                    ? { kind: "EVENT", id: me.billboard.eventId }
+                    : me.billboard.productId
+                      ? promotable.find((i) => i.id === me.billboard!.productId) ?? null
+                      : null,
+                )}
+                onChange={handleChangePromoted}
+                disabled={savingPromote}
+              />
+            </div>
+          )}
           {me.billboard.status === "PENDING_REVIEW" && (
             <p className="text-xs text-ink-3">A moderator will approve or reject this soon — you&apos;ll keep this page updated.</p>
           )}
@@ -173,6 +267,14 @@ export default function BillboardsPage() {
               }}
             />
           )}
+
+          <p className="text-xs text-ink-3 mb-2">Promote (optional) — what tapping your billboard opens</p>
+          <div className="mb-4">
+            <PromotePicker items={promotable} value={promoteValue} onChange={setPromoteValue} disabled={busy} />
+            {promotable.length === 0 && (
+              <p className="mt-1.5 text-[11px] text-ink-3">Publish a song, beat, merch item or event to link it here.</p>
+            )}
+          </div>
 
           <p className="text-xs text-ink-3 mb-2">Days ({me.minDays}–{me.maxDays})</p>
           <input

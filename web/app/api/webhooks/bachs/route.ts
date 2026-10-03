@@ -6,6 +6,7 @@ import { finalizePayment } from "@/lib/commerce/confirmPayment";
 import { finalizeBillboardPayment } from "@/lib/commerce/billboards";
 import { finalizeCreatorPlanFeePayment } from "@/lib/commerce/creatorPlans";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
+import { finalizeCoinTopUpPayment } from "@/lib/live/coins";
 
 export const runtime = "nodejs";
 
@@ -93,12 +94,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // A Payment pays for exactly one of an Order, a Billboard, or a creator-
-  // plan charge (see the Payment model's own comment) — checked here before
-  // deciding which finalize path (and which relations) to load.
+  // A Payment pays for exactly one of an Order, a Billboard, a creator-plan
+  // charge, or an XG top-up (see the Payment model's own comment) — checked
+  // here before deciding which finalize path (and which relations) to load.
   const paymentRef = await db.payment.findUnique({
     where: { processorRef: verified.txRef },
-    select: { id: true, orderId: true, billboardId: true, creatorPlanUserId: true },
+    select: { id: true, orderId: true, billboardId: true, creatorPlanUserId: true, coinTopUpUserId: true },
   });
   if (!paymentRef) return NextResponse.json({ error: "Unknown payment" }, { status: 404 });
 
@@ -109,6 +110,9 @@ export async function POST(req: NextRequest) {
     } else if (paymentRef.creatorPlanUserId) {
       const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
       await finalizeCreatorPlanFeePayment(payment, verified, body);
+    } else if (paymentRef.coinTopUpUserId) {
+      const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
+      await finalizeCoinTopUpPayment(payment, verified, body);
     } else {
       const payment = await db.payment.findUniqueOrThrow({
         where: { id: paymentRef.id },

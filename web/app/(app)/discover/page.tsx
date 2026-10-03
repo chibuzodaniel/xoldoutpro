@@ -12,11 +12,12 @@ import { getDiscoverData } from "@/lib/discover/getDiscoverData";
 import { getActiveBillboards } from "@/lib/commerce/billboards";
 import { BillboardRail } from "@/components/discover/BillboardRail";
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
+import { Price } from "@/components/currency/CurrencyProvider";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
 // background instead of forcing a fresh render every time.
-export const revalidate = 20;
+export const revalidate = 120;
 
 export const metadata: Metadata = buildDiscoverMetadata();
 
@@ -27,11 +28,6 @@ const cardInclude = {
   merchItem: { select: { imageLadder: true } },
   stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
 } as const;
-
-function formatNaira(kobo: number) {
-  if (kobo === 0) return "Free";
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
-}
 
 const VALID_TYPES = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
 const SECTION_TITLE: Record<(typeof VALID_TYPES)[number], string> = {
@@ -165,7 +161,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               ) : (
                 <span className="text-xs text-white/60">{heroSold} sold</span>
               )}
-              <span className="font-serif text-lg text-white">{formatNaira(hero.priceKobo)}</span>
+              <span className="font-serif text-lg text-white"><Price kobo={hero.priceKobo} freeLabel="Free" /></span>
             </div>
           </div>
         </Link>

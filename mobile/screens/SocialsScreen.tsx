@@ -23,9 +23,11 @@ import { SwipeableIndexView } from "../components/SwipeableIndexView";
 import { PostCard } from "../components/social/PostCard";
 import { PostComposer } from "../components/social/PostComposer";
 import { FanbaseTab } from "../components/fanbase/FanbaseTab";
+import { LiveNowPanel } from "../components/live/LiveNowPanel";
 
 const TABS = [
   { key: "feed", label: "Feed" },
+  { key: "live", label: "Go Live" },
   { key: "fanbase", label: "Fanbase" },
 ] as const;
 type SocialsTab = (typeof TABS)[number]["key"];
@@ -105,7 +107,10 @@ export function SocialsScreen() {
         <View style={styles.tabsRow}>
           {TABS.map((t) => (
             <TouchableOpacity key={t.key} onPress={() => setTab(t.key)} style={styles.tabButton}>
-              <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>{t.label}</Text>
+              <View style={styles.tabLabelRow}>
+                <Text style={[styles.tabLabel, tab === t.key && styles.tabLabelActive]}>{t.label}</Text>
+                {t.key === "live" && <View style={styles.tabLiveDot} />}
+              </View>
               {tab === t.key && <View style={styles.tabUnderline} />}
             </TouchableOpacity>
           ))}
@@ -119,6 +124,8 @@ export function SocialsScreen() {
       >
       {tab === "fanbase" ? (
         <FanbaseTab />
+      ) : tab === "live" ? (
+        <LiveNowPanel />
       ) : (
         <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <FlatList
@@ -227,6 +234,8 @@ const styles = StyleSheet.create({
   tabsRow: { flexDirection: "row", gap: 20, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   tabButton: { paddingBottom: 10 },
   tabLabel: { color: colors.ink3, fontSize: 14, fontWeight: "600" },
+  tabLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  tabLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(225,29,46,0.8)" },
   tabLabelActive: { color: colors.ink },
   tabUnderline: { height: 2, backgroundColor: colors.red, marginTop: 8, borderRadius: 1 },
   feedContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 },

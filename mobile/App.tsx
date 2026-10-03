@@ -1,3 +1,4 @@
+import { registerGlobals } from "@livekit/react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
@@ -25,6 +26,11 @@ import { EditProfileScreen } from "./screens/EditProfileScreen";
 import { CatalogScreen } from "./screens/CatalogScreen";
 import { CatalogEventsScreen } from "./screens/CatalogEventsScreen";
 import { EventCheckInScreen } from "./screens/EventCheckInScreen";
+import { LiveNowScreen } from "./screens/LiveNowScreen";
+import { GoLiveScreen } from "./screens/GoLiveScreen";
+import { LiveBroadcastScreen } from "./screens/LiveBroadcastScreen";
+import { LiveViewerScreen } from "./screens/LiveViewerScreen";
+import { LiveCoinsScreen } from "./screens/LiveCoinsScreen";
 import { CatalogMerchScreen } from "./screens/CatalogMerchScreen";
 import { WalletScreen } from "./screens/WalletScreen";
 import { PayoutAccountsScreen } from "./screens/PayoutAccountsScreen";
@@ -35,6 +41,18 @@ import { DiscoverCategoryScreen } from "./screens/DiscoverCategoryScreen";
 import { TopCreatorsScreen } from "./screens/TopCreatorsScreen";
 import { DownloadedScreen } from "./screens/DownloadedScreen";
 import { HeavyRotationScreen } from "./screens/HeavyRotationScreen";
+
+// Registers WebRTC globals LiveKit's RN SDK needs (RTCPeerConnection etc.) —
+// must run once, before any Xoldout Live screen mounts. Native module, so
+// this needs a real EAS dev build (see mobile's own Expo Go native-limits
+// note) — wrapped so a plain Expo Go session, which has no native module to
+// register, still boots the rest of the app; only the Live screens
+// themselves fail (with their own explicit message) if this didn't run.
+try {
+  registerGlobals();
+} catch {
+  // No native WebRTC module available (Expo Go) — Live screens handle this.
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -94,6 +112,11 @@ export default function App() {
             <Stack.Screen name="TopCreators" component={TopCreatorsScreen} options={{ title: "" }} />
             <Stack.Screen name="Downloaded" component={DownloadedScreen} options={{ title: "" }} />
             <Stack.Screen name="HeavyRotation" component={HeavyRotationScreen} options={{ title: "" }} />
+            <Stack.Screen name="LiveNow" component={LiveNowScreen} options={{ title: "" }} />
+            <Stack.Screen name="GoLive" component={GoLiveScreen} options={{ title: "" }} />
+            <Stack.Screen name="LiveBroadcast" component={LiveBroadcastScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="LiveViewer" component={LiveViewerScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="LiveCoins" component={LiveCoinsScreen} options={{ title: "" }} />
           </Stack.Navigator>
           <StatusBar style="light" />
         </NavigationContainer>

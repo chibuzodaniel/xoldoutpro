@@ -48,6 +48,10 @@ model User {
   // has to be set directly in the DB, same as isModerator itself, but from
   // there on out further moderators can be assigned/removed through the UI.
   isSuperModerator            Boolean                 @default(false)
+  // Display-currency preference (lib/currency.ts's COUNTRIES code, e.g.
+  // "GH"). Null = auto-detect from the request's geo-IP country. Display
+  // only — every charge is still in NGN via Bachs.
+  displayCountry              String?
   // Master "has a checkmark" flag — unchanged from its original PRD §12/§18
   // meaning and still moderator-togglable directly (POST /api/admin/verify)
   // for backward compatibility with every existing <VerifiedBadge> call
@@ -177,6 +181,13 @@ model User {
   moderatorOtpCodes ModeratorOtpCode[]
 
   eventPromoterRoles EventPromoter[]
+
+  liveSessions      LiveSession[]
+  liveGiftsSent     LiveGift[]
+  liveAccessGrants  LiveAccessGrant[]
+  liveRequestsSent  LiveRequest[]
+  liveReminders     LiveReminder[]
+  coinLedgerEntries CoinLedgerEntry[]
 }
 
 model PayoutAccount {
@@ -440,6 +451,13 @@ enum LedgerKind {
   // BUYER_PAYS_FEE slot-pack purchase (Payment.creatorPlanPaymentKind tells
   // the two apart at the Bachs-webhook level; the ledger doesn't need to).
   CREATOR_PLAN_FEE
+  // Xoldout Live creator earnings (lib/live/gifts.ts) — the seller side of
+  // an XG spend; CoinLedgerEntry's GIFT_DEBIT/PAID_ACCESS_DEBIT/
+  // PAID_REQUEST_DEBIT is the matching buyer side, on the separate XG
+  // ledger. Real Naira, withdrawable like any other sale.
+  LIVE_GIFT_CREDIT
+  LIVE_ACCESS_CREDIT
+  LIVE_REQUEST_CREDIT
 }
 
 // Three creator-selectable monetization plans (DECISIONS.md) — see
@@ -543,15 +561,17 @@ model Product {
   publishedAt DateTime?
   deletedAt   DateTime?
 
-  release      Release?
-  beat         Beat?
-  ticketTier   TicketTier?
-  merchItem    MerchItem?
-  stockPolicy  StockPolicy?
-  entitlements Entitlement[]
-  orderItems   OrderItem[]
-  reports      Report[]      @relation("ReportsOnProduct")
-  gifts        Gift[]
+  release              Release?
+  beat                 Beat?
+  ticketTier           TicketTier?
+  merchItem            MerchItem?
+  stockPolicy          StockPolicy?
+  entitlements         Entitlement[]
+  orderItems           OrderItem[]
+  reports              Report[]      @relation("ReportsOnProduct")
+  gifts                Gift[]
+  pinnedInLiveSessions LiveSession[]
+  billboards           Billboard[]
 
   @@index([creatorId])
   @@index([status, type])
@@ -705,9 +725,10 @@ model Event {
   publishedAt      DateTime?
   deletedAt        DateTime?
 
-  tiers     TicketTier[]
-  reports   Report[]        @relation("ReportsOnEvent")
-  promoters EventPromoter[]
+  tiers      TicketTier[]
+  reports    Report[]        @relation("ReportsOnEvent")
+  promoters  EventPromoter[]
+  billboards Billboard[]
 
   @@index([creatorId])
 }
@@ -835,12 +856,12 @@ enum PaymentStatus {
 
 model Payment {
   id                     String        @id @default(cuid())
-  // Exactly one of orderId/billboardId/creatorPlanUserId is ever set — same
-  // optional-FK side-by-side pattern as WalletLedgerEntry's
+  // Exactly one of orderId/billboardId/creatorPlanUserId/coinTopUpUserId is
+  // ever set — same optional-FK side-by-side pattern as WalletLedgerEntry's
   // orderId/payoutId. A Billboard's Bachs checkout (lib/commerce/
-  // billboards.ts) and a creator-plan charge (lib/commerce/creatorPlans.ts)
-  // are the only other things this Payment/webhook pipeline pays for
-  // besides an Order.
+  // billboards.ts), a creator-plan charge (lib/commerce/creatorPlans.ts),
+  // and an XG top-up (lib/live/coins.ts) are the only other things this
+  // Payment/webhook pipeline pays for besides an Order.
   orderId                String?       @unique
   order                  Order?        @relation(fields: [orderId], references: [id])
   billboardId            String?       @unique
@@ -853,6 +874,11 @@ model Payment {
   // success just updates the User row directly.
   creatorPlanUserId      String?
   creatorPlanPaymentKind String? // "LIMITED_ACTIVATION" | "SLOT_PACK"
+  // An XG pack purchase (lib/live/coins.ts's createCoinTopUpCheckout) —
+  // same "no dedicated entity" shape as creatorPlanUserId above: success
+  // just credits a CoinLedgerEntry for coinTopUpXgAmount directly.
+  coinTopUpUserId        String?
+  coinTopUpXgAmount      Int?
   processor              String        @default("flutterwave")
   processorRef           String        @unique // tx_ref; webhook idempotency key
   // Flutterwave's own numeric transaction id (verifyTransaction()'s `id`) —
@@ -880,6 +906,19 @@ enum NotificationKind {
   PAYOUT_FAILED
   PAYOUT_PAID
   REFUND
+  // Moderator-only: something landed in a moderation queue (lib/moderation/attention.ts).
+  MODERATION
+  // Social activity — saved to the bell too (not push-only), so it persists.
+  FOLLOW
+  LIKE
+  COMMENT
+  FANBASE
+  // The daily "you have unread notifications" nudge.
+  REMINDER
+  // The outcome of the user's own verification application.
+  VERIFICATION
+  // Someone you follow (or asked to be reminded about) just went live.
+  LIVE
 }
 
 model Notification {
@@ -1337,6 +1376,19 @@ model Billboard {
   updatedBy        String?
   payment          Payment?
   ledgerEntries    WalletLedgerEntry[]
+  // What tapping the billboard opens (explicit ask: creators attach their
+  // song/beat/merch/event). At most one of productId/eventId is set — same
+  // optional-FK side-by-side pattern as Payment's targets. Both null = the
+  // creator's profile, the original behavior. EVENT-type products are never
+  // stored here; an event links via eventId to its own /e/[id] page.
+  productId        String?
+  product          Product?            @relation(fields: [productId], references: [id])
+  eventId          String?
+  event            Event?              @relation(fields: [eventId], references: [id])
+  // Every on-screen impression, not unique viewers (explicit ask: "anytime a
+  // user sees it should count, not just a one time view") — incremented in
+  // batches by POST /api/billboards/views from components/discover/BillboardRail.
+  viewCount        Int                 @default(0)
 
   @@index([status, expiresAt])
   @@index([creatorId])
@@ -1375,6 +1427,172 @@ model EventPromoter {
 
   @@unique([eventId, userId])
   @@index([eventId])
+}
+
+// ─── Xoldout Live ────────────────────────────────────────────────────────
+// A session's video is never stored (explicit product decision: "Lives
+// aren't saved" — the LiveKit room is ephemeral, torn down on end, see
+// lib/live/liveKit.ts). Only money-relevant facts persist here, same
+// ledger-not-a-cache philosophy as WalletLedgerEntry: the session's own
+// metadata/stats, and every gift/paid-access/paid-request row.
+
+enum LiveSessionStatus {
+  // Created ahead of time with a shareable link (explicit ask) — no LiveKit
+  // room yet; the host starts it, which creates the room and flips it LIVE.
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+model LiveSession {
+  id               String            @id @default(cuid())
+  creatorId        String
+  creator          User              @relation(fields: [creatorId], references: [id])
+  title            String
+  description      String?
+  coverImageLadder Json?
+  roomName         String?           @unique // LiveKit room name (lib/live/liveKit.ts); null until a SCHEDULED Live starts
+  status           LiveSessionStatus @default(LIVE)
+  // Only meaningful together: isPaidAccess false ignores priceXg entirely
+  // (matches TicketTier's own priceKobo=0-is-free convention).
+  isPaidAccess     Boolean           @default(false)
+  priceXg          Int               @default(0)
+  pinnedProductId  String?
+  pinnedProduct    Product?          @relation(fields: [pinnedProductId], references: [id])
+  peakViewers      Int               @default(0)
+  // When a SCHEDULED Live is planned to start (shown as a countdown on its
+  // link). startedAt is reset to the real start time when it goes live.
+  scheduledFor     DateTime?
+  startedAt        DateTime          @default(now())
+  endedAt          DateTime?
+
+  gifts        LiveGift[]
+  accessGrants LiveAccessGrant[]
+  requests     LiveRequest[]
+  reminders    LiveReminder[]
+
+  @@index([creatorId])
+  @@index([status])
+}
+
+// "Remind me" on a scheduled Live — everyone here is notified when it starts.
+model LiveReminder {
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@id([liveSessionId, userId])
+  @@index([userId])
+}
+
+// Fixed catalog for v1 — mirrors TicketTier's own "simple enum, not a config
+// table" choice. Price-per-type and display metadata live in
+// lib/live/gifts.ts, not the DB (same as e.g. MINIMUM_WITHDRAWAL_KOBO
+// elsewhere), so adding a gift is a code change, not a migration, until
+// there's a real reason for creators/moderators to configure the catalog.
+enum LiveGiftType {
+  STAR
+  MIC
+  MONEY_SPRAY
+  GRAMMY
+}
+
+model LiveGift {
+  id            String       @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession  @relation(fields: [liveSessionId], references: [id])
+  senderId      String
+  sender        User         @relation(fields: [senderId], references: [id])
+  type          LiveGiftType
+  xgAmount      Int // snapshot at send time, independent of a later catalog price change
+  createdAt     DateTime     @default(now())
+
+  @@index([liveSessionId, createdAt])
+  @@index([senderId])
+}
+
+// One per (session, viewer) — a paid-access Live is bought once, not
+// per-view, same "entitlement not a per-request check" shape as a ticket.
+model LiveAccessGrant {
+  id            String      @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  xgPaid        Int
+  createdAt     DateTime    @default(now())
+
+  @@unique([liveSessionId, userId])
+}
+
+enum LiveRequestStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model LiveRequest {
+  id            String            @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession       @relation(fields: [liveSessionId], references: [id])
+  senderId      String
+  sender        User              @relation(fields: [senderId], references: [id])
+  message       String
+  xgAmount      Int
+  status        LiveRequestStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+
+  @@index([liveSessionId, status])
+}
+
+// ─── XG: Xoldout Gifts, a buyer-funded prepaid balance ──────────────────
+// Same ledger-not-a-balance-column philosophy as WalletLedgerEntry, but a
+// deliberately separate table/currency: XG is bought with real money
+// (lib/live/coins.ts, same Bachs-checkout shape as a Billboard/creator-plan
+// charge) and spent on gifts/paid access/paid requests, but is never cashed
+// back out to the buyer — one-directional by design, so this never becomes
+// an unlicensed money-transmission product. Only the *creator's* resulting
+// earnings (LedgerKind LIVE_GIFT_CREDIT et al, on the existing
+// WalletLedgerEntry/payout pipeline) are ever withdrawable.
+// Balance = SUM(xgAmount) WHERE userId = ?.
+enum CoinLedgerKind {
+  TOPUP_CREDIT
+  GIFT_DEBIT
+  PAID_ACCESS_DEBIT
+  PAID_REQUEST_DEBIT
+}
+
+model CoinLedgerEntry {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id])
+  xgAmount  Int // signed: credits positive, debits negative
+  kind      CoinLedgerKind
+  createdAt DateTime       @default(now())
+
+  @@index([userId])
+}
+
+// ─── Site visits (moderator dashboard) ──────────────────────────────────
+// One row per (visitor, UTC day): unique visitors = row count, page views =
+// SUM(pageViews). visitorHash is an HMAC of IP + user agent under a server
+// secret (lib/analytics/visits.ts) — no raw IP is ever stored, but the same
+// browser hashes the same across days, so weekly/monthly/all-time uniques
+// are COUNT(DISTINCT visitorHash). country is the geo-IP ISO code at first
+// visit that day ("ZZ" when unknown, e.g. local dev).
+model SiteVisitorDay {
+  id          String   @id @default(cuid())
+  day         DateTime @db.Date
+  visitorHash String
+  country     String
+  pageViews   Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([day, visitorHash])
+  @@index([day, country])
 }
 
 // ─── Background work queue ──────────────────────────────────────────────

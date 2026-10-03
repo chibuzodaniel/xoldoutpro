@@ -13,7 +13,7 @@ import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet"
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
-import { downloadFileFromResponse } from "@/lib/downloadFile";
+import { downloadViaSignedLink } from "@/lib/downloadFile";
 
 type LibraryTrack = {
   id: string;
@@ -205,12 +205,12 @@ function LibraryPageInner() {
   async function handleDownloadFile(track: LibraryTrack) {
     setBusyTrackId(track.id);
     try {
-      const res = await apiFetch(`/api/tracks/${track.id}/audio-url?download=1`);
+      const res = await apiFetch(`/api/tracks/${track.id}/audio-url?download=1&link=1`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not download track");
       }
-      await downloadFileFromResponse(res, `${track.title} - XOLDOUT.mp3`);
+      await downloadViaSignedLink(res);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
     } finally {
@@ -237,7 +237,7 @@ function LibraryPageInner() {
     setDownloadingProductId(e.product.id);
     try {
       if (e.product.beat) {
-        await handleDownloadBeatFile(e.product.id, e.product.title);
+        await handleDownloadBeatFile(e.product.id);
       } else if (e.product.release) {
         await handleDownloadReleaseFiles(e.product.release.tracks);
       }
@@ -246,14 +246,14 @@ function LibraryPageInner() {
     }
   }
 
-  async function handleDownloadBeatFile(productId: string, title: string) {
+  async function handleDownloadBeatFile(productId: string) {
     try {
-      const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1`);
+      const res = await apiFetch(`/api/beats/${productId}/audio-url?download=1&link=1`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not download beat");
       }
-      await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
+      await downloadViaSignedLink(res);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
     }

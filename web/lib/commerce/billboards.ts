@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { alertModerators } from "@/lib/moderation/attention";
 import { initializePayment, initiateRefund } from "@/lib/bachs";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -32,16 +33,134 @@ export async function getBlockingBillboardForCreator(creatorId: string) {
   });
 }
 
-export async function getActiveBillboards() {
+export type BillboardTarget =
+  | { kind: "RELEASE" | "BEAT" | "MERCH" | "EVENT"; id: string; title: string }
+  | { kind: "PROFILE"; handle: string }
+  | null;
+
+/** One rail slide, shared by web (href) and mobile (target → its own screens) via GET /api/billboards/active. */
+export type BillboardSlideData = {
+  id: string;
+  artworkUrl: string;
+  viewCount: number;
+  creator: { handle: string; displayName: string } | null;
+  href: string | null;
+  target: BillboardTarget;
+};
+
+export async function getActiveBillboards(): Promise<BillboardSlideData[]> {
+  const rows = await getActiveBillboardRows();
+  return rows.map((b) => {
+    let target: BillboardTarget = b.creator ? { kind: "PROFILE", handle: b.creator.handle } : null;
+    if (b.event && b.event.status === "PUBLISHED") target = { kind: "EVENT", id: b.event.id, title: b.event.title };
+    else if (b.product && b.product.status === "PUBLISHED" && b.product.type !== "EVENT") {
+      target = { kind: b.product.type, id: b.product.id, title: b.product.title };
+    }
+    return { id: b.id, artworkUrl: b.artworkUrl, viewCount: b.viewCount, creator: b.creator, href: billboardHref(b), target };
+  });
+}
+
+async function getActiveBillboardRows() {
   return db.billboard.findMany({
     where: { status: "ACTIVE", expiresAt: { gt: new Date() } },
     select: {
       id: true,
       artworkUrl: true,
+      viewCount: true,
       creator: { select: { handle: true, displayName: true } },
+      product: { select: { id: true, type: true, title: true, status: true } },
+      event: { select: { id: true, title: true, status: true } },
     },
     orderBy: { activatedAt: "asc" },
   });
+}
+
+// ─── Promoted item (song / beat / merch / event) ────────────────────────
+
+export type PromotedKind = "RELEASE" | "BEAT" | "MERCH" | "EVENT";
+export type PromotedRef = { kind: PromotedKind; id: string };
+
+export class InvalidPromotedItemError extends Error {}
+
+/**
+ * Resolves a creator-chosen "promote this" pick to Billboard's productId/
+ * eventId columns. Only the creator's own PUBLISHED items are allowed — a
+ * billboard must never send traffic to someone else's product or a draft.
+ * null clears it (billboard links to the creator's profile, the original
+ * behavior).
+ */
+export async function resolvePromotedItem(creatorId: string, ref: PromotedRef | null): Promise<{ productId: string | null; eventId: string | null }> {
+  if (!ref) return { productId: null, eventId: null };
+  if (ref.kind === "EVENT") {
+    const event = await db.event.findUnique({ where: { id: ref.id }, select: { creatorId: true, status: true } });
+    if (!event || event.creatorId !== creatorId || event.status !== "PUBLISHED") throw new InvalidPromotedItemError();
+    return { productId: null, eventId: ref.id };
+  }
+  const product = await db.product.findUnique({ where: { id: ref.id }, select: { creatorId: true, status: true, type: true } });
+  if (!product || product.creatorId !== creatorId || product.status !== "PUBLISHED" || product.type !== ref.kind) {
+    throw new InvalidPromotedItemError();
+  }
+  return { productId: ref.id, eventId: null };
+}
+
+/** The creator's own published songs/beats/merch/events — the billboard "promote" picker. */
+export async function listPromotableItems(creatorId: string): Promise<{ kind: PromotedKind; id: string; title: string }[]> {
+  const [products, events] = await Promise.all([
+    db.product.findMany({
+      where: { creatorId, status: "PUBLISHED", type: { in: ["RELEASE", "BEAT", "MERCH"] } },
+      select: { id: true, type: true, title: true },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
+    db.event.findMany({
+      where: { creatorId, status: "PUBLISHED" },
+      select: { id: true, title: true },
+      orderBy: { startsAt: "desc" },
+      take: 50,
+    }),
+  ]);
+  return [
+    ...products.map((p) => ({ kind: p.type as PromotedKind, id: p.id, title: p.title })),
+    ...events.map((e) => ({ kind: "EVENT" as const, id: e.id, title: e.title })),
+  ];
+}
+
+/**
+ * Where tapping a billboard goes: its promoted item if one is set and still
+ * published, otherwise the creator's profile (or nowhere, for a
+ * moderator-added billboard with no creator).
+ */
+export function billboardHref(b: {
+  creator: { handle: string } | null;
+  product: { id: string; type: string; status: string } | null;
+  event: { id: string; status: string } | null;
+}): string | null {
+  if (b.event && b.event.status === "PUBLISHED") return `/e/${b.event.id}`;
+  if (b.product && b.product.status === "PUBLISHED") {
+    if (b.product.type === "BEAT") return `/b/${b.product.id}`;
+    if (b.product.type === "MERCH") return `/m/${b.product.id}`;
+    return `/r/${b.product.id}`;
+  }
+  return b.creator ? `/u/${b.creator.handle}` : null;
+}
+
+/** Max impressions one beacon may add per billboard — a rotating rail shows each slide every few seconds, so anything far above this is a forged request, not a real viewer. */
+export const MAX_VIEWS_PER_BEACON = 50;
+
+/** Batched impression counts from BillboardRail (POST /api/billboards/views). Only counts toward currently-active billboards. */
+export async function addBillboardViews(counts: Record<string, number>): Promise<void> {
+  const entries = Object.entries(counts)
+    .map(([id, n]) => [id, Math.min(Math.max(Math.floor(n), 0), MAX_VIEWS_PER_BEACON)] as const)
+    .filter(([, n]) => n > 0);
+  if (entries.length === 0) return;
+  await db.$transaction(
+    entries.map(([id, n]) =>
+      db.billboard.updateMany({
+        where: { id, status: "ACTIVE", expiresAt: { gt: new Date() } },
+        data: { viewCount: { increment: n } },
+      }),
+    ),
+  );
 }
 
 class BillboardConflictError extends Error {}
@@ -72,6 +191,8 @@ export async function createBillboardCheckout(args: {
   origin: string;
   customerEmail: string;
   customerName: string;
+  // Already validated via resolvePromotedItem by the caller.
+  promoted?: { productId: string | null; eventId: string | null };
 }): Promise<
   | { mode: "wallet"; billboard: { id: string } }
   | { mode: "bachs"; billboard: { id: string }; checkoutUrl: string }
@@ -103,6 +224,8 @@ export async function createBillboardCheckout(args: {
         status: "PENDING_REVIEW",
         days,
         paidKobo: totalKobo,
+        productId: args.promoted?.productId ?? null,
+        eventId: args.promoted?.eventId ?? null,
       },
     });
     await tx.walletLedgerEntry.create({
@@ -118,11 +241,19 @@ export async function createBillboardCheckout(args: {
   });
 
   if (walletResult) {
+    alertModerators({ panel: "billboards", title: "Billboard awaiting review", body: "A paid billboard is waiting for approval." });
     return { mode: "wallet", billboard: { id: walletResult.id } };
   }
 
   const billboard = await db.billboard.create({
-    data: { creatorId: args.creatorId, artworkUrl: args.artworkUrl, status: "PENDING_PAYMENT", days },
+    data: {
+      creatorId: args.creatorId,
+      artworkUrl: args.artworkUrl,
+      status: "PENDING_PAYMENT",
+      days,
+      productId: args.promoted?.productId ?? null,
+      eventId: args.promoted?.eventId ?? null,
+    },
   });
   await db.payment.create({
     data: { billboardId: billboard.id, processor: "bachs", processorRef: billboard.id, amountKobo: totalKobo, status: "INITIATED" },
@@ -176,6 +307,7 @@ export async function finalizeBillboardPayment(
     where: { id: payment.billboardId },
     data: { status: "PENDING_REVIEW", paidKobo: verified.amountKobo },
   });
+  alertModerators({ panel: "billboards", title: "Billboard awaiting review", body: "A paid billboard is waiting for approval." });
   return { alreadyProcessed: false };
 }
 

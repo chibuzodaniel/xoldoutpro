@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { getPayout } from "@/lib/bachs";
 import { createNotification } from "@/lib/notifications/create";
 import type { Payout } from "@/generated/prisma/client";
+import { alertModerators } from "@/lib/moderation/attention";
 
 function formatNaira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
@@ -45,6 +46,11 @@ export async function reconcilePayout(payout: Payout): Promise<void> {
         title: "Withdrawal failed",
         body: `${formatNaira(payout.netKobo)} could not be delivered — your balance has been restored.`,
         url: "/wallet",
+      });
+      alertModerators({
+        panel: "finance",
+        title: "Withdrawal failed",
+        body: `A ${formatNaira(payout.netKobo)} withdrawal was rejected by the payout provider.`,
       });
     }
   }

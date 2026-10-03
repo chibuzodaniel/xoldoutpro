@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { countTicketsSold } from "@/lib/commerce/eventRestore";
 import { getEventDetail } from "@/lib/event/getEventDetail";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -71,6 +72,21 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     const event = await loadOwned(id, user.id);
     if (!event) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // An event people hold tickets for can't be deleted (explicit ask, after
+    // an owner deleted one by mistake right before it ran) — the owner hides
+    // its tiers instead (TicketTier.pausedAt), which stops sales while every
+    // ticket stays valid and scannable at the door.
+    const ticketsSold = await countTicketsSold(event.tiers.map((t) => t.productId));
+    if (ticketsSold > 0) {
+      return NextResponse.json(
+        {
+          error: `${ticketsSold} ticket${ticketsSold === 1 ? " has" : "s have"} already been sold for this event, so it can't be deleted. Hide its ticket tiers instead to stop sales — existing tickets stay valid.`,
+          ticketsSold,
+        },
+        { status: 409 },
+      );
+    }
 
     await db.$transaction(async (tx) => {
       await tx.event.update({ where: { id }, data: { status: "DELETED", deletedAt: new Date() } });

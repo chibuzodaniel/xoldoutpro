@@ -34,4 +34,9 @@ export type RootStackParamList = {
   TopCreators: undefined;
   Downloaded: undefined;
   HeavyRotation: undefined;
+  LiveNow: undefined;
+  GoLive: undefined;
+  LiveBroadcast: { id: string };
+  LiveViewer: { id: string };
+  LiveCoins: undefined;
 };

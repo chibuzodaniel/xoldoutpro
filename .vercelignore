@@ -1,0 +1,12 @@
+# CLI deploys upload from the repo root (the Vercel project's Root Directory
+# is web/). Never upload local env files or secrets — Vercel injects its own
+# env vars at build — and skip what the web build doesn't need.
+.env
+.env.*
+!.env.local.example
+/mobile
+/*.jpeg
+/*.jpg
+/*.png
+/*.html
+tsconfig.tsbuildinfo

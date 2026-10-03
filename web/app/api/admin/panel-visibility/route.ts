@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 const PANEL_KEYS = [
   "finance",
   "stats",
+  "visits",
   "users",
   "products",
   "ambassadors",
@@ -21,6 +22,7 @@ const PANEL_KEYS = [
   "verifyGroup",
   "verificationQueue",
   "restoreAccount",
+  "restoreEvent",
 ] as const;
 
 // GET is any moderator (the moderation page itself needs this to know what

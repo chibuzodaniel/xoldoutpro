@@ -362,7 +362,9 @@ export default function EventCatalogPage() {
       load();
       toast.success("Event deleted.");
     } else {
-      toast.error("Could not delete event");
+      // 409 = tickets already sold; the server's message tells the owner to hide tiers instead.
+      const data = await res.json().catch(() => ({}));
+      toast.error(typeof data.error === "string" ? data.error : "Could not delete event");
     }
   }
 

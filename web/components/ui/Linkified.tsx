@@ -1,57 +1,89 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
-const URL_PATTERN = /(https?:\/\/[^\s]+)/g;
+// http(s) URLs, plus bare XOLDOUT links people paste without a scheme
+// ("xoldout.app/r/abc", "www.xoldout.app/e/xyz") — those were previously left
+// as plain unclickable text.
+const URL_PATTERN = /(https?:\/\/[^\s]+|(?:www\.)?xoldout\.app\/[^\s]*)/gi;
 
-function isExternalHost(url: string) {
+// Every hostname that is XOLDOUT itself. The apex and www are the same site
+// (one redirects to the other), so a link to either must never trigger the
+// "You're leaving XOLDOUT" sheet — previously it did whenever the link's host
+// didn't exactly match the address bar (e.g. on www, a pasted
+// xoldout.app/... link). The current host covers previews and local dev.
+const OWN_HOSTS = new Set(["xoldout.app", "www.xoldout.app"]);
+
+function parseUrl(raw: string): URL | null {
   try {
-    return new URL(url).hostname !== window.location.hostname;
+    return new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
   } catch {
-    return true;
+    return null;
   }
 }
 
-function hostnameOf(url: string) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
+// What a link *shows* (the href is always the full URL): host without
+// "www." plus the path, with long paths cut short — a raw product URL is
+// ~60 unbreakable characters and used to overflow its post card.
+const MAX_LINK_CHARS = 32;
+function displayText(url: URL | null, raw: string): string {
+  const text = url ? `${url.hostname.replace(/^www\./, "")}${url.pathname === "/" ? "" : url.pathname}${url.search}` : raw;
+  return text.length > MAX_LINK_CHARS ? `${text.slice(0, MAX_LINK_CHARS)}…` : text;
 }
 
-// Any link typed into a post/message points off xoldout.app by definition —
-// warn before actually leaving. A native window.confirm() blocks the whole
-// tab's JS until dismissed (confirmed the hard way: it froze automated
-// testing solid), which is exactly the kind of jank a real mobile PWA
-// shouldn't ship either — this is a proper non-blocking bottom sheet, same
-// shell as ReportSheet/InstallSheet, instead.
+// Belt-and-braces with the shortening above: any link text may wrap at any
+// character rather than push past its container.
+const WRAP = "[overflow-wrap:anywhere]";
+
+function isOwnUrl(url: URL) {
+  const host = url.hostname.toLowerCase();
+  return OWN_HOSTS.has(host) || (typeof window !== "undefined" && host === window.location.hostname);
+}
+
+// Any link typed into a post/message to somewhere other than XOLDOUT gets a
+// warning before actually leaving. XOLDOUT's own links open in-app (same tab,
+// client-side navigation) with no warning. A native window.confirm() blocks
+// the whole tab's JS until dismissed (confirmed the hard way: it froze
+// automated testing solid), which is exactly the kind of jank a real mobile
+// PWA shouldn't ship either — this is a proper non-blocking bottom sheet,
+// same shell as ReportSheet/InstallSheet, instead.
 export function Linkified({ text, linkClassName = "underline" }: { text: string; linkClassName?: string }) {
   const [pendingUrl, setPendingUrl] = useState<string | null>(null);
   const parts = text.split(URL_PATTERN);
 
   return (
     <>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
+      {parts.map((part, i) => {
+        if (i % 2 === 0) return <span key={i}>{part}</span>;
+
+        const url = parseUrl(part);
+        if (url && isOwnUrl(url)) {
+          return (
+            <Link key={i} href={`${url.pathname}${url.search}${url.hash}`} title={url.href} className={`${linkClassName} ${WRAP}`}>
+              {displayText(url, part)}
+            </Link>
+          );
+        }
+
+        const href = url?.href ?? part;
+        return (
           <a
             key={i}
-            href={part}
+            href={href}
             target="_blank"
             rel="noopener noreferrer"
             onClick={(e) => {
-              if (!isExternalHost(part)) return;
               e.preventDefault();
-              setPendingUrl(part);
+              setPendingUrl(href);
             }}
-            className={linkClassName}
+            title={href}
+            className={`${linkClassName} ${WRAP}`}
           >
-            {part}
+            {displayText(url, part)}
           </a>
-        ) : (
-          <span key={i}>{part}</span>
-        ),
-      )}
+        );
+      })}
 
       {pendingUrl && (
         <div
@@ -64,7 +96,7 @@ export function Linkified({ text, linkClassName = "underline" }: { text: string;
             onClick={(e) => e.stopPropagation()}
           >
             <p className="text-sm font-semibold mb-1">You&apos;re leaving XOLDOUT</p>
-            <p className="text-xs text-ink-3 mb-6 break-all">This link goes to {hostnameOf(pendingUrl)}.</p>
+            <p className="text-xs text-ink-3 mb-6 break-all">This link goes to {parseUrl(pendingUrl)?.hostname ?? pendingUrl}.</p>
             <div className="flex gap-2">
               <button
                 type="button"

@@ -10,7 +10,8 @@ import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestIn
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
-import { downloadFileFromResponse } from "@/lib/downloadFile";
+import { downloadViaSignedLink } from "@/lib/downloadFile";
+import { ChargeNote } from "@/components/currency/CurrencyProvider";
 
 type AccessTrack = {
   id: string;
@@ -130,19 +131,19 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     }
   }
 
-  async function handleDownload(e: MouseEvent, trackId: string, title: string) {
+  async function handleDownload(e: MouseEvent, trackId: string) {
     e.stopPropagation();
     // The tagging round trip on the server genuinely takes a few seconds
     // (real fetch + ffmpeg pass, not instant) — this state is what makes
     // the tap feel like it registered immediately instead of doing nothing.
     setDownloadingTrackId(trackId);
     try {
-      const res = await apiFetch(`/api/tracks/${trackId}/audio-url?download=1`);
+      const res = await apiFetch(`/api/tracks/${trackId}/audio-url?download=1&link=1`);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not download track");
       }
-      await downloadFileFromResponse(res, `${title} - XOLDOUT.mp3`);
+      await downloadViaSignedLink(res);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Download failed");
     } finally {
@@ -174,6 +175,9 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
         <p className="text-xs text-ink-3 mb-1.5">
           {nairaAmount(priceKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(priceKobo + serviceChargeKobo)} total
         </p>
+      )}
+      {!entitled && !isOwner && !isSoldOut && (
+        <ChargeNote kobo={serviceChargePercent != null ? priceKobo + serviceChargeKobo : priceKobo} className="mb-2" />
       )}
       <div className="flex gap-2 mb-4">
         {!entitled && !isOwner && (
@@ -245,7 +249,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
               </span>
               {(entitled || isOwner) && downloadsAllowed && (
                 <button
-                  onClick={(e) => handleDownload(e, track.id, track.title)}
+                  onClick={(e) => handleDownload(e, track.id)}
                   disabled={downloadingTrackId === track.id}
                   aria-label={`Download ${track.title}`}
                   className="h-7 w-7 rounded-full border border-line flex items-center justify-center shrink-0 text-ink-2 disabled:opacity-60"

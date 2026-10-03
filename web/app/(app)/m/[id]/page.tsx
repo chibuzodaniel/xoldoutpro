@@ -8,15 +8,11 @@ import { ShareButton } from "@/components/ui/ShareButton";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
+import { Price } from "@/components/currency/CurrencyProvider";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
-export const revalidate = 30;
-
-function formatNaira(kobo: number) {
-  if (kobo === 0) return "Free";
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
-}
+export const revalidate = 120;
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -92,7 +88,7 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <div className="flex items-center justify-between mt-3 mb-4">
-          <span className="font-serif text-lg">{formatNaira(product.priceKobo)}</span>
+          <span className="font-serif text-lg"><Price kobo={product.priceKobo} freeLabel="Free" /></span>
           {remaining !== null ? (
             <span className="text-sm font-semibold text-red-soft">
               {isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}

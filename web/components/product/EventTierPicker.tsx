@@ -11,6 +11,7 @@ import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestIn
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
+import { ChargeNote } from "@/components/currency/CurrencyProvider";
 
 type Tier = { productId: string; name: string; priceKobo: number; isSoldOut: boolean };
 
@@ -183,6 +184,13 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
                     total
                   </p>
                 )}
+                <ChargeNote
+                  kobo={
+                    serviceChargePercent != null
+                      ? tier.priceKobo * qty + Math.round((tier.priceKobo * qty * serviceChargePercent) / 100)
+                      : tier.priceKobo * qty
+                  }
+                />
                 <div className="flex gap-2">
                 <div className="flex items-center rounded-lg border border-line shrink-0">
                   <button

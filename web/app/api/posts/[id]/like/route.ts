@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { Prisma } from "@/generated/prisma/client";
-import { sendPushToUser } from "@/lib/push/send";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -29,9 +29,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       }
       if (isNewLike) {
-        const post = await db.post.findUnique({ where: { id }, select: { authorId: true } });
+        const post = await db.post.findUnique({ where: { id }, select: { authorId: true, groupId: true } });
         if (post && post.authorId !== user.id) {
-          sendPushToUser(post.authorId, { title: "New like", body: `${user.displayName} liked your post`, url: `/socials` });
+          notifyUsersAfterResponse([post.authorId], {
+            kind: "LIKE",
+            title: "New like",
+            body: `${user.displayName} liked your post`,
+            url: post.groupId ? `/groups/${post.groupId}` : `/socials`,
+            icon: user.avatarUrl ?? undefined,
+            tag: `like-${id}`,
+          });
         }
       }
     }

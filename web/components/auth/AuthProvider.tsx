@@ -31,6 +31,8 @@ export type AppUser = {
   creatorPlan: "UNLIMITED" | "BUYER_PAYS_FEE" | "LIMITED" | null;
   limitedUploadsUsed: number;
   buyerPaysFeeBonusSlots: number;
+  // Display-currency choice (lib/currency.ts) — null = auto-detect.
+  displayCountry: string | null;
 };
 
 type AuthState = {

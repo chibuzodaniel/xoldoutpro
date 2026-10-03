@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { SoldCount } from "@/components/product/SoldCount";
+import { Price } from "@/components/currency/CurrencyProvider";
 
 export type EventCardData = {
   id: string;
@@ -10,11 +11,6 @@ export type EventCardData = {
   startsAt: Date;
   tiers: { priceKobo: number; stockPolicy: { cap: number | null; sold: number; soldOutAt: Date | null } | null }[];
 };
-
-function formatNaira(kobo: number) {
-  if (kobo === 0) return "Free";
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
-}
 
 function formatDate(d: Date) {
   return d.toLocaleDateString("en-NG", { day: "numeric", month: "short" });
@@ -50,7 +46,7 @@ export function EventCard({ event }: { event: EventCardData }) {
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{event.title}</p>
       <div className="flex items-center justify-between mt-0.5">
         <span className="text-[12px] font-serif">
-          {minPriceKobo === 0 ? "Free" : `From ${formatNaira(minPriceKobo)}`}
+          {minPriceKobo === 0 ? "Free" : <>From <Price kobo={minPriceKobo} /></>}
         </span>
         {allSoldOut ? (
           <span className="text-[12px] text-ink-3">Sold out</span>

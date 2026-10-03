@@ -2,9 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, requireModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { alertModerators } from "@/lib/moderation/attention";
 
 // PRD §14: inappropriate content and copyright claims are time-critical and
 // SLA-backed; bug reports and feature requests are not.
+// Human wording for moderator alerts (lib/moderation/attention.ts).
+const REASON_LABEL: Record<"INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST", string> = {
+  INAPPROPRIATE_CONTENT: "inappropriate content",
+  COPYRIGHT_CLAIM: "copyright claim",
+  BUG: "bug report",
+  FEATURE_REQUEST: "feature request",
+};
+
 const SLA_HOURS: Partial<Record<string, number>> = {
   INAPPROPRIATE_CONTENT: 24,
   COPYRIGHT_CLAIM: 24,
@@ -59,6 +68,15 @@ export async function POST(req: NextRequest) {
         details: details || null,
         slaDueAt: slaHours ? new Date(Date.now() + slaHours * 60 * 60 * 1000) : null,
       },
+    });
+
+    const isFeedback = reason === "BUG" || reason === "FEATURE_REQUEST";
+    alertModerators({
+      panel: "reports",
+      title: isFeedback ? `New ${REASON_LABEL[reason]}` : `New report: ${REASON_LABEL[reason]}`,
+      body: isFeedback
+        ? `@${user.handle} sent app feedback${details ? `: "${details.slice(0, 80)}"` : "."}`
+        : `@${user.handle} reported a ${targetType.toLowerCase()}${slaHours ? ` — needs review within ${slaHours}h` : ""}.`,
     });
 
     return NextResponse.json({ report: { id: report.id } }, { status: 201 });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { countTicketsSold } from "@/lib/commerce/eventRestore";
 
 async function loadOwnedTier(eventId: string, tierProductId: string, userId: string) {
   const tier = await db.ticketTier.findUnique({
@@ -52,6 +53,20 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const tier = await loadOwnedTier(id, tierId, user.id);
     if (!tier) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (tier.product.status === "DELETED") return NextResponse.json({ error: "Tier already deleted" }, { status: 409 });
+
+    // Same rule as the whole-event DELETE (explicit ask, after an owner
+    // deleted a tier 10 people held tickets for): a tier with ticket holders
+    // can only be hidden (PATCH pause above), never deleted.
+    const ticketsSold = await countTicketsSold([tierId]);
+    if (ticketsSold > 0) {
+      return NextResponse.json(
+        {
+          error: `${ticketsSold} ticket${ticketsSold === 1 ? " has" : "s have"} already been sold for this tier, so it can't be deleted. Hide it instead — that stops sales and existing tickets stay valid.`,
+          ticketsSold,
+        },
+        { status: 409 },
+      );
+    }
 
     await db.product.update({ where: { id: tierId }, data: { status: "DELETED", deletedAt: new Date() } });
 

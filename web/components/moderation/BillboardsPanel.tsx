@@ -21,6 +21,7 @@ type BillboardRow = {
   paidKobo: number;
   expiresAt: string | null;
   isModeratorAdded: boolean;
+  viewCount: number;
   rejectionReason: string | null;
   creator: { handle: string; displayName: string } | null;
 };
@@ -197,6 +198,7 @@ export function BillboardsPanel() {
                 </p>
                 <p className="text-xs text-ink-3">
                   {b.expiresAt ? `Until ${new Date(b.expiresAt).toLocaleString("en-NG")}` : `${b.days} day${b.days === 1 ? "" : "s"}`}
+                  {` · ${(b.viewCount ?? 0).toLocaleString("en-NG")} views`}
                   {b.rejectionReason ? ` · ${b.rejectionReason}` : ""}
                 </p>
               </div>

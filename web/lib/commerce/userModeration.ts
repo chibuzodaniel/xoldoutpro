@@ -17,6 +17,9 @@ const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
   BILLBOARD_FEE: "Billboard purchase",
   BILLBOARD_REFUND: "Billboard refund",
   CREATOR_PLAN_FEE: "Creator plan charge",
+  LIVE_GIFT_CREDIT: "Live gift",
+  LIVE_ACCESS_CREDIT: "Live paid access",
+  LIVE_REQUEST_CREDIT: "Live paid request",
 };
 
 /**

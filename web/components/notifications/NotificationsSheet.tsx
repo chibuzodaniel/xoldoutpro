@@ -4,7 +4,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 
-type NotificationKind = "SALE" | "ORDER_PAID" | "PAYOUT_INITIATED" | "PAYOUT_FAILED" | "PAYOUT_PAID" | "REFUND";
+type NotificationKind =
+  | "SALE"
+  | "ORDER_PAID"
+  | "PAYOUT_INITIATED"
+  | "PAYOUT_FAILED"
+  | "PAYOUT_PAID"
+  | "REFUND"
+  | "MODERATION"
+  | "FOLLOW"
+  | "LIKE"
+  | "COMMENT"
+  | "FANBASE"
+  | "REMINDER"
+  | "VERIFICATION";
 type NotificationRow = { id: string; kind: NotificationKind; title: string; body: string; url: string | null; readAt: string | null; createdAt: string };
 
 type Props = { open: boolean; onClose: () => void; onRead: () => void };
@@ -32,6 +45,13 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   PAYOUT_PAID: "Withdrawal sent",
   PAYOUT_FAILED: "Withdrawal failed",
   REFUND: "Refund",
+  MODERATION: "Needs moderator attention",
+  FOLLOW: "New follower",
+  LIKE: "Like",
+  COMMENT: "Comment",
+  FANBASE: "Fanbase",
+  REMINDER: "Reminder",
+  VERIFICATION: "Verification",
 };
 
 const KIND_COLOR: Record<NotificationKind, string> = {
@@ -41,9 +61,24 @@ const KIND_COLOR: Record<NotificationKind, string> = {
   PAYOUT_PAID: "bg-green/15 text-green",
   PAYOUT_FAILED: "bg-red/15 text-red-soft",
   REFUND: "bg-amber/15 text-amber",
+  MODERATION: "bg-red/15 text-red-soft",
+  FOLLOW: "bg-blue/15 text-blue",
+  LIKE: "bg-red/15 text-red-soft",
+  COMMENT: "bg-blue/15 text-blue",
+  FANBASE: "bg-amber/15 text-amber",
+  REMINDER: "bg-amber/15 text-amber",
+  VERIFICATION: "bg-green/15 text-green",
 };
 
 function KindIcon({ kind }: { kind: NotificationKind }) {
+  if (kind === "MODERATION") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6L12 3z" />
+        <path d="M12 8v4M12 15.5h.01" />
+      </svg>
+    );
+  }
   if (kind === "PAYOUT_FAILED") {
     return (
       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">

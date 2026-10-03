@@ -56,6 +56,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           return NextResponse.json({ error: "Downloads are currently disabled" }, { status: 403 });
         }
         return serveTaggedAudioDownload({
+        link: req.nextUrl.searchParams.get("link") === "1",
           masterKey: product.beat.audioMasterUrl,
           title: product.title,
           artistName: product.creator.displayName,

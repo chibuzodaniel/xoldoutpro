@@ -2,7 +2,7 @@ import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import type { User as FirebaseUser } from "firebase/auth";
-import { apiPatch } from "./api";
+import { apiPatch, apiPost } from "./api";
 
 // Mirrors web's lib/push.ts (same PATCH /api/me {pushEnabled, fcmTokens}
 // shape — the field is a plain string[] with no platform tag, holding FCM
@@ -25,12 +25,14 @@ function projectId(): string | undefined {
   );
 }
 
+// Aggressive by design (explicit ask): even while the app is open, show the
+// banner, play the sound and update the app-icon unread badge.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
   }),
 });
 
@@ -39,9 +41,19 @@ export async function enablePush(firebaseUser: FirebaseUser): Promise<{ ok: true
   if (!id) return { ok: false, error: "Push isn't configured for this build yet." };
 
   if (Platform.OS === "android") {
-    await Notifications.setNotificationChannelAsync("default", {
-      name: "default",
-      importance: Notifications.AndroidImportance.DEFAULT,
+    // The channel the server sends on (web's lib/push/send.ts ANDROID_CHANNEL_ID
+    // = "alerts"). HIGH importance = heads-up banner over whatever's on
+    // screen, with sound and vibration; shown on the lock screen too.
+    // (Android fixes a channel's importance once created, so this is a new
+    // channel rather than upgrading the old "default" one.)
+    await Notifications.setNotificationChannelAsync("alerts", {
+      name: "XOLDOUT alerts",
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: "default",
+      vibrationPattern: [0, 250, 150, 250, 150, 400],
+      enableVibrate: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     });
   }
 
@@ -51,7 +63,15 @@ export async function enablePush(firebaseUser: FirebaseUser): Promise<{ ok: true
   try {
     const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId: id });
     const idToken = await firebaseUser.getIdToken();
-    await apiPatch("/api/me", idToken, { pushEnabled: true, fcmTokens: [token] });
+    // Adds this phone to the account's device list (keeps web/other devices
+    // registered). Falls back to the old replace-the-list PATCH only when the
+    // API is an older deploy without /api/me/push-devices.
+    try {
+      await apiPost("/api/me/push-devices", idToken, { token });
+    } catch (e) {
+      if (!(e instanceof Error && e.message.includes("-> 404"))) throw e;
+      await apiPatch("/api/me", idToken, { pushEnabled: true, fcmTokens: [token] });
+    }
     return { ok: true };
   } catch {
     return { ok: false, error: "Could not register this device for push." };

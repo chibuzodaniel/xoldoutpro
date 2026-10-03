@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { checkVerificationEligibility, type VerificationType } from "@/lib/verification/eligibility";
+import { alertModerators } from "@/lib/moderation/attention";
 
 export class VerificationError extends Error {
   status: number;
@@ -144,6 +145,11 @@ export async function submitApplication(applicationId: string, userId: string) {
     data: { status: "SUBMITTED", submittedAt: new Date(), eligibilitySnapshot: eligibility as never },
   });
   await writeAuditLog(applicationId, userId, "APPLICATION_SUBMITTED");
+  alertModerators({
+    panel: "verificationQueue",
+    title: "New verification application",
+    body: `A ${type.toLowerCase().replace(/_/g, " ")} verification is waiting for review.`,
+  });
   return updated;
 }
 

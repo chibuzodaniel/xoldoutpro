@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { sendPushToUsers } from "@/lib/push/send";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 import { parseMentions } from "@/lib/groups/mentions";
 
 const authorSelect = {
@@ -144,6 +144,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       include: { author: authorSelect, replyTo: replyToSelect, poll: { include: { votes: true } } },
     });
 
+    // Text preview for the push/bell — a photo or poll message may have no text.
+    const preview = body.trim() ? body.slice(0, 100) : imageUrl ? "📷 Photo" : pollOptions ? "📊 Poll" : "New message";
+    // Persistent + reliable (lib/notifications/create.ts): saved to every
+    // recipient's bell and pushed after the response. Ordinary messages share
+    // one tag per Fanbase (a new one replaces the last on screen but still
+    // re-alerts);  /  get their own entry so they never get
+    // silently replaced by chatter.
+    const fanbaseNotify = (userIds: string[], n: { title: string; body: string; url: string; important?: boolean }) =>
+      notifyUsersAfterResponse(userIds, {
+        kind: "FANBASE",
+        title: n.title,
+        body: n.body,
+        url: n.url,
+        icon: user.avatarUrl ?? undefined,
+        tag: n.important ? undefined : `fanbase-${id}`,
+      });
+
     const otherMembers = await db.membership.findMany({
       where: { groupId: id, userId: { not: user.id } },
       select: { userId: true, user: { select: { handle: true } } },
@@ -156,29 +173,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { mentionsAll, handles } = isAdminSender ? parseMentions(body) : { mentionsAll: false, handles: [] as string[] };
 
     if (isAdminSender && mentionsAll) {
-      sendPushToUsers(
+      fanbaseNotify(
         otherMembers.map((m) => m.userId),
-        { title: `📣 ${group.name}`, body: `${user.displayName} needs everyone's attention: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+        { important: true, title: `📣 ${group.name}`, body: `${user.displayName} needs everyone's attention: ${preview}`, url: `/groups/${id}` },
       );
     } else if (isAdminSender && handles.length > 0) {
       const mentioned = otherMembers.filter((m) => handles.includes(m.user.handle.toLowerCase()));
       const rest = otherMembers.filter((m) => !mentioned.includes(m));
       if (mentioned.length > 0) {
-        sendPushToUsers(
+        fanbaseNotify(
           mentioned.map((m) => m.userId),
-          { title: `${user.displayName} mentioned you in ${group.name}`, body: body.slice(0, 100), url: `/groups/${id}` },
+          { important: true, title: `${user.displayName} mentioned you in ${group.name}`, body: preview, url: `/groups/${id}` },
         );
       }
       if (rest.length > 0) {
-        sendPushToUsers(
+        fanbaseNotify(
           rest.map((m) => m.userId),
-          { title: group.name, body: `${user.displayName}: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+          { title: group.name, body: `${user.displayName}: ${preview}`, url: `/groups/${id}` },
         );
       }
     } else {
-      sendPushToUsers(
+      fanbaseNotify(
         otherMembers.map((m) => m.userId),
-        { title: group.name, body: `${user.displayName}: ${body.slice(0, 100)}`, url: `/groups/${id}` },
+        { title: group.name, body: `${user.displayName}: ${preview}`, url: `/groups/${id}` },
       );
     }
 

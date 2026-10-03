@@ -29,6 +29,13 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   PAYOUT_PAID: "Withdrawal sent",
   PAYOUT_FAILED: "Withdrawal failed",
   REFUND: "Refund",
+  MODERATION: "Needs moderator attention",
+  FOLLOW: "New follower",
+  LIKE: "Like",
+  COMMENT: "Comment",
+  FANBASE: "Fanbase",
+  REMINDER: "Reminder",
+  VERIFICATION: "Verification",
 };
 
 const KIND_COLOR: Record<NotificationKind, string> = {
@@ -38,6 +45,13 @@ const KIND_COLOR: Record<NotificationKind, string> = {
   PAYOUT_PAID: colors.green,
   PAYOUT_FAILED: colors.redSoft,
   REFUND: colors.amber,
+  MODERATION: colors.redSoft,
+  FOLLOW: colors.blue,
+  LIKE: colors.redSoft,
+  COMMENT: colors.blue,
+  FANBASE: colors.amber,
+  REMINDER: colors.amber,
+  VERIFICATION: colors.green,
 };
 
 export function NotificationsScreen() {

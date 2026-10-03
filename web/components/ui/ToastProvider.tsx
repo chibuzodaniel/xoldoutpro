@@ -34,10 +34,46 @@ const BASE_OPTIONS: ToastOptions = {
 // react-toastify directly — purely so the nine existing `useToast()` call
 // sites needed zero changes when this swapped from a hand-rolled
 // context-based implementation to react-toastify underneath.
+export type LiveSummaryToast = {
+  peakViewers: number;
+  giftsXg: number;
+  giftsCount: number;
+  paidAccessXg: number;
+  paidRequestsXg: number;
+};
+
+function LiveSummaryContent({ summary }: { summary: LiveSummaryToast }) {
+  const rows: [string, string][] = [
+    ["Peak viewers", summary.peakViewers.toLocaleString("en-NG")],
+    ["Gifts", `${summary.giftsXg.toLocaleString("en-NG")} XG (${summary.giftsCount})`],
+    ["Paid access", `${summary.paidAccessXg.toLocaleString("en-NG")} XG`],
+    ["Paid requests", `${summary.paidRequestsXg.toLocaleString("en-NG")} XG`],
+  ];
+  return (
+    <div className="w-full">
+      <p className="mb-1.5 text-[14px] font-semibold">Live ended</p>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5 text-[12px]">
+        {rows.map(([label, value]) => (
+          <div key={label} className="contents">
+            <dt className="text-ink-3">{label}</dt>
+            <dd className="text-right font-semibold tabular-nums text-ink">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
 export function useToast() {
   return {
     error: (message: string) => toast.error(message, { ...BASE_OPTIONS, icon: ICONS.error }),
     success: (message: string) => toast.success(message, { ...BASE_OPTIONS, icon: ICONS.success }),
+    // End-of-Live stats (app/(app)/live/[id]/broadcast/page.tsx) — longer
+    // than the 4s default and dismissable, since there's more to read. The
+    // container lives in the root layout, so it survives the redirect away
+    // from the broadcast page.
+    liveSummary: (summary: LiveSummaryToast) =>
+      toast.success(<LiveSummaryContent summary={summary} />, { ...BASE_OPTIONS, icon: ICONS.success, autoClose: 9000, closeButton: true }),
   };
 }
 

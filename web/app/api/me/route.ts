@@ -4,6 +4,7 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { adminAuth } from "@/lib/firebase/admin";
 import { sendAccountDeletedEmail } from "@/lib/email";
+import { DISPLAY_COUNTRY_CODES } from "@/lib/currency";
 
 const SITE_URL = "https://www.xoldout.app";
 
@@ -40,6 +41,7 @@ const patchSchema = z.object({
   pushEnabled: z.boolean().optional(),
   fcmTokens: z.array(z.string()).optional(),
   emailDigestSubscribed: z.boolean().optional(),
+  displayCountry: z.enum(DISPLAY_COUNTRY_CODES).nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest) {

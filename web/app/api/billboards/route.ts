@@ -7,6 +7,8 @@ import {
   createBillboardCheckout,
   getBillboardDailyRateKobo,
   BillboardConflictError,
+  InvalidPromotedItemError,
+  resolvePromotedItem,
   MIN_BILLBOARD_DAYS,
   MAX_BILLBOARD_DAYS,
 } from "@/lib/commerce/billboards";
@@ -28,12 +30,20 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const bodySchema = z.object({ key: z.string().min(1), days: z.number().int().positive() });
+const promotedSchema = z.object({ kind: z.enum(["RELEASE", "BEAT", "MERCH", "EVENT"]), id: z.string().min(1) });
+
+const bodySchema = z.object({
+  key: z.string().min(1),
+  days: z.number().int().positive(),
+  // Optional song/beat/merch/event the billboard links to (else the creator profile).
+  promoted: promotedSchema.nullable().optional(),
+});
 
 export async function POST(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
-    const { key, days } = bodySchema.parse(await req.json());
+    const { key, days, promoted } = bodySchema.parse(await req.json());
+    const promotedIds = await resolvePromotedItem(user.id, promoted ?? null);
 
     const result = await createBillboardCheckout({
       creatorId: user.id,
@@ -42,11 +52,15 @@ export async function POST(req: NextRequest) {
       origin: req.nextUrl.origin,
       customerEmail: user.email,
       customerName: user.displayName,
+      promoted: promotedIds,
     });
     return NextResponse.json(result, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
+    if (err instanceof InvalidPromotedItemError) {
+      return NextResponse.json({ error: "Pick one of your own published songs, beats, merch or events." }, { status: 400 });
+    }
     if (err instanceof BillboardConflictError) {
       return NextResponse.json({ error: "You already have a billboard live or awaiting payment." }, { status: 409 });
     }

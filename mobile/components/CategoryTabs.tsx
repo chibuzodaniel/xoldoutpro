@@ -1,5 +1,6 @@
 import { ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { colors } from "../lib/theme";
+import { BroadcastIcon } from "./live/LiveIcons";
 
 export type CategoryType = "RELEASE" | "BEAT" | "EVENT" | "MERCH" | null;
 
@@ -13,7 +14,17 @@ const TABS: { label: string; type: CategoryType }[] = [
 
 // Mirrors web's components/nav/CategoryTabs.tsx — "All" goes back to the
 // plain Discover feed, each other tab opens the single-category browse view.
-export function CategoryTabs({ active, onSelect }: { active: CategoryType; onSelect: (type: CategoryType) => void }) {
+// Go Live is the same "navigates away entirely, never the active filter"
+// addition as web's own — see that file's comment.
+export function CategoryTabs({
+  active,
+  onSelect,
+  onGoLivePress,
+}: {
+  active: CategoryType;
+  onSelect: (type: CategoryType) => void;
+  onGoLivePress: () => void;
+}) {
   return (
     <View style={styles.wrap}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.content}>
@@ -26,6 +37,12 @@ export function CategoryTabs({ active, onSelect }: { active: CategoryType; onSel
             </TouchableOpacity>
           );
         })}
+        <TouchableOpacity style={styles.tab} onPress={onGoLivePress}>
+          <View style={styles.liveTabRow}>
+            <BroadcastIcon size={18} color={colors.redSoft} />
+            <Text style={styles.liveLabel}>Go Live</Text>
+          </View>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -43,4 +60,6 @@ const styles = StyleSheet.create({
   label: { color: colors.ink3, fontSize: 14, fontWeight: "600" },
   labelActive: { color: colors.ink },
   underline: { position: "absolute", bottom: -1, left: 0, right: 0, height: 2, borderRadius: 1, backgroundColor: colors.red },
+  liveTabRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  liveLabel: { color: colors.ink, fontSize: 14, fontWeight: "600" },
 });

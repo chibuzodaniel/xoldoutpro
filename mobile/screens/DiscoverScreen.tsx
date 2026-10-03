@@ -80,6 +80,10 @@ export function DiscoverScreen() {
     if (type) navigation.navigate("DiscoverCategory", { type });
   }
 
+  function handleGoLivePress() {
+    navigation.navigate("LiveNow");
+  }
+
   if (!data && !error) {
     return (
       <View style={styles.centered}>
@@ -105,7 +109,7 @@ export function DiscoverScreen() {
 
   return (
     <View style={styles.root}>
-      <CategoryTabs active={null} onSelect={handleCategorySelect} />
+      <CategoryTabs active={null} onSelect={handleCategorySelect} onGoLivePress={handleGoLivePress} />
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}

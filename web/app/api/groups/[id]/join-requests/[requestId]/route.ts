@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { sendPushToUser } from "@/lib/push/send";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 const bodySchema = z.object({ action: z.enum(["approve", "reject"]) });
 
@@ -35,7 +35,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         return tx.fanbaseGroup.findUnique({ where: { id }, select: { name: true } });
       });
       if (group === null) return NextResponse.json({ error: "Already resolved" }, { status: 409 });
-      sendPushToUser(request.userId, {
+      notifyUsersAfterResponse([request.userId], {
+        kind: "FANBASE",
         title: "Fanbase request approved",
         body: `You're in ${group.name ?? "the Fanbase"}`,
         url: `/groups/${id}`,

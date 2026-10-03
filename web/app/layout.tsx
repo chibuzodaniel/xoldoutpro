@@ -8,6 +8,9 @@ import { BottomNav } from "@/components/nav/BottomNav";
 import { InstallGuideProvider } from "@/components/pwa/InstallGuideProvider";
 import { AndroidAppBanner } from "@/components/mobile/AndroidAppBanner";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { CurrencyProvider } from "@/components/currency/CurrencyProvider";
+import { VisitTracker } from "@/components/analytics/VisitTracker";
+import { PushAutoEnroll } from "@/components/push/PushAutoEnroll";
 
 export const metadata: Metadata = {
   // Lets per-page generateMetadata (product/profile detail pages) set
@@ -17,7 +20,8 @@ export const metadata: Metadata = {
   // site-wide description.
   metadataBase: new URL("https://www.xoldout.app"),
   title: "XOLDOUT — Where music actually sells out",
-  description: "A direct-to-fan music marketplace. Fans buy, fans own, creators get paid.",
+  description:
+    "A direct-to-fan music marketplace. Fans buy, fans own, creators get paid.",
   manifest: "/manifest.json",
   icons: {
     icon: "/xoldout-icon-transparent.png",
@@ -55,17 +59,23 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="h-dvh flex flex-col bg-bg text-ink overflow-hidden">
         <ToastProvider>
           <AuthProvider>
-            <InstallGuideProvider>
-              <PlayerProvider>
-                <div className="flex h-full flex-col">
-                  <AndroidAppBanner />
-                  <div className="flex-1 min-h-0 overflow-y-auto pb-2">{children}</div>
-                  <MiniPlayer />
-                  <BottomNav />
-                </div>
-                <ExpandedPlayer />
-              </PlayerProvider>
-            </InstallGuideProvider>
+            <CurrencyProvider>
+              <VisitTracker />
+              <PushAutoEnroll />
+              <InstallGuideProvider>
+                <PlayerProvider>
+                  <div className="flex h-full flex-col">
+                    <AndroidAppBanner />
+                    <div className="flex-1 min-h-0 overflow-y-auto pb-2">
+                      {children}
+                    </div>
+                    <MiniPlayer />
+                    <BottomNav />
+                  </div>
+                  <ExpandedPlayer />
+                </PlayerProvider>
+              </InstallGuideProvider>
+            </CurrencyProvider>
           </AuthProvider>
         </ToastProvider>
       </body>

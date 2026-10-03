@@ -13,7 +13,7 @@ import {
   suspendApplication,
   VerificationError,
 } from "@/lib/verification/applications";
-import { sendPushToUser } from "@/lib/push/send";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -86,7 +86,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
                 : await revokeApplication(id, moderator.id, body.reason);
 
     const copy = NOTIFICATION_COPY[body.action];
-    if (copy) sendPushToUser(application.userId, { ...copy, url: "/verification" });
+    if (copy) notifyUsersAfterResponse([application.userId], { kind: "VERIFICATION", ...copy, url: "/verification" });
 
     return NextResponse.json({ application: serializeApplication(application, { forAdmin: true }) });
   } catch (err) {

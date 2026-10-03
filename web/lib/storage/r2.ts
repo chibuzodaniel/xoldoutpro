@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Cloudflare R2 is S3-compatible. Paid/preview audio is NEVER served from a
@@ -42,8 +42,15 @@ export async function presignUpload(key: string, contentType: string, expiresSec
  * our own server instead of a presigned URL, since it needs to embed
  * XOLDOUT/artist/artwork tags into the bytes before they reach the buyer.
  */
-export async function presignDownload(key: string, expiresSeconds = 300) {
-  const cmd = new GetObjectCommand({ Bucket: bucket(), Key: key });
+export async function presignDownload(key: string, expiresSeconds = 300, opts?: { filename?: string; contentType?: string }) {
+  const cmd = new GetObjectCommand({
+    Bucket: bucket(),
+    Key: key,
+    // A file *download* link (lib/audio/serveDownload.ts) forces a save with
+    // the right filename; playback links leave these unset.
+    ResponseContentDisposition: opts?.filename ? `attachment; filename="${opts.filename}"` : undefined,
+    ResponseContentType: opts?.contentType,
+  });
   return getSignedUrl(client(), cmd, { expiresIn: expiresSeconds });
 }
 
@@ -61,4 +68,16 @@ export function publicUrlFor(key: string) {
   const base = process.env.R2_PUBLIC_BASE_URL;
   if (!base) throw new Error("R2_PUBLIC_BASE_URL is not set. See .env.local.example.");
   return `${base}/${key}`;
+}
+
+/** Whether an object exists — a cheap HEAD, used to reuse cached derived files (e.g. tagged downloads). */
+export async function objectExists(key: string): Promise<boolean> {
+  try {
+    await client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    return true;
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (status === 404 || (err as { name?: string }).name === "NotFound") return false;
+    throw err;
+  }
 }

@@ -56,7 +56,7 @@ export function DiscoverCategoryScreen() {
 
   return (
     <View style={styles.container}>
-      <CategoryTabs active={type} onSelect={handleSelect} />
+      <CategoryTabs active={type} onSelect={handleSelect} onGoLivePress={() => navigation.navigate("LiveNow")} />
       <ScrollView contentContainerStyle={styles.content}>
         {!items ? (
           <ActivityIndicator style={styles.spinner} color={colors.ink} />

@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
+import { useToast } from "@/components/ui/ToastProvider";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { GrowthChart } from "@/components/moderation/GrowthChart";
 import { SiteControlsPanel } from "./SiteControlsPanel";
 import { ManageModeratorsPanel } from "./ManageModeratorsPanel";
 import { PlatformFinancePanel } from "./PlatformFinancePanel";
 import { PlatformStatsPanel } from "./PlatformStatsPanel";
+import { SiteVisitsPanel } from "./SiteVisitsPanel";
 import { UsersListPanel } from "./UsersListPanel";
 import { AmbassadorsPanel } from "./AmbassadorsPanel";
 import { LegacyAmbassadorRecompute } from "./LegacyAmbassadorRecompute";
 import { BillboardsPanel } from "./BillboardsPanel";
 import { VerifyCreatorPanel } from "./VerifyCreatorPanel";
 import { RestoreAccountPanel } from "./RestoreAccountPanel";
+import { RestoreEventPanel } from "./RestoreEventPanel";
 import { EventPromotersModPanel } from "./EventPromotersModPanel";
 import { VerifyGroupPanel } from "./VerifyGroupPanel";
 import { VerificationQueuePanel } from "./VerificationQueuePanel";
@@ -42,12 +45,65 @@ type NavGroup = { id: string; label: string; items: NavItem[] };
 // (components/moderation/*.tsx), plus the new Products panel. Structure
 // reference was an external ERP screenshot (grouped sections, icon+label
 // rows); colors/typography are XOLDOUT's own throughout, not copied from it.
+// How often the open board re-checks its "needs attention" badges. Moderators
+// also get an instant push/bell for every new item (lib/moderation/
+// attention.ts); this just keeps the badges current while they're on the board.
+const ATTENTION_POLL_MS = 30_000;
+
+const ATTENTION_LABEL: Record<string, string> = {
+  reports: "Reports",
+  verificationQueue: "Verification queue",
+  billboards: "Billboards",
+  finance: "Platform finance (failed withdrawals)",
+};
+
 export function ModerationShell() {
   const { appUser } = useAuth();
   const [panelVisibility, setPanelVisibility] = useState<Record<string, boolean> | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // Explicit ask, 2026-09-22: land on Platform growth, not Reports.
   const [activeId, setActiveId] = useState("stats");
+  // Live "needs attention" counts per nav id (lib/moderation/attention.ts),
+  // polled while the board is open and the tab is visible.
+  const [attention, setAttention] = useState<Record<string, number>>({});
+  const prevAttentionRef = useRef<Record<string, number> | null>(null);
+  const toast = useToast();
+
+  // Deep link from a moderator notification: /moderation?panel=reports.
+  useEffect(() => {
+    const panel = new URLSearchParams(window.location.search).get("panel");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL after mount (window is unavailable during SSR)
+    if (panel) setActiveId(panel);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      if (document.visibilityState !== "visible") return;
+      const res = await apiFetch("/api/admin/attention");
+      if (cancelled || !res.ok) return;
+      const { counts } = (await res.json()) as { counts: Record<string, number> };
+      const prev = prevAttentionRef.current;
+      if (prev) {
+        for (const [id, n] of Object.entries(counts)) {
+          const added = n - (prev[id] ?? 0);
+          if (added > 0) toast.success(`${added} new in ${ATTENTION_LABEL[id] ?? id}`);
+        }
+      }
+      prevAttentionRef.current = counts;
+      setAttention(counts);
+    }
+    poll();
+    const id = setInterval(poll, ATTENTION_POLL_MS);
+    document.addEventListener("visibilitychange", poll);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", poll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- toast is a fresh object each render; polling must not restart on every render
+  }, []);
+  const totalAttention = Object.values(attention).reduce((a, b) => a + b, 0);
 
   useEffect(() => {
     async function loadVisibility() {
@@ -86,6 +142,7 @@ export function ModerationShell() {
             </>
           ),
         },
+        { id: "visits", label: "Site visits", icon: "👁️", panelKey: "visits", render: () => <SiteVisitsPanel /> },
       ],
     },
     {
@@ -125,6 +182,7 @@ export function ModerationShell() {
         { id: "verifyCreator", label: "Verify creator (legacy)", icon: "🎤", panelKey: "verifyCreator", render: () => <VerifyCreatorPanel /> },
         { id: "verifyGroup", label: "Verify group (legacy)", icon: "💬", panelKey: "verifyGroup", render: () => <VerifyGroupPanel /> },
         { id: "restoreAccount", label: "Restore account", icon: "♻️", panelKey: "restoreAccount", render: () => <RestoreAccountPanel /> },
+        { id: "restoreEvent", label: "Restore event", icon: "🎟️", panelKey: "restoreEvent", render: () => <RestoreEventPanel /> },
       ],
     },
     {
@@ -176,6 +234,11 @@ export function ModerationShell() {
               >
                 <span className="text-base">{item.icon}</span>
                 {item.label}
+                {(attention[item.id] ?? 0) > 0 && (
+                  <span className="ml-auto rounded-full bg-red px-2 py-0.5 text-[11px] font-bold text-white" aria-label={`${attention[item.id]} need attention`}>
+                    {attention[item.id]}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -204,10 +267,11 @@ export function ModerationShell() {
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              aria-label="Open menu"
-              className="text-xl text-ink-2 px-2 md:hidden"
+              aria-label={totalAttention > 0 ? `Open menu — ${totalAttention} need attention` : "Open menu"}
+              className="relative text-xl text-ink-2 px-2 md:hidden"
             >
               ☰
+              {totalAttention > 0 && <span className="absolute right-1 top-0 h-2.5 w-2.5 rounded-full bg-red" aria-hidden />}
             </button>
           }
         />
