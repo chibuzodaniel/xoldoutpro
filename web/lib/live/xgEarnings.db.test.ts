@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { describe, it, expect, afterEach } from "vitest";
 import { db } from "@/lib/db";
-import { creditCreatorXg, convertDueXgEarnings, getXgEarningsSummary, getLiveXgStats } from "./xgEarnings";
+import { creditCreatorXg, convertDueXgEarnings, getXgEarningsSummary, getLiveXgStats, topGifterAcross } from "./xgEarnings";
 
 // Integration test against the real local Postgres (`npx prisma dev`), same
 // convention and cleanup discipline as lib/commerce/stock.test.ts.
@@ -27,6 +27,7 @@ async function setRate(kobo: number) {
 }
 
 afterEach(async () => {
+  await db.liveGift.deleteMany({ where: { liveSessionId: { in: sessionIds } } });
   await db.xgEarning.deleteMany({ where: { userId: { in: userIds } } });
   await db.walletLedgerEntry.deleteMany({ where: { userId: { in: userIds } } });
   await db.liveSession.deleteMany({ where: { id: { in: sessionIds } } });
@@ -75,5 +76,29 @@ describe("XG earnings", () => {
 
     const [stats] = await getLiveXgStats(creatorId);
     expect(stats).toMatchObject({ id: liveSessionId, peakViewers: 7, earnedKobo: 380_000 });
+  });
+
+  it("ranks gifters by XG and values each in Naira at the rate received", async () => {
+    const { creatorId, liveSessionId } = await makeCreatorWithLive();
+    const fans = await Promise.all(
+      ["Ada", "Bayo"].map((name) =>
+        db.user.create({ data: { firebaseUid: randomUUID(), email: `${randomUUID()}@test.local`, handle: randomUUID().slice(0, 12), displayName: name } }),
+      ),
+    );
+    userIds.push(...fans.map((f) => f.id));
+    await setRate(600);
+    const gifts: [number, number][] = [[0, 10], [1, 200], [0, 50]]; // Ada 60 XG, Bayo 200 XG
+    for (const [fan, amount] of gifts) {
+      await db.liveGift.create({ data: { liveSessionId, senderId: fans[fan].id, type: "STAR", xgAmount: amount } });
+      await db.$transaction((tx) => creditCreatorXg(tx, { creatorId, xgAmount: amount, source: "LIVE_GIFT", liveSessionId }));
+    }
+
+    const [live] = await getLiveXgStats(creatorId);
+    expect(live).toMatchObject({ giftsXg: 260, giftsKobo: 156_000, earnedKobo: 156_000 });
+    expect(live.gifters.map((g) => [g.displayName, g.xg, g.kobo, g.giftsCount])).toEqual([
+      ["Bayo", 200, 120_000, 1],
+      ["Ada", 60, 36_000, 2],
+    ]);
+    expect(topGifterAcross([live])).toMatchObject({ displayName: "Bayo", xg: 200, kobo: 120_000 });
   });
 });

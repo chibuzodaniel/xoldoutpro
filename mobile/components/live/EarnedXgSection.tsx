@@ -1,14 +1,29 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Text, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../lib/AuthContext";
 import { apiGet } from "../../lib/api";
+import type { RootStackParamList } from "../../lib/navigation";
 import { colors, fonts } from "../../lib/theme";
+import { Avatar } from "../Avatar";
 import { XgCoin } from "./LiveIcons";
 
 // Mirrors web's components/live/EarnedXgSection.tsx: the creator's earned XG
 // (converted to the wallet on the 1st of each month at the rate in force
-// when it was received) and per-Live stats, on the XG balance screen.
+// when it was received), per-Live stats, who gifted (top gifter first), and
+// the Naira value next to every XG figure, on the XG balance screen.
 // Hidden for anyone who has never gone live or received XG.
+
+type Gifter = {
+  userId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+  giftsCount: number;
+  xg: number;
+  kobo: number;
+};
 
 type LiveStats = {
   id: string;
@@ -19,12 +34,16 @@ type LiveStats = {
   peakViewers: number;
   giftsCount: number;
   giftsXg: number;
+  giftsKobo: number;
   accessCount: number;
   accessXg: number;
+  accessKobo: number;
   requestsCount: number;
   requestsXg: number;
+  requestsKobo: number;
   totalXg: number;
   earnedKobo: number;
+  gifters: Gifter[];
 };
 
 type EarningsData = {
@@ -33,8 +52,11 @@ type EarningsData = {
   nextPayoutAt: string;
   rateKobo: number;
   lives: LiveStats[];
+  topGifter: Gifter | null;
   conversions: { id: string; amountKobo: number; xg: number; createdAt: string }[];
 };
+
+const GIFTERS_COLLAPSED = 3;
 
 // Not lib/format's formatNaira — that one renders 0 as "Free" (a price), and
 // a ₦0 balance here should read as ₦0.
@@ -56,12 +78,84 @@ function duration(startedAt: string, endedAt: string | null) {
   return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+function Stat({ label, value, naira: nairaValue, sub }: { label: string; value: string; naira?: string; sub?: string }) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label.toUpperCase()}</Text>
       <Text style={styles.statValue}>{value}</Text>
+      {nairaValue ? <Text style={styles.statNaira}>{nairaValue}</Text> : null}
       {sub ? <Text style={styles.statSub}>{sub}</Text> : null}
+    </View>
+  );
+}
+
+function GifterRow({ gifter, rank, isTop }: { gifter: Gifter; rank: number; isTop: boolean }) {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  return (
+    <TouchableOpacity
+      style={styles.gifterRow}
+      disabled={!gifter.handle}
+      onPress={() => navigation.navigate("Creator", { handle: gifter.handle })}
+    >
+      <Text style={styles.rank}>{rank}</Text>
+      <Avatar uri={gifter.avatarUrl} name={gifter.displayName} index={rank} size={28} />
+      <View style={{ flex: 1 }}>
+        <View style={styles.gifterNameRow}>
+          <Text style={styles.gifterName} numberOfLines={1}>
+            {gifter.displayName}
+          </Text>
+          {isTop && <Text style={styles.topBadge}>👑 Top gifter</Text>}
+        </View>
+        <Text style={styles.muted}>
+          {gifter.handle ? `@${gifter.handle} · ` : ""}
+          {gifter.giftsCount} {gifter.giftsCount === 1 ? "gift" : "gifts"}
+        </Text>
+      </View>
+      <View style={{ alignItems: "flex-end" }}>
+        <Text style={styles.liveXg}>{xg(gifter.xg)}</Text>
+        <Text style={styles.liveNaira}>{naira(gifter.kobo)}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function LiveCard({ live }: { live: LiveStats }) {
+  const [showAll, setShowAll] = useState(false);
+  const gifters = showAll ? live.gifters : live.gifters.slice(0, GIFTERS_COLLAPSED);
+  return (
+    <View style={styles.liveCard}>
+      <View style={styles.liveHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.liveTitle} numberOfLines={1}>
+            {live.title}
+          </Text>
+          <Text style={styles.muted}>
+            {formatDate(live.startedAt)} · {duration(live.startedAt, live.endedAt)} · {live.peakViewers.toLocaleString("en-NG")} peak viewers
+          </Text>
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Text style={styles.liveXg}>{xg(live.totalXg)}</Text>
+          <Text style={styles.liveNaira}>{naira(live.earnedKobo)}</Text>
+        </View>
+      </View>
+      <View style={styles.statsRow}>
+        <Stat label="Gifts" value={xg(live.giftsXg)} naira={naira(live.giftsKobo)} sub={`${live.giftsCount} sent`} />
+        <Stat label="Paid access" value={xg(live.accessXg)} naira={naira(live.accessKobo)} sub={`${live.accessCount} joined`} />
+        <Stat label="Requests" value={xg(live.requestsXg)} naira={naira(live.requestsKobo)} sub={`${live.requestsCount} sent`} />
+      </View>
+      {live.gifters.length > 0 && (
+        <View style={styles.giftersBlock}>
+          <Text style={styles.statLabel}>WHO GIFTED</Text>
+          {gifters.map((g, i) => (
+            <GifterRow key={g.userId} gifter={g} rank={i + 1} isTop={i === 0} />
+          ))}
+          {live.gifters.length > GIFTERS_COLLAPSED && (
+            <TouchableOpacity onPress={() => setShowAll((v) => !v)}>
+              <Text style={styles.showAll}>{showAll ? "Show less" : `Show all ${live.gifters.length} gifters`}</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
     </View>
   );
 }
@@ -83,6 +177,7 @@ export function EarnedXgSection() {
   if (!data || (data.lives.length === 0 && data.balanceXg === 0 && data.conversions.length === 0)) return null;
 
   const totals = data.lives.reduce((t, l) => ({ xg: t.xg + l.totalXg, kobo: t.kobo + l.earnedKobo }), { xg: 0, kobo: 0 });
+  const gifterCount = new Set(data.lives.flatMap((l) => l.gifters.map((g) => g.userId))).size;
 
   return (
     <View style={styles.wrap}>
@@ -110,32 +205,19 @@ export function EarnedXgSection() {
         <>
           <View style={styles.statsRow}>
             <Stat label="Lives" value={data.lives.length.toLocaleString("en-NG")} />
-            <Stat label="XG received" value={totals.xg.toLocaleString("en-NG")} />
-            <Stat label="Earned" value={naira(totals.kobo)} />
+            <Stat label="XG received" value={totals.xg.toLocaleString("en-NG")} naira={naira(totals.kobo)} />
+            <Stat label="Gifters" value={gifterCount.toLocaleString("en-NG")} />
           </View>
 
-          {data.lives.map((l) => (
-            <View key={l.id} style={styles.liveCard}>
-              <View style={styles.liveHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.liveTitle} numberOfLines={1}>
-                    {l.title}
-                  </Text>
-                  <Text style={styles.muted}>
-                    {formatDate(l.startedAt)} · {duration(l.startedAt, l.endedAt)} · {l.peakViewers.toLocaleString("en-NG")} peak viewers
-                  </Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  <Text style={styles.liveXg}>{xg(l.totalXg)}</Text>
-                  <Text style={styles.liveNaira}>{naira(l.earnedKobo)}</Text>
-                </View>
-              </View>
-              <View style={styles.statsRow}>
-                <Stat label="Gifts" value={xg(l.giftsXg)} sub={`${l.giftsCount} sent`} />
-                <Stat label="Paid access" value={xg(l.accessXg)} sub={`${l.accessCount} joined`} />
-                <Stat label="Requests" value={xg(l.requestsXg)} sub={`${l.requestsCount} sent`} />
-              </View>
+          {data.topGifter && (
+            <View style={styles.topGifterCard}>
+              <Text style={[styles.statLabel, { color: colors.amber, marginTop: 10 }]}>YOUR TOP GIFTER</Text>
+              <GifterRow gifter={data.topGifter} rank={1} isTop={false} />
             </View>
+          )}
+
+          {data.lives.map((l) => (
+            <LiveCard key={l.id} live={l} />
           ))}
         </>
       )}
@@ -180,6 +262,7 @@ const styles = StyleSheet.create({
   stat: { flex: 1, backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   statLabel: { color: colors.ink3, fontSize: 10, letterSpacing: 1 },
   statValue: { color: colors.ink, fontSize: 13, fontWeight: "600" },
+  statNaira: { color: colors.ink2, fontSize: 12 },
   statSub: { color: colors.ink3, fontSize: 11 },
   liveCard: {
     borderWidth: 1,
@@ -194,6 +277,30 @@ const styles = StyleSheet.create({
   liveTitle: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   liveXg: { color: colors.amber, fontSize: 14, fontWeight: "600" },
   liveNaira: { color: colors.ink2, fontSize: 12 },
+  giftersBlock: { borderTopWidth: 1, borderTopColor: colors.lineSoft, paddingTop: 8, marginBottom: 10 },
+  gifterRow: { flexDirection: "row", alignItems: "center", gap: 10, paddingVertical: 8 },
+  rank: { width: 16, textAlign: "center", color: colors.ink3, fontSize: 12 },
+  gifterNameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  gifterName: { color: colors.ink, fontSize: 13, fontWeight: "600", flexShrink: 1 },
+  topBadge: {
+    color: colors.amber,
+    fontSize: 10,
+    fontWeight: "600",
+    backgroundColor: "rgba(217,154,43,0.15)",
+    borderRadius: 999,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    overflow: "hidden",
+  },
+  showAll: { color: colors.ink2, fontSize: 12, fontWeight: "600", paddingVertical: 4 },
+  topGifterCard: {
+    borderWidth: 1,
+    borderColor: "rgba(217,154,43,0.3)",
+    backgroundColor: "rgba(217,154,43,0.05)",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
   conversionRow: {
     flexDirection: "row",
     justifyContent: "space-between",

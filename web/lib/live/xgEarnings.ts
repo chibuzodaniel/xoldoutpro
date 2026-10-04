@@ -132,6 +132,16 @@ export async function getTotalXgEarnedKobo(client: DbClient = db): Promise<numbe
   return Number(rows[0]?.total ?? 0);
 }
 
+export type Gifter = {
+  userId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+  giftsCount: number;
+  xg: number;
+  kobo: number;
+};
+
 export type LiveXgStats = {
   id: string;
   title: string;
@@ -141,21 +151,33 @@ export type LiveXgStats = {
   peakViewers: number;
   giftsCount: number;
   giftsXg: number;
+  giftsKobo: number;
   accessCount: number;
   accessXg: number;
+  accessKobo: number;
   requestsCount: number;
   requestsXg: number;
+  requestsKobo: number;
   totalXg: number;
   earnedKobo: number;
+  // Everyone who sent a gift on this Live, biggest first — gifters[0] is the
+  // Live's top gifter.
+  gifters: Gifter[];
 };
 
+// XG received before XgEarning existed (2026-10-04) was paid straight into
+// the wallet at a flat ₦1/XG — used only to value any such leftover XG.
+const LEGACY_KOBO_PER_XG = 100;
+
 /**
- * Per-Live breakdown for the creator's XG balance page (explicit ask,
+ * Per-Live breakdown for the creator's XG balance page (explicit asks,
  * 2026-10-04: "the creator should see the statistics of his live in the XG
- * balance page"). XG counts come from the gift/access/request tables
- * themselves (complete for every Live, including ones from before
- * XgEarning existed); earnedKobo comes from XgEarning, i.e. what each Live
- * actually adds to the creator's monthly payout at the rate in force then.
+ * balance page"; "the list should include who gifted and the top gifter
+ * ... if it's 80 coins the amount in Naira should be there"). XG counts
+ * come from the gift/access/request tables themselves; Naira comes from
+ * XgEarning, i.e. the rate actually in force when each XG was received.
+ * A gifter's Naira is their share of the Live's gift earnings, which is
+ * exact unless a moderator changed the rate mid-Live.
  */
 export async function getLiveXgStats(creatorId: string, limit = 50): Promise<LiveXgStats[]> {
   const sessions = await db.liveSession.findMany({
@@ -167,20 +189,60 @@ export async function getLiveXgStats(creatorId: string, limit = 50): Promise<Liv
   if (sessions.length === 0) return [];
   const ids = sessions.map((s) => s.id);
 
-  const [gifts, access, requests, earned] = await Promise.all([
+  const [gifts, access, requests, earned, giftsBySender] = await Promise.all([
     db.liveGift.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids } }, _count: true, _sum: { xgAmount: true } }),
     db.liveAccessGrant.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids } }, _count: true, _sum: { xgPaid: true } }),
     db.liveRequest.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids } }, _count: true, _sum: { xgAmount: true } }),
-    db.xgEarning.findMany({ where: { userId: creatorId, liveSessionId: { in: ids } }, select: { liveSessionId: true, xgAmount: true, koboPerXg: true } }),
+    db.xgEarning.findMany({
+      where: { userId: creatorId, liveSessionId: { in: ids } },
+      select: { liveSessionId: true, source: true, xgAmount: true, koboPerXg: true },
+    }),
+    db.liveGift.groupBy({
+      by: ["liveSessionId", "senderId"],
+      where: { liveSessionId: { in: ids } },
+      _count: true,
+      _sum: { xgAmount: true },
+    }),
   ]);
+
+  const senders = await db.user.findMany({
+    where: { id: { in: [...new Set(giftsBySender.map((g) => g.senderId))] } },
+    select: { id: true, handle: true, displayName: true, avatarUrl: true },
+  });
+  const senderById = new Map(senders.map((u) => [u.id, u]));
 
   const giftsBy = new Map(gifts.map((g) => [g.liveSessionId, g]));
   const accessBy = new Map(access.map((a) => [a.liveSessionId, a]));
   const requestsBy = new Map(requests.map((r) => [r.liveSessionId, r]));
-  const koboBy = new Map<string, number>();
+  // "<sessionId>:<source>" -> XG and Naira actually earned from that source.
+  const earnedBy = new Map<string, { xg: number; kobo: number }>();
   for (const e of earned) {
     if (!e.liveSessionId) continue;
-    koboBy.set(e.liveSessionId, (koboBy.get(e.liveSessionId) ?? 0) + e.xgAmount * e.koboPerXg);
+    const key = `${e.liveSessionId}:${e.source}`;
+    const cur = earnedBy.get(key) ?? { xg: 0, kobo: 0 };
+    earnedBy.set(key, { xg: cur.xg + e.xgAmount, kobo: cur.kobo + e.xgAmount * e.koboPerXg });
+  }
+  // Naira for `xg` XG of one source: whatever XgEarning recorded, plus any
+  // XG it doesn't cover (pre-XgEarning) at the legacy flat rate.
+  function koboFor(sessionId: string, source: string, xg: number) {
+    const e = earnedBy.get(`${sessionId}:${source}`) ?? { xg: 0, kobo: 0 };
+    return e.kobo + Math.max(0, xg - e.xg) * LEGACY_KOBO_PER_XG;
+  }
+
+  const giftersBy = new Map<string, Gifter[]>();
+  for (const g of giftsBySender) {
+    const user = senderById.get(g.senderId);
+    const list = giftersBy.get(g.liveSessionId) ?? [];
+    list.push({
+      userId: g.senderId,
+      handle: user?.handle ?? "",
+      displayName: user?.displayName ?? "Deleted user",
+      avatarUrl: user?.avatarUrl ?? null,
+      giftsCount: g._count,
+      xg: g._sum.xgAmount ?? 0,
+      kobo: 0, // filled in below, once the Live's own gift total is known
+    });
+    giftersBy.set(g.liveSessionId, list);
   }
 
   return sessions.map((s) => {
@@ -190,6 +252,14 @@ export async function getLiveXgStats(creatorId: string, limit = 50): Promise<Liv
     const giftsXg = g?._sum.xgAmount ?? 0;
     const accessXg = a?._sum.xgPaid ?? 0;
     const requestsXg = r?._sum.xgAmount ?? 0;
+    const giftsKobo = koboFor(s.id, "LIVE_GIFT", giftsXg);
+    const accessKobo = koboFor(s.id, "LIVE_ACCESS", accessXg);
+    const requestsKobo = koboFor(s.id, "LIVE_REQUEST", requestsXg);
+
+    const gifters = (giftersBy.get(s.id) ?? [])
+      .map((gf) => ({ ...gf, kobo: giftsXg > 0 ? Math.round((gf.xg / giftsXg) * giftsKobo) : 0 }))
+      .sort((x, y) => y.xg - x.xg);
+
     return {
       id: s.id,
       title: s.title,
@@ -199,14 +269,35 @@ export async function getLiveXgStats(creatorId: string, limit = 50): Promise<Liv
       peakViewers: s.peakViewers,
       giftsCount: g?._count ?? 0,
       giftsXg,
+      giftsKobo,
       accessCount: a?._count ?? 0,
       accessXg,
+      accessKobo,
       requestsCount: r?._count ?? 0,
       requestsXg,
+      requestsKobo,
       totalXg: giftsXg + accessXg + requestsXg,
-      earnedKobo: koboBy.get(s.id) ?? 0,
+      earnedKobo: giftsKobo + accessKobo + requestsKobo,
+      gifters,
     };
   });
+}
+
+/** The creator's biggest gifter across the given Lives (by XG sent), or null. */
+export function topGifterAcross(lives: LiveXgStats[]): Gifter | null {
+  const byUser = new Map<string, Gifter>();
+  for (const live of lives) {
+    for (const g of live.gifters) {
+      const cur = byUser.get(g.userId);
+      byUser.set(
+        g.userId,
+        cur ? { ...cur, giftsCount: cur.giftsCount + g.giftsCount, xg: cur.xg + g.xg, kobo: cur.kobo + g.kobo } : { ...g },
+      );
+    }
+  }
+  let top: Gifter | null = null;
+  for (const g of byUser.values()) if (!top || g.xg > top.xg) top = g;
+  return top;
 }
 
 /** Past monthly conversions, newest first — the XG balance page's payout history. */

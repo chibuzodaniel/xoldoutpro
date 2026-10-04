@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { getLiveXgStats, getXgEarningsSummary, getXgPayoutHistory } from "@/lib/live/xgEarnings";
+import { getLiveXgStats, getXgEarningsSummary, getXgPayoutHistory, topGifterAcross } from "@/lib/live/xgEarnings";
 
 // The creator's half of the XG balance page (web /live/coins, mobile LiveCoinsScreen)
 // plus the small "Earnings from gifts" figure on LiveNowPanel. giftsXg /
@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
       giftsCount: gifts._count,
       ...balance,
       lives,
+      topGifter: topGifterAcross(lives),
       conversions,
     });
   } catch (err) {
