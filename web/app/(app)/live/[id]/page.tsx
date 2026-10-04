@@ -30,6 +30,7 @@ import {
   useFloatingReactions,
   useReactionRateLimit,
 } from "@/components/live/reactions";
+import { unlockGiftSounds } from "@/components/live/giftSound";
 
 function HandIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -93,6 +94,8 @@ function LiveRoom() {
   const emojiUsage = useEmojiUsage();
   const { items: floatingItems, push: pushReaction } = useFloatingReactions();
   const allowReaction = useReactionRateLimit();
+  // Gift sounds need one tap on the page before the browser lets them play.
+  useEffect(() => unlockGiftSounds(), []);
   const toastRef = useRef(toast);
   useEffect(() => {
     toastRef.current = toast;

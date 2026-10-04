@@ -16,6 +16,7 @@ import { useLiveAudioSession } from "../lib/liveAudio";
 import { useToast } from "../components/ToastProvider";
 import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "../components/live/Stage";
+import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "../components/live/SupportSheets";
 import {
   FloatingReactions,
   isLiveEmoji,
@@ -159,6 +160,12 @@ function BroadcastRoomContent({
   // components/live/Stage.tsx and web's lib/live/stage.ts.
   const [peopleOpen, setPeopleOpen] = useState(false);
   const { state: stage, refresh: refreshStage } = useStageState(liveSessionId);
+  // Tappable "XG" and "supporters" chips (explicit ask, 2026-10-04) —
+  // components/live/SupportSheets.tsx. supportVersion bumps on every gift so
+  // an open sheet stays current.
+  const [supportSheet, setSupportSheet] = useState<"supporters" | "coins" | null>(null);
+  const [supportVersion, setSupportVersion] = useState(0);
+  const support = useLiveSupport(liveSessionId, supportSheet !== null, supportVersion);
   const refreshStageRef = useRef(refreshStage);
   useEffect(() => {
     refreshStageRef.current = refreshStage;
@@ -208,6 +215,7 @@ function BroadcastRoomContent({
           setGiftMoment({ key: event.giftId, giftType: event.giftType, label: event.label, senderName: event.senderName, senderId: event.senderId, count });
           return next;
         });
+        setSupportVersion((v) => v + 1);
         setGiftTotals((t) => ({
           xg: t.xg + (event.xgAmount ?? giftByType(event.giftType)?.xgAmount ?? 0),
           supporterIds: new Set(t.supporterIds).add(event.senderId),
@@ -390,15 +398,15 @@ function BroadcastRoomContent({
         </View>
 
         <View style={styles.statRow}>
-          <View style={styles.statChip}>
+          <TouchableOpacity style={styles.statChip} onPress={() => setSupportSheet("coins")} accessibilityLabel="See the coins received in this stream">
             <XgCoin size={16} />
-            <Text style={styles.statXg}>{giftTotals.xg.toLocaleString("en-NG")} XG</Text>
-          </View>
-          <View style={styles.statChip}>
+            <Text style={styles.statXg}>{giftTotals.xg.toLocaleString("en-NG")} XG ›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statChip} onPress={() => setSupportSheet("supporters")} accessibilityLabel="See who supported you">
             <Text style={styles.statSupporters}>
-              {supporterCount} supporter{supporterCount === 1 ? "" : "s"}
+              {supporterCount} supporter{supporterCount === 1 ? "" : "s"} ›
             </Text>
-          </View>
+          </TouchableOpacity>
         </View>
 
         {giftMoment && (
@@ -458,6 +466,9 @@ function BroadcastRoomContent({
           <Text style={styles.endButtonText}>End live</Text>
         </TouchableOpacity>
       </View>
+      <SupportersSheet data={support} visible={supportSheet === "supporters"} onClose={() => setSupportSheet(null)} />
+      <CoinStatsSheet data={support} visible={supportSheet === "coins"} onClose={() => setSupportSheet(null)} />
+
       {stage && (
         <PeopleSheet liveId={liveSessionId} state={stage} visible={peopleOpen} onRefresh={refreshStage} onClose={() => setPeopleOpen(false)} />
       )}

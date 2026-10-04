@@ -14,6 +14,7 @@ import { appendGift, GiftBanner, GiftCelebration, LiveFeed, type FeedItem, type 
 import { LiveChatInput } from "@/components/live/LiveChatInput";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "@/components/live/stage";
+import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "@/components/live/SupportSheets";
 import {
   FloatingReactions,
   LIVE_EMOJIS,
@@ -22,6 +23,7 @@ import {
   useFloatingReactions,
   useReactionRateLimit,
 } from "@/components/live/reactions";
+import { unlockGiftSounds } from "@/components/live/giftSound";
 import {
   activeMentionQuery,
   extractMentions,
@@ -77,10 +79,18 @@ export default function LiveBroadcastPage() {
   // join) — see components/live/stage.tsx and lib/live/stage.ts.
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [room, setRoom] = useState<Room | null>(null);
+  // Tappable "XG" and "supporters" chips (explicit ask, 2026-10-04) —
+  // components/live/SupportSheets.tsx. supportVersion bumps on every gift so
+  // an open sheet stays current.
+  const [supportSheet, setSupportSheet] = useState<"supporters" | "coins" | null>(null);
+  const [supportVersion, setSupportVersion] = useState(0);
+  const support = useLiveSupport(params.id, supportSheet !== null, supportVersion);
   // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
   const emojiUsage = useEmojiUsage();
   const floating = useFloatingReactions();
   const allowReaction = useReactionRateLimit();
+  // Gift sounds need one tap on the page before the browser lets them play.
+  useEffect(() => unlockGiftSounds(), []);
   const { state: stage, refresh: refreshStage } = useStageState(params.id, room !== null);
   // The room event handlers are registered once, inside the connect effect.
   const refreshStageRef = useRef(refreshStage);
@@ -167,6 +177,7 @@ export default function LiveBroadcastPage() {
               setGiftMoment({ key: data.giftId, giftType: data.giftType, label: data.label, senderName: data.senderName, count });
               return next;
             });
+            setSupportVersion((v) => v + 1);
             setGiftTotals((t) => ({
               xg: t.xg + (data.xgAmount ?? giftByType(data.giftType)?.xgAmount ?? 0),
               supporterIds: new Set(t.supporterIds).add(data.senderId),
@@ -447,13 +458,29 @@ export default function LiveBroadcastPage() {
           </div>
 
           <div className="mt-2.5 flex items-center gap-2">
-            <span className="flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1 text-[14px] font-semibold text-amber backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setSupportSheet("coins")}
+              aria-label="See the coins received in this stream"
+              className="flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1 text-[14px] font-semibold text-amber backdrop-blur-sm"
+            >
               <XgCoin className="h-4 w-4" />
               {giftTotals.xg.toLocaleString("en-NG")} XG
-            </span>
-            <span className="rounded-full bg-black/45 px-3 py-1 text-[14px] font-medium text-white backdrop-blur-sm">
+              <span className="text-white/60" aria-hidden>
+                ›
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSupportSheet("supporters")}
+              aria-label="See who supported you"
+              className="flex items-center gap-1 rounded-full bg-black/45 px-3 py-1 text-[14px] font-medium text-white backdrop-blur-sm"
+            >
               {supporterCount} supporter{supporterCount === 1 ? "" : "s"}
-            </span>
+              <span className="text-white/60" aria-hidden>
+                ›
+              </span>
+            </button>
           </div>
 
           {giftMoment && (
@@ -516,6 +543,9 @@ export default function LiveBroadcastPage() {
           </button>
         </div>
       )}
+
+      {supportSheet === "supporters" && <SupportersSheet data={support} onClose={() => setSupportSheet(null)} />}
+      {supportSheet === "coins" && <CoinStatsSheet data={support} onClose={() => setSupportSheet(null)} />}
 
       {peopleOpen && stage && (
         <PeopleSheet liveId={params.id} state={stage} onRefresh={() => void refreshStage()} onClose={() => setPeopleOpen(false)} />

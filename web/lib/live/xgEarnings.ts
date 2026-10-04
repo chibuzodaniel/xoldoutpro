@@ -349,3 +349,108 @@ export async function getXgPayoutHistory(userId: string, limit = 12) {
   const xgById = new Map(xgBy.map((x) => [x.walletLedgerEntryId, x._sum.xgAmount ?? 0]));
   return credits.map((c) => ({ id: c.id, amountKobo: c.amountKobo, xg: xgById.get(c.id) ?? 0, createdAt: c.createdAt.toISOString() }));
 }
+
+export type LiveSupporter = {
+  userId: string;
+  handle: string;
+  displayName: string;
+  avatarUrl: string | null;
+  giftsCount: number;
+  giftsXg: number;
+  accessXg: number;
+  requestsCount: number;
+  requestsXg: number;
+  totalXg: number;
+  kobo: number;
+};
+
+type SourceTotals = { xg: number; kobo: number; count: number };
+
+/**
+ * One Live's support, for the host's tappable "supporters" and "XG" chips
+ * (explicit ask, 2026-10-04: "the supporters tab in the live should be
+ * clickable to see people who support you, and the total coins received
+ * clickable to see the stats of the coins received in the stream"). Read
+ * from the gift/access/request tables, so it's complete even if the host's
+ * page reloaded mid-Live; Naira per source comes from XgEarning (the rate in
+ * force when each XG arrived), and a supporter's Naira is their share of
+ * each source — exact unless the rate changed mid-Live.
+ */
+export async function getLiveSupport(liveSessionId: string) {
+  const [gifts, access, requests, earned] = await Promise.all([
+    db.liveGift.findMany({ where: { liveSessionId }, select: { senderId: true, type: true, xgAmount: true, createdAt: true } }),
+    db.liveAccessGrant.findMany({ where: { liveSessionId }, select: { userId: true, xgPaid: true } }),
+    db.liveRequest.findMany({ where: { liveSessionId }, select: { senderId: true, xgAmount: true } }),
+    db.xgEarning.findMany({ where: { liveSessionId }, select: { source: true, xgAmount: true, koboPerXg: true } }),
+  ]);
+
+  const earnedBy: Record<string, { xg: number; kobo: number }> = {};
+  for (const e of earned) {
+    const cur = earnedBy[e.source] ?? { xg: 0, kobo: 0 };
+    earnedBy[e.source] = { xg: cur.xg + e.xgAmount, kobo: cur.kobo + e.xgAmount * e.koboPerXg };
+  }
+  const totals = (source: string, xg: number, count: number): SourceTotals => {
+    const e = earnedBy[source] ?? { xg: 0, kobo: 0 };
+    return { xg, count, kobo: e.kobo + Math.max(0, xg - e.xg) * LEGACY_KOBO_PER_XG };
+  };
+  const giftTotals = totals("LIVE_GIFT", gifts.reduce((s, g) => s + g.xgAmount, 0), gifts.length);
+  const accessTotals = totals("LIVE_ACCESS", access.reduce((s, a) => s + a.xgPaid, 0), access.length);
+  const requestTotals = totals("LIVE_REQUEST", requests.reduce((s, r) => s + r.xgAmount, 0), requests.length);
+  const share = (xg: number, t: SourceTotals) => (t.xg > 0 ? (xg / t.xg) * t.kobo : 0);
+
+  const byUser = new Map<string, { giftsCount: number; giftsXg: number; accessXg: number; requestsCount: number; requestsXg: number }>();
+  const row = (id: string) => {
+    let r = byUser.get(id);
+    if (!r) byUser.set(id, (r = { giftsCount: 0, giftsXg: 0, accessXg: 0, requestsCount: 0, requestsXg: 0 }));
+    return r;
+  };
+  for (const g of gifts) {
+    const r = row(g.senderId);
+    r.giftsCount += 1;
+    r.giftsXg += g.xgAmount;
+  }
+  for (const a of access) row(a.userId).accessXg += a.xgPaid;
+  for (const q of requests) {
+    const r = row(q.senderId);
+    r.requestsCount += 1;
+    r.requestsXg += q.xgAmount;
+  }
+
+  const users = await db.user.findMany({
+    where: { id: { in: [...byUser.keys()] } },
+    select: { id: true, handle: true, displayName: true, avatarUrl: true },
+  });
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const supporters: LiveSupporter[] = [...byUser.entries()]
+    .map(([userId, r]) => {
+      const u = userById.get(userId);
+      return {
+        userId,
+        handle: u?.handle ?? "",
+        displayName: u?.displayName ?? "Deleted user",
+        avatarUrl: u?.avatarUrl ?? null,
+        ...r,
+        totalXg: r.giftsXg + r.accessXg + r.requestsXg,
+        kobo: Math.round(share(r.giftsXg, giftTotals) + share(r.accessXg, accessTotals) + share(r.requestsXg, requestTotals)),
+      };
+    })
+    .sort((a, b) => b.totalXg - a.totalXg);
+
+  const byGiftType: Record<string, { count: number; xg: number }> = {};
+  for (const g of gifts) {
+    const cur = byGiftType[g.type] ?? { count: 0, xg: 0 };
+    byGiftType[g.type] = { count: cur.count + 1, xg: cur.xg + g.xgAmount };
+  }
+
+  return {
+    totalXg: giftTotals.xg + accessTotals.xg + requestTotals.xg,
+    totalKobo: giftTotals.kobo + accessTotals.kobo + requestTotals.kobo,
+    gifts: giftTotals,
+    access: accessTotals,
+    requests: requestTotals,
+    giftTypes: Object.entries(byGiftType)
+      .map(([type, v]) => ({ type, ...v }))
+      .sort((a, b) => b.xg - a.xg),
+    supporters,
+  };
+}
