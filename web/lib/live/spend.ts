@@ -1,14 +1,16 @@
 // The three ways XG actually moves during a Live (write-up §2/§3: Xoldout
 // Gifts, Paid Access, Paid Requests) — each debits the spender's
-// CoinLedgerEntry and credits the creator's real WalletLedgerEntry in the
-// same transaction (lib/live/coins.ts's debitCoins/creditCreatorFromCoins),
+// CoinLedgerEntry and credits the creator's earned-XG balance in the same
+// transaction (lib/live/coins.ts's debitCoins, lib/live/xgEarnings.ts's
+// creditCreatorXg — converted to withdrawable Naira monthly),
 // then broadcasts a LiveKit data message so it animates instantly for
 // everyone watching. The debit+credit committing is the source of truth;
 // the broadcast is just UI — never the other way around (see
 // publishLiveEvent's own comment).
 
 import { db } from "@/lib/db";
-import { debitCoins, creditCreatorFromCoins, InsufficientCoinsError } from "@/lib/live/coins";
+import { debitCoins, InsufficientCoinsError } from "@/lib/live/coins";
+import { creditCreatorXg } from "@/lib/live/xgEarnings";
 import { publishLiveEvent } from "@/lib/live/liveKit";
 
 export { InsufficientCoinsError };
@@ -42,7 +44,7 @@ export async function sendLiveGift(args: { liveSessionId: string; senderId: stri
 
   const [gift, sender] = await db.$transaction(async (tx) => {
     await debitCoins(tx, args.senderId, xgAmount, "GIFT_DEBIT");
-    await creditCreatorFromCoins(tx, session.creatorId, xgAmount, "LIVE_GIFT_CREDIT");
+    await creditCreatorXg(tx, { creatorId: session.creatorId, xgAmount, source: "LIVE_GIFT", liveSessionId: args.liveSessionId });
     const gift = await tx.liveGift.create({
       data: { liveSessionId: args.liveSessionId, senderId: args.senderId, type: args.giftType, xgAmount },
     });
@@ -80,7 +82,12 @@ export async function buyLiveAccess(args: { liveSessionId: string; userId: strin
 
   return db.$transaction(async (tx) => {
     await debitCoins(tx, args.userId, session.priceXg, "PAID_ACCESS_DEBIT");
-    await creditCreatorFromCoins(tx, session.creatorId, session.priceXg, "LIVE_ACCESS_CREDIT");
+    await creditCreatorXg(tx, {
+      creatorId: session.creatorId,
+      xgAmount: session.priceXg,
+      source: "LIVE_ACCESS",
+      liveSessionId: args.liveSessionId,
+    });
     return tx.liveAccessGrant.create({
       data: { liveSessionId: args.liveSessionId, userId: args.userId, xgPaid: session.priceXg },
     });
@@ -103,7 +110,7 @@ export async function submitLiveRequest(args: { liveSessionId: string; senderId:
 
   const [request, sender] = await db.$transaction(async (tx) => {
     await debitCoins(tx, args.senderId, xgAmount, "PAID_REQUEST_DEBIT");
-    await creditCreatorFromCoins(tx, session.creatorId, xgAmount, "LIVE_REQUEST_CREDIT");
+    await creditCreatorXg(tx, { creatorId: session.creatorId, xgAmount, source: "LIVE_REQUEST", liveSessionId: args.liveSessionId });
     const request = await tx.liveRequest.create({
       data: { liveSessionId: args.liveSessionId, senderId: args.senderId, message: args.message.slice(0, 500), xgAmount },
     });

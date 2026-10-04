@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
+import { getTotalXgEarnedKobo } from "@/lib/live/xgEarnings";
 // Imported from the client-safe constants file (single source of truth —
 // see that file's own comment), not defined here, so the wallet page can
 // quote the same number in its own copy without duplicating it. Re-exported
@@ -449,12 +450,14 @@ async function netOfClawbacks(client: Prisma.TransactionClient | typeof db, kind
  *   net of the commission the platform itself keeps on a refunded sale).
  * - liveRevenueKobo: Xoldout Live's margin — same "read the cash side from
  *   its own table, not the ledger" shape as billboardRevenueKobo, since a
- *   gift/paid-access/paid-request credit (LIVE_GIFT_CREDIT et al) has no
- *   matching commission-style debit of its own (lib/live/coins.ts's
- *   XG_TO_KOBO_PAYOUT_RATE comment: the platform's margin is realized
- *   entirely at XG top-up time, as the spread between what a buyer paid per
- *   XG and this fixed creator payout rate). Total successful XG top-up cash
- *   collected, minus total XG value actually paid out to creators.
+ *   gift/paid-access/paid-request has no matching commission-style debit of
+ *   its own — the platform's margin is realized entirely at XG top-up time,
+ *   as the spread between what a buyer paid per XG and the creator payout
+ *   rate (PlatformSettings.xgPayoutRateKobo, lib/live/xgEarnings.ts). Total
+ *   successful XG top-up cash collected, minus everything owed to creators
+ *   for XG they received: the legacy instant LIVE_*_CREDIT rows plus every
+ *   XgEarning (converted or not — XG_EARNINGS_PAYOUT rows are just the
+ *   converted subset of these, so they're deliberately not summed again).
  */
 export async function getPlatformFinancials(client: Prisma.TransactionClient | typeof db = db) {
   const [
@@ -470,6 +473,7 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
     refundRows,
     coinTopUpCashTotal,
     liveCreditTotal,
+    xgEarnedKobo,
   ] = await Promise.all([
       client.walletLedgerEntry.aggregate({ where: { kind: "COMMISSION_FEE" }, _sum: { amountKobo: true } }),
       client.walletLedgerEntry.aggregate({ where: { kind: "SALE_CREDIT" }, _sum: { amountKobo: true } }),
@@ -515,6 +519,7 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
         where: { kind: { in: ["LIVE_GIFT_CREDIT", "LIVE_ACCESS_CREDIT", "LIVE_REQUEST_CREDIT"] } },
         _sum: { amountKobo: true },
       }),
+      getTotalXgEarnedKobo(client),
     ]);
 
   const revenueByType: Record<string, number> = {};
@@ -529,7 +534,7 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
   );
 
   const billboardRevenueKobo = billboardRevenueTotal._sum.paidKobo ?? 0;
-  const liveRevenueKobo = (coinTopUpCashTotal._sum.amountKobo ?? 0) - (liveCreditTotal._sum.amountKobo ?? 0);
+  const liveRevenueKobo = (coinTopUpCashTotal._sum.amountKobo ?? 0) - (liveCreditTotal._sum.amountKobo ?? 0) - xgEarnedKobo;
   const platformRevenueKobo = -(commissionTotal._sum.amountKobo ?? 0) + billboardRevenueKobo + liveRevenueKobo;
   return {
     platformRevenueKobo,

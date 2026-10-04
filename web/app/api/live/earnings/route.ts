@@ -1,21 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { getLiveXgStats, getXgEarningsSummary, getXgPayoutHistory } from "@/lib/live/xgEarnings";
 
-// Lifetime "Earnings from gifts" (write-up mockup, Socials > Go Live tab) —
-// summed straight from LiveGift.xgAmount (the raw XG sent), not derived
-// from WalletLedgerEntry's Naira-converted LIVE_GIFT_CREDIT rows, since the
-// mockup shows this figure in XG, not Naira. Real withdrawable earnings
-// still live only on the wallet page, in Naira, via that ledger.
+// The creator's half of the XG balance page (web /live/coins, mobile LiveCoinsScreen)
+// plus the small "Earnings from gifts" figure on LiveNowPanel. giftsXg /
+// giftsCount stay as lifetime raw XG received from gifts (what that panel
+// shows); everything else is the earned-XG balance waiting for the next
+// monthly conversion, per-Live stats, and past conversions — see
+// lib/live/xgEarnings.ts.
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
-    const gifts = await db.liveGift.aggregate({
-      where: { liveSession: { creatorId: user.id } },
-      _sum: { xgAmount: true },
-      _count: true,
+    const [gifts, balance, lives, conversions] = await Promise.all([
+      db.liveGift.aggregate({
+        where: { liveSession: { creatorId: user.id } },
+        _sum: { xgAmount: true },
+        _count: true,
+      }),
+      getXgEarningsSummary(user.id),
+      getLiveXgStats(user.id),
+      getXgPayoutHistory(user.id),
+    ]);
+    return NextResponse.json({
+      giftsXg: gifts._sum.xgAmount ?? 0,
+      giftsCount: gifts._count,
+      ...balance,
+      lives,
+      conversions,
     });
-    return NextResponse.json({ giftsXg: gifts._sum.xgAmount ?? 0, giftsCount: gifts._count });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error(err);

@@ -8,6 +8,7 @@ import type { RootStackParamList } from "../lib/navigation";
 import { colors } from "../lib/theme";
 import { AddBalance } from "../components/live/LiveBits";
 import { XgCoin } from "../components/live/LiveIcons";
+import { EarnedXgSection } from "../components/live/EarnedXgSection";
 
 type BalanceResponse = { balanceXg: number };
 
@@ -52,6 +53,8 @@ export function LiveCoinsScreen() {
 
       <AddBalance />
       <Text style={styles.footnote}>XG can&apos;t be redeemed for cash.</Text>
+
+      <EarnedXgSection />
     </ScrollView>
   );
 }

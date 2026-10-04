@@ -134,6 +134,21 @@ export function WalletScreen() {
 
       <Text style={styles.availableNote}>Your earnings are available to withdraw right away — no waiting period.</Text>
 
+      {data.xgEarnings && data.xgEarnings.balanceXg > 0 && (
+        <TouchableOpacity style={styles.xgCard} onPress={() => navigation.navigate("LiveCoins")}>
+          <View>
+            <Text style={styles.statLabel}>Live earnings</Text>
+            <Text style={styles.xgMeta}>
+              {data.xgEarnings.balanceXg.toLocaleString("en-NG")} XG · arrives{" "}
+              {new Date(data.xgEarnings.nextPayoutAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}
+            </Text>
+          </View>
+          <Text style={styles.statValue}>
+            ₦{(data.xgEarnings.balanceKobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 2 })}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.navigate("Withdraw")}>
         <Text style={styles.primaryButtonText}>Withdraw</Text>
       </TouchableOpacity>
@@ -193,6 +208,18 @@ const styles = StyleSheet.create({
   statLabel: { color: colors.ink3, fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase" },
   statValue: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif, marginTop: 2 },
   availableNote: { color: colors.ink3, fontSize: 12, marginBottom: 16 },
+  xgCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  xgMeta: { color: colors.ink3, fontSize: 12, marginTop: 2 },
   primaryButton: { backgroundColor: colors.red, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 10 },
   primaryButtonText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
   secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 24 },

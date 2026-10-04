@@ -113,7 +113,7 @@ export async function createViewerToken(args: { roomName: string; userId: string
 /**
  * Server-authoritative broadcast to everyone currently in the room — used
  * right after a gift/paid-access purchase actually clears (debitCoins +
- * creditCreatorFromCoins both committed), never published by a client
+ * creditCreatorXg both committed), never published by a client
  * directly, so nobody can fake a gift animation nobody paid for.
  */
 export async function publishLiveEvent(roomName: string, event: Record<string, unknown>): Promise<void> {

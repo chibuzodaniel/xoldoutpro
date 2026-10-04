@@ -3,6 +3,7 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
+import { getXgEarningsSummary } from "@/lib/live/xgEarnings";
 
 // PRD §1.2/§13: all currency figures live in Wallet, nowhere else. This is
 // the only endpoint in the app that returns a Naira amount.
@@ -32,7 +33,19 @@ export async function GET(req: NextRequest) {
       db.walletLedgerEntry.aggregate({
         where: {
           userId: user.id,
-          kind: { in: ["SALE_CREDIT", "COMMISSION_FEE", "AMBASSADOR_COMMISSION", "PROMOTER_CREDIT", "PROMOTER_FEE"] },
+          kind: {
+            in: [
+              "SALE_CREDIT",
+              "COMMISSION_FEE",
+              "AMBASSADOR_COMMISSION",
+              "PROMOTER_CREDIT",
+              "PROMOTER_FEE",
+              "LIVE_GIFT_CREDIT",
+              "LIVE_ACCESS_CREDIT",
+              "LIVE_REQUEST_CREDIT",
+              "XG_EARNINGS_PAYOUT",
+            ],
+          },
         },
         _sum: { amountKobo: true },
       }),
@@ -69,7 +82,7 @@ export async function GET(req: NextRequest) {
       byCategory[type] = (byCategory[type] ?? 0) + row.priceKobo * row.quantity;
     }
 
-    const commissionRates = await getCommissionRates();
+    const [commissionRates, xgEarnings] = await Promise.all([getCommissionRates(), getXgEarningsSummary(user.id)]);
 
     return NextResponse.json({
       availableKobo,
@@ -78,6 +91,9 @@ export async function GET(req: NextRequest) {
       totalWithdrawnKobo: Math.abs(withdrawn._sum.amountKobo ?? 0),
       earnedByCategory: byCategory,
       payouts,
+      // Earned XG not yet converted (lib/live/xgEarnings.ts) — shown on the
+      // wallet as "coming on the 1st", never counted in availableKobo.
+      xgEarnings: { balanceXg: xgEarnings.balanceXg, balanceKobo: xgEarnings.balanceKobo, nextPayoutAt: xgEarnings.nextPayoutAt },
       // Live, moderator-editable rates (SiteControlsPanel) — not the
       // lib/commerce/constants.ts defaults, which are just what a fresh
       // PlatformSettings row starts at. Sent as whole percent (12, not

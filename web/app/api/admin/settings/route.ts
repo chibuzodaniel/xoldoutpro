@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSuperModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { DEFAULT_XG_PAYOUT_RATE_KOBO } from "@/lib/live/xgEarnings";
 
 // Super-moderator-only platform toggles: the real-file-download feature for
 // songs/beats (lib/audio/serveDownload.ts's downloadsEnabled()) and the
@@ -24,6 +25,7 @@ function serialize(
     buyerPaysFeeSlotPackFeeKobo: number;
     limitedPlanFeeKobo: number;
     limitedPlanUploadCap: number;
+    xgPayoutRateKobo: number;
   } | null,
 ) {
   return {
@@ -44,6 +46,7 @@ function serialize(
     buyerPaysFeeSlotPackFeeKobo: row?.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
     limitedPlanFeeKobo: row?.limitedPlanFeeKobo ?? 400_000,
     limitedPlanUploadCap: row?.limitedPlanUploadCap ?? 100,
+    xgPayoutRateKobo: row?.xgPayoutRateKobo ?? DEFAULT_XG_PAYOUT_RATE_KOBO,
   };
 }
 
@@ -76,6 +79,9 @@ const patchSchema = z.object({
   buyerPaysFeeSlotPackFeeKobo: z.number().int().min(0).optional(),
   limitedPlanFeeKobo: z.number().int().min(0).optional(),
   limitedPlanUploadCap: z.number().int().positive().optional(),
+  // What a creator earns per XG received (lib/live/xgEarnings.ts). Must stay
+  // positive — a zero rate would silently turn every gift into nothing.
+  xgPayoutRateKobo: z.number().int().positive().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -103,6 +109,7 @@ export async function PATCH(req: NextRequest) {
         buyerPaysFeeSlotPackFeeKobo: patch.buyerPaysFeeSlotPackFeeKobo ?? 400_000,
         limitedPlanFeeKobo: patch.limitedPlanFeeKobo ?? 400_000,
         limitedPlanUploadCap: patch.limitedPlanUploadCap ?? 100,
+        xgPayoutRateKobo: patch.xgPayoutRateKobo ?? DEFAULT_XG_PAYOUT_RATE_KOBO,
         updatedBy: user.id,
       },
       update: { ...patch, updatedBy: user.id },

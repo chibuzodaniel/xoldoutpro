@@ -6,6 +6,7 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { AddBalance } from "@/components/live/AddBalance";
 import { XgCoin } from "@/components/live/LiveIcons";
+import { EarnedXgSection } from "@/components/live/EarnedXgSection";
 
 export default function LiveCoinsPage() {
   const [balanceXg, setBalanceXg] = useState<number | null>(null);
@@ -30,6 +31,8 @@ export default function LiveCoinsPage() {
 
         <AddBalance />
         <p className="mt-2 pl-[22px] text-[12px] text-ink-3">XG can&apos;t be redeemed for cash.</p>
+
+        <EarnedXgSection />
       </div>
     </div>
   );

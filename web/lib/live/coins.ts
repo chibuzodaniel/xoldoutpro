@@ -1,7 +1,8 @@
 // XG ("Xoldout Gifts"): a buyer-funded, one-directional prepaid balance —
 // see prisma/schema.prisma's CoinLedgerEntry comment for the full reasoning
-// (never cashes back out to the buyer; only the creator's resulting real
-// earnings, credited via WalletLedgerEntry, are ever withdrawable).
+// (never cashes back out to the buyer; only the creator's resulting
+// earned XG — lib/live/xgEarnings.ts, converted to Naira monthly — is ever
+// withdrawable).
 //
 // This file owns three things: the top-up pack catalog + Bachs checkout
 // (mirrors lib/commerce/billboards.ts's createBillboardCheckout /
@@ -26,15 +27,6 @@ export const XG_TOPUP_PACKS = [
   { xgAmount: 1200, priceKobo: 1_400_000, bonusPercent: 20 }, // ₦14,000 (+20% bonus already folded into xgAmount)
   { xgAmount: 3000, priceKobo: 3_500_000, bonusPercent: 20 }, // ₦35,000 (+20% bonus already folded into xgAmount)
 ] as const;
-
-// Fixed creator payout rate per XG spent — deliberately independent of
-// whatever pack price the buyer paid. The platform's margin is realized
-// entirely at top-up time (every XG_TOPUP_PACKS price implies a higher
-// per-XG cost than this), the same mental model most livestream-gifting
-// platforms use, so no separate commission cut is taken on top of this at
-// gift/paid-access/paid-request time. Placeholder value — tune once real
-// unit economics are set.
-export const XG_TO_KOBO_PAYOUT_RATE = 100; // 1 XG = ₦1.00 creator payout
 
 export async function getCoinBalance(userId: string, client: Prisma.TransactionClient | typeof db = db): Promise<number> {
   const result = await client.coinLedgerEntry.aggregate({
@@ -68,23 +60,6 @@ export async function debitCoins(
 
   await tx.coinLedgerEntry.create({
     data: { userId, xgAmount: -xgAmount, kind },
-  });
-}
-
-/** The seller side of an XG spend — see XG_TO_KOBO_PAYOUT_RATE above. */
-export async function creditCreatorFromCoins(
-  tx: Prisma.TransactionClient,
-  creatorId: string,
-  xgAmount: number,
-  kind: "LIVE_GIFT_CREDIT" | "LIVE_ACCESS_CREDIT" | "LIVE_REQUEST_CREDIT",
-): Promise<void> {
-  await tx.walletLedgerEntry.create({
-    data: {
-      userId: creatorId,
-      amountKobo: xgAmount * XG_TO_KOBO_PAYOUT_RATE,
-      kind,
-      status: "AVAILABLE",
-    },
   });
 }
 
