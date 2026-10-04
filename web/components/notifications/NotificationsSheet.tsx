@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 type NotificationKind =
@@ -17,7 +18,8 @@ type NotificationKind =
   | "COMMENT"
   | "FANBASE"
   | "REMINDER"
-  | "VERIFICATION";
+  | "VERIFICATION"
+  | "LIVE";
 type NotificationRow = { id: string; kind: NotificationKind; title: string; body: string; url: string | null; readAt: string | null; createdAt: string };
 
 type Props = { open: boolean; onClose: () => void; onRead: () => void };
@@ -52,6 +54,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   FANBASE: "Fanbase",
   REMINDER: "Reminder",
   VERIFICATION: "Verification",
+  LIVE: "Live",
 };
 
 const KIND_COLOR: Record<NotificationKind, string> = {
@@ -68,6 +71,7 @@ const KIND_COLOR: Record<NotificationKind, string> = {
   FANBASE: "bg-amber/15 text-amber",
   REMINDER: "bg-amber/15 text-amber",
   VERIFICATION: "bg-green/15 text-green",
+  LIVE: "bg-red/15 text-red-soft",
 };
 
 function KindIcon({ kind }: { kind: NotificationKind }) {
@@ -102,6 +106,25 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
   );
 }
 
+// Explicit ask, 2026-10-04: notifications that are "the same" — same kind
+// and same title, e.g. five "New like"s — merge into one row with a count;
+// tapping it expands the individual notifications, and tapping one of those
+// goes straight to that notification's own page. Groups are ordered by their
+// newest notification; a group of one renders exactly as before.
+type NotificationGroup = { key: string; items: NotificationRow[] };
+
+function groupNotifications(rows: NotificationRow[]): NotificationGroup[] {
+  const groups = new Map<string, NotificationGroup>();
+  for (const n of rows) {
+    const key = `${n.kind}|${n.title}`;
+    const group = groups.get(key);
+    if (group) group.items.push(n);
+    else groups.set(key, { key, items: [n] });
+  }
+  // rows arrive newest-first, so Map insertion order is already "by newest item".
+  return [...groups.values()];
+}
+
 // Bottom sheet, same shell as the rest of the app's sheets. The header bell
 // is deliberately transactional-only (sales, orders paid, payouts, refunds)
 // — Socials activity has its own separate signal, the unread badge on the
@@ -109,10 +132,55 @@ function KindIcon({ kind }: { kind: NotificationKind }) {
 export function NotificationsSheet({ open, onClose, onRead }: Props) {
   const [notifications, setNotifications] = useState<NotificationRow[] | null>(null);
   const [selected, setSelected] = useState<NotificationRow | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const router = useRouter();
+
+  function toggleGroup(key: string) {
+    setExpanded((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Explicit ask, 2026-10-04: a notification only counts as checked once
+  // the user actually opens it (its detail, or its page) — not just because
+  // the bell was opened. Updated locally at once so it dims immediately;
+  // onRead refreshes the header badge once the server has it.
+  function markRead(ids: string[] | null) {
+    const now = new Date().toISOString();
+    const pending = (notifications ?? []).filter((n) => !n.readAt && (ids === null || ids.includes(n.id)));
+    if (pending.length === 0) return;
+    setNotifications((cur) => cur?.map((n) => (pending.some((p) => p.id === n.id) ? { ...n, readAt: now } : n)) ?? null);
+    apiFetch("/api/notifications/read", {
+      method: "POST",
+      body: JSON.stringify(ids === null ? {} : { ids: pending.map((n) => n.id) }),
+    }).then((res) => {
+      if (res.ok) onRead();
+    });
+  }
+
+  function openDetail(n: NotificationRow) {
+    markRead([n.id]);
+    setSelected(n);
+  }
+
+  // A merged notification's own row: straight to its page when it has one.
+  function openItem(n: NotificationRow) {
+    markRead([n.id]);
+    if (n.url) {
+      onClose();
+      router.push(n.url);
+    } else {
+      setSelected(n);
+    }
+  }
 
   useEffect(() => {
     function closeDetail() {
       setSelected(null);
+      setExpanded(new Set());
     }
     if (!open) {
       closeDetail();
@@ -121,10 +189,9 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
     apiFetch("/api/notifications")
       .then((res) => (res.ok ? res.json() : { notifications: [] }))
       .then((data) => setNotifications(data.notifications));
-    apiFetch("/api/notifications/read", { method: "POST" }).then((res) => {
-      if (res.ok) onRead();
-    });
-  }, [open, onRead]);
+  }, [open]);
+
+  const unreadTotal = notifications?.filter((n) => !n.readAt).length ?? 0;
 
   return (
     <div
@@ -151,7 +218,14 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
           </svg>
         </button>
 
-        <h1 className="font-serif text-2xl mb-4">Notifications</h1>
+        <div className="mb-4 flex items-end justify-between gap-3 pr-10">
+          <h1 className="font-serif text-2xl">Notifications</h1>
+          {unreadTotal > 0 && (
+            <button type="button" onClick={() => markRead(null)} className="pb-1 text-xs font-semibold text-red-soft">
+              Mark all as read
+            </button>
+          )}
+        </div>
 
         {notifications === null ? (
           <p className="text-sm text-ink-3">Loading…</p>
@@ -159,18 +233,97 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
           <p className="text-sm text-ink-3">Sales, orders, payouts, and refunds show up here.</p>
         ) : (
           <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-            {notifications.map((n) => (
-              <button key={n.id} type="button" onClick={() => setSelected(n)} className="flex items-start gap-3 py-3 text-left">
-                <span className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${KIND_COLOR[n.kind]}`}>
-                  <KindIcon kind={n.kind} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">{n.title}</p>
-                  <p className="text-xs text-ink-3">{n.body}</p>
+            {groupNotifications(notifications).map(({ key, items }) => {
+              const n = items[0];
+              const unreadInGroup = items.filter((i) => !i.readAt).length;
+              const isUnread = unreadInGroup > 0;
+              // Unread: tinted row, red dot, bold white title. Checked: dimmed.
+              const rowTone = isUnread ? "bg-red/[0.06]" : "opacity-60";
+              const titleTone = isUnread ? "font-semibold text-ink" : "font-medium text-ink-2";
+              const dot = (
+                <span className={`mt-3 h-2 w-2 shrink-0 rounded-full ${isUnread ? "bg-red" : "bg-transparent"}`} aria-hidden />
+              );
+
+              if (items.length === 1) {
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => openDetail(n)}
+                    className={`-mx-4 flex items-start gap-2.5 px-4 py-3 text-left ${rowTone}`}
+                  >
+                    {dot}
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${KIND_COLOR[n.kind]}`}>
+                      <KindIcon kind={n.kind} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm ${titleTone}`}>{n.title}</p>
+                      <p className="text-xs text-ink-3">{n.body}</p>
+                    </div>
+                    <span className="text-[11px] text-ink-3 shrink-0 pt-1">{timeAgo(n.createdAt)}</span>
+                    <span className="sr-only">{isUnread ? "Unread" : "Read"}</span>
+                  </button>
+                );
+              }
+              const isOpen = expanded.has(key);
+              return (
+                <div key={key} className={`-mx-4 px-4 ${isUnread ? "bg-red/[0.06]" : ""}`}>
+                  <button
+                    type="button"
+                    onClick={() => toggleGroup(key)}
+                    aria-expanded={isOpen}
+                    className={`flex w-full items-start gap-2.5 py-3 text-left ${isUnread ? "" : "opacity-60"}`}
+                  >
+                    {dot}
+                    <span className={`relative flex h-8 w-8 items-center justify-center rounded-full shrink-0 ${KIND_COLOR[n.kind]}`}>
+                      <KindIcon kind={n.kind} />
+                      <span className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full bg-red px-1 text-center text-[10px] font-bold leading-[18px] text-white">
+                        {items.length}
+                      </span>
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm ${titleTone}`}>{n.title}</p>
+                      <p className="text-xs text-ink-3">
+                        {n.body}
+                        <span className="text-ink-2">
+                          {" "}
+                          · +{items.length - 1} more{isUnread && ` · ${unreadInGroup} new`}
+                        </span>
+                      </p>
+                    </div>
+                    <span className="flex shrink-0 items-center gap-1.5 pt-1 text-[11px] text-ink-3">
+                      {timeAgo(n.createdAt)}
+                      <svg
+                        viewBox="0 0 24 24"
+                        className={`h-3.5 w-3.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="mb-2 ml-[3.25rem] flex flex-col divide-y divide-line-soft border-l border-line-soft">
+                      {items.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => openItem(item)}
+                          className={`flex items-start gap-2 py-2.5 pl-3 text-left hover:bg-surface-2 ${item.readAt ? "opacity-60" : ""}`}
+                        >
+                          <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${item.readAt ? "bg-transparent" : "bg-red"}`} aria-hidden />
+                          <p className={`min-w-0 flex-1 text-xs ${item.readAt ? "text-ink-3" : "font-medium text-ink"}`}>{item.body}</p>
+                          <span className="shrink-0 text-[11px] text-ink-3">{timeAgo(item.createdAt)}</span>
+                          {item.url && <span className="shrink-0 text-ink-3">›</span>}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <span className="text-[11px] text-ink-3 shrink-0 pt-1">{timeAgo(n.createdAt)}</span>
-              </button>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

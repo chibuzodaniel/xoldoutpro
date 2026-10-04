@@ -11,7 +11,8 @@ export type NotificationKind =
   | "COMMENT"
   | "FANBASE"
   | "REMINDER"
-  | "VERIFICATION";
+  | "VERIFICATION"
+  | "LIVE";
 
 export type NotificationRow = {
   id: string;

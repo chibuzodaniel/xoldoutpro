@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Linking, SafeAreaView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "../lib/navigation";
 import { API_BASE_URL, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import type { NotificationKind, NotificationRow } from "../lib/notificationTypes";
@@ -36,6 +38,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   FANBASE: "Fanbase",
   REMINDER: "Reminder",
   VERIFICATION: "Verification",
+  LIVE: "Live",
 };
 
 const KIND_COLOR: Record<NotificationKind, string> = {
@@ -52,13 +55,77 @@ const KIND_COLOR: Record<NotificationKind, string> = {
   FANBASE: colors.amber,
   REMINDER: colors.amber,
   VERIFICATION: colors.green,
+  LIVE: colors.redSoft,
 };
 
+// Mirrors web's NotificationsSheet (explicit ask, 2026-10-04): notifications
+// with the same kind and title merge into one row with a count; tapping it
+// expands the individual notifications, and tapping one of those goes
+// straight to that notification's own page. A group of one is unchanged.
+type NotificationGroup = { key: string; items: NotificationRow[] };
+
+function groupNotifications(rows: NotificationRow[]): NotificationGroup[] {
+  const groups = new Map<string, NotificationGroup>();
+  for (const n of rows) {
+    const key = `${n.kind}|${n.title}`;
+    const group = groups.get(key);
+    if (group) group.items.push(n);
+    else groups.set(key, { key, items: [n] });
+  }
+  // rows arrive newest-first, so Map insertion order is already "by newest item".
+  return [...groups.values()];
+}
+
 export function NotificationsScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
   const [notifications, setNotifications] = useState<NotificationRow[] | null>(null);
   const [selected, setSelected] = useState<NotificationRow | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  function toggleGroup(key: string) {
+    setExpanded((cur) => {
+      const next = new Set(cur);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  // Join-request notifications open the in-app pending list; everything
+  // else still opens its page on the website.
+  function openUrl(url: string) {
+    if (url === "/groups/requests") navigation.navigate("FanbaseRequests");
+    else Linking.openURL(`${API_BASE_URL}${url}`);
+  }
+
+  // Explicit ask, 2026-10-04: a notification only counts as checked once
+  // the user actually opens it — not just because this screen was opened.
+  // Updated locally at once so it dims immediately; null = mark all.
+  function markRead(ids: string[] | null) {
+    const now = new Date().toISOString();
+    const pending = (notifications ?? []).filter((n) => !n.readAt && (ids === null || ids.includes(n.id)));
+    if (pending.length === 0 || !firebaseUser) return;
+    setNotifications((cur) => cur?.map((n) => (pending.some((p) => p.id === n.id) ? { ...n, readAt: now } : n)) ?? null);
+    firebaseUser
+      .getIdToken()
+      .then((idToken) => apiPost("/api/notifications/read", idToken, ids === null ? {} : { ids: pending.map((n) => n.id) }))
+      .catch(() => {});
+  }
+
+  function openDetail(n: NotificationRow) {
+    markRead([n.id]);
+    setSelected(n);
+  }
+
+  // A merged notification's own row: straight to its page when it has one.
+  function openItem(n: NotificationRow) {
+    markRead([n.id]);
+    if (n.url) openUrl(n.url);
+    else setSelected(n);
+  }
+
+  const unreadTotal = notifications?.filter((n) => !n.readAt).length ?? 0;
 
   useEffect(() => {
     if (!firebaseUser) return;
@@ -69,7 +136,6 @@ export function NotificationsScreen() {
       } catch {
         setNotifications([]);
       }
-      apiPost("/api/notifications/read", idToken).catch(() => {});
     });
   }, [firebaseUser]);
 
@@ -77,9 +143,16 @@ export function NotificationsScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Notifications</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Text style={styles.closeText}>Close</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {unreadTotal > 0 && (
+            <TouchableOpacity onPress={() => markRead(null)}>
+              <Text style={styles.markAllText}>Mark all as read</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.closeText}>Close</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {notifications === null ? (
@@ -92,26 +165,66 @@ export function NotificationsScreen() {
         </View>
       ) : (
         <FlatList
-          data={notifications}
-          keyExtractor={(n) => n.id}
+          data={groupNotifications(notifications)}
+          keyExtractor={(g) => g.key}
+          extraData={{ expanded, notifications }}
           contentContainerStyle={styles.listContent}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.row} onPress={() => setSelected(item)}>
-              <View style={[styles.kindBadge, { backgroundColor: `${KIND_COLOR[item.kind]}26` }]}>
-                <View style={[styles.kindDot, { backgroundColor: KIND_COLOR[item.kind] }]} />
+          renderItem={({ item: group }) => {
+            const item = group.items[0];
+            const merged = group.items.length > 1;
+            const isOpen = merged && expanded.has(group.key);
+            const unreadInGroup = group.items.filter((n) => !n.readAt).length;
+            const isUnread = unreadInGroup > 0;
+            return (
+              <View style={isUnread ? styles.unreadGroup : undefined}>
+                <TouchableOpacity
+                  style={[styles.row, !isUnread && styles.readRow]}
+                  onPress={() => (merged ? toggleGroup(group.key) : openDetail(item))}
+                >
+                  <View style={[styles.unreadDot, !isUnread && styles.dotHidden]} />
+                  <View style={[styles.kindBadge, { backgroundColor: `${KIND_COLOR[item.kind]}26` }]}>
+                    <View style={[styles.kindDot, { backgroundColor: KIND_COLOR[item.kind] }]} />
+                    {merged && (
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countText}>{group.items.length}</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.rowTitle, !isUnread && styles.readTitle]} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+                    <Text style={styles.rowBody} numberOfLines={1}>
+                      {item.body}
+                      {merged && (
+                        <Text style={styles.moreText}>
+                          {" "}
+                          · +{group.items.length - 1} more{isUnread ? ` · ${unreadInGroup} new` : ""}
+                        </Text>
+                      )}
+                    </Text>
+                  </View>
+                  <Text style={styles.rowTime}>
+                    {timeAgo(item.createdAt)}
+                    {merged ? (isOpen ? "  ▴" : "  ▾") : ""}
+                  </Text>
+                </TouchableOpacity>
+                {isOpen && (
+                  <View style={styles.subList}>
+                    {group.items.map((n) => (
+                      <TouchableOpacity key={n.id} style={[styles.subRow, n.readAt ? styles.readRow : null]} onPress={() => openItem(n)}>
+                        <View style={[styles.subDot, n.readAt ? styles.dotHidden : null]} />
+                        <Text style={[styles.subBody, !n.readAt && styles.subBodyUnread]}>{n.body}</Text>
+                        <Text style={styles.rowTime}>{timeAgo(n.createdAt)}</Text>
+                        {n.url ? <Text style={styles.chevron}>›</Text> : null}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
               </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.rowTitle} numberOfLines={1}>
-                  {item.title}
-                </Text>
-                <Text style={styles.rowBody} numberOfLines={1}>
-                  {item.body}
-                </Text>
-              </View>
-              <Text style={styles.rowTime}>{timeAgo(item.createdAt)}</Text>
-            </TouchableOpacity>
-          )}
+            );
+          }}
         />
       )}
 
@@ -135,7 +248,7 @@ export function NotificationsScreen() {
               <TouchableOpacity
                 style={styles.viewButton}
                 onPress={() => {
-                  Linking.openURL(`${API_BASE_URL}${selected.url}`);
+                  if (selected.url) openUrl(selected.url);
                   setSelected(null);
                 }}
               >
@@ -168,6 +281,33 @@ const styles = StyleSheet.create({
   rowTitle: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   rowBody: { color: colors.ink3, fontSize: 12, marginTop: 1 },
   rowTime: { color: colors.ink3, fontSize: 11 },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
+  markAllText: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
+  unreadGroup: { backgroundColor: "rgba(225,29,46,0.06)", marginHorizontal: -16, paddingHorizontal: 16 },
+  readRow: { opacity: 0.6 },
+  readTitle: { color: colors.ink2, fontWeight: "500" },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red },
+  subDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.red },
+  dotHidden: { backgroundColor: "transparent" },
+  subBodyUnread: { color: colors.ink, fontWeight: "500" },
+  countBadge: {
+    position: "absolute",
+    top: -5,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  countText: { color: colors.ink, fontSize: 10, fontWeight: "700" },
+  moreText: { color: colors.ink2 },
+  subList: { marginLeft: 42, marginBottom: 8, borderLeftWidth: 1, borderLeftColor: colors.lineSoft },
+  subRow: { flexDirection: "row", alignItems: "center", gap: 8, paddingVertical: 10, paddingLeft: 12 },
+  subBody: { flex: 1, color: colors.ink2, fontSize: 12 },
+  chevron: { color: colors.ink3, fontSize: 16 },
   detailOverlay: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "flex-end" },
   detailBackdrop: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.6)" },
   detailSheet: { backgroundColor: colors.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 20, paddingBottom: 32 },

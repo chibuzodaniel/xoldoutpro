@@ -13,8 +13,9 @@ export function AppHeader() {
 
   // Sizes the bell's badge on mount, and again whenever a push arrives while
   // the app is open (components/push/PushAutoEnroll fires this event) or the
-  // tab comes back into view — the sheet itself refetches the full list
-  // (and marks it read) when opened.
+  // tab comes back into view, or the sheet marks notifications read (each
+  // one as it is opened, or "Mark all as read") — the sheet itself refetches
+  // the full list when opened.
   useEffect(() => {
     if (!appUser) return;
     const refresh = () =>
@@ -64,7 +65,7 @@ export function AppHeader() {
           </button>
         </div>
       </header>
-      <NotificationsSheet open={open} onClose={() => setOpen(false)} onRead={() => setUnreadCount(0)} />
+      <NotificationsSheet open={open} onClose={() => setOpen(false)} onRead={() => window.dispatchEvent(new Event("xoldout:notifications-changed"))} />
     </>
   );
 }
