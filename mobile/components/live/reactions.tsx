@@ -143,8 +143,15 @@ export function ReactionBar({ ordered, onReact }: { ordered: string[]; onReact: 
 }
 
 const styles = StyleSheet.create({
-  floatingArea: { position: "absolute", right: 8, bottom: 180, width: 80, height: 0, zIndex: 20 },
-  floating: { position: "absolute", bottom: 0, fontSize: 30 },
+  floatingArea: { position: "absolute", right: 8, bottom: 180, width: 110, height: 0, zIndex: 20 },
+  floating: {
+    position: "absolute",
+    bottom: 0,
+    fontSize: 46,
+    textShadowColor: "rgba(0,0,0,0.45)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
   bar: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginHorizontal: 12, marginTop: 8 },
   emojiButton: {
     width: 36,

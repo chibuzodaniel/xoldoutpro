@@ -93,11 +93,11 @@ export function useFloatingReactions() {
 
 export function FloatingReactions({ items }: { items: Floating[] }) {
   return (
-    <div className="pointer-events-none absolute bottom-40 right-2 z-20 h-0 w-20" aria-hidden>
+    <div className="pointer-events-none absolute bottom-40 right-2 z-20 h-0 w-28" aria-hidden>
       {items.map((i) => (
         <span
           key={i.id}
-          className="animate-reaction-float absolute bottom-0 text-[30px] leading-none"
+          className="animate-reaction-float absolute bottom-0 text-[46px] leading-none drop-shadow-[0_2px_6px_rgba(0,0,0,0.45)]"
           style={{ left: i.left, ["--drift" as string]: `${i.drift}px` }}
         >
           {i.emoji}
