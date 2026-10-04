@@ -130,8 +130,8 @@ export default function UploadMerchPage() {
             {imagePreview && !imageUploading && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+                onClick={async () => {
+                  if (!await toast.confirm("This photo will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
                   setImagePreview(null);
                   setImageLadder(null);
                 }}
@@ -168,8 +168,8 @@ export default function UploadMerchPage() {
                 <img src={src} alt="" className="h-full w-full object-cover" />
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+                  onClick={async () => {
+                    if (!await toast.confirm("This photo will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
                     setGalleryFiles((cur) => cur.filter((_, idx) => idx !== i));
                     setGalleryPreviews((cur) => cur.filter((_, idx) => idx !== i));
                   }}

@@ -50,7 +50,7 @@ export function ManageGroupSheet({
   const [deletingGroup, setDeletingGroup] = useState(false);
 
   async function deleteGroup() {
-    if (!window.confirm(`Delete this Fanbase? This removes every message and can't be undone.`)) return;
+    if (!await toast.confirm(`Delete this Fanbase? This removes every message and can't be undone.`, { confirmLabel: "Remove", destructive: true })) return;
     setDeletingGroup(true);
     try {
       const res = await apiFetch(`/api/groups/${groupId}`, { method: "DELETE" });
@@ -114,7 +114,7 @@ export function ManageGroupSheet({
   }
 
   async function removeMember(userId: string) {
-    if (!window.confirm("Remove this member from the group?")) return;
+    if (!await toast.confirm("Remove this member from the group?", { confirmLabel: "Remove", destructive: true })) return;
     const res = await apiFetch(`/api/groups/${groupId}/members/${userId}`, { method: "DELETE" });
     if (res.ok) {
       setMembers((cur) => cur?.filter((m) => m.userId !== userId) ?? null);

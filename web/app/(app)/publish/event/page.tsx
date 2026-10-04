@@ -133,8 +133,8 @@ export default function CreateEventPage() {
             {coverPreview && !coverUploading && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm("This cover image will be permanently deleted. Continue?")) return;
+                onClick={async () => {
+                  if (!await toast.confirm("This cover image will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
                   setCoverPreview(null);
                   setCoverImageLadder(null);
                 }}

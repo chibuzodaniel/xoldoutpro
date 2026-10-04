@@ -133,7 +133,7 @@ export default function CatalogPage() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this release? It comes off sale and every discovery surface immediately. Anyone who already bought it keeps their copy forever — this is not a refund.")) {
+    if (!await toast.confirm("Delete this release? It comes off sale and every discovery surface immediately. Anyone who already bought it keeps their copy forever — this is not a refund.", { confirmLabel: "Delete", destructive: true })) {
       return;
     }
     const res = await apiFetch(`/api/releases/${id}`, { method: "DELETE" });

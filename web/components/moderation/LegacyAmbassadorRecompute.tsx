@@ -45,13 +45,11 @@ export function LegacyAmbassadorRecompute() {
     }
   }
 
-  function confirmAndApply() {
+  async function confirmAndApply() {
     if (!report) return;
-    const ok = window.confirm(
-      `Apply ${report.adjustments.length} adjustment(s) across ${report.affectedAmbassadors} ambassador(s)?\n\n` +
+    const ok = await toast.confirm(`Apply ${report.adjustments.length} adjustment(s) across ${report.affectedAmbassadors} ambassador(s)?\n\n` +
         `Total credit: ${formatNairaShort(report.totalCreditKobo)}\nTotal debit: ${formatNairaShort(report.totalDebitKobo)}\n\n` +
-        `This writes new ledger entries and cannot be undone from this panel.`,
-    );
+        `This writes new ledger entries and cannot be undone from this panel.`, { confirmLabel: "Apply", destructive: true });
     if (ok) run(true);
   }
 

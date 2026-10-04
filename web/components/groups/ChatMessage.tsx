@@ -139,7 +139,7 @@ export function ChatMessage({
   }
 
   async function handleDelete() {
-    if (!window.confirm("Delete this message?")) return;
+    if (!await toast.confirm("Delete this message?", { confirmLabel: "Delete", destructive: true })) return;
     setDeleting(true);
     const res = await apiFetch(`/api/posts/${message.id}`, { method: "DELETE" });
     if (res.ok) onDeleted?.(message.id);

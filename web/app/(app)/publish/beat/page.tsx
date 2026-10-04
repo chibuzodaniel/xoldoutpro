@@ -181,8 +181,8 @@ export default function UploadBeatPage() {
             {coverPreview && !coverUploading && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm("This cover art will be permanently deleted. Continue?")) return;
+                onClick={async () => {
+                  if (!await toast.confirm("This cover art will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
                   setCoverPreview(null);
                   setCoverImageLadder(null);
                 }}
@@ -355,8 +355,8 @@ export default function UploadBeatPage() {
             {audio.status === "ready" && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm("This audio file will be permanently deleted. Continue?")) return;
+                onClick={async () => {
+                  if (!await toast.confirm("This audio file will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
                   setAudio({ status: "idle" });
                 }}
                 className="text-xs text-ink-3"

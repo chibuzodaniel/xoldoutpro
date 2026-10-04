@@ -1,5 +1,7 @@
 "use client";
 
+import { useToast } from "@/components/ui/ToastProvider";
+
 type Props = {
   title: string;
   onView: () => void;
@@ -9,8 +11,9 @@ type Props = {
 };
 
 export function PhotoActionSheet({ title, onView, onUpload, onRemove, onClose }: Props) {
-  function handleRemove() {
-    if (!window.confirm(`This ${title.toLowerCase()} will be permanently deleted. Continue?`)) return;
+  const toast = useToast();
+  async function handleRemove() {
+    if (!await toast.confirm(`This ${title.toLowerCase()} will be permanently deleted. Continue?`, { confirmLabel: "Delete", destructive: true })) return;
     onRemove();
   }
 

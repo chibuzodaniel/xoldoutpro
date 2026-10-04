@@ -75,7 +75,7 @@ function TierRow({ eventId, tier, onChanged }: { eventId: string; tier: CatalogT
   }
 
   async function handleDelete() {
-    if (!confirm(`Take "${tier.name}" off sale permanently? Anyone who already bought this tier keeps their ticket — this is not a refund.`)) {
+    if (!await toast.confirm(`Take "${tier.name}" off sale permanently? Anyone who already bought this tier keeps their ticket — this is not a refund.`, { confirmLabel: "Take off sale", destructive: true })) {
       return;
     }
     setBusy(true);
@@ -354,7 +354,7 @@ export default function EventCatalogPage() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this event? It comes off sale and every discovery surface immediately, and every ticket tier goes with it. Anyone who already bought a ticket keeps it — this is not a refund.")) {
+    if (!await toast.confirm("Delete this event? It comes off sale and every discovery surface immediately, and every ticket tier goes with it. Anyone who already bought a ticket keeps it — this is not a refund.", { confirmLabel: "Delete", destructive: true })) {
       return;
     }
     const res = await apiFetch(`/api/events/${id}`, { method: "DELETE" });

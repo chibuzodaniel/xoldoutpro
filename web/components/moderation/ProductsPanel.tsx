@@ -257,9 +257,7 @@ function ProductDetail({ productId, onBack }: { productId: string; onBack: () =>
   }
 
   async function handleTakedown() {
-    const ok = window.confirm(
-      "Take down this product? It comes off sale and every discovery surface immediately, every buyer's entitlement is revoked, and the creator's earnings from it are reversed in the ledger. This cannot be undone.",
-    );
+    const ok = await toast.confirm("Take down this product? It comes off sale and every discovery surface immediately, every buyer's entitlement is revoked, and the creator's earnings from it are reversed in the ledger. This cannot be undone.", { confirmLabel: "Take down", destructive: true });
     if (!ok) return;
     setTakingDown(true);
     try {

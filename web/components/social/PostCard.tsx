@@ -134,7 +134,7 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
   }
 
   async function handleDelete() {
-    if (!window.confirm("Delete this post?")) return;
+    if (!await toast.confirm("Delete this post?", { confirmLabel: "Delete", destructive: true })) return;
     setDeleting(true);
     const res = await apiFetch(`/api/posts/${post.id}`, { method: "DELETE" });
     if (res.ok) onDeleted?.(post.id);

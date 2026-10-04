@@ -194,8 +194,8 @@ export default function UploadMusicPage() {
             {artworkPreview && !artworkUploading && (
               <button
                 type="button"
-                onClick={() => {
-                  if (!window.confirm("This artwork will be permanently deleted. Continue?")) return;
+                onClick={async () => {
+                  if (!await toast.confirm("This artwork will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
                   setArtworkPreview(null);
                   setArtworkLadder(null);
                 }}

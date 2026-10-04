@@ -64,6 +64,46 @@ function LiveSummaryContent({ summary }: { summary: LiveSummaryToast }) {
   );
 }
 
+export type ConfirmOptions = {
+  confirmLabel?: string;
+  cancelLabel?: string;
+  // Red confirm button — for deletes and anything else that cannot be undone.
+  destructive?: boolean;
+};
+
+function ConfirmContent({
+  message,
+  options,
+  onAnswer,
+}: {
+  message: string;
+  options: ConfirmOptions;
+  onAnswer: (ok: boolean) => void;
+}) {
+  return (
+    <div className="w-full">
+      <p className="mb-3 whitespace-pre-line text-[14px] leading-snug text-ink">{message}</p>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => onAnswer(false)}
+          className="rounded-full border border-line px-3.5 py-1.5 text-[13px] font-semibold text-ink"
+        >
+          {options.cancelLabel ?? "Cancel"}
+        </button>
+        <button
+          type="button"
+          autoFocus
+          onClick={() => onAnswer(true)}
+          className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold text-white ${options.destructive ? "bg-red" : "bg-green"}`}
+        >
+          {options.confirmLabel ?? "Confirm"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function useToast() {
   return {
     error: (message: string) => toast.error(message, { ...BASE_OPTIONS, icon: ICONS.error }),
@@ -72,6 +112,30 @@ export function useToast() {
     // than the 4s default and dismissable, since there's more to read. The
     // container lives in the root layout, so it survives the redirect away
     // from the broadcast page.
+    // Explicit ask, 2026-10-04: "whenever the website is trying to
+    // communicate to a user it should use the react toast" — this replaces
+    // every native window.confirm(). Resolves true only on the confirm
+    // button; Cancel, or the toast being dismissed any other way, is false.
+    // Stays up until answered (no auto-close, no click-anywhere dismiss).
+    confirm: (message: string, options: ConfirmOptions = {}) =>
+      new Promise<boolean>((resolve) => {
+        let settled = false;
+        const answer = (ok: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(ok);
+          toast.dismiss(id);
+        };
+        const id = toast(<ConfirmContent message={message} options={options} onAnswer={answer} />, {
+          autoClose: false,
+          closeOnClick: false,
+          draggable: false,
+          closeButton: false,
+          hideProgressBar: true,
+          icon: false,
+          onClose: () => answer(false),
+        });
+      }),
     liveSummary: (summary: LiveSummaryToast) =>
       toast.success(<LiveSummaryContent summary={summary} />, { ...BASE_OPTIONS, icon: ICONS.success, autoClose: 9000, closeButton: true }),
   };

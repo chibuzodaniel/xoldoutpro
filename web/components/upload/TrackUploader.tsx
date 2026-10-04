@@ -1,5 +1,7 @@
 "use client";
 
+import { useToast } from "@/components/ui/ToastProvider";
+
 import { WaveformScrubber } from "./WaveformScrubber";
 
 export type TrackDraft = {
@@ -33,6 +35,7 @@ type Props = {
 };
 
 export function TrackUploader({ track, index, onFileSelected, onChange, onRemove }: Props) {
+  const toast = useToast();
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
       <div className="flex items-center justify-between mb-3">
@@ -40,8 +43,8 @@ export function TrackUploader({ track, index, onFileSelected, onChange, onRemove
         {onRemove && (
           <button
             type="button"
-            onClick={() => {
-              if (!window.confirm("This track will be permanently deleted. Continue?")) return;
+            onClick={async () => {
+              if (!await toast.confirm("This track will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
               onRemove();
             }}
             className="text-xs text-ink-3"

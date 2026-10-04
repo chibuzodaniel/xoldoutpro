@@ -130,7 +130,7 @@ export default function BeatCatalogPage() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this beat? It comes off sale and every discovery surface immediately. Anyone who already bought it keeps their copy forever — this is not a refund.")) {
+    if (!await toast.confirm("Delete this beat? It comes off sale and every discovery surface immediately. Anyone who already bought it keeps their copy forever — this is not a refund.", { confirmLabel: "Delete", destructive: true })) {
       return;
     }
     const res = await apiFetch(`/api/beats/${id}`, { method: "DELETE" });

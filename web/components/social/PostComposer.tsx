@@ -35,8 +35,8 @@ export function PostComposer({
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function handleRemoveImage() {
-    if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+  async function handleRemoveImage() {
+    if (!await toast.confirm("This photo will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
     clearImage();
   }
 

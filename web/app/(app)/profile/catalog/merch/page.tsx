@@ -172,7 +172,7 @@ export default function MerchCatalogPage() {
   }, []);
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this listing? It comes off sale and every discovery surface immediately. Anyone who already bought it keeps their order — this is not a refund.")) {
+    if (!await toast.confirm("Delete this listing? It comes off sale and every discovery surface immediately. Anyone who already bought it keeps their order — this is not a refund.", { confirmLabel: "Delete", destructive: true })) {
       return;
     }
     const res = await apiFetch(`/api/merch/${id}`, { method: "DELETE" });

@@ -182,7 +182,7 @@ export function GroupDetailClient({ id }: { id: string }) {
   }
 
   async function handlePhotoRemove() {
-    if (!window.confirm("This group photo will be permanently deleted. Continue?")) return;
+    if (!await toast.confirm("This group photo will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
     setUploadingPhoto(true);
     try {
       const res = await apiFetch(`/api/groups/${id}/photo`, { method: "DELETE" });
@@ -198,7 +198,7 @@ export function GroupDetailClient({ id }: { id: string }) {
   }
 
   async function handleLeave() {
-    if (!window.confirm("Leave this group?")) return;
+    if (!await toast.confirm("Leave this group?", { confirmLabel: "Leave", destructive: true })) return;
     const res = await apiFetch(`/api/groups/${id}/join`, { method: "DELETE" });
     if (res.ok) {
       await load();

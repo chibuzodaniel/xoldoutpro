@@ -98,8 +98,8 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
           <img src={URL.createObjectURL(imageFile)} alt="" className="h-10 w-10 rounded object-cover" />
           <button
             type="button"
-            onClick={() => {
-              if (!window.confirm("This photo will be permanently deleted. Continue?")) return;
+            onClick={async () => {
+              if (!await toast.confirm("This photo will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true })) return;
               setImageFile(null);
             }}
             className="text-xs text-ink-3"

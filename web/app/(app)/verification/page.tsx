@@ -358,7 +358,7 @@ function ApplicationForm({
   }
 
   async function handleDeleteDoc(docId: string) {
-    const confirmed = window.confirm("This document will be permanently deleted. Continue?");
+    const confirmed = await toast.confirm("This document will be permanently deleted. Continue?", { confirmLabel: "Delete", destructive: true });
     if (!confirmed) return;
     const res = await apiFetch(`/api/verification/applications/${application.id}/documents/${docId}`, { method: "DELETE" });
     if (res.ok) {

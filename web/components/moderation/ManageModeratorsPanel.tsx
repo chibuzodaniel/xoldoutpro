@@ -60,7 +60,7 @@ export function ManageModeratorsPanel() {
 
   async function setSuperStatus(targetHandle: string, isSuperModerator: boolean) {
     if (isSuperModerator) {
-      const ok = window.confirm(`Make @${targetHandle} a super-moderator? They'll be able to promote/demote other moderators too.`);
+      const ok = await toast.confirm(`Make @${targetHandle} a super-moderator? They'll be able to promote/demote other moderators too.`, { confirmLabel: "Make super-mod" });
       if (!ok) return;
     }
     setBusy(true);

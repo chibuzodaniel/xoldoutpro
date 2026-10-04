@@ -92,7 +92,7 @@ export function UpcomingLive({ live, onChange }: { live: LivePublicInfo; onChang
   }
 
   async function cancel() {
-    if (!confirm("Cancel this scheduled Live? Its link will show it as cancelled.")) return;
+    if (!await toast.confirm("Cancel this scheduled Live? Its link will show it as cancelled.", { confirmLabel: "Cancel Live", cancelLabel: "Keep it", destructive: true })) return;
     setBusy(true);
     try {
       const res = await apiFetch(`/api/live/${live.id}/end`, { method: "POST" });

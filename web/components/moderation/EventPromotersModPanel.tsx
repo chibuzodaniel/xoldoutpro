@@ -35,7 +35,7 @@ export function EventPromotersModPanel() {
   }, [load]);
 
   async function handleRemove(promoter: ModEventPromoter) {
-    if (!window.confirm(`Remove @${promoter.user.handle} as a promoter of "${promoter.event.title}"?`)) return;
+    if (!await toast.confirm(`Remove @${promoter.user.handle} as a promoter of "${promoter.event.title}"?`, { confirmLabel: "Remove", destructive: true })) return;
     setBusyId(promoter.id);
     try {
       const res = await apiFetch(`/api/admin/event-promoters/${promoter.id}`, { method: "DELETE" });

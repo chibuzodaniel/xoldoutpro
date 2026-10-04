@@ -44,7 +44,7 @@ export default function CollectionDetailPage({ params }: { params: Promise<{ id:
   }
 
   async function handleDeleteCollection() {
-    if (!window.confirm("Delete this collection? What's inside stays in your Library — this only removes the grouping.")) return;
+    if (!await toast.confirm("Delete this collection? What's inside stays in your Library — this only removes the grouping.", { confirmLabel: "Remove", destructive: true })) return;
     const res = await apiFetch(`/api/collections/${id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Collection deleted.");
