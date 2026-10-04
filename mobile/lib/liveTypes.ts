@@ -27,6 +27,9 @@ export type LiveJoinResponse = {
   url: string;
   isHost: boolean;
   viewerId?: string;
+  // The host's LiveKit identity — keeps the host's video full-screen while
+  // anyone else on stage shows as a tile (components/live/Stage.tsx).
+  hostId?: string;
   roomName: string;
   session?: { title: string; creator: { displayName: string; avatarUrl: string | null }; pinnedProduct: PinnedLiveProduct | null };
 };
@@ -54,7 +57,16 @@ export function giftByType(type: string) {
 export const GIFT_COMBO_WINDOW_MS = 4000;
 
 export type LiveFeedItem =
-  | { kind: "chat"; id: string; senderName: string; text: string }
+  | {
+      kind: "chat";
+      id: string;
+      senderName: string;
+      text: string;
+      // Host-only @-mentions (components/live/mentions.tsx).
+      mentions?: { userId: string; handle: string; displayName: string }[];
+      fromHost?: boolean;
+      mentionsMe?: boolean;
+    }
   | { kind: "system"; id: string; text: string }
   | { kind: "gift"; id: string; senderId: string; senderName: string; giftType: GiftType; label: string; count: number; at: number }
   | { kind: "request"; id: string; senderName: string; message: string; xgAmount: number };

@@ -175,6 +175,31 @@ select {
   animation: money-fall 2.2s ease-in forwards;
 }
 
+/* Live emoji reactions (components/live/reactions.tsx): each one rises from
+   the bottom-right with a little sideways drift (--drift, set inline) and
+   fades out near the top. */
+@keyframes reaction-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(calc(var(--drift, 0px) * 0.2), -6vh) scale(1.1);
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--drift, 0px), -45vh) scale(0.9);
+  }
+}
+
+.animate-reaction-float {
+  animation: reaction-float 2.6s ease-out forwards;
+}
+
 /* react-toastify (components/ui/ToastProvider.tsx) — restyled from the
    library's default light-card look to this app's dark surface + red/green
    accents, matching the hand-rolled toast it replaced. Timing/position/icons

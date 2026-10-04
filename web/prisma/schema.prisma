@@ -187,6 +187,8 @@ model User {
   liveAccessGrants  LiveAccessGrant[]
   liveRequestsSent  LiveRequest[]
   liveReminders     LiveReminder[]
+  liveModeratorOf   LiveModerator[]
+  liveStageRequests LiveStageRequest[]
   coinLedgerEntries CoinLedgerEntry[]
   xgEarnings        XgEarning[]
 }
@@ -1482,10 +1484,12 @@ model LiveSession {
   startedAt        DateTime          @default(now())
   endedAt          DateTime?
 
-  gifts        LiveGift[]
-  accessGrants LiveAccessGrant[]
-  requests     LiveRequest[]
-  reminders    LiveReminder[]
+  gifts         LiveGift[]
+  accessGrants  LiveAccessGrant[]
+  requests      LiveRequest[]
+  reminders     LiveReminder[]
+  moderators    LiveModerator[]
+  stageRequests LiveStageRequest[]
 
   @@index([creatorId])
   @@index([status])
@@ -1541,6 +1545,49 @@ model LiveAccessGrant {
   createdAt     DateTime    @default(now())
 
   @@unique([liveSessionId, userId])
+}
+
+// ─── Live co-hosting (explicit ask, 2026-10-04) ──────────────────────────
+// "The host should be able to add another person to the live from the list
+// of people who joined, appoint live moderators, and those who joined can
+// request to join the live and get approved by the host or a moderator."
+//
+// Who is actually on stage lives in LiveKit itself (the participant's
+// canPublish permission, flipped server-side by lib/live/stage.ts) — never in
+// Postgres, so it can't drift from what the room is really doing. These two
+// tables hold only what LiveKit doesn't: who the host appointed as a
+// moderator for this Live, and the queue of requests to come on stage.
+model LiveModerator {
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@id([liveSessionId, userId])
+}
+
+enum LiveStageRequestStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  CANCELLED
+}
+
+// One row per (Live, viewer): re-requesting after a decline/cancel reuses it.
+model LiveStageRequest {
+  id            String                 @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession            @relation(fields: [liveSessionId], references: [id])
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id])
+  status        LiveStageRequestStatus @default(PENDING)
+  respondedById String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+
+  @@unique([liveSessionId, userId])
+  @@index([liveSessionId, status])
 }
 
 enum LiveRequestStatus {

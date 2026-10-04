@@ -14,7 +14,24 @@ import { appendGift, giftByType } from "../lib/liveTypes";
 import { colors, fonts } from "../lib/theme";
 import { useLiveAudioSession } from "../lib/liveAudio";
 import { useToast } from "../components/ToastProvider";
-import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton, ViewersSheet } from "../components/live/LiveBits";
+import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
+import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "../components/live/Stage";
+import {
+  FloatingReactions,
+  isLiveEmoji,
+  ReactionBar,
+  useEmojiUsage,
+  useFloatingReactions,
+  useReactionRateLimit,
+} from "../components/live/reactions";
+import {
+  activeMentionQuery,
+  extractMentions,
+  filterCandidates,
+  insertMention,
+  MentionSuggestions,
+  type MentionCandidate,
+} from "../components/live/mentions";
 import { CameraOffIcon, EyeIcon, FlipCameraIcon, MicLineIcon, RefreshIcon, XgCoin } from "../components/live/LiveIcons";
 
 type SummaryResponse = {
@@ -137,8 +154,19 @@ function BroadcastRoomContent({
   const { firebaseUser } = useAuth();
   const { localParticipant } = useLocalParticipant();
   const remoteParticipants = useRemoteParticipants();
-  const [viewersOpen, setViewersOpen] = useState(false);
-  const viewers = remoteParticipants.map((p) => ({ id: p.identity, name: p.name || "Viewer" }));
+  // People sheet (explicit asks, 2026-10-04): who's watching, adding them to
+  // the stage, appointing moderators, and requests to join — see
+  // components/live/Stage.tsx and web's lib/live/stage.ts.
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const { state: stage, refresh: refreshStage } = useStageState(liveSessionId);
+  const refreshStageRef = useRef(refreshStage);
+  useEffect(() => {
+    refreshStageRef.current = refreshStage;
+  }, [refreshStage]);
+  useEffect(() => {
+    refreshStage();
+  }, [remoteParticipants.length, refreshStage]);
+  const pendingStageRequests = stage?.requests.length ?? 0;
   const tracks = useTracks([Track.Source.Camera]);
   const selfTrack = tracks.find((t) => t.participant.identity === localParticipant.identity);
   const [feed, setFeed] = useState<LiveFeedItem[]>([WELCOME_ITEM]);
@@ -186,6 +214,11 @@ function BroadcastRoomContent({
         }));
       } else if (data.kind === "request") {
         setPendingRequests((r) => [...r, { id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount }]);
+      } else if (isStageEvent(data)) {
+        refreshStageRef.current();
+        if (data.type === "requested") {
+          setFeed((f) => [...f, { kind: "system", id: `${Date.now()}-${Math.random()}`, text: `${data.displayName ?? "Someone"} asked to join the Live` }]);
+        }
       }
     } catch {
       // ignore malformed data messages
@@ -193,6 +226,30 @@ function BroadcastRoomContent({
   }, []);
   const { send: sendChatData } = useDataChannel("chat", onChatMessage);
   useDataChannel("live-event", onLiveEvent);
+
+  // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
+  const emojiUsage = useEmojiUsage();
+  const { items: floatingItems, push: pushReaction } = useFloatingReactions();
+  const allowReaction = useReactionRateLimit();
+  const onReaction = useCallback(
+    (msg: { payload: Uint8Array; from?: { identity: string } }) => {
+      try {
+        const data = JSON.parse(new TextDecoder().decode(msg.payload));
+        if (msg.from && allowReaction(msg.from.identity) && isLiveEmoji(data.emoji)) pushReaction(data.emoji);
+      } catch {
+        // ignore malformed data messages
+      }
+    },
+    [allowReaction, pushReaction],
+  );
+  const { send: sendReactionData } = useDataChannel("reaction", onReaction);
+
+  function sendReaction(emoji: string) {
+    if (!allowReaction("self")) return;
+    sendReactionData(new TextEncoder().encode(JSON.stringify({ emoji })), { topic: "reaction", reliable: false });
+    pushReaction(emoji);
+    emojiUsage.recordUse([emoji]);
+  }
 
   useEffect(() => {
     const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000));
@@ -234,12 +291,24 @@ function BroadcastRoomContent({
     }
   }
 
+  // Everyone in the Live the host can tag (explicit ask, 2026-10-04).
+  const mentionCandidates: MentionCandidate[] = (stage?.watching ?? []).map((p) => ({
+    userId: p.userId,
+    handle: p.handle,
+    displayName: p.displayName,
+    avatarUrl: p.avatarUrl,
+  }));
+  const mentionQuery = activeMentionQuery(chatText);
+  const mentionMatches = mentionQuery === null ? [] : filterCandidates(mentionCandidates, mentionQuery);
+
   function sendChat() {
     const text = chatText.trim();
     if (!text) return;
-    const payload = new TextEncoder().encode(JSON.stringify({ senderName: myName, text }));
+    const mentions = extractMentions(text, mentionCandidates);
+    const payload = new TextEncoder().encode(JSON.stringify({ senderName: myName, text, mentions }));
     sendChatData(payload, { topic: "chat", reliable: true });
-    setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: myName, text }]);
+    setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: myName, text, mentions, fromHost: true }]);
+    emojiUsage.recordFromText(text);
     setChatText("");
   }
 
@@ -282,6 +351,9 @@ function BroadcastRoomContent({
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.9)"]} style={styles.bottomScrim} pointerEvents="none" />
 
       {giftMoment && <GiftCelebration key={giftMoment.key} moment={giftMoment} />}
+      <FloatingReactions items={floatingItems} />
+
+      <StageTiles people={stage?.onStage ?? []} selfId={localParticipant.identity} />
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>
@@ -298,9 +370,21 @@ function BroadcastRoomContent({
               <Text style={styles.elapsedText}>{formatElapsed(elapsed)}</Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.viewerCount} onPress={() => setViewersOpen(true)} accessibilityLabel="See who's watching">
+          <TouchableOpacity
+            style={styles.viewerCount}
+            onPress={() => {
+              setPeopleOpen(true);
+              refreshStage();
+            }}
+            accessibilityLabel="See who's watching and requests to join"
+          >
             <EyeIcon size={18} />
             <Text style={styles.viewerCountText}>{remoteParticipants.length.toLocaleString("en-NG")}</Text>
+            {pendingStageRequests > 0 && (
+              <View style={styles.requestBadge}>
+                <Text style={styles.requestBadgeText}>{pendingStageRequests}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <ShareLiveButton liveSessionId={liveSessionId} message={`${myName} is live on XOLDOUT — join now`} />
         </View>
@@ -349,12 +433,16 @@ function BroadcastRoomContent({
 
         <LiveFeed items={feed} selfId={null} />
 
+        <MentionSuggestions candidates={mentionMatches} onPick={(c) => setChatText((t) => insertMention(t, c))} />
+
+        <ReactionBar ordered={emojiUsage.ordered} onReact={sendReaction} />
+
         <View style={styles.inputRow}>
           <TextInput
             value={chatText}
             onChangeText={setChatText}
             onSubmitEditing={sendChat}
-            placeholder="Say something…"
+            placeholder="Say something… type @ to tag"
             placeholderTextColor="rgba(255,255,255,0.5)"
             style={styles.chatInput}
           />
@@ -370,12 +458,27 @@ function BroadcastRoomContent({
           <Text style={styles.endButtonText}>End live</Text>
         </TouchableOpacity>
       </View>
-      <ViewersSheet visible={viewersOpen} onClose={() => setViewersOpen(false)} viewers={viewers} />
+      {stage && (
+        <PeopleSheet liveId={liveSessionId} state={stage} visible={peopleOpen} onRefresh={refreshStage} onClose={() => setPeopleOpen(false)} />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  requestBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  requestBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
   container: { flex: 1, backgroundColor: "#000" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg },
   errorText: { color: colors.redSoft, fontSize: 14, marginBottom: 12 },

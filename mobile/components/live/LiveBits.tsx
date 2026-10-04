@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { MentionText } from "./mentions";
+import { playGiftSound } from "../../lib/giftSound";
 import { ActivityIndicator, Animated, Dimensions, Easing, Image, Linking, Modal, ScrollView, Share, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { API_BASE_URL, apiGet } from "../../lib/api";
@@ -119,10 +121,11 @@ export function LiveFeed({ items, selfId }: { items: LiveFeedItem[]; selfId: str
           );
         }
         return (
-          <View key={item.id} style={styles.chatRow}>
+          <View key={item.id} style={[styles.chatRow, item.mentionsMe && styles.chatRowMentioned]}>
             <InitialsAvatar name={item.senderName} size={28} />
             <Text style={[styles.feedText, styles.chatText]}>
-              <Text style={styles.feedSender}>{item.senderName}</Text> {item.text}
+              <Text style={styles.feedSender}>{item.senderName}</Text>
+              {item.fromHost ? <Text style={styles.hostTag}> HOST</Text> : null} <MentionText text={item.text} mentions={item.mentions} />
             </Text>
           </View>
         );
@@ -201,6 +204,11 @@ function FallingBill({ left, delay, duration, rotate }: (typeof BILLS)[number]) 
 export function GiftCelebration({ moment }: { moment: GiftMoment }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const scale = useRef(new Animated.Value(0.4)).current;
+
+  // Celebration sound — once per gift (this component is keyed per gift).
+  useEffect(() => {
+    playGiftSound(moment.giftType);
+  }, [moment.giftType]);
 
   useEffect(() => {
     if (moment.giftType === "MONEY_SPRAY") return;
@@ -343,6 +351,16 @@ const styles = StyleSheet.create({
   feedContent: { paddingHorizontal: 12, paddingBottom: 8, gap: 8 },
   systemText: { color: "rgba(255,255,255,0.8)", fontSize: 13, paddingHorizontal: 4 },
   chatRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  chatRowMentioned: {
+    borderWidth: 1,
+    borderColor: "rgba(217,154,43,0.5)",
+    backgroundColor: "rgba(217,154,43,0.15)",
+    borderRadius: 16,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 12,
+  },
+  hostTag: { color: "#ff5566", fontSize: 11, fontWeight: "800" },
   chatText: { flex: 1 },
   giftRow: {
     flexDirection: "row",

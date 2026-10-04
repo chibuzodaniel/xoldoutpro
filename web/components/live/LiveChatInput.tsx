@@ -7,7 +7,17 @@
 // emit a keydown "Enter" at all (Android keyboards especially) — so on phones
 // chat messages were never sent and neither side ever saw them. The send
 // arrow appears once there's text, for anyone who taps instead.
-export function LiveChatInput({ value, onChange, onSend }: { value: string; onChange: (v: string) => void; onSend: () => void }) {
+export function LiveChatInput({
+  value,
+  onChange,
+  onSend,
+  placeholder = "Say something…",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSend: () => void;
+  placeholder?: string;
+}) {
   const hasText = value.trim().length > 0;
   return (
     <form
@@ -20,7 +30,7 @@ export function LiveChatInput({ value, onChange, onSend }: { value: string; onCh
       <input
         value={value}
         onChange={(e) => onChange(e.target.value.slice(0, 300))}
-        placeholder="Say something…"
+        placeholder={placeholder}
         enterKeyHint="send"
         autoComplete="off"
         className={`w-full rounded-full border border-white/15 bg-white/10 py-3 pl-5 text-white placeholder:text-white/50 outline-none backdrop-blur-sm ${hasText ? "pr-12" : "pr-5"}`}

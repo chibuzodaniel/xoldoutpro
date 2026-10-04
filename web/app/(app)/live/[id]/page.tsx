@@ -19,6 +19,34 @@ import { appendGift, GiftBanner, GiftCelebration, LiveFeed, type FeedItem, type 
 import { LiveChatInput } from "@/components/live/LiveChatInput";
 import { UpcomingLive, type LivePublicInfo } from "@/components/live/UpcomingLive";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { MicLineIcon } from "@/components/live/LiveIcons";
+import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState } from "@/components/live/stage";
+import type { ChatMention } from "@/components/live/mentions";
+import {
+  FloatingReactions,
+  LIVE_EMOJIS,
+  ReactionBar,
+  useEmojiUsage,
+  useFloatingReactions,
+  useReactionRateLimit,
+} from "@/components/live/reactions";
+
+function HandIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <path d="M8 13V5.5a1.5 1.5 0 013 0V12M11 11.5v-7a1.5 1.5 0 013 0V12M14 6.5a1.5 1.5 0 013 0V14a6 6 0 01-6 6h-.5a6 6 0 01-4.6-2.2L3.6 15a1.6 1.6 0 012.4-2.1L8 15" />
+    </svg>
+  );
+}
+
+function PeopleIcon({ className = "h-5 w-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M18 14a6 6 0 013.5 6" />
+    </svg>
+  );
+}
 
 type PinnedProduct = { id: string; type: "RELEASE" | "BEAT" | "MERCH"; title: string; priceKobo: number };
 
@@ -59,6 +87,16 @@ function LiveRoom() {
   // for why a single shared boolean doesn't work here (StrictMode's dev
   // double-invoke overlaps two runs in time).
   const activeGuardRef = useRef<{ cancelled: boolean }>({ cancelled: false });
+  // Room event handlers are registered once per connect; this keeps them on
+  // the current toast API without re-running connect.
+  // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
+  const emojiUsage = useEmojiUsage();
+  const { items: floatingItems, push: pushReaction } = useFloatingReactions();
+  const allowReaction = useReactionRateLimit();
+  const toastRef = useRef(toast);
+  useEffect(() => {
+    toastRef.current = toast;
+  }, [toast]);
 
   const [status, setStatus] = useState<"connecting" | "connected" | "needs-payment" | "ended" | "error">("connecting");
   const [priceXg, setPriceXg] = useState<number | null>(null);
@@ -79,6 +117,71 @@ function LiveRoom() {
   const [requestBusy, setRequestBusy] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Co-hosting (explicit ask, 2026-10-04) — see components/live/stage.tsx.
+  // The host's video always fills the screen; anyone else on stage
+  // (including this viewer, once approved/added) shows as a tile.
+  const [room, setRoom] = useState<Room | null>(null);
+  const hostIdRef = useRef<string | null>(null);
+  const selfIdRef = useRef<string | null>(null);
+  const { state: stage, refresh: refreshStage } = useStageState(params.id, room !== null);
+  const stageActions = useStageActions(params.id, () => void refreshStage());
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [invitedBy, setInvitedBy] = useState<string | null>(null);
+  const [stageMicOn, setStageMicOn] = useState(true);
+  const meOnStage = !!selfId && (stage?.onStage.some((p) => p.userId === selfId) ?? false);
+  const isStaff = stage?.role === "moderator" || stage?.role === "host";
+
+  // Turns this viewer's camera + mic on once the server has granted publish.
+  // The permission update and the data message announcing it travel
+  // separately, so one short retry covers the message arriving first.
+  const goOnStage = useCallback(async () => {
+    const r = roomRef.current;
+    if (!r) return;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await r.localParticipant.enableCameraAndMicrophone();
+        setStageMicOn(true);
+        return;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+    toast.error("Couldn't turn on your camera or microphone. Check your browser's permissions.");
+  }, [toast]);
+
+  const stopPublishing = useCallback(async () => {
+    const r = roomRef.current;
+    if (!r) return;
+    await r.localParticipant.setCameraEnabled(false).catch(() => {});
+    await r.localParticipant.setMicrophoneEnabled(false).catch(() => {});
+  }, []);
+
+  // Reacts to stage/roles announcements that are about this viewer.
+  const onStageEventRef = useRef<(data: { type: string; userId: string; byName?: string; kind: string }) => void>(() => {});
+  useEffect(() => {
+    onStageEventRef.current = (data) => {
+      void refreshStage();
+      if (data.userId !== selfIdRef.current) return;
+      if (data.kind === "roles") {
+        if (data.type === "moderator-added") toast.success("The host made you a moderator of this Live.");
+        else if (data.type === "moderator-removed") toast.success("You're no longer a moderator of this Live.");
+        return;
+      }
+      if (data.type === "approved") {
+        toast.success("You're on the Live!");
+        void goOnStage();
+      } else if (data.type === "invited") {
+        setInvitedBy(data.byName ?? "The host");
+      } else if (data.type === "declined") {
+        toast.error("Your request to join wasn't accepted this time.");
+      } else if (data.type === "removed") {
+        setInvitedBy(null);
+        void stopPublishing();
+        toast.success("You've been taken off the stage.");
+      }
+    };
+  }, [refreshStage, goOnStage, stopPublishing, toast]);
+
   // Whether the browser is blocking sound until the viewer interacts
   // (autoplay policy) — shows the "Tap to turn on sound" button.
   const [audioBlocked, setAudioBlocked] = useState(false);
@@ -87,8 +190,10 @@ function LiveRoom() {
   // Video goes into the always-mounted <video>; audio gets its own hidden
   // <audio> element. Audio used to be ignored entirely here (only video
   // was attached), so web viewers watched every Live in silence.
-  const attachTrack = useCallback((track: RemoteTrack) => {
+  const attachTrack = useCallback((track: RemoteTrack, identity: string) => {
     if (track.kind === Track.Kind.Video) {
+      // Guests on stage render as tiles (StageTiles), never in the host's spot.
+      if (hostIdRef.current && identity !== hostIdRef.current) return;
       if (!videoRef.current) return;
       track.attach(videoRef.current);
       setHasVideo(true);
@@ -119,27 +224,44 @@ function LiveRoom() {
       setStatus(res.status === 404 ? "ended" : "error");
       return;
     }
-    const { token, url, viewerId, session: sessionInfo } = await res.json();
+    const { token, url, viewerId, hostId, session: sessionInfo } = await res.json();
     if (guard.cancelled) return;
     setSession(sessionInfo ?? null);
     setSelfId(viewerId ?? null);
+    selfIdRef.current = viewerId ?? null;
+    hostIdRef.current = hostId ?? null;
 
     const room = new Room();
 
-    room.on(RoomEvent.TrackSubscribed, (track) => attachTrack(track));
+    room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => attachTrack(track, participant.identity));
     room.on(RoomEvent.TrackUnsubscribed, (track) => {
       if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove());
     });
     room.on(RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio));
     room.on(RoomEvent.ParticipantConnected, () => setViewerCount(room.remoteParticipants.size + 1));
-    room.on(RoomEvent.ParticipantDisconnected, () => setViewerCount(room.remoteParticipants.size + 1));
+    room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+      setViewerCount(room.remoteParticipants.size + 1);
+      if (participant.permissions?.canPublish) void onStageEventRef.current({ kind: "stage", type: "left-room", userId: participant.identity });
+    });
     room.on(RoomEvent.Disconnected, () => setStatus("ended"));
-    room.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+    room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
       const text = new TextDecoder().decode(payload);
       try {
         const data = JSON.parse(text);
-        if (topic === "chat") {
-          setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: data.senderName, text: data.text }]);
+        if (topic === "reaction") {
+          if (participant && allowReaction(participant.identity) && (LIVE_EMOJIS as readonly string[]).includes(data.emoji)) {
+            pushReaction(data.emoji);
+          }
+        } else if (topic === "chat") {
+          // @-mentions only count from the host's own connection.
+          const fromHost = !!participant && participant.identity === hostIdRef.current;
+          const mentions: ChatMention[] | undefined = fromHost && Array.isArray(data.mentions) ? data.mentions : undefined;
+          const mentionsMe = !!mentions?.some((m) => m.userId === selfIdRef.current);
+          setFeed((f) => [
+            ...f,
+            { kind: "chat", id: crypto.randomUUID(), senderName: data.senderName, text: data.text, mentions, fromHost, mentionsMe },
+          ]);
+          if (mentionsMe) toastRef.current.success(`${data.senderName} mentioned you`);
         } else if (topic === "live-event" && data.kind === "gift") {
           setFeed((f) => {
             const { feed: next, count } = appendGift(f, data);
@@ -158,6 +280,8 @@ function LiveRoom() {
             ...f,
             { kind: "request", id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount },
           ]);
+        } else if (topic === "live-event" && isStageEvent(data)) {
+          onStageEventRef.current(data);
         }
       } catch {
         // ignore malformed data messages
@@ -170,10 +294,11 @@ function LiveRoom() {
       return;
     }
     roomRef.current = room;
+    setRoom(room);
     setViewerCount(room.remoteParticipants.size + 1);
     setAudioBlocked(!room.canPlaybackAudio);
     setStatus("connected");
-  }, [params.id, attachTrack]);
+  }, [params.id, attachTrack, allowReaction, pushReaction]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -195,6 +320,7 @@ function LiveRoom() {
       activeGuardRef.current.cancelled = true;
       roomRef.current?.disconnect();
       roomRef.current = null;
+      setRoom(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, firebaseUser]);
@@ -242,7 +368,16 @@ function LiveRoom() {
     const payload = new TextEncoder().encode(JSON.stringify({ senderName, text }));
     room.localParticipant.publishData(payload, { topic: "chat", reliable: true });
     setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: "You", text }]);
+    emojiUsage.recordFromText(text);
     setChatText("");
+  }
+
+  function sendReaction(emoji: string) {
+    const room = roomRef.current;
+    if (!room || !allowReaction("self")) return;
+    room.localParticipant.publishData(new TextEncoder().encode(JSON.stringify({ emoji })), { topic: "reaction", reliable: false });
+    pushReaction(emoji);
+    emojiUsage.recordUse([emoji]);
   }
 
   // Tapping a gift sends it straight away and keeps the sheet open, so
@@ -294,6 +429,18 @@ function LiveRoom() {
     }
   }
 
+  async function toggleStageMic() {
+    const next = !stageMicOn;
+    setStageMicOn(next);
+    await roomRef.current?.localParticipant.setMicrophoneEnabled(next).catch(() => {});
+  }
+
+  async function leaveStage() {
+    setInvitedBy(null);
+    await stopPublishing();
+    await stageActions.self("leave", "You've left the stage.");
+  }
+
   const addBalanceSheet = addBalanceOpen && (
     <BottomSheet onClose={() => setAddBalanceOpen(false)} z="z-[60]">
       <AddBalance />
@@ -331,6 +478,7 @@ function LiveRoom() {
       <video ref={videoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
       {/* Remote audio elements (attachTrack) live here, never visible. */}
       <div ref={audioContainerRef} className="hidden" aria-hidden />
+      {status === "connected" && <StageTiles room={room} hostId={stage?.hostId ?? null} people={stage?.onStage ?? []} />}
 
       {status === "connected" && audioBlocked && (
         <button
@@ -382,6 +530,7 @@ function LiveRoom() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[55%] bg-gradient-to-t from-black/85 via-black/45 to-transparent" aria-hidden />
 
       {giftMoment && <GiftCelebration key={giftMoment.key} moment={giftMoment} />}
+      <FloatingReactions items={floatingItems} />
 
       {status === "connected" && (
         <div className="absolute inset-x-0 top-0 px-3 pt-3">
@@ -408,6 +557,24 @@ function LiveRoom() {
               <EyeIcon className="h-[18px] w-[18px]" />
               {viewerCount.toLocaleString("en-NG")}
             </span>
+            {isStaff && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPeopleOpen(true);
+                  void refreshStage();
+                }}
+                aria-label="People and requests to join"
+                className="relative shrink-0 rounded-full bg-white/15 p-1.5 text-white backdrop-blur-sm"
+              >
+                <PeopleIcon className="h-5 w-5" />
+                {(stage?.requests.length ?? 0) > 0 && (
+                  <span className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full bg-red px-1 text-center text-[10px] font-bold leading-[18px] text-white">
+                    {stage?.requests.length}
+                  </span>
+                )}
+              </button>
+            )}
             <ShareButton
               title={session?.title ?? "Live on XOLDOUT"}
               text={`${creatorName} is live on XOLDOUT — join now`}
@@ -443,8 +610,46 @@ function LiveRoom() {
 
         <LiveFeed items={feed} selfId={selfId} />
 
+        {status === "connected" && meOnStage && (
+          <div className="mx-3 mt-2 flex items-center gap-2 rounded-full bg-black/55 py-1.5 pl-3 pr-1.5 backdrop-blur-sm">
+            <span className="h-2 w-2 shrink-0 rounded-full bg-red" aria-hidden />
+            <span className="flex-1 text-[13px] font-semibold text-white">You&apos;re on the Live</span>
+            <button
+              type="button"
+              onClick={toggleStageMic}
+              aria-label={stageMicOn ? "Mute your microphone" : "Unmute your microphone"}
+              className="rounded-full bg-white/10 p-1.5 text-white"
+            >
+              <MicLineIcon className="h-5 w-5" muted={!stageMicOn} />
+            </button>
+            <button type="button" onClick={leaveStage} className="rounded-full bg-red px-3 py-1.5 text-[12px] font-semibold text-white">
+              Leave stage
+            </button>
+          </div>
+        )}
+
+        {status === "connected" && <ReactionBar ordered={emojiUsage.ordered} onReact={sendReaction} />}
+
         <div className="flex items-center gap-3 px-3 pt-2">
           <LiveChatInput value={chatText} onChange={setChatText} onSend={sendChat} />
+          {status === "connected" && stage && !meOnStage && stage.role !== "host" && (
+            <button
+              type="button"
+              disabled={stageActions.busyKey !== null}
+              onClick={() =>
+                stage.myRequestStatus === "PENDING"
+                  ? stageActions.self("cancel", "Request cancelled.")
+                  : stageActions.self("request", "Request sent — the host or a moderator will let you in.")
+              }
+              aria-label={stage.myRequestStatus === "PENDING" ? "Cancel your request to join" : "Request to join the Live"}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full py-2 pl-2.5 pr-3 text-[14px] font-medium text-white disabled:opacity-50 ${
+                stage.myRequestStatus === "PENDING" ? "border border-amber/60 bg-amber/15" : "border border-white/25 bg-black/60"
+              }`}
+            >
+              <HandIcon className="h-5 w-5" />
+              {stage.myRequestStatus === "PENDING" ? "Requested" : "Join"}
+            </button>
+          )}
           <button
             onClick={() => setGiftSheetOpen(true)}
             className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-red/70 bg-black/70 py-2 pl-3 pr-4 text-[16px] font-medium text-white shadow-[0_0_16px_-2px_rgba(225,29,46,0.55)]"
@@ -527,6 +732,30 @@ function LiveRoom() {
             className="w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
           >
             {requestBusy ? "Sending…" : `Send · ${requestXg} XG`}
+          </button>
+        </BottomSheet>
+      )}
+
+      {peopleOpen && stage && isStaff && (
+        <PeopleSheet liveId={params.id} state={stage} onRefresh={() => void refreshStage()} onClose={() => setPeopleOpen(false)} />
+      )}
+
+      {invitedBy && meOnStage && (
+        <BottomSheet onClose={() => undefined}>
+          <h2 className="mb-1 font-serif text-[24px] leading-tight">You&apos;ve been added to the Live</h2>
+          <p className="mb-5 text-sm text-ink-3">{invitedBy} brought you on stage. Everyone watching will see and hear you.</p>
+          <button
+            type="button"
+            onClick={() => {
+              setInvitedBy(null);
+              void goOnStage();
+            }}
+            className="mb-2 w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white"
+          >
+            Turn on camera &amp; mic
+          </button>
+          <button type="button" onClick={leaveStage} className="w-full rounded-lg border border-line py-3 text-sm font-semibold text-ink-2">
+            Not now
           </button>
         </BottomSheet>
       )}

@@ -120,3 +120,29 @@ export async function publishLiveEvent(roomName: string, event: Record<string, u
   const data = new TextEncoder().encode(JSON.stringify(event));
   await roomService().sendData(roomName, data, DataPacket_Kind.RELIABLE, { topic: "live-event" });
 }
+
+/**
+ * Brings a participant on or off stage (explicit ask, 2026-10-04: co-hosting)
+ * by flipping their publish permission in place — no reconnect, no new
+ * token. Taking someone off stage also unpublishes whatever they were
+ * sending. Permissions update atomically, so every grant is restated.
+ * Caller (lib/live/stage.ts) does the host/moderator authorization.
+ */
+export async function setParticipantOnStage(roomName: string, identity: string, onStage: boolean): Promise<void> {
+  await roomService().updateParticipant(roomName, identity, {
+    permission: { canSubscribe: true, canPublishData: true, canPublish: onStage },
+  });
+}
+
+export type RoomParticipant = { identity: string; name: string; joinedAt: number; canPublish: boolean };
+
+/** Everyone currently in the room, with whether they may publish (host + anyone on stage). */
+export async function listRoomParticipants(roomName: string): Promise<RoomParticipant[]> {
+  const participants = await roomService().listParticipants(roomName);
+  return participants.map((p) => ({
+    identity: p.identity,
+    name: p.name,
+    joinedAt: Number(p.joinedAt ?? 0),
+    canPublish: p.permission?.canPublish ?? false,
+  }));
+}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -14,7 +14,17 @@ import { appendGift, GIFT_CATALOG, type GiftType } from "../lib/liveTypes";
 import { colors, fonts } from "../lib/theme";
 import { useLiveAudioSession } from "../lib/liveAudio";
 import { AddBalance, BottomSheet, GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
-import { CloseIcon, EyeIcon, GiftArt, XgCoin } from "../components/live/LiveIcons";
+import { CloseIcon, EyeIcon, GiftArt, MicLineIcon, XgCoin } from "../components/live/LiveIcons";
+import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState, type StageEvent } from "../components/live/Stage";
+import { useToast } from "../components/ToastProvider";
+import {
+  FloatingReactions,
+  isLiveEmoji,
+  ReactionBar,
+  useEmojiUsage,
+  useFloatingReactions,
+  useReactionRateLimit,
+} from "../components/live/reactions";
 
 const MIN_REQUEST_XG = 10;
 // How long the top banner + big celebration stay up after the latest gift.
@@ -58,7 +68,10 @@ function isInsufficientXg(e: unknown) {
 // app/(app)/live/[id]/page.tsx uses, so a web viewer and a mobile viewer of
 // the same Live see each other's messages.
 export function LiveViewerScreen() {
-  useLiveAudioSession("viewer");
+  // Switches to the voice-call audio profile while this viewer is on stage
+  // (co-hosting) so their microphone is captured properly.
+  const [onStage, setOnStage] = useState(false);
+  useLiveAudioSession(onStage ? "broadcaster" : "viewer");
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "LiveViewer">>();
   const { firebaseUser } = useAuth();
@@ -258,7 +271,13 @@ export function LiveViewerScreen() {
 
   return (
     <LiveKitRoom serverUrl={join.url} token={join.token} video={false} audio={false} connect>
-      <ViewerRoomContent liveSessionId={route.params.id} session={join.session} onClose={() => navigation.navigate("LiveNow")} />
+      <ViewerRoomContent
+        liveSessionId={route.params.id}
+        session={join.session}
+        hostId={join.hostId}
+        onStageChange={setOnStage}
+        onClose={() => navigation.navigate("LiveNow")}
+      />
     </LiveKitRoom>
   );
 }
@@ -266,10 +285,14 @@ export function LiveViewerScreen() {
 function ViewerRoomContent({
   liveSessionId,
   session,
+  hostId,
+  onStageChange,
   onClose,
 }: {
   liveSessionId: string;
   session?: LiveJoinResponse["session"];
+  hostId?: string;
+  onStageChange: (onStage: boolean) => void;
   onClose: () => void;
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
@@ -280,7 +303,8 @@ function ViewerRoomContent({
   const selfId = localParticipant.identity;
   const remoteParticipants = useRemoteParticipants();
   const tracks = useTracks([Track.Source.Camera]);
-  const hostTrack = tracks.find((t) => t.participant.identity !== localParticipant.identity);
+  // Guests on stage render as tiles (StageTiles), never in the host's spot.
+  const hostTrack = tracks.find((t) => (hostId ? t.participant.identity === hostId : t.participant.identity !== localParticipant.identity));
   const [feed, setFeed] = useState<LiveFeedItem[]>([]);
   const [chatText, setChatText] = useState("");
   const [giftSheetOpen, setGiftSheetOpen] = useState(false);
@@ -293,6 +317,80 @@ function ViewerRoomContent({
   const [requestXg, setRequestXg] = useState(MIN_REQUEST_XG);
   const [requestBusy, setRequestBusy] = useState(false);
   const { firebaseUser } = useAuth();
+  const toast = useToast();
+
+  // Co-hosting (explicit ask, 2026-10-04) — mirrors web's viewer page.
+  const { state: stage, refresh: refreshStage } = useStageState(liveSessionId);
+  const stageActions = useStageActions(liveSessionId, refreshStage, stage?.maxGuests);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [invitedBy, setInvitedBy] = useState<string | null>(null);
+  const [stageMicOn, setStageMicOn] = useState(true);
+  const meOnStage = stage?.onStage.some((p) => p.userId === selfId) ?? false;
+  const isStaff = stage?.role === "moderator" || stage?.role === "host";
+
+  useEffect(() => {
+    onStageChange(meOnStage);
+  }, [meOnStage, onStageChange]);
+  useEffect(() => {
+    refreshStage();
+  }, [remoteParticipants.length, refreshStage]);
+
+  // The permission update and the data message announcing it travel
+  // separately, so a couple of short retries cover the message arriving first.
+  const goOnStage = useCallback(async () => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await localParticipant.setCameraEnabled(true);
+        await localParticipant.setMicrophoneEnabled(true);
+        setStageMicOn(true);
+        return;
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+    toast.error("Couldn't turn on your camera or microphone. Check the app's permissions.");
+  }, [localParticipant, toast]);
+
+  const stopPublishing = useCallback(async () => {
+    await localParticipant.setCameraEnabled(false).catch(() => {});
+    await localParticipant.setMicrophoneEnabled(false).catch(() => {});
+  }, [localParticipant]);
+
+  const stageEventRef = useRef<(data: StageEvent) => void>(() => {});
+  useEffect(() => {
+    stageEventRef.current = (data) => {
+      refreshStage();
+      if (data.userId !== selfId) return;
+      if (data.kind === "roles") {
+        toast.success(data.type === "moderator-added" ? "The host made you a moderator of this Live." : "You're no longer a moderator of this Live.");
+        return;
+      }
+      if (data.type === "approved") {
+        toast.success("You're on the Live!");
+        goOnStage();
+      } else if (data.type === "invited") {
+        setInvitedBy(data.byName ?? "The host");
+      } else if (data.type === "declined") {
+        toast.error("Your request to join wasn't accepted this time.");
+      } else if (data.type === "removed") {
+        setInvitedBy(null);
+        stopPublishing();
+        toast.success("You've been taken off the stage.");
+      }
+    };
+  }, [refreshStage, selfId, goOnStage, stopPublishing, toast]);
+
+  async function toggleStageMic() {
+    const next = !stageMicOn;
+    setStageMicOn(next);
+    await localParticipant.setMicrophoneEnabled(next).catch(() => {});
+  }
+
+  async function leaveStage() {
+    setInvitedBy(null);
+    await stopPublishing();
+    await stageActions.self("leave", "You've left the stage.");
+  }
 
   const creatorName = session?.creator.displayName ?? "";
 
@@ -319,11 +417,26 @@ function ViewerRoomContent({
   // useDataChannel resubscribes whenever `onMessage` changes identity, so
   // these are memoized with an empty dep array (safe — only the functional
   // setState form is used, never a stale `feed` closure).
-  const onChatMessage = useCallback((msg: { payload: Uint8Array }) => {
+  // @-mentions only count from the host's own connection (explicit ask,
+  // 2026-10-04: the host can tag people in the comments). Refs keep this
+  // callback stable for useDataChannel.
+  const chatContextRef = useRef({ hostId, selfId, notify: (name: string) => toast.success(`${name} mentioned you`) });
+  useEffect(() => {
+    chatContextRef.current = { hostId, selfId, notify: (name: string) => toast.success(`${name} mentioned you`) };
+  }, [hostId, selfId, toast]);
+  const onChatMessage = useCallback((msg: { payload: Uint8Array; from?: { identity: string } }) => {
     const text = new TextDecoder().decode(msg.payload);
     try {
       const data = JSON.parse(text);
-      setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: data.senderName, text: data.text }]);
+      const ctx = chatContextRef.current;
+      const fromHost = !!msg.from && !!ctx.hostId && msg.from.identity === ctx.hostId;
+      const mentions = fromHost && Array.isArray(data.mentions) ? data.mentions : undefined;
+      const mentionsMe = !!mentions?.some((m: { userId: string }) => m.userId === ctx.selfId);
+      setFeed((f) => [
+        ...f,
+        { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: data.senderName, text: data.text, mentions, fromHost, mentionsMe },
+      ]);
+      if (mentionsMe) ctx.notify(data.senderName);
     } catch {
       // ignore malformed data messages
     }
@@ -341,6 +454,8 @@ function ViewerRoomContent({
         });
       } else if (data.kind === "request") {
         setFeed((f) => [...f, { kind: "request", id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount }]);
+      } else if (isStageEvent(data)) {
+        stageEventRef.current(data);
       }
     } catch {
       // ignore malformed data messages
@@ -349,6 +464,30 @@ function ViewerRoomContent({
   const { send: sendChatData } = useDataChannel("chat", onChatMessage);
   useDataChannel("live-event", onLiveEvent);
 
+  // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
+  const emojiUsage = useEmojiUsage();
+  const { items: floatingItems, push: pushReaction } = useFloatingReactions();
+  const allowReaction = useReactionRateLimit();
+  const onReaction = useCallback(
+    (msg: { payload: Uint8Array; from?: { identity: string } }) => {
+      try {
+        const data = JSON.parse(new TextDecoder().decode(msg.payload));
+        if (msg.from && allowReaction(msg.from.identity) && isLiveEmoji(data.emoji)) pushReaction(data.emoji);
+      } catch {
+        // ignore malformed data messages
+      }
+    },
+    [allowReaction, pushReaction],
+  );
+  const { send: sendReactionData } = useDataChannel("reaction", onReaction);
+
+  function sendReaction(emoji: string) {
+    if (!allowReaction("self")) return;
+    sendReactionData(new TextEncoder().encode(JSON.stringify({ emoji })), { topic: "reaction", reliable: false });
+    pushReaction(emoji);
+    emojiUsage.recordUse([emoji]);
+  }
+
   function sendChat() {
     const text = chatText.trim();
     if (!text) return;
@@ -356,6 +495,7 @@ function ViewerRoomContent({
     const payload = new TextEncoder().encode(JSON.stringify({ senderName, text }));
     sendChatData(payload, { topic: "chat", reliable: true });
     setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: "You", text }]);
+    emojiUsage.recordFromText(text);
     setChatText("");
   }
 
@@ -421,6 +561,9 @@ function ViewerRoomContent({
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.85)"]} style={styles.bottomScrim} pointerEvents="none" />
 
       {giftMoment && <GiftCelebration key={giftMoment.key} moment={giftMoment} />}
+      <FloatingReactions items={floatingItems} />
+
+      <StageTiles people={stage?.onStage ?? []} selfId={selfId} />
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>
@@ -447,6 +590,23 @@ function ViewerRoomContent({
             <EyeIcon size={18} />
             <Text style={styles.viewerCountText}>{(remoteParticipants.length + 1).toLocaleString("en-NG")}</Text>
           </View>
+          {isStaff && (
+            <TouchableOpacity
+              style={styles.peopleButton}
+              onPress={() => {
+                setPeopleOpen(true);
+                refreshStage();
+              }}
+              accessibilityLabel="People and requests to join"
+            >
+              <Text style={styles.peopleButtonText}>People</Text>
+              {(stage?.requests.length ?? 0) > 0 && (
+                <View style={styles.requestBadge}>
+                  <Text style={styles.requestBadgeText}>{stage?.requests.length}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          )}
           <ShareLiveButton liveSessionId={liveSessionId} message={`${creatorName} is live on XOLDOUT — join now`} />
           <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityLabel="Leave Live">
             <CloseIcon size={24} />
@@ -471,6 +631,21 @@ function ViewerRoomContent({
 
         <LiveFeed items={feed} selfId={selfId} />
 
+        {meOnStage && (
+          <View style={styles.onStageBar}>
+            <View style={styles.onStageDot} />
+            <Text style={styles.onStageText}>You're on the Live</Text>
+            <TouchableOpacity style={styles.onStageMic} onPress={toggleStageMic} accessibilityLabel={stageMicOn ? "Mute your microphone" : "Unmute your microphone"}>
+              <MicLineIcon size={20} muted={!stageMicOn} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.leaveStageButton} onPress={leaveStage}>
+              <Text style={styles.leaveStageText}>Leave stage</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <ReactionBar ordered={emojiUsage.ordered} onReact={sendReaction} />
+
         <View style={styles.inputRow}>
           <TextInput
             value={chatText}
@@ -480,12 +655,47 @@ function ViewerRoomContent({
             placeholderTextColor="rgba(255,255,255,0.5)"
             style={styles.chatInput}
           />
+          {stage && !meOnStage && stage.role !== "host" && (
+            <TouchableOpacity
+              style={[styles.joinButton, stage.myRequestStatus === "PENDING" && styles.joinButtonPending]}
+              disabled={stageActions.busyKey !== null}
+              onPress={() =>
+                stage.myRequestStatus === "PENDING"
+                  ? stageActions.self("cancel", "Request cancelled.")
+                  : stageActions.self("request", "Request sent — the host or a moderator will let you in.")
+              }
+              accessibilityLabel={stage.myRequestStatus === "PENDING" ? "Cancel your request to join" : "Request to join the Live"}
+            >
+              <Text style={styles.joinButtonText}>{stage.myRequestStatus === "PENDING" ? "✋ Requested" : "✋ Join"}</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.giftButton} onPress={openGiftSheet}>
             <GiftArt type="GRAMMY" size={24} />
             <Text style={styles.giftButtonText}>Gift</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      {stage && isStaff && (
+        <PeopleSheet liveId={liveSessionId} state={stage} visible={peopleOpen} onRefresh={refreshStage} onClose={() => setPeopleOpen(false)} />
+      )}
+
+      <BottomSheet visible={!!invitedBy && meOnStage} onClose={() => undefined}>
+        <Text style={styles.sheetTitle}>You've been added to the Live</Text>
+        <Text style={styles.inviteBody}>{invitedBy} brought you on stage. Everyone watching will see and hear you.</Text>
+        <TouchableOpacity
+          style={styles.inviteGoLive}
+          onPress={() => {
+            setInvitedBy(null);
+            goOnStage();
+          }}
+        >
+          <Text style={styles.inviteGoLiveText}>Turn on camera & mic</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.inviteNotNow} onPress={leaveStage}>
+          <Text style={styles.inviteNotNowText}>Not now</Text>
+        </TouchableOpacity>
+      </BottomSheet>
 
       <BottomSheet visible={giftSheetOpen} onClose={() => setGiftSheetOpen(false)}>
         <View style={styles.sheetHeaderRow}>
@@ -560,6 +770,53 @@ function ViewerRoomContent({
 }
 
 const styles = StyleSheet.create({
+  peopleButton: { borderRadius: 999, backgroundColor: "rgba(255,255,255,0.15)", paddingHorizontal: 10, paddingVertical: 5 },
+  peopleButtonText: { color: "#fff", fontSize: 13, fontWeight: "600" },
+  requestBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: colors.red,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  requestBadgeText: { color: "#fff", fontSize: 10, fontWeight: "700" },
+  onStageBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginHorizontal: 12,
+    marginTop: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    paddingLeft: 12,
+    paddingRight: 6,
+    paddingVertical: 6,
+  },
+  onStageDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red },
+  onStageText: { flex: 1, color: "#fff", fontSize: 13, fontWeight: "600" },
+  onStageMic: { borderRadius: 999, backgroundColor: "rgba(255,255,255,0.1)", padding: 6 },
+  leaveStageButton: { borderRadius: 999, backgroundColor: colors.red, paddingHorizontal: 12, paddingVertical: 6 },
+  leaveStageText: { color: "#fff", fontSize: 12, fontWeight: "600" },
+  joinButton: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.25)",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  joinButtonPending: { borderColor: "rgba(217,154,43,0.6)", backgroundColor: "rgba(217,154,43,0.15)" },
+  joinButtonText: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  inviteBody: { color: colors.ink3, fontSize: 14, marginBottom: 20 },
+  inviteGoLive: { backgroundColor: colors.red, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 8 },
+  inviteGoLiveText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  inviteNotNow: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 14, alignItems: "center" },
+  inviteNotNowText: { color: colors.ink2, fontSize: 14, fontWeight: "600" },
   container: { flex: 1, backgroundColor: "#000" },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.bg, paddingHorizontal: 24, gap: 12 },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, textAlign: "center" },

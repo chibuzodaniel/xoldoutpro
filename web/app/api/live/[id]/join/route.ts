@@ -47,6 +47,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       url: getLiveKitUrl(),
       isHost,
       viewerId: user.id,
+      // The host's LiveKit identity — viewers use it to keep the host's video
+      // full-screen and show anyone else on stage (lib/live/stage.ts) as tiles.
+      hostId: session.creatorId,
       roomName,
       session: { title: session.title, creator: session.creator, pinnedProduct: session.pinnedProduct },
     });

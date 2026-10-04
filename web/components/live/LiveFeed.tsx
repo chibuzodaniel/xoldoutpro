@@ -1,12 +1,23 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MentionText, type ChatMention } from "@/components/live/mentions";
+import { playGiftSound } from "@/components/live/giftSound";
 import { InitialsAvatar } from "@/components/live/LiveCard";
 import { GiftArt, type GiftArtType } from "@/components/live/LiveIcons";
 import { giftByType, GIFT_COMBO_WINDOW_MS } from "@/components/live/giftCatalog";
 
 export type FeedItem =
-  | { kind: "chat"; id: string; senderName: string; text: string }
+  | {
+      kind: "chat";
+      id: string;
+      senderName: string;
+      text: string;
+      // Host-only @-mentions (components/live/mentions.tsx).
+      mentions?: ChatMention[];
+      fromHost?: boolean;
+      mentionsMe?: boolean;
+    }
   | { kind: "system"; id: string; text: string }
   | { kind: "gift"; id: string; senderId: string; senderName: string; giftType: GiftArtType; label: string; count: number; at: number }
   | { kind: "request"; id: string; senderName: string; message: string; xgAmount: number };
@@ -111,10 +122,21 @@ export function LiveFeed({ items, selfId }: { items: FeedItem[]; selfId: string 
           );
         }
         return (
-          <p key={item.id} className="flex max-w-full items-center gap-2 text-[15px]">
+          <p
+            key={item.id}
+            className={`flex max-w-full items-center gap-2 text-[15px] ${
+              item.mentionsMe ? "rounded-2xl border border-amber/50 bg-amber/15 py-1 pl-1 pr-3" : ""
+            }`}
+          >
             <InitialsAvatar name={item.senderName} className="h-7 w-7 text-[10px]" />
             <span className="min-w-0">
-              <span className="font-semibold text-white">{item.senderName}</span> <span className="text-white/90">{item.text}</span>
+              <span className="font-semibold text-white">{item.senderName}</span>
+              {item.fromHost && (
+                <span className="ml-1.5 rounded bg-red px-1 py-px align-middle text-[10px] font-bold uppercase text-white">Host</span>
+              )}{" "}
+              <span className="text-white/90">
+                <MentionText text={item.text} mentions={item.mentions} />
+              </span>
             </span>
           </p>
         );
@@ -152,6 +174,11 @@ const BILLS = Array.from({ length: 14 }, (_, i) => ({
 // stage; every other gift pops its art large in the middle with a serif
 // "Grammy ×4" caption underneath.
 export function GiftCelebration({ moment }: { moment: GiftMoment }) {
+  // Keyed by moment.key from the caller, so this runs once per gift.
+  useEffect(() => {
+    playGiftSound(moment.giftType);
+  }, [moment.giftType]);
+
   if (moment.giftType === "MONEY_SPRAY") {
     return (
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>

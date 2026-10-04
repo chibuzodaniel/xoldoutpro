@@ -13,7 +13,23 @@ import { giftByType } from "@/components/live/giftCatalog";
 import { appendGift, GiftBanner, GiftCelebration, LiveFeed, type FeedItem, type GiftMoment } from "@/components/live/LiveFeed";
 import { LiveChatInput } from "@/components/live/LiveChatInput";
 import { ShareButton } from "@/components/ui/ShareButton";
-import { BottomSheet } from "@/components/live/BottomSheet";
+import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "@/components/live/stage";
+import {
+  FloatingReactions,
+  LIVE_EMOJIS,
+  ReactionBar,
+  useEmojiUsage,
+  useFloatingReactions,
+  useReactionRateLimit,
+} from "@/components/live/reactions";
+import {
+  activeMentionQuery,
+  extractMentions,
+  filterCandidates,
+  insertMention,
+  MentionSuggestions,
+  type MentionCandidate,
+} from "@/components/live/mentions";
 
 type PendingRequest = { id: string; senderName: string; message: string; xgAmount: number };
 
@@ -56,10 +72,23 @@ export default function LiveBroadcastPage() {
   const [pendingRequests, setPendingRequests] = useState<PendingRequest[]>([]);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [viewerCount, setViewerCount] = useState(0);
-  // Who's watching right now (explicit ask: the host sees the list of people
-  // in their Live) — straight from the LiveKit room, oldest join first.
-  const [viewers, setViewers] = useState<{ id: string; name: string }[]>([]);
-  const [viewersOpen, setViewersOpen] = useState(false);
+  // People sheet (explicit asks: the host sees who's in their Live, can add
+  // any of them to the stage, appoint moderators, and handle requests to
+  // join) — see components/live/stage.tsx and lib/live/stage.ts.
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  const [room, setRoom] = useState<Room | null>(null);
+  // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
+  const emojiUsage = useEmojiUsage();
+  const floating = useFloatingReactions();
+  const allowReaction = useReactionRateLimit();
+  const { state: stage, refresh: refreshStage } = useStageState(params.id, room !== null);
+  // The room event handlers are registered once, inside the connect effect.
+  const refreshStageRef = useRef(refreshStage);
+  useEffect(() => {
+    refreshStageRef.current = refreshStage;
+  }, [refreshStage]);
+  // Guests' audio (once someone is on stage the host has to hear them).
+  const audioContainerRef = useRef<HTMLDivElement | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [ending, setEnding] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
@@ -107,20 +136,30 @@ export default function LiveBroadcastPage() {
       localRoom = room;
 
       const updateViewers = () => {
-        const list = [...room.remoteParticipants.values()]
-          .sort((a, b) => (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0))
-          .map((p) => ({ id: p.identity, name: p.name || "Viewer" }));
-        setViewers(list);
-        setViewerCount(list.length);
+        setViewerCount(room.remoteParticipants.size);
+        void refreshStageRef.current();
       };
+      room.on(RoomEvent.TrackSubscribed, (track) => {
+        if (track.kind !== Track.Kind.Audio) return;
+        const el = track.attach();
+        el.setAttribute("playsinline", "true");
+        audioContainerRef.current?.appendChild(el);
+      });
+      room.on(RoomEvent.TrackUnsubscribed, (track) => {
+        if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove());
+      });
       room.on(RoomEvent.ParticipantConnected, updateViewers);
       room.on(RoomEvent.ParticipantDisconnected, updateViewers);
       room.on(RoomEvent.Disconnected, () => setStatus("ended"));
-      room.on(RoomEvent.DataReceived, (payload, _participant, _kind, topic) => {
+      room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
         const text = new TextDecoder().decode(payload);
         try {
           const data = JSON.parse(text);
-          if (topic === "chat") {
+          if (topic === "reaction") {
+            if (participant && allowReaction(participant.identity) && (LIVE_EMOJIS as readonly string[]).includes(data.emoji)) {
+              floating.push(data.emoji);
+            }
+          } else if (topic === "chat") {
             setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: data.senderName, text: data.text }]);
           } else if (topic === "live-event" && data.kind === "gift") {
             setFeed((f) => {
@@ -137,6 +176,11 @@ export default function LiveBroadcastPage() {
               ...r,
               { id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount },
             ]);
+          } else if (topic === "live-event" && isStageEvent(data)) {
+            void refreshStageRef.current();
+            if (data.type === "requested") {
+              setFeed((f) => [...f, { kind: "system", id: crypto.randomUUID(), text: `${data.displayName ?? "Someone"} asked to join the Live` }]);
+            }
           }
         } catch {
           // ignore malformed data messages
@@ -176,6 +220,7 @@ export default function LiveBroadcastPage() {
         // affordance (mirrors mobile's "Camera access is off" state).
         if (!cancelled) setStatus("camera-blocked");
         roomRef.current = room;
+        setRoom(room);
         return;
       }
       if (cancelled) {
@@ -187,6 +232,7 @@ export default function LiveBroadcastPage() {
       }
 
       roomRef.current = room;
+      setRoom(room);
       setStatus("live");
     }
 
@@ -198,6 +244,7 @@ export default function LiveBroadcastPage() {
       cancelled = true;
       localRoom?.disconnect();
       roomRef.current = null;
+      setRoom(null);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, firebaseUser, retryTick]);
@@ -259,14 +306,34 @@ export default function LiveBroadcastPage() {
     }
   }
 
+  // Everyone in the Live the host can tag (explicit ask, 2026-10-04).
+  const mentionCandidates: MentionCandidate[] = (stage?.watching ?? []).map((p) => ({
+    userId: p.userId,
+    handle: p.handle,
+    displayName: p.displayName,
+    avatarUrl: p.avatarUrl,
+  }));
+  const mentionQuery = activeMentionQuery(chatText);
+  const mentionMatches = mentionQuery === null ? [] : filterCandidates(mentionCandidates, mentionQuery);
+
   function sendChat() {
     const text = chatText.trim();
     const room = roomRef.current;
     if (!text || !room) return;
-    const payload = new TextEncoder().encode(JSON.stringify({ senderName: myName, text }));
+    const mentions = extractMentions(text, mentionCandidates);
+    const payload = new TextEncoder().encode(JSON.stringify({ senderName: myName, text, mentions }));
     room.localParticipant.publishData(payload, { topic: "chat", reliable: true });
-    setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: myName, text }]);
+    setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: myName, text, mentions, fromHost: true }]);
+    emojiUsage.recordFromText(text);
     setChatText("");
+  }
+
+  function sendReaction(emoji: string) {
+    const r = roomRef.current;
+    if (!r || !allowReaction("self")) return;
+    r.localParticipant.publishData(new TextEncoder().encode(JSON.stringify({ emoji })), { topic: "reaction", reliable: false });
+    floating.push(emoji);
+    emojiUsage.recordUse([emoji]);
   }
 
   function formatElapsed(sec: number) {
@@ -288,6 +355,7 @@ export default function LiveBroadcastPage() {
 
   const onAir = status === "live" || status === "camera-blocked";
   const supporterCount = giftTotals.supporterIds.size;
+  const pendingStageRequests = stage?.requests.length ?? 0;
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-gradient-to-b from-[#1f0a0e] via-[#120608] to-black">
@@ -298,6 +366,8 @@ export default function LiveBroadcastPage() {
         muted
         className={`absolute inset-0 h-full w-full object-cover ${facingMode === "user" ? "-scale-x-100" : ""}`}
       />
+      <div ref={audioContainerRef} className="hidden" aria-hidden />
+      {onAir && <StageTiles room={room} hostId={stage?.hostId ?? null} people={stage?.onStage ?? []} />}
 
       {status === "connecting" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -332,6 +402,7 @@ export default function LiveBroadcastPage() {
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[50%] bg-gradient-to-t from-black/90 via-black/50 to-transparent" aria-hidden />
 
       {giftMoment && <GiftCelebration key={giftMoment.key} moment={giftMoment} />}
+      <FloatingReactions items={floating.items} />
 
       {onAir && (
         <div className="absolute inset-x-0 top-0 px-3 pt-3">
@@ -351,12 +422,20 @@ export default function LiveBroadcastPage() {
             </div>
             <button
               type="button"
-              onClick={() => setViewersOpen(true)}
-              aria-label={`${viewerCount} watching — see who`}
-              className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-[16px] text-white backdrop-blur-sm"
+              onClick={() => {
+                setPeopleOpen(true);
+                void refreshStage();
+              }}
+              aria-label={`${viewerCount} watching, ${pendingStageRequests} asking to join — see people`}
+              className="relative ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-black/35 px-2.5 py-1 text-[16px] text-white backdrop-blur-sm"
             >
               <EyeIcon className="h-[18px] w-[18px]" />
               {viewerCount.toLocaleString("en-NG")}
+              {pendingStageRequests > 0 && (
+                <span className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full bg-red px-1 text-center text-[10px] font-bold leading-[18px] text-white">
+                  {pendingStageRequests}
+                </span>
+              )}
             </button>
             <ShareButton
               title="Live on XOLDOUT"
@@ -419,8 +498,11 @@ export default function LiveBroadcastPage() {
 
           <LiveFeed items={feed} selfId={null} />
 
+          <MentionSuggestions candidates={mentionMatches} onPick={(c) => setChatText((t) => insertMention(t, c))} />
+          <ReactionBar ordered={emojiUsage.ordered} onReact={sendReaction} />
+
           <div className="flex items-center gap-4 px-3 pt-2">
-            <LiveChatInput value={chatText} onChange={setChatText} onSend={sendChat} />
+            <LiveChatInput value={chatText} onChange={setChatText} onSend={sendChat} placeholder="Say something… type @ to tag" />
             <button onClick={toggleMic} aria-label={micEnabled ? "Mute microphone" : "Unmute microphone"} className="shrink-0 p-1 text-white">
               <MicLineIcon className="h-6 w-6" muted={!micEnabled} />
             </button>
@@ -435,25 +517,8 @@ export default function LiveBroadcastPage() {
         </div>
       )}
 
-      {viewersOpen && (
-        <BottomSheet onClose={() => setViewersOpen(false)}>
-          <div className="mb-4 flex items-baseline justify-between">
-            <h2 className="font-serif text-[24px] leading-tight">Watching now</h2>
-            <span className="text-sm text-ink-3">{viewerCount.toLocaleString("en-NG")}</span>
-          </div>
-          {viewers.length === 0 ? (
-            <p className="py-6 text-center text-sm text-ink-3">No one has joined yet. Share your link to bring people in.</p>
-          ) : (
-            <ul className="max-h-[55vh] overflow-y-auto divide-y divide-line-soft">
-              {viewers.map((v) => (
-                <li key={v.id} className="flex items-center gap-3 py-2.5">
-                  <InitialsAvatar name={v.name} className="h-9 w-9 text-[12px]" />
-                  <span className="truncate text-[15px]">{v.name}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </BottomSheet>
+      {peopleOpen && stage && (
+        <PeopleSheet liveId={params.id} state={stage} onRefresh={() => void refreshStage()} onClose={() => setPeopleOpen(false)} />
       )}
     </div>
   );
