@@ -120,24 +120,44 @@ function PersonAvatar({ person, className }: { person: { displayName: string; av
   );
 }
 
-// ─── Video tiles ──────────────────────────────────────────────────────────
+// ─── Shared stage (equal split) ──────────────────────────────────────────
+// Explicit ask, 2026-10-04: "the live should not be like a video call — it
+// should share the screen equally with people in the live". On their own the
+// host fills the screen (the page's own full-screen video); as soon as anyone
+// else is on stage, this grid covers that video and splits the screen into
+// equal parts: 2 people stacked halves, 3 equal rows, 4 a 2×2 grid. Host
+// first, then guests in the order they came up.
 
 type Tile = { identity: string; name: string; track: VideoTrack | null; isLocal: boolean; micOn: boolean };
 
-function collectTiles(room: Room, excludeIdentity: string | null): Tile[] {
+function collectTiles(room: Room, hostId: string | null): Tile[] {
   const participants: Participant[] = [room.localParticipant, ...room.remoteParticipants.values()];
-  return participants
-    .filter((p) => p.identity !== excludeIdentity && p.permissions?.canPublish)
-    .map((p) => ({
-      identity: p.identity,
-      name: p.name || "Guest",
-      track: (p.getTrackPublication(Track.Source.Camera)?.track as VideoTrack | undefined) ?? null,
-      isLocal: p === room.localParticipant,
-      micOn: p.isMicrophoneEnabled,
-    }));
+  const onStage = participants.filter((p) => p.identity === hostId || p.permissions?.canPublish);
+  onStage.sort((a, b) => (a.identity === hostId ? -1 : b.identity === hostId ? 1 : (a.joinedAt?.getTime() ?? 0) - (b.joinedAt?.getTime() ?? 0)));
+  return onStage.map((p) => ({
+    identity: p.identity,
+    name: p.name || "Guest",
+    track: (p.getTrackPublication(Track.Source.Camera)?.track as VideoTrack | undefined) ?? null,
+    isLocal: p === room.localParticipant,
+    micOn: p.isMicrophoneEnabled,
+  }));
 }
 
-function VideoTile({ tile, person }: { tile: Tile; person?: StagePerson }) {
+function StageCell({
+  tile,
+  label,
+  avatarUrl,
+  isHost,
+  mirror,
+  firstRow,
+}: {
+  tile: Tile;
+  label: string;
+  avatarUrl: string | null;
+  isHost: boolean;
+  mirror: boolean;
+  firstRow: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
     const el = videoRef.current;
@@ -148,30 +168,54 @@ function VideoTile({ tile, person }: { tile: Tile; person?: StagePerson }) {
     };
   }, [tile.track]);
 
-  const name = person?.displayName ?? tile.name;
   return (
-    <div className="relative h-36 w-24 overflow-hidden rounded-xl border border-white/20 bg-black/70 shadow-lg">
+    <div className="relative min-h-0 overflow-hidden bg-gradient-to-b from-[#1f0a0e] to-black">
       {tile.track ? (
-        <video ref={videoRef} autoPlay playsInline muted={tile.isLocal} className={`h-full w-full object-cover ${tile.isLocal ? "-scale-x-100" : ""}`} />
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={tile.isLocal}
+          className={`h-full w-full object-cover ${mirror ? "-scale-x-100" : ""}`}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
-          <PersonAvatar person={{ displayName: name, avatarUrl: person?.avatarUrl ?? null }} className="h-12 w-12" />
+          <PersonAvatar person={{ displayName: label, avatarUrl }} className="h-20 w-20" />
         </div>
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-center gap-1 bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1 pt-4">
+      <div
+        className={`absolute right-2 flex max-w-[70%] items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 backdrop-blur-sm ${
+          firstRow ? "top-28" : "top-2"
+        }`}
+      >
         <MicLineIcon className="h-3 w-3 shrink-0 text-white" muted={!tile.micOn} />
-        <span className="truncate text-[11px] font-semibold text-white">{tile.isLocal ? "You" : name}</span>
+        <span className="truncate text-[11px] font-semibold text-white">{label}</span>
+        {isHost && <span className="rounded bg-red px-1 text-[9px] font-bold uppercase text-white">Host</span>}
       </div>
     </div>
   );
 }
 
-/**
- * Everyone on stage except the host, as a column of small tiles. Recomputed
- * from the room itself on every track/permission change, so it never shows
- * someone who isn't actually publishing-allowed.
- */
-export function StageTiles({ room, hostId, people }: { room: Room | null; hostId: string | null; people: StagePerson[] }) {
+const GRID_LAYOUT: Record<number, string> = {
+  2: "grid-rows-2",
+  3: "grid-rows-3",
+  4: "grid-cols-2 grid-rows-2",
+};
+
+export function StageTiles({
+  room,
+  hostId,
+  people,
+  host,
+  mirrorLocal = true,
+}: {
+  room: Room | null;
+  hostId: string | null;
+  people: StagePerson[];
+  host: { name: string; avatarUrl: string | null };
+  // The host page passes false while the back camera is in use.
+  mirrorLocal?: boolean;
+}) {
   const [tiles, setTiles] = useState<Tile[]>([]);
 
   useEffect(() => {
@@ -195,13 +239,30 @@ export function StageTiles({ room, hostId, people }: { room: Room | null; hostId
     };
   }, [room, hostId]);
 
-  if (tiles.length === 0) return null;
+  // Host alone: the page's own full-screen video already shows them.
+  if (tiles.length < 2) return null;
+  const shown = tiles.slice(0, 4);
   const byId = new Map(people.map((p) => [p.userId, p]));
+  const cols = shown.length === 4 ? 2 : 1;
+
   return (
-    <div className="pointer-events-none absolute right-3 top-28 z-20 flex flex-col gap-2">
-      {tiles.map((t) => (
-        <VideoTile key={t.identity} tile={t} person={byId.get(t.identity)} />
-      ))}
+    <div className={`pointer-events-none absolute inset-0 grid gap-px bg-black ${GRID_LAYOUT[shown.length]}`}>
+      {shown.map((t, i) => {
+        const isHost = t.identity === hostId;
+        const person = byId.get(t.identity);
+        const name = isHost ? host.name : (person?.displayName ?? t.name);
+        return (
+          <StageCell
+            key={t.identity}
+            tile={t}
+            label={t.isLocal ? "You" : name}
+            avatarUrl={isHost ? host.avatarUrl : (person?.avatarUrl ?? null)}
+            isHost={isHost}
+            mirror={t.isLocal && mirrorLocal}
+            firstRow={i < cols}
+          />
+        );
+      })}
     </div>
   );
 }

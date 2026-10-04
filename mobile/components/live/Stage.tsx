@@ -116,34 +116,99 @@ export function useStageActions(liveId: string, onDone: () => void, maxGuests = 
   };
 }
 
-/** Everyone on stage except the host, as a column of small tiles on the right. */
-export function StageTiles({ people, selfId }: { people: StagePerson[]; selfId: string }) {
+type StageCellPerson = { userId: string; displayName: string; avatarUrl: string | null };
+
+function StageCell({
+  person,
+  trackRef,
+  isSelf,
+  isHost,
+  mirror,
+  firstRow,
+}: {
+  person: StageCellPerson;
+  trackRef: React.ComponentProps<typeof VideoTrack>["trackRef"] | undefined;
+  isSelf: boolean;
+  isHost: boolean;
+  mirror: boolean;
+  firstRow: boolean;
+}) {
+  const micOn = trackRef?.participant.isMicrophoneEnabled ?? true;
+  return (
+    <View style={styles.cell}>
+      {trackRef ? (
+        <VideoTrack trackRef={trackRef} style={StyleSheet.absoluteFill} objectFit="cover" mirror={mirror} />
+      ) : (
+        <View style={styles.cellAvatar}>
+          <InitialsAvatar name={person.displayName || "?"} avatarUrl={person.avatarUrl} size={80} />
+        </View>
+      )}
+      <View style={[styles.cellLabel, { top: firstRow ? 112 : 8 }]}>
+        <MicLineIcon size={12} muted={!micOn} />
+        <Text style={styles.tileName} numberOfLines={1}>
+          {isSelf ? "You" : person.displayName}
+        </Text>
+        {isHost && (
+          <View style={styles.hostTag}>
+            <Text style={styles.hostTagText}>HOST</Text>
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
+/**
+ * Explicit ask, 2026-10-04: "the live should not be like a video call — it
+ * should share the screen equally with people in the live". On their own the
+ * host fills the screen (the screen's own full-screen video); once anyone
+ * else is on stage this covers it with an equal split: 2 people stacked
+ * halves, 3 equal rows, 4 a 2×2 grid. Host first, then guests in join order.
+ */
+export function StageTiles({
+  people,
+  selfId,
+  host,
+  mirrorSelf = true,
+}: {
+  people: StagePerson[];
+  selfId: string;
+  host: StageCellPerson;
+  // The host screen passes false while the back camera is in use.
+  mirrorSelf?: boolean;
+}) {
   const cameraTracks = useTracks([Track.Source.Camera]);
   if (people.length === 0) return null;
+  const everyone: StageCellPerson[] = [host, ...people].slice(0, 4);
+  const cell = (p: StageCellPerson, firstRow: boolean) => {
+    const isSelf = p.userId === selfId;
+    return (
+      <StageCell
+        key={p.userId}
+        person={p}
+        trackRef={cameraTracks.find((t) => t.participant.identity === p.userId && !!t.publication) as React.ComponentProps<typeof VideoTrack>["trackRef"] | undefined}
+        isSelf={isSelf}
+        isHost={p.userId === host.userId}
+        mirror={isSelf && mirrorSelf}
+        firstRow={firstRow}
+      />
+    );
+  };
+
   return (
-    <View style={styles.tiles} pointerEvents="none">
-      {people.map((person) => {
-        const trackRef = cameraTracks.find((t) => t.participant.identity === person.userId);
-        const isSelf = person.userId === selfId;
-        const micOn = trackRef?.participant.isMicrophoneEnabled ?? true;
-        return (
-          <View key={person.userId} style={styles.tile}>
-            {trackRef ? (
-              <VideoTrack trackRef={trackRef} style={StyleSheet.absoluteFill} objectFit="cover" mirror={isSelf} />
-            ) : (
-              <View style={styles.tileAvatar}>
-                <InitialsAvatar name={person.displayName || "?"} avatarUrl={person.avatarUrl} size={48} />
-              </View>
-            )}
-            <View style={styles.tileLabel}>
-              <MicLineIcon size={12} muted={!micOn} />
-              <Text style={styles.tileName} numberOfLines={1}>
-                {isSelf ? "You" : person.displayName}
-              </Text>
-            </View>
+    <View style={styles.grid} pointerEvents="none">
+      {everyone.length === 4 ? (
+        <>
+          <View style={styles.gridRow}>{everyone.slice(0, 2).map((p) => cell(p, true))}</View>
+          <View style={styles.gridRow}>{everyone.slice(2).map((p) => cell(p, false))}</View>
+        </>
+      ) : (
+        everyone.map((p, i) => (
+          <View key={p.userId} style={styles.gridRow}>
+            {cell(p, i === 0)}
           </View>
-        );
-      })}
+        ))
+      )}
     </View>
   );
 }
@@ -281,30 +346,25 @@ export function PeopleSheet({
 }
 
 const styles = StyleSheet.create({
-  tiles: { position: "absolute", right: 12, top: 120, gap: 8, zIndex: 20 },
-  tile: {
-    width: 96,
-    height: 144,
-    borderRadius: 12,
-    overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.2)",
-    backgroundColor: "rgba(0,0,0,0.7)",
-  },
-  tileAvatar: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
-  tileLabel: {
+  grid: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, backgroundColor: "#000", gap: 1 },
+  gridRow: { flex: 1, flexDirection: "row", gap: 1 },
+  cell: { flex: 1, overflow: "hidden", backgroundColor: "#140709" },
+  cellAvatar: { position: "absolute", top: 0, right: 0, bottom: 0, left: 0, alignItems: "center", justifyContent: "center" },
+  cellLabel: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    right: 8,
+    maxWidth: "70%",
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    borderRadius: 999,
     backgroundColor: "rgba(0,0,0,0.55)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
-  tileName: { flex: 1, color: "#fff", fontSize: 11, fontWeight: "600" },
+  hostTag: { backgroundColor: "#e11d2e", borderRadius: 3, paddingHorizontal: 3 },
+  hostTagText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+  tileName: { flexShrink: 1, color: "#fff", fontSize: 11, fontWeight: "600" },
   sheetTitle: { color: colors.ink, fontSize: 24, fontFamily: fonts.serif, marginBottom: 12 },
   sectionLabel: { color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 1, marginTop: 14, marginBottom: 4 },
   emptyText: { color: colors.ink3, fontSize: 13, paddingVertical: 6 },

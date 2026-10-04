@@ -481,7 +481,14 @@ function LiveRoom() {
       <video ref={videoRef} autoPlay playsInline className="absolute inset-0 h-full w-full object-cover" />
       {/* Remote audio elements (attachTrack) live here, never visible. */}
       <div ref={audioContainerRef} className="hidden" aria-hidden />
-      {status === "connected" && <StageTiles room={room} hostId={stage?.hostId ?? null} people={stage?.onStage ?? []} />}
+      {status === "connected" && (
+        <StageTiles
+          room={room}
+          hostId={stage?.hostId ?? null}
+          people={stage?.onStage ?? []}
+          host={{ name: session?.creator.displayName ?? "Host", avatarUrl: session?.creator.avatarUrl ?? null }}
+        />
+      )}
 
       {status === "connected" && audioBlocked && (
         <button
@@ -507,7 +514,7 @@ function LiveRoom() {
 
       {/* No video track yet: the mockup's stand-in — the creator's avatar
           large in the middle with a soft "listening" waveform underneath. */}
-      {status === "connected" && !hasVideo && session && (
+      {status === "connected" && !hasVideo && session && (stage?.onStage.length ?? 0) === 0 && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-5">
           <div className="absolute h-72 w-72 rounded-full bg-[#7a3ac0]/25 blur-3xl" aria-hidden />
           <FallbackImg

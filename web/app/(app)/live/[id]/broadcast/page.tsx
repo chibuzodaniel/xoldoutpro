@@ -84,7 +84,16 @@ export default function LiveBroadcastPage() {
   // an open sheet stays current.
   const [supportSheet, setSupportSheet] = useState<"supporters" | "coins" | null>(null);
   const [supportVersion, setSupportVersion] = useState(0);
-  const support = useLiveSupport(params.id, supportSheet !== null, supportVersion);
+  // Always loaded (not just while a sheet is open) — the chips show the
+  // stream's full totals, including paid access and requests, not only the
+  // gifts this page happened to see since it opened. Paid joins send no
+  // room event, so a slow poll picks those up.
+  const support = useLiveSupport(params.id, room !== null, supportVersion);
+  useEffect(() => {
+    if (!room) return;
+    const id = setInterval(() => setSupportVersion((v) => v + 1), 30_000);
+    return () => clearInterval(id);
+  }, [room]);
   // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
   const emojiUsage = useEmojiUsage();
   const floating = useFloatingReactions();
@@ -183,6 +192,7 @@ export default function LiveBroadcastPage() {
               supporterIds: new Set(t.supporterIds).add(data.senderId),
             }));
           } else if (topic === "live-event" && data.kind === "request") {
+            setSupportVersion((v) => v + 1);
             setPendingRequests((r) => [
               ...r,
               { id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount },
@@ -365,7 +375,7 @@ export default function LiveBroadcastPage() {
   }
 
   const onAir = status === "live" || status === "camera-blocked";
-  const supporterCount = giftTotals.supporterIds.size;
+  const supporterCount = support?.supporters.length ?? giftTotals.supporterIds.size;
   const pendingStageRequests = stage?.requests.length ?? 0;
 
   return (
@@ -378,7 +388,15 @@ export default function LiveBroadcastPage() {
         className={`absolute inset-0 h-full w-full object-cover ${facingMode === "user" ? "-scale-x-100" : ""}`}
       />
       <div ref={audioContainerRef} className="hidden" aria-hidden />
-      {onAir && <StageTiles room={room} hostId={stage?.hostId ?? null} people={stage?.onStage ?? []} />}
+      {onAir && (
+        <StageTiles
+          room={room}
+          hostId={stage?.hostId ?? null}
+          people={stage?.onStage ?? []}
+          host={{ name: myName, avatarUrl: null }}
+          mirrorLocal={facingMode === "user"}
+        />
+      )}
 
       {status === "connecting" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black">
@@ -465,7 +483,7 @@ export default function LiveBroadcastPage() {
               className="flex items-center gap-1.5 rounded-full bg-black/45 px-3 py-1 text-[14px] font-semibold text-amber backdrop-blur-sm"
             >
               <XgCoin className="h-4 w-4" />
-              {giftTotals.xg.toLocaleString("en-NG")} XG
+              {(support?.totalXg ?? giftTotals.xg).toLocaleString("en-NG")} XG
               <span className="text-white/60" aria-hidden>
                 ›
               </span>

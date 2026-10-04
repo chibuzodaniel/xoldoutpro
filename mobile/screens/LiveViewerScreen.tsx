@@ -557,13 +557,18 @@ function ViewerRoomContent({
         </View>
       )}
 
+      <StageTiles
+        people={stage?.onStage ?? []}
+        selfId={selfId}
+        host={{ userId: hostId ?? stage?.hostId ?? "", displayName: creatorName || "Host", avatarUrl: session?.creator.avatarUrl ?? null }}
+      />
+
       <LinearGradient colors={["rgba(0,0,0,0.55)", "transparent"]} style={styles.topScrim} pointerEvents="none" />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.45)", "rgba(0,0,0,0.85)"]} style={styles.bottomScrim} pointerEvents="none" />
 
       {giftMoment && <GiftCelebration key={giftMoment.key} moment={giftMoment} />}
       <FloatingReactions items={floatingItems} />
 
-      <StageTiles people={stage?.onStage ?? []} selfId={selfId} />
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>

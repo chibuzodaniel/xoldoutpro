@@ -165,7 +165,14 @@ function BroadcastRoomContent({
   // an open sheet stays current.
   const [supportSheet, setSupportSheet] = useState<"supporters" | "coins" | null>(null);
   const [supportVersion, setSupportVersion] = useState(0);
-  const support = useLiveSupport(liveSessionId, supportSheet !== null, supportVersion);
+  // Always loaded — the chips show the stream's full totals (paid access and
+  // requests too), not only gifts seen since this screen opened. Paid joins
+  // send no room event, so a slow poll picks those up.
+  const support = useLiveSupport(liveSessionId, true, supportVersion);
+  useEffect(() => {
+    const id = setInterval(() => setSupportVersion((v) => v + 1), 30_000);
+    return () => clearInterval(id);
+  }, []);
   const refreshStageRef = useRef(refreshStage);
   useEffect(() => {
     refreshStageRef.current = refreshStage;
@@ -221,6 +228,7 @@ function BroadcastRoomContent({
           supporterIds: new Set(t.supporterIds).add(event.senderId),
         }));
       } else if (data.kind === "request") {
+        setSupportVersion((v) => v + 1);
         setPendingRequests((r) => [...r, { id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount }]);
       } else if (isStageEvent(data)) {
         refreshStageRef.current();
@@ -332,7 +340,7 @@ function BroadcastRoomContent({
     }
   }
 
-  const supporterCount = giftTotals.supporterIds.size;
+  const supporterCount = support?.supporters.length ?? giftTotals.supporterIds.size;
 
   return (
     <View style={styles.container}>
@@ -355,13 +363,19 @@ function BroadcastRoomContent({
         </View>
       )}
 
+      <StageTiles
+        people={stage?.onStage ?? []}
+        selfId={localParticipant.identity}
+        host={{ userId: localParticipant.identity, displayName: myName, avatarUrl: null }}
+        mirrorSelf={facingMode === "user"}
+      />
+
       <LinearGradient colors={["rgba(0,0,0,0.55)", "transparent"]} style={styles.topScrim} pointerEvents="none" />
       <LinearGradient colors={["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.9)"]} style={styles.bottomScrim} pointerEvents="none" />
 
       {giftMoment && <GiftCelebration key={giftMoment.key} moment={giftMoment} />}
       <FloatingReactions items={floatingItems} />
 
-      <StageTiles people={stage?.onStage ?? []} selfId={localParticipant.identity} />
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>
@@ -400,7 +414,7 @@ function BroadcastRoomContent({
         <View style={styles.statRow}>
           <TouchableOpacity style={styles.statChip} onPress={() => setSupportSheet("coins")} accessibilityLabel="See the coins received in this stream">
             <XgCoin size={16} />
-            <Text style={styles.statXg}>{giftTotals.xg.toLocaleString("en-NG")} XG ›</Text>
+            <Text style={styles.statXg}>{(support?.totalXg ?? giftTotals.xg).toLocaleString("en-NG")} XG ›</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.statChip} onPress={() => setSupportSheet("supporters")} accessibilityLabel="See who supported you">
             <Text style={styles.statSupporters}>
