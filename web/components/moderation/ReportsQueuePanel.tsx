@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useCanUse } from "./access";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -63,6 +64,8 @@ function slaLabel(slaDueAt: string | null) {
 // of which panels were visible. Now lives in the "Overview" section of the
 // sidebar, same open/in-review-first report queue.
 export function ReportsQueuePanel() {
+  // Takedowns from a report share the "Take down products" switch.
+  const takedownAllowed = useCanUse()("productTakedown");
   const toast = useToast();
   const [reports, setReports] = useState<ReportRow[] | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -124,7 +127,8 @@ export function ReportsQueuePanel() {
           {reports.map((r) => {
             const target = targetSummary(r);
             const sla = slaLabel(r.slaDueAt);
-            const canTakedown = r.status === "IN_REVIEW" && r.reason === "COPYRIGHT_CLAIM" && r.targetType === "PRODUCT";
+            const canTakedown =
+              takedownAllowed && r.status === "IN_REVIEW" && r.reason === "COPYRIGHT_CLAIM" && r.targetType === "PRODUCT";
             return (
               <div key={r.id} className="rounded-lg border border-line-soft p-4">
                 <div className="flex items-center justify-between mb-2">

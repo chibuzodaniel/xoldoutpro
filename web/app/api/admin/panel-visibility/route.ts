@@ -2,28 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireModerator, requireSuperModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { PANEL_KEYS } from "@/components/moderation/panelKeys";
 
 // Which moderation-dashboard panels a *regular* moderator sees — see the
 // ModerationPanelVisibility model's own comment. Keys here must match
 // PANEL_LABEL in components/moderation/panelKeys.ts.
-const PANEL_KEYS = [
-  "finance",
-  "stats",
-  "visits",
-  "users",
-  "products",
-  "ambassadors",
-  // ambassadorRecompute/eventCommissionRecompute deliberately excluded
-  // (explicit ask, 2026-09-22) — see components/moderation/panelKeys.ts's
-  // own comment; both are hardcoded super-mod-only, not toggleable.
-  "eventPromoters",
-  "billboards",
-  "verifyCreator",
-  "verifyGroup",
-  "verificationQueue",
-  "restoreAccount",
-  "restoreEvent",
-] as const;
+// Single source of truth: components/moderation/panelKeys.ts.
 
 // GET is any moderator (the moderation page itself needs this to know what
 // to render for the current viewer, super or not) — PATCH is super-mod

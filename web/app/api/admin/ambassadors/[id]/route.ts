@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { generateUniqueAmbassadorCode } from "@/lib/ambassador/generateCode";
 
@@ -11,7 +12,7 @@ const bodySchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { user: moderator } = await requireModerator(req);
+    const { user: moderator } = await requireModeratorPanel(req, "ambassadors");
     const { id } = await params;
     const { action, rejectionReason } = bodySchema.parse(await req.json());
 

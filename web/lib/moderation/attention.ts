@@ -15,9 +15,9 @@ import { sendPushToUser } from "@/lib/push/send";
 export type AttentionPanel = "reports" | "verificationQueue" | "billboards" | "finance";
 
 // Which panel-visibility key gates each panel (components/moderation/
-// panelKeys.ts). Reports has none — every moderator always sees it.
+// panelKeys.ts).
 const PANEL_VISIBILITY_KEY: Record<AttentionPanel, string | null> = {
-  reports: null,
+  reports: "reports",
   verificationQueue: "verificationQueue",
   billboards: "billboards",
   finance: "finance",

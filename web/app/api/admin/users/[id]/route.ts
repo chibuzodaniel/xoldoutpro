@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { getUserModerationDetail } from "@/lib/commerce/userModeration";
 
 // View-only (explicit ask, 2026-09-22 — user chose "view only" over adding a
@@ -7,7 +8,7 @@ import { getUserModerationDetail } from "@/lib/commerce/userModeration";
 // corrections stay confined to the dedicated recompute tools.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "userDetails");
     const { id } = await params;
     const detail = await getUserModerationDetail(id);
     if (!detail) return NextResponse.json({ error: "Not found" }, { status: 404 });

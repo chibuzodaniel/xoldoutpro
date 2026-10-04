@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 // Moderator view across every event's ticket promoters (the event owner's
@@ -9,7 +10,7 @@ import { db } from "@/lib/db";
 // /api/search elsewhere.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "eventPromoters");
     const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
 
     const promoters = await db.eventPromoter.findMany({

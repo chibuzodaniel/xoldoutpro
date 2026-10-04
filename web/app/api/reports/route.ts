@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireUser, requireModerator, AuthError } from "@/lib/auth/session";
+import { requireUser, AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { alertModerators } from "@/lib/moderation/attention";
 
@@ -91,7 +92,7 @@ export async function POST(req: NextRequest) {
 // by SLA urgency (soonest due first, no-SLA items last), then oldest first.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "reports");
     const statusParam = req.nextUrl.searchParams.get("status");
     const where =
       statusParam === "RESOLVED"

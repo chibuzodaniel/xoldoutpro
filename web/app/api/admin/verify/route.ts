@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 // PRD §12/§18: verification criteria are explicitly undecided ("who gets a
@@ -11,7 +12,7 @@ const bodySchema = z.object({ handle: z.string().min(1), verified: z.boolean() }
 
 export async function POST(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "verifyCreator");
     const { handle, verified } = bodySchema.parse(await req.json());
 
     const user = await db.user.findUnique({ where: { handle } });

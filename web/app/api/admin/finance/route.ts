@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { getPlatformFinancials } from "@/lib/commerce/ledger";
 
 // Moderator-only platform-wide financial overview — see
@@ -8,7 +9,7 @@ import { getPlatformFinancials } from "@/lib/commerce/ledger";
 // and are easy to conflate).
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "finance");
     const financials = await getPlatformFinancials();
     return NextResponse.json(financials);
   } catch (err) {

@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 // Groups with a pending "apply for verification" request — otherwise a
 // moderator would have to already know a name to look it up.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "verifyGroup");
     const pending = await db.fanbaseGroup.findMany({
       where: { verificationRequestedAt: { not: null }, isVerified: false },
       orderBy: { verificationRequestedAt: "asc" },
@@ -27,7 +28,7 @@ const bodySchema = z.object({ name: z.string().min(1), verified: z.boolean() });
 
 export async function POST(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "verifyGroup");
     const { name, verified } = bodySchema.parse(await req.json());
 
     const group = await db.fanbaseGroup.findFirst({ where: { name: { equals: name.trim(), mode: "insensitive" } } });

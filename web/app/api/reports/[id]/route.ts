@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { canModeratorUse, requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { takedownProduct } from "@/lib/commerce/productModeration";
 
@@ -8,9 +9,12 @@ const patchSchema = z.object({ action: z.enum(["review", "dismiss", "takedown"])
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    const { user } = await requireModeratorPanel(req, "reports");
     const { id } = await params;
     const { action } = patchSchema.parse(await req.json());
+    if (action === "takedown" && !(await canModeratorUse(user, "productTakedown"))) {
+      return NextResponse.json({ error: "A super moderator has turned takedowns off for moderators" }, { status: 403 });
+    }
 
     const report = await db.report.findUnique({ where: { id } });
     if (!report) return NextResponse.json({ error: "Not found" }, { status: 404 });

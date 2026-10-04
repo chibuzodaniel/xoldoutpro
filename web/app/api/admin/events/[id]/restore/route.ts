@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { EventNotDeletedError, restoreDeletedEvent } from "@/lib/commerce/eventRestore";
 
 // Undo a mistaken event delete — see lib/commerce/eventRestore.ts.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "restoreEvent");
     const { id } = await params;
     return NextResponse.json(await restoreDeletedEvent(id));
   } catch (err) {

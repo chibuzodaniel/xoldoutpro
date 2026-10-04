@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { publicUrlFor } from "@/lib/storage/r2";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "billboards");
     const billboards = await db.billboard.findMany({
       orderBy: { createdAt: "desc" },
       take: 100,
@@ -30,7 +31,7 @@ const bodySchema = z.object({
 // restriction (a house ad isn't a creator's slot).
 export async function POST(req: NextRequest) {
   try {
-    const { user } = await requireModerator(req);
+    const { user } = await requireModeratorPanel(req, "billboards");
     const { artworkKey, creatorHandle, durationDays } = bodySchema.parse(await req.json());
 
     let creatorId: string | null = null;

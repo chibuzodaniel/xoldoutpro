@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useCanUse } from "./access";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -197,6 +198,7 @@ type ProductDetailData = {
 };
 
 function ProductDetail({ productId, onBack }: { productId: string; onBack: () => void }) {
+  const canTakeDown = useCanUse()("productTakedown");
   const toast = useToast();
   const [data, setData] = useState<ProductDetailData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -418,7 +420,7 @@ function ProductDetail({ productId, onBack }: { productId: string; onBack: () =>
             )}
           </div>
 
-          {data.product.status !== "DELETED" && (
+          {data.product.status !== "DELETED" && canTakeDown && (
             <button
               type="button"
               onClick={handleTakedown}

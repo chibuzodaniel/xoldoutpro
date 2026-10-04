@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
 import { serializeApplication } from "@/lib/verification/serialize";
@@ -17,7 +18,7 @@ import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "verificationQueue");
     const { id } = await params;
 
     const application = await db.verificationApplication.findUnique({
@@ -68,7 +69,7 @@ const NOTIFICATION_COPY: Record<string, { title: string; body: string }> = {
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { user: moderator } = await requireModerator(req);
+    const { user: moderator } = await requireModeratorPanel(req, "verificationQueue");
     const { id } = await params;
     const body = patchSchema.parse(await req.json());
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { approveBillboard, rejectBillboard, BillboardStateError } from "@/lib/commerce/billboards";
 
@@ -17,7 +18,7 @@ const bodySchema = z.object({
 // Moderator, not super-mod — same trust tier as a takedown.
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { user } = await requireModerator(req);
+    const { user } = await requireModeratorPanel(req, "billboards");
     const { id } = await params;
     const { action, rejectionReason, extendDays, status } = bodySchema.parse(await req.json());
 

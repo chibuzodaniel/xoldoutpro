@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { getVisitDashboard } from "@/lib/analytics/visits";
 
 const querySchema = z.object({
@@ -16,7 +17,7 @@ const querySchema = z.object({
 // window for the by-country breakdown table.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "visits");
     const params = req.nextUrl.searchParams;
     const { country, period } = querySchema.parse({
       country: params.get("country") || null,

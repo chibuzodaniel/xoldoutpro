@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useCanUse } from "./access";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -87,6 +88,8 @@ function TierRateEditor({
 }
 
 export function AmbassadorsPanel() {
+  // Editing tier commission rates is its own switch.
+  const canEditRates = useCanUse()("ambassadorRates");
   const toast = useToast();
   const [rates, setRates] = useState<TierRate[] | null>(null);
   const [pending, setPending] = useState<PendingAmbassadorApplication[] | null>(null);
@@ -152,7 +155,9 @@ export function AmbassadorsPanel() {
         person they invited buys anything; continuous is the rate after that. A value at or above the product&apos;s own
         commission rate pays the ambassador that sale&apos;s entire commission.
       </p>
-      {rates === null ? (
+      {!canEditRates ? (
+        <p className="text-xs text-ink-3 mb-5">Editing commission rates is turned off for moderators.</p>
+      ) : rates === null ? (
         <p className="text-xs text-ink-3 mb-4">Loading…</p>
       ) : (
         <div className="grid grid-cols-2 gap-3 mb-5">

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { getProductModerationDetail } from "@/lib/commerce/productModeration";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "products");
     const { id } = await params;
     const detail = await getProductModerationDetail(id);
     if (!detail) return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -39,7 +40,7 @@ const patchSchema = z.object({
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "products");
     const { id } = await params;
     const body = patchSchema.parse(await req.json());
 

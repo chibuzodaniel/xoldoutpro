@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 // The moderator-only escape hatch once a self-service recovery window (see
@@ -10,7 +11,7 @@ const bodySchema = z.object({ handle: z.string().min(1) });
 
 export async function POST(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "restoreAccount");
     const { handle } = bodySchema.parse(await req.json());
 
     const user = await db.user.findUnique({ where: { handle } });

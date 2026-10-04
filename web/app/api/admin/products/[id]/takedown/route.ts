@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { takedownProduct } from "@/lib/commerce/productModeration";
 
@@ -12,7 +13,7 @@ import { takedownProduct } from "@/lib/commerce/productModeration";
 // codebase (a creator's own soft-delete — no refunds, no revocation).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "productTakedown");
     const { id } = await params;
 
     const product = await db.product.findUnique({ where: { id } });

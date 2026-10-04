@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { getCommissionRates } from "@/lib/commerce/ledger";
 import { getCreatorPlanSettings } from "@/lib/commerce/creatorPlans";
@@ -14,7 +15,7 @@ const STATUSES = ["DRAFT", "PUBLISHED", "DELETED"] as const;
 // on the platform, not just a creator's own.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "products");
 
     const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
     const page = Math.max(1, Number(req.nextUrl.searchParams.get("page")) || 1);

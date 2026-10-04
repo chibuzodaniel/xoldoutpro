@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useCanUse } from "./access";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { formatNairaShort } from "./AmbassadorsPanel";
@@ -36,6 +37,8 @@ export function UsersListPanel() {
   const [data, setData] = useState<UsersPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Opening a user's money & activity details is its own switch.
+  const canSeeDetails = useCanUse()("userDetails");
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- standard debounced-fetch-on-input-change pattern
@@ -93,8 +96,9 @@ export function UsersListPanel() {
               <button
                 key={u.id}
                 type="button"
-                onClick={() => setSelectedId(u.id)}
-                className="w-full flex items-center justify-between gap-3 py-2.5 text-left"
+                onClick={() => canSeeDetails && setSelectedId(u.id)}
+                disabled={!canSeeDetails}
+                className="w-full flex items-center justify-between gap-3 py-2.5 text-left disabled:cursor-default"
               >
                 <div className="min-w-0">
                   <p className="text-sm truncate">

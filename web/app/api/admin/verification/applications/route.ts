@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { serializeApplications } from "@/lib/verification/serialize";
 
@@ -8,7 +9,7 @@ import { serializeApplications } from "@/lib/verification/serialize";
 // oldest first" convention. ?status=ALL or a specific status overrides.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "verificationQueue");
     const statusParam = req.nextUrl.searchParams.get("status");
     const where =
       statusParam === "ALL"

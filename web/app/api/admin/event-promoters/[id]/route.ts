@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 // Moderator removal — mirrors the event owner's own DELETE
@@ -10,7 +11,7 @@ import { db } from "@/lib/db";
 // immutable, same invariant as the owner-facing route.
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "eventPromoters");
     const { id } = await params;
 
     const promoter = await db.eventPromoter.findUnique({ where: { id } });

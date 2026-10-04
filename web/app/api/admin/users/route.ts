@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 const PAGE_SIZE = 5; // explicit ask: compact list, max 5 rows on screen at once, paginated
@@ -14,7 +15,7 @@ const PAGE_SIZE = 5; // explicit ask: compact list, max 5 rows on screen at once
 // "tens to low-thousands of users" scale noted in /api/admin/stats.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "users");
 
     const q = req.nextUrl.searchParams.get("q")?.trim() ?? "";
     const page = Math.max(1, Number(req.nextUrl.searchParams.get("page")) || 1);

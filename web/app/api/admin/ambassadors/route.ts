@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import {
   getAmbassadorRevenueGeneratedKobo,
@@ -11,7 +12,7 @@ import { ambassadorTierFor } from "@/lib/commerce/constants";
 
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "ambassadors");
 
     const [pendingApplications, ambassadors] = await Promise.all([
       db.ambassadorApplication.findMany({

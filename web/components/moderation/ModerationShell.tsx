@@ -1,5 +1,6 @@
 "use client";
 
+import { ModeratorAccessProvider } from "./access";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
@@ -128,7 +129,7 @@ export function ModerationShell() {
       id: "overview",
       label: "Overview",
       items: [
-        { id: "reports", label: "Reports", icon: "🚩", render: () => <ReportsQueuePanel /> },
+        { id: "reports", label: "Reports", icon: "🚩", panelKey: "reports", render: () => <ReportsQueuePanel /> },
         { id: "finance", label: "Platform finance", icon: "💰", panelKey: "finance", render: () => <PlatformFinancePanel /> },
         {
           id: "stats",
@@ -280,7 +281,9 @@ export function ModerationShell() {
           {activeItem ? (
             <>
               <h2 className="font-serif text-xl mb-1">{activeItem.label}</h2>
-              <div className="mt-4">{activeItem.render()}</div>
+              <div className="mt-4">
+                <ModeratorAccessProvider value={panelVisible}>{activeItem.render()}</ModeratorAccessProvider>
+              </div>
             </>
           ) : (
             <p className="text-sm text-ink-3">Nothing to show yet.</p>

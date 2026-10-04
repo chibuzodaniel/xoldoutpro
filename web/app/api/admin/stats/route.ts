@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -55,7 +56,7 @@ function bucketSignups(dates: Date[], granularity: "day" | "week" | "month" | "y
 // purposes) except where noted.
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "stats");
 
     const now = new Date();
     const since24h = new Date(now.getTime() - DAY_MS);

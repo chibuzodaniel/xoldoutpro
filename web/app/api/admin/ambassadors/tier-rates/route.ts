@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireModerator, AuthError } from "@/lib/auth/session";
+import { AuthError } from "@/lib/auth/session";
+import { requireModeratorPanel } from "@/lib/moderation/panelAccess";
 import { db } from "@/lib/db";
 import { DEFAULT_AMBASSADOR_TIER_RATES, type AmbassadorTier } from "@/lib/commerce/constants";
 
@@ -8,7 +9,7 @@ const TIERS: AmbassadorTier[] = ["SILVER", "GOLD"];
 
 export async function GET(req: NextRequest) {
   try {
-    await requireModerator(req);
+    await requireModeratorPanel(req, "ambassadors");
     const rows = await db.ambassadorTierRate.findMany();
     const byTier = new Map(rows.map((r) => [r.tier, r]));
     const rates = TIERS.map((tier) => {
@@ -35,7 +36,7 @@ const patchSchema = z.object({
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { user } = await requireModerator(req);
+    const { user } = await requireModeratorPanel(req, "ambassadorRates");
     const { tier, firstPurchasePercent, continuousPercent } = patchSchema.parse(await req.json());
 
     const row = await db.ambassadorTierRate.upsert({
