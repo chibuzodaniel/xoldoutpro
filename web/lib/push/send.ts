@@ -153,7 +153,7 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
 
   const unread = await db.notification.groupBy({
     by: ["userId"],
-    where: { userId: { in: recipients.map((r) => r.id) }, readAt: null },
+    where: { userId: { in: recipients.map((r) => r.id) }, seenAt: null },
     _count: { _all: true },
   });
   const badgeFor = new Map(unread.map((u) => [u.userId, u._count._all]));

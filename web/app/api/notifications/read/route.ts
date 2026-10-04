@@ -19,7 +19,8 @@ export async function POST(req: NextRequest) {
 
     await db.notification.updateMany({
       where: { userId: user.id, readAt: null, ...(ids ? { id: { in: ids } } : {}) },
-      data: { readAt: new Date() },
+      // Opening a notification also counts as seeing it.
+      data: { readAt: new Date(), seenAt: new Date() },
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

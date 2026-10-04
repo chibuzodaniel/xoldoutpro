@@ -937,6 +937,12 @@ model Notification {
   title     String
   body      String
   url       String?
+  // Two separate states (explicit ask, 2026-10-04): seenAt is set for every
+  // notification as soon as the bell/Notifications screen is opened, and
+  // drives the bell badge, push badge counts and the daily reminder.
+  // readAt is set when this notification itself is opened (or its merged
+  // group is expanded), and drives the unread styling in the list.
+  seenAt    DateTime?
   readAt    DateTime?
   createdAt DateTime         @default(now())
 

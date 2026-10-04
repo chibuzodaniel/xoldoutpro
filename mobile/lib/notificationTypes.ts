@@ -22,4 +22,6 @@ export type NotificationRow = {
   url: string | null;
   readAt: string | null;
   createdAt: string;
+  // Set when the notification points at a Live — its current status.
+  liveStatus?: "LIVE" | "ENDED" | "SCHEDULED";
 };

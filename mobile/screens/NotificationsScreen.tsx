@@ -76,6 +76,20 @@ function groupNotifications(rows: NotificationRow[]): NotificationGroup[] {
   return [...groups.values()];
 }
 
+// "Join live" while it's running, "Live ended" once it's over (explicit ask,
+// 2026-10-04).
+function LivePill({ status }: { status?: NotificationRow["liveStatus"] }) {
+  if (!status) return null;
+  const style = status === "LIVE" ? styles.pillLive : status === "SCHEDULED" ? styles.pillUpcoming : styles.pillEnded;
+  const textStyle = status === "LIVE" ? styles.pillLiveText : status === "SCHEDULED" ? styles.pillUpcomingText : styles.pillEndedText;
+  const label = status === "LIVE" ? "● Join live" : status === "SCHEDULED" ? "Upcoming" : "Live ended";
+  return (
+    <View style={[styles.pill, style]}>
+      <Text style={textStyle}>{label}</Text>
+    </View>
+  );
+}
+
 export function NotificationsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
@@ -83,19 +97,26 @@ export function NotificationsScreen() {
   const [selected, setSelected] = useState<NotificationRow | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
-  function toggleGroup(key: string) {
+  // Expanding a merged group counts as viewing everything in it (explicit
+  // ask, 2026-10-04) — its "N new" count goes away.
+  function toggleGroup(key: string, items: NotificationRow[]) {
+    const opening = !expanded.has(key);
     setExpanded((cur) => {
       const next = new Set(cur);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+    if (opening) markRead(items.filter((i) => !i.readAt).map((i) => i.id));
   }
 
-  // Join-request notifications open the in-app pending list; everything
-  // else still opens its page on the website.
+  // Join-request notifications open the in-app pending list and Live
+  // notifications open the Live itself; everything else still opens its
+  // page on the website.
   function openUrl(url: string) {
+    const liveId = url.match(/^\/live\/([^/?#]+)$/)?.[1];
     if (url === "/groups/requests") navigation.navigate("FanbaseRequests");
+    else if (liveId) navigation.navigate("LiveViewer", { id: liveId });
     else Linking.openURL(`${API_BASE_URL}${url}`);
   }
 
@@ -136,6 +157,9 @@ export function NotificationsScreen() {
       } catch {
         setNotifications([]);
       }
+      // Opening this screen marks everything seen — the bell badge clears —
+      // without marking anything read (explicit ask, 2026-10-04).
+      apiPost("/api/notifications/seen", idToken).catch(() => {});
     });
   }, [firebaseUser]);
 
@@ -180,7 +204,7 @@ export function NotificationsScreen() {
               <View style={isUnread ? styles.unreadGroup : undefined}>
                 <TouchableOpacity
                   style={[styles.row, !isUnread && styles.readRow]}
-                  onPress={() => (merged ? toggleGroup(group.key) : openDetail(item))}
+                  onPress={() => (merged ? toggleGroup(group.key, group.items) : openDetail(item))}
                 >
                   <View style={[styles.unreadDot, !isUnread && styles.dotHidden]} />
                   <View style={[styles.kindBadge, { backgroundColor: `${KIND_COLOR[item.kind]}26` }]}>
@@ -204,6 +228,7 @@ export function NotificationsScreen() {
                         </Text>
                       )}
                     </Text>
+                    <LivePill status={item.liveStatus} />
                   </View>
                   <Text style={styles.rowTime}>
                     {timeAgo(item.createdAt)}
@@ -215,7 +240,10 @@ export function NotificationsScreen() {
                     {group.items.map((n) => (
                       <TouchableOpacity key={n.id} style={[styles.subRow, n.readAt ? styles.readRow : null]} onPress={() => openItem(n)}>
                         <View style={[styles.subDot, n.readAt ? styles.dotHidden : null]} />
-                        <Text style={[styles.subBody, !n.readAt && styles.subBodyUnread]}>{n.body}</Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.subBody, !n.readAt && styles.subBodyUnread]}>{n.body}</Text>
+                          <LivePill status={n.liveStatus} />
+                        </View>
                         <Text style={styles.rowTime}>{timeAgo(n.createdAt)}</Text>
                         {n.url ? <Text style={styles.chevron}>›</Text> : null}
                       </TouchableOpacity>
@@ -281,6 +309,13 @@ const styles = StyleSheet.create({
   rowTitle: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   rowBody: { color: colors.ink3, fontSize: 12, marginTop: 1 },
   rowTime: { color: colors.ink3, fontSize: 11 },
+  pill: { alignSelf: "flex-start", borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginTop: 4 },
+  pillLive: { backgroundColor: colors.red },
+  pillLiveText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  pillUpcoming: { backgroundColor: "rgba(217,154,43,0.15)" },
+  pillUpcomingText: { color: colors.amber, fontSize: 11, fontWeight: "600" },
+  pillEnded: { backgroundColor: "rgba(255,255,255,0.1)" },
+  pillEndedText: { color: colors.ink3, fontSize: 11, fontWeight: "600" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
   markAllText: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
   unreadGroup: { backgroundColor: "rgba(225,29,46,0.06)", marginHorizontal: -16, paddingHorizontal: 16 },

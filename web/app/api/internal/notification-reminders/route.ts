@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
   const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000);
   const unread = await db.notification.groupBy({
     by: ["userId"],
-    where: { readAt: null, createdAt: { gte: since }, kind: { not: "REMINDER" } },
+    // Not yet seen — opening the bell stops these, without having to open
+    // every single notification.
+    where: { seenAt: null, createdAt: { gte: since }, kind: { not: "REMINDER" } },
     _count: { _all: true },
   });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -20,7 +20,35 @@ type NotificationKind =
   | "REMINDER"
   | "VERIFICATION"
   | "LIVE";
-type NotificationRow = { id: string; kind: NotificationKind; title: string; body: string; url: string | null; readAt: string | null; createdAt: string };
+type NotificationRow = {
+  id: string;
+  kind: NotificationKind;
+  title: string;
+  body: string;
+  url: string | null;
+  readAt: string | null;
+  createdAt: string;
+  // Set when the notification points at a Live — its current status.
+  liveStatus?: "LIVE" | "ENDED" | "SCHEDULED";
+};
+
+// "Join live" while it's running, "Live ended" once it's over (explicit ask,
+// 2026-10-04). Shown at full strength even on a read (dimmed) row.
+function LivePill({ status }: { status?: NotificationRow["liveStatus"] }) {
+  if (!status) return null;
+  if (status === "LIVE") {
+    return (
+      <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-red px-2 py-0.5 text-[11px] font-bold text-white">
+        <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
+        Join live
+      </span>
+    );
+  }
+  if (status === "SCHEDULED") {
+    return <span className="mt-1 inline-flex rounded-full bg-amber/15 px-2 py-0.5 text-[11px] font-semibold text-amber">Upcoming</span>;
+  }
+  return <span className="mt-1 inline-flex rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-ink-3">Live ended</span>;
+}
 
 type Props = { open: boolean; onClose: () => void; onRead: () => void };
 
@@ -135,14 +163,25 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const router = useRouter();
 
-  function toggleGroup(key: string) {
+  // Expanding a merged group counts as viewing everything in it (explicit
+  // ask, 2026-10-04) — its "N new" count goes away.
+  function toggleGroup(key: string, items: NotificationRow[]) {
+    const opening = !expanded.has(key);
     setExpanded((cur) => {
       const next = new Set(cur);
       if (next.has(key)) next.delete(key);
       else next.add(key);
       return next;
     });
+    if (opening) markRead(items.filter((i) => !i.readAt).map((i) => i.id));
   }
+
+  // onRead comes from the header as a fresh function each render; a ref keeps
+  // the load effect below from re-running (and refetching) on every render.
+  const onReadRef = useRef(onRead);
+  useEffect(() => {
+    onReadRef.current = onRead;
+  }, [onRead]);
 
   // Explicit ask, 2026-10-04: a notification only counts as checked once
   // the user actually opens it (its detail, or its page) — not just because
@@ -189,6 +228,13 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
     apiFetch("/api/notifications")
       .then((res) => (res.ok ? res.json() : { notifications: [] }))
       .then((data) => setNotifications(data.notifications));
+    // Opening the bell marks everything seen — the badge clears — without
+    // marking anything read (explicit ask, 2026-10-04).
+    apiFetch("/api/notifications/seen", { method: "POST" })
+      .then((res) => {
+        if (res.ok) onReadRef.current();
+      })
+      .catch(() => {});
   }, [open]);
 
   const unreadTotal = notifications?.filter((n) => !n.readAt).length ?? 0;
@@ -259,6 +305,7 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm ${titleTone}`}>{n.title}</p>
                       <p className="text-xs text-ink-3">{n.body}</p>
+                      <LivePill status={n.liveStatus} />
                     </div>
                     <span className="text-[11px] text-ink-3 shrink-0 pt-1">{timeAgo(n.createdAt)}</span>
                     <span className="sr-only">{isUnread ? "Unread" : "Read"}</span>
@@ -270,7 +317,7 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
                 <div key={key} className={`-mx-4 px-4 ${isUnread ? "bg-red/[0.06]" : ""}`}>
                   <button
                     type="button"
-                    onClick={() => toggleGroup(key)}
+                    onClick={() => toggleGroup(key, items)}
                     aria-expanded={isOpen}
                     className={`flex w-full items-start gap-2.5 py-3 text-left ${isUnread ? "" : "opacity-60"}`}
                   >
@@ -290,6 +337,7 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
                           · +{items.length - 1} more{isUnread && ` · ${unreadInGroup} new`}
                         </span>
                       </p>
+                      <LivePill status={n.liveStatus} />
                     </div>
                     <span className="flex shrink-0 items-center gap-1.5 pt-1 text-[11px] text-ink-3">
                       {timeAgo(n.createdAt)}
@@ -314,7 +362,10 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
                           className={`flex items-start gap-2 py-2.5 pl-3 text-left hover:bg-surface-2 ${item.readAt ? "opacity-60" : ""}`}
                         >
                           <span className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${item.readAt ? "bg-transparent" : "bg-red"}`} aria-hidden />
-                          <p className={`min-w-0 flex-1 text-xs ${item.readAt ? "text-ink-3" : "font-medium text-ink"}`}>{item.body}</p>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs ${item.readAt ? "text-ink-3" : "font-medium text-ink"}`}>{item.body}</p>
+                            <LivePill status={item.liveStatus} />
+                          </div>
                           <span className="shrink-0 text-[11px] text-ink-3">{timeAgo(item.createdAt)}</span>
                           {item.url && <span className="shrink-0 text-ink-3">›</span>}
                         </button>
