@@ -18,7 +18,7 @@ type WalletData = {
   // defaults, since a moderator can set each product type's rate
   // independently now and this copy needs to stay accurate either way.
   commissionPercent: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number };
-  xgEarnings: { balanceXg: number; balanceKobo: number; nextPayoutAt: string };
+  xgEarnings: { balanceXg: number; balanceKobo: number; nextPayoutAt: string | null; nextPayoutKobo: number };
 };
 
 type Payout = {
@@ -273,8 +273,9 @@ export default function WalletPage() {
           <div>
             <p className="text-[11px] uppercase tracking-widest text-ink-3">Live earnings</p>
             <p className="text-[12px] text-ink-3">
-              {data.xgEarnings.balanceXg.toLocaleString("en-NG")} XG · arrives{" "}
-              {new Date(data.xgEarnings.nextPayoutAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}
+              {data.xgEarnings.balanceXg.toLocaleString("en-NG")} XG held
+              {data.xgEarnings.nextPayoutAt &&
+                ` · ${naira(data.xgEarnings.nextPayoutKobo)} arrives ${new Date(data.xgEarnings.nextPayoutAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}`}
             </p>
           </div>
           <p className="font-serif text-lg">{naira(data.xgEarnings.balanceKobo)}</p>

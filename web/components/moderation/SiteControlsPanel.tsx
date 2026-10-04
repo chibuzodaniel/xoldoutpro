@@ -53,7 +53,7 @@ const CREATOR_PLAN_LABEL: Record<CreatorPlanKey, string> = {
   limitedPlanUploadCap: "Upload cap",
 };
 
-type SettingsResponse = { downloadsEnabled: boolean; billboardDailyRateKobo: number; xgPayoutRateKobo: number } & Record<CommissionKey, number> &
+type SettingsResponse = { downloadsEnabled: boolean; billboardDailyRateKobo: number; xgPayoutRateKobo: number; xgPayoutHoldDays: number } & Record<CommissionKey, number> &
   Record<CreatorPlanKey, number>;
 
 // Super-moderator-only: platform-wide toggles (real-file downloads for
@@ -77,6 +77,8 @@ export function SiteControlsPanel({
   const [rateInput, setRateInput] = useState("");
   const [xgRateKobo, setXgRateKobo] = useState<number | null>(null);
   const [xgRateInput, setXgRateInput] = useState("");
+  const [xgHoldDays, setXgHoldDays] = useState<number | null>(null);
+  const [xgHoldInput, setXgHoldInput] = useState("");
   const [commissionLoaded, setCommissionLoaded] = useState(false);
   const [commissionInputs, setCommissionInputs] = useState<Record<CommissionKey, string>>({
     commissionReleasePercent: "",
@@ -106,6 +108,8 @@ export function SiteControlsPanel({
       setRateInput(String(data.billboardDailyRateKobo / 100));
       setXgRateKobo(data.xgPayoutRateKobo);
       setXgRateInput(String(data.xgPayoutRateKobo / 100));
+      setXgHoldDays(data.xgPayoutHoldDays);
+      setXgHoldInput(String(data.xgPayoutHoldDays));
       setCommissionInputs({
         commissionReleasePercent: String(data.commissionReleasePercent),
         commissionBeatPercent: String(data.commissionBeatPercent),
@@ -222,6 +226,25 @@ export function SiteControlsPanel({
     }
   }
 
+  async function saveXgHoldDays() {
+    const days = Number(xgHoldInput);
+    if (!Number.isInteger(days) || days < 0 || days > 90) {
+      toast.error("The hold must be a whole number of days from 0 to 90.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ xgPayoutHoldDays: days }) });
+      if (!res.ok) throw new Error("Could not update the XG payout hold");
+      setXgHoldDays(days);
+      toast.success(days === 0 ? "Live XG now pays out on the next daily run." : `Live XG now pays out ${days} ${days === 1 ? "day" : "days"} after it's received.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function toggleDownloads(enabled: boolean) {
     setBusy(true);
     try {
@@ -310,8 +333,7 @@ export function SiteControlsPanel({
         <div>
           <p className="text-sm font-semibold">XG payout rate</p>
           <p className="text-xs text-ink-3">
-            What a creator earns per XG received on Live. Paid into their wallet on the 1st of each month; a change only
-            affects XG received after it.
+            What a creator earns per XG received on Live. A change only affects XG received after it.
           </p>
         </div>
         {xgRateKobo === null ? (
@@ -330,6 +352,40 @@ export function SiteControlsPanel({
             <button
               type="button"
               onClick={saveXgRate}
+              disabled={busy}
+              className="rounded-full bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            >
+              Save
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 py-2.5 border-b border-line-soft mb-3">
+        <div>
+          <p className="text-sm font-semibold">XG payout hold</p>
+          <p className="text-xs text-ink-3">
+            Days received XG is held before it is paid into the creator&rsquo;s wallet. A change also moves the payout date of
+            XG still being held.
+          </p>
+        </div>
+        {xgHoldDays === null ? (
+          <span className="text-xs text-ink-3">Loading…</span>
+        ) : (
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              type="number"
+              min={0}
+              max={90}
+              step={1}
+              value={xgHoldInput}
+              onChange={(e) => setXgHoldInput(e.target.value)}
+              className="w-16 rounded-lg border border-line bg-surface px-2 py-1 text-xs"
+            />
+            <span className="text-xs text-ink-3">days</span>
+            <button
+              type="button"
+              onClick={saveXgHoldDays}
               disabled={busy}
               className="rounded-full bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
             >

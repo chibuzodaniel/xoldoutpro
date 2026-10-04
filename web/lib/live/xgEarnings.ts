@@ -1,17 +1,20 @@
-// Creators' earned XG (explicit ask, 2026-10-04): "₦6 per XG but super
-// moderator can edit — everything received should go to XG balance and be
-// withdrawable at the end of the month like Meta does."
+// Creators' earned XG (explicit asks, 2026-10-04): "₦6 per XG but super
+// moderator can edit — everything received should go to XG balance", then
+// "make the payout for live coins 1 week for now and can be changed later by
+// super admins" (replacing the original once-a-month payout).
 //
 // Every XG a creator receives (gift, paid access, paid request) lands here
 // as an XgEarning row, valued at PlatformSettings.xgPayoutRateKobo *at the
 // moment it's received* — so a later rate edit never re-values XG already
-// earned. Once a month, every not-yet-converted row from before the current
-// month (Lagos time) is paid into the creator's wallet as one
-// XG_EARNINGS_PAYOUT credit, where the normal withdrawal flow takes over.
+// earned. Each row is held for PlatformSettings.xgPayoutHoldDays (7 to start)
+// and then paid into the creator's wallet as part of one XG_EARNINGS_PAYOUT
+// credit per creator per run, where the normal withdrawal flow takes over.
 //
-// The conversion cron runs daily, not just on the 1st: a run only ever
-// touches rows from previous months, so the extra runs are no-ops, and a
-// failed or skipped run on the 1st is simply picked up the next day.
+// The hold is read live, not snapshotted: changing it moves the payout date
+// of XG that's still being held, in either direction. The conversion cron
+// runs once a day, so a row becomes withdrawable on the first run after its
+// hold ends (at most a day later), and a failed run is simply picked up by
+// the next one.
 
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
@@ -19,10 +22,22 @@ import { db } from "@/lib/db";
 type DbClient = Prisma.TransactionClient | typeof db;
 
 export const DEFAULT_XG_PAYOUT_RATE_KOBO = 600; // ₦6 per XG
+export const DEFAULT_XG_PAYOUT_HOLD_DAYS = 7;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+async function getXgSettings(client: DbClient = db) {
+  const row = await client.platformSettings.findUnique({
+    where: { id: "singleton" },
+    select: { xgPayoutRateKobo: true, xgPayoutHoldDays: true },
+  });
+  return {
+    rateKobo: row?.xgPayoutRateKobo ?? DEFAULT_XG_PAYOUT_RATE_KOBO,
+    holdDays: row?.xgPayoutHoldDays ?? DEFAULT_XG_PAYOUT_HOLD_DAYS,
+  };
+}
 
 export async function getXgPayoutRateKobo(client: DbClient = db): Promise<number> {
-  const row = await client.platformSettings.findUnique({ where: { id: "singleton" }, select: { xgPayoutRateKobo: true } });
-  return row?.xgPayoutRateKobo ?? DEFAULT_XG_PAYOUT_RATE_KOBO;
+  return (await getXgSettings(client)).rateKobo;
 }
 
 /** The seller side of an XG spend — run inside the same transaction as the spender's debitCoins. */
@@ -42,54 +57,71 @@ export async function creditCreatorXg(
   });
 }
 
-// Nigeria is UTC+1 year-round (no DST), so "midnight on the 1st in Lagos"
-// is always 23:00 UTC on the last day of the previous month.
-const LAGOS_OFFSET_MS = 60 * 60 * 1000;
-
-/** Start of the Lagos-time calendar month containing `now`, as a UTC instant. */
-export function lagosMonthStart(now: Date): Date {
-  const lagos = new Date(now.getTime() + LAGOS_OFFSET_MS);
-  return new Date(Date.UTC(lagos.getUTCFullYear(), lagos.getUTCMonth(), 1) - LAGOS_OFFSET_MS);
+/** XG received before this instant has finished its hold and is due for payout. */
+export function xgHoldCutoff(now: Date, holdDays: number): Date {
+  return new Date(now.getTime() - holdDays * DAY_MS);
 }
 
-/** When XG earned right now becomes withdrawable: the start of next Lagos month. */
-export function nextXgPayoutDate(now: Date): Date {
-  const lagos = new Date(now.getTime() + LAGOS_OFFSET_MS);
-  return new Date(Date.UTC(lagos.getUTCFullYear(), lagos.getUTCMonth() + 1, 1) - LAGOS_OFFSET_MS);
-}
-
-/** What the wallet screens show: unconverted earned XG, its Naira value, and when it pays out. */
+/**
+ * What the wallet screens show: XG still being held, its Naira value, and
+ * the next payout — when the oldest held XG finishes its hold, and how much
+ * becomes withdrawable then (everything received on that same day).
+ */
 export async function getXgEarningsSummary(userId: string, now = new Date()) {
-  const rows = await db.xgEarning.findMany({
-    where: { userId, convertedAt: null },
-    select: { xgAmount: true, koboPerXg: true },
-  });
+  const [{ rateKobo, holdDays }, rows] = await Promise.all([
+    getXgSettings(),
+    db.xgEarning.findMany({
+      where: { userId, convertedAt: null },
+      orderBy: { createdAt: "asc" },
+      select: { xgAmount: true, koboPerXg: true, createdAt: true },
+    }),
+  ]);
   let xg = 0;
   let kobo = 0;
   for (const r of rows) {
     xg += r.xgAmount;
     kobo += r.xgAmount * r.koboPerXg;
   }
+
+  let nextPayout: { at: string; xg: number; kobo: number } | null = null;
+  if (rows.length > 0) {
+    // Already-due rows (hold over, cron not run yet) pay on the next run;
+    // otherwise the next payout is the oldest row's hold ending.
+    const firstDue = Math.max(rows[0].createdAt.getTime() + holdDays * DAY_MS, now.getTime());
+    const batchEnd = firstDue - holdDays * DAY_MS + DAY_MS;
+    let batchXg = 0;
+    let batchKobo = 0;
+    for (const r of rows) {
+      if (r.createdAt.getTime() >= batchEnd) break;
+      batchXg += r.xgAmount;
+      batchKobo += r.xgAmount * r.koboPerXg;
+    }
+    nextPayout = { at: new Date(firstDue).toISOString(), xg: batchXg, kobo: batchKobo };
+  }
+
   return {
     balanceXg: xg,
     balanceKobo: kobo,
-    nextPayoutAt: nextXgPayoutDate(now).toISOString(),
-    rateKobo: await getXgPayoutRateKobo(),
+    nextPayoutAt: nextPayout?.at ?? null,
+    nextPayoutXg: nextPayout?.xg ?? 0,
+    nextPayoutKobo: nextPayout?.kobo ?? 0,
+    holdDays,
+    rateKobo,
   };
 }
 
 /**
- * Pays every unconverted XgEarning from before the current Lagos month into
- * its creator's wallet. Idempotent per creator: rows are re-read under an
- * advisory lock on the creator's id and marked converted in the same
- * transaction that writes the wallet credit, so overlapping runs can't pay
- * the same row twice.
+ * Pays every unconverted XgEarning whose hold has ended into its creator's
+ * wallet. Idempotent per creator: rows are re-read under an advisory lock on
+ * the creator's id and marked converted in the same transaction that writes
+ * the wallet credit, so overlapping runs can't pay the same row twice.
  */
 export async function convertDueXgEarnings(now = new Date()): Promise<{ creators: number; xg: number; kobo: number }> {
-  const cutoff = lagosMonthStart(now);
+  const { holdDays } = await getXgSettings();
+  const cutoff = xgHoldCutoff(now, holdDays);
   const due = await db.xgEarning.groupBy({
     by: ["userId"],
-    where: { convertedAt: null, createdAt: { lt: cutoff } },
+    where: { convertedAt: null, createdAt: { lte: cutoff } },
   });
 
   let creators = 0;
@@ -99,7 +131,7 @@ export async function convertDueXgEarnings(now = new Date()): Promise<{ creators
     const result = await db.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"xg-convert:" + userId}))`;
       const rows = await tx.xgEarning.findMany({
-        where: { userId, convertedAt: null, createdAt: { lt: cutoff } },
+        where: { userId, convertedAt: null, createdAt: { lte: cutoff } },
         select: { id: true, xgAmount: true, koboPerXg: true },
       });
       if (rows.length === 0) return null;

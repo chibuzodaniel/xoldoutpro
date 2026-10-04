@@ -459,7 +459,7 @@ enum LedgerKind {
   LIVE_GIFT_CREDIT
   LIVE_ACCESS_CREDIT
   LIVE_REQUEST_CREDIT
-  // Monthly conversion of a creator's earned XG (XgEarning) into Naira —
+  // Conversion of a creator's earned XG (XgEarning) into Naira once held —
   // replaces the instant LIVE_*_CREDIT rows above for every XG received
   // from 2026-10-04 on (those kinds stay only for historical rows). One row
   // per creator per conversion run; see lib/live/xgEarnings.ts.
@@ -1332,6 +1332,11 @@ model PlatformSettings {
   // Snapshotted onto each XgEarning row the moment the XG is received, so
   // editing this never changes the value of XG a creator already earned.
   xgPayoutRateKobo            Int       @default(600)
+  // Explicit ask, 2026-10-04: "make the payout for live coins 1 week for now
+  // and can be changed later by super admins". Days each received XG is held
+  // before it is paid into the wallet (lib/live/xgEarnings.ts). Read live,
+  // so a change applies to XG still being held.
+  xgPayoutHoldDays            Int       @default(7)
   // The most recently published Android APK — written by mobile's
   // `npm run publish-apk` script (POST /api/internal/apk-release, secret-
   // gated) after it builds via EAS and uploads the artifact to R2. Read by
@@ -1592,9 +1597,10 @@ model CoinLedgerEntry {
 // withdrawn. Explicit ask, 2026-10-04: "everything received should go to
 // XG balance and withdrawable at the end of the month like Meta does".
 // koboPerXg is PlatformSettings.xgPayoutRateKobo at the moment of receipt;
-// convertedAt/walletLedgerEntryId are set together by the monthly
-// conversion (lib/live/xgEarnings.ts), which pays out every row from
-// before the current Lagos-time month as one XG_EARNINGS_PAYOUT credit.
+// convertedAt/walletLedgerEntryId are set together by the daily
+// conversion (lib/live/xgEarnings.ts), which pays out every row whose
+// PlatformSettings.xgPayoutHoldDays hold has ended as one
+// XG_EARNINGS_PAYOUT credit.
 enum XgEarningSource {
   LIVE_GIFT
   LIVE_ACCESS

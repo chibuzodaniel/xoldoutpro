@@ -4,11 +4,10 @@ import { convertDueXgEarnings } from "@/lib/live/xgEarnings";
 export const runtime = "nodejs";
 
 /**
- * Monthly XG -> wallet conversion (lib/live/xgEarnings.ts). Scheduled daily
- * by vercel.json, same GET + CRON_SECRET bearer auth as settle-ledger: only
- * earnings from before the current Lagos-time month are ever converted, so
- * every run but the first one of a month is a no-op, and a failed run on
- * the 1st is retried by the next day's.
+ * Daily XG -> wallet conversion (lib/live/xgEarnings.ts), scheduled by
+ * vercel.json with the same GET + CRON_SECRET bearer auth as settle-ledger:
+ * pays out every earning whose PlatformSettings.xgPayoutHoldDays hold has
+ * ended. A failed run is simply picked up by the next day's.
  */
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");

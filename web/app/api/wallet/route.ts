@@ -91,9 +91,14 @@ export async function GET(req: NextRequest) {
       totalWithdrawnKobo: Math.abs(withdrawn._sum.amountKobo ?? 0),
       earnedByCategory: byCategory,
       payouts,
-      // Earned XG not yet converted (lib/live/xgEarnings.ts) — shown on the
-      // wallet as "coming on the 1st", never counted in availableKobo.
-      xgEarnings: { balanceXg: xgEarnings.balanceXg, balanceKobo: xgEarnings.balanceKobo, nextPayoutAt: xgEarnings.nextPayoutAt },
+      // Earned XG still being held (lib/live/xgEarnings.ts) — shown on the
+      // wallet with its next payout date, never counted in availableKobo.
+      xgEarnings: {
+        balanceXg: xgEarnings.balanceXg,
+        balanceKobo: xgEarnings.balanceKobo,
+        nextPayoutAt: xgEarnings.nextPayoutAt,
+        nextPayoutKobo: xgEarnings.nextPayoutKobo,
+      },
       // Live, moderator-editable rates (SiteControlsPanel) — not the
       // lib/commerce/constants.ts defaults, which are just what a fresh
       // PlatformSettings row starts at. Sent as whole percent (12, not

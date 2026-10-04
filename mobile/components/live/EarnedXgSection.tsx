@@ -10,8 +10,8 @@ import { Avatar } from "../Avatar";
 import { XgCoin } from "./LiveIcons";
 
 // Mirrors web's components/live/EarnedXgSection.tsx: the creator's earned XG
-// (converted to the wallet on the 1st of each month at the rate in force
-// when it was received), per-Live stats, who gifted (top gifter first), and
+// (valued at the rate in force when it was received and paid into the wallet
+// once its hold ends), per-Live stats, who gifted (top gifter first), and
 // the Naira value next to every XG figure, on the XG balance screen.
 // Hidden for anyone who has never gone live or received XG.
 
@@ -49,7 +49,10 @@ type LiveStats = {
 type EarningsData = {
   balanceXg: number;
   balanceKobo: number;
-  nextPayoutAt: string;
+  nextPayoutAt: string | null;
+  nextPayoutXg: number;
+  nextPayoutKobo: number;
+  holdDays: number;
   rateKobo: number;
   lives: LiveStats[];
   topGifter: Gifter | null;
@@ -57,6 +60,11 @@ type EarningsData = {
 };
 
 const GIFTERS_COLLAPSED = 3;
+
+function holdCopy(days: number) {
+  if (days === 0) return "Each XG you receive is paid into your wallet within a day";
+  return `Each XG you receive is held for ${days} ${days === 1 ? "day" : "days"}, then paid into your wallet`;
+}
 
 // Not lib/format's formatNaira — that one renders 0 as "Free" (a price), and
 // a ₦0 balance here should read as ₦0.
@@ -196,9 +204,16 @@ export function EarnedXgSection() {
           <Text style={styles.worth}>{naira(data.balanceKobo)}</Text>
         </View>
       </View>
+      {data.nextPayoutAt && (
+        <View style={styles.nextPayout}>
+          <Text style={styles.nextPayoutLabel}>Next payout · {formatDate(data.nextPayoutAt)}</Text>
+          <Text style={styles.nextPayoutValue}>
+            {naira(data.nextPayoutKobo)} <Text style={styles.muted}>({xg(data.nextPayoutXg)})</Text>
+          </Text>
+        </View>
+      )}
       <Text style={styles.note}>
-        Paid into your wallet on {formatDate(data.nextPayoutAt)}, then withdrawable as usual. You earn {naira(data.rateKobo)} per XG
-        received.
+        {holdCopy(data.holdDays)} to withdraw as usual. You earn {naira(data.rateKobo)} per XG received.
       </Text>
 
       {data.lives.length > 0 && (
@@ -224,7 +239,7 @@ export function EarnedXgSection() {
 
       {data.conversions.length > 0 && (
         <>
-          <Text style={[styles.heading, { marginTop: 20 }]}>MONTHLY PAYOUTS TO WALLET</Text>
+          <Text style={[styles.heading, { marginTop: 20 }]}>PAYOUTS TO WALLET</Text>
           {data.conversions.map((c) => (
             <View key={c.id} style={styles.conversionRow}>
               <Text style={styles.conversionText}>
@@ -258,6 +273,19 @@ const styles = StyleSheet.create({
   worth: { color: colors.ink, fontSize: 17, fontFamily: fonts.serif },
   muted: { color: colors.ink3, fontSize: 12 },
   note: { color: colors.ink3, fontSize: 12, marginBottom: 20 },
+  nextPayout: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 8,
+  },
+  nextPayoutLabel: { color: colors.ink2, fontSize: 13 },
+  nextPayoutValue: { color: colors.ink, fontSize: 13, fontWeight: "600" },
   statsRow: { flexDirection: "row", gap: 8, marginBottom: 12 },
   stat: { flex: 1, backgroundColor: colors.bg, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8 },
   statLabel: { color: colors.ink3, fontSize: 10, letterSpacing: 1 },

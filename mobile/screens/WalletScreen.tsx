@@ -139,8 +139,10 @@ export function WalletScreen() {
           <View>
             <Text style={styles.statLabel}>Live earnings</Text>
             <Text style={styles.xgMeta}>
-              {data.xgEarnings.balanceXg.toLocaleString("en-NG")} XG · arrives{" "}
-              {new Date(data.xgEarnings.nextPayoutAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}
+              {data.xgEarnings.balanceXg.toLocaleString("en-NG")} XG held
+              {data.xgEarnings.nextPayoutAt
+                ? ` · ₦${(data.xgEarnings.nextPayoutKobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 2 })} arrives ${new Date(data.xgEarnings.nextPayoutAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}`
+                : ""}
             </Text>
           </View>
           <Text style={styles.statValue}>

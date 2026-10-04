@@ -42,7 +42,7 @@ afterEach(async () => {
 });
 
 describe("XG earnings", () => {
-  it("snapshots the rate at receipt and converts only previous months, exactly once", async () => {
+  it("snapshots the rate at receipt and pays out only after the hold, exactly once", async () => {
     const { creatorId, liveSessionId } = await makeCreatorWithLive();
 
     await setRate(600);
@@ -55,10 +55,10 @@ describe("XG earnings", () => {
     expect(before.balanceXg).toBe(600);
     expect(before.balanceKobo).toBe(500 * 600 + 100 * 800);
 
-    // Same month: nothing is due yet.
+    // Just received: still inside the 7-day hold.
     expect((await convertDueXgEarnings()).creators).toBe(0);
 
-    // Backdate the ₦6 gift into last month; only it should convert.
+    // Backdate the ₦6 gift past the hold; only it should convert.
     await db.xgEarning.updateMany({ where: { userId: creatorId, source: "LIVE_GIFT" }, data: { createdAt: new Date(Date.now() - 40 * 86400_000) } });
     const run = await convertDueXgEarnings();
     expect(run).toMatchObject({ creators: 1, xg: 500, kobo: 300_000 });

@@ -27,8 +27,8 @@ export type WalletData = {
   earnedByCategory: Record<string, number>;
   payouts: Payout[];
   commissionPercent: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number };
-  // Earned Live XG waiting for the monthly conversion (web's lib/live/xgEarnings.ts).
-  xgEarnings: { balanceXg: number; balanceKobo: number; nextPayoutAt: string };
+  // Earned Live XG still being held before payout (web's lib/live/xgEarnings.ts).
+  xgEarnings: { balanceXg: number; balanceKobo: number; nextPayoutAt: string | null; nextPayoutKobo: number };
 };
 
 export type ProductStat = {

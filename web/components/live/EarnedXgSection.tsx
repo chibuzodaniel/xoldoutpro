@@ -7,8 +7,9 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { XgCoin } from "@/components/live/LiveIcons";
 
 // Creator side of the XG balance page (explicit asks, 2026-10-04): XG received
-// on Live waits here at the rate in force when it arrived and converts to
-// the wallet on the 1st of each month; below it, every Live's own stats,
+// on Live waits here at the rate in force when it arrived and is paid into
+// the wallet once its hold ends (PlatformSettings.xgPayoutHoldDays, 7 days
+// to start); below it, every Live's own stats,
 // who gifted (top gifter first), and the Naira value next to every XG
 // figure. See lib/live/xgEarnings.ts. Hidden entirely for anyone who has
 // never gone live or received XG — most viewers only ever see the top-up half.
@@ -47,7 +48,10 @@ type LiveStats = {
 type EarningsData = {
   balanceXg: number;
   balanceKobo: number;
-  nextPayoutAt: string;
+  nextPayoutAt: string | null;
+  nextPayoutXg: number;
+  nextPayoutKobo: number;
+  holdDays: number;
   rateKobo: number;
   lives: LiveStats[];
   topGifter: Gifter | null;
@@ -55,6 +59,11 @@ type EarningsData = {
 };
 
 const GIFTERS_COLLAPSED = 3;
+
+function holdCopy(days: number) {
+  if (days === 0) return "Each XG you receive is paid into your wallet within a day";
+  return `Each XG you receive is held for ${days} ${days === 1 ? "day" : "days"}, then paid into your wallet`;
+}
 
 function naira(kobo: number) {
   return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 2 })}`;
@@ -203,9 +212,17 @@ export function EarnedXgSection() {
           <span className="font-serif text-lg">{naira(data.balanceKobo)}</span>
         </div>
       </div>
+      {data.nextPayoutAt && (
+        <div className="mb-2 flex items-center justify-between rounded-xl border border-line-soft px-4 py-2.5 text-[13px]">
+          <span className="text-ink-2">Next payout · {formatDate(data.nextPayoutAt)}</span>
+          <span className="text-right">
+            <span className="font-semibold">{naira(data.nextPayoutKobo)}</span>{" "}
+            <span className="text-ink-3">({xg(data.nextPayoutXg)})</span>
+          </span>
+        </div>
+      )}
       <p className="mb-6 text-[12px] text-ink-3">
-        Paid into your wallet on {formatDate(data.nextPayoutAt)}, then withdrawable as usual. You earn{" "}
-        {naira(data.rateKobo)} per XG received.
+        {holdCopy(data.holdDays)} to withdraw as usual. You earn {naira(data.rateKobo)} per XG received.
       </p>
 
       {data.lives.length > 0 && (
@@ -233,7 +250,7 @@ export function EarnedXgSection() {
 
       {data.conversions.length > 0 && (
         <>
-          <h2 className="mb-3 text-[12px] uppercase tracking-widest text-ink-3">Monthly payouts to wallet</h2>
+          <h2 className="mb-3 text-[12px] uppercase tracking-widest text-ink-3">Payouts to wallet</h2>
           <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
             {data.conversions.map((c) => (
               <div key={c.id} className="flex items-center justify-between py-2.5 text-sm">

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireSuperModerator, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { DEFAULT_XG_PAYOUT_RATE_KOBO } from "@/lib/live/xgEarnings";
+import { DEFAULT_XG_PAYOUT_HOLD_DAYS, DEFAULT_XG_PAYOUT_RATE_KOBO } from "@/lib/live/xgEarnings";
 
 // Super-moderator-only platform toggles: the real-file-download feature for
 // songs/beats (lib/audio/serveDownload.ts's downloadsEnabled()) and the
@@ -26,6 +26,7 @@ function serialize(
     limitedPlanFeeKobo: number;
     limitedPlanUploadCap: number;
     xgPayoutRateKobo: number;
+    xgPayoutHoldDays: number;
   } | null,
 ) {
   return {
@@ -47,6 +48,7 @@ function serialize(
     limitedPlanFeeKobo: row?.limitedPlanFeeKobo ?? 400_000,
     limitedPlanUploadCap: row?.limitedPlanUploadCap ?? 100,
     xgPayoutRateKobo: row?.xgPayoutRateKobo ?? DEFAULT_XG_PAYOUT_RATE_KOBO,
+    xgPayoutHoldDays: row?.xgPayoutHoldDays ?? DEFAULT_XG_PAYOUT_HOLD_DAYS,
   };
 }
 
@@ -82,6 +84,9 @@ const patchSchema = z.object({
   // What a creator earns per XG received (lib/live/xgEarnings.ts). Must stay
   // positive — a zero rate would silently turn every gift into nothing.
   xgPayoutRateKobo: z.number().int().positive().optional(),
+  // How long received XG is held before it can be withdrawn. 0 = paid on the
+  // next daily run; capped at a quarter so a typo can't freeze earnings.
+  xgPayoutHoldDays: z.number().int().min(0).max(90).optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -110,6 +115,7 @@ export async function PATCH(req: NextRequest) {
         limitedPlanFeeKobo: patch.limitedPlanFeeKobo ?? 400_000,
         limitedPlanUploadCap: patch.limitedPlanUploadCap ?? 100,
         xgPayoutRateKobo: patch.xgPayoutRateKobo ?? DEFAULT_XG_PAYOUT_RATE_KOBO,
+        xgPayoutHoldDays: patch.xgPayoutHoldDays ?? DEFAULT_XG_PAYOUT_HOLD_DAYS,
         updatedBy: user.id,
       },
       update: { ...patch, updatedBy: user.id },

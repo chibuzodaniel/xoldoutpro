@@ -7,7 +7,7 @@ import { getLiveXgStats, getXgEarningsSummary, getXgPayoutHistory, topGifterAcro
 // plus the small "Earnings from gifts" figure on LiveNowPanel. giftsXg /
 // giftsCount stay as lifetime raw XG received from gifts (what that panel
 // shows); everything else is the earned-XG balance waiting for the next
-// monthly conversion, per-Live stats, and past conversions — see
+// payout once its hold ends, per-Live stats, and past payouts — see
 // lib/live/xgEarnings.ts.
 export async function GET(req: NextRequest) {
   try {
