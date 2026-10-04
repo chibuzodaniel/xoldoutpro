@@ -31,6 +31,7 @@ import {
   useReactionRateLimit,
 } from "@/components/live/reactions";
 import { unlockGiftSounds } from "@/components/live/giftSound";
+import { TopGifterChip, TopGiftersSheet, useTopGifters } from "@/components/live/TopGifters";
 
 function HandIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -124,6 +125,11 @@ function LiveRoom() {
   // The host's video always fills the screen; anyone else on stage
   // (including this viewer, once approved/added) shows as a tile.
   const [room, setRoom] = useState<Room | null>(null);
+  // Top gifter chip + leaderboard (explicit ask, 2026-10-04) —
+  // components/live/TopGifters.tsx; giftVersion bumps on every gift.
+  const [giftVersion, setGiftVersion] = useState(0);
+  const [topGiftersOpen, setTopGiftersOpen] = useState(false);
+  const topGifters = useTopGifters(params.id, room !== null, giftVersion);
   const hostIdRef = useRef<string | null>(null);
   const selfIdRef = useRef<string | null>(null);
   const { state: stage, refresh: refreshStage } = useStageState(params.id, room !== null);
@@ -266,6 +272,7 @@ function LiveRoom() {
           ]);
           if (mentionsMe) toastRef.current.success(`${data.senderName} mentioned you`);
         } else if (topic === "live-event" && data.kind === "gift") {
+          setGiftVersion((v) => v + 1);
           setFeed((f) => {
             const { feed: next, count } = appendGift(f, data);
             setGiftMoment({
@@ -597,6 +604,12 @@ function LiveRoom() {
             </button>
           </div>
 
+          {topGifters.length > 0 && (
+            <div className="mt-2.5">
+              <TopGifterChip top={topGifters[0]} selfId={selfId} onOpen={() => setTopGiftersOpen(true)} />
+            </div>
+          )}
+
           {giftMoment && (
             <div className="mt-4">
               <GiftBanner key={giftMoment.key} moment={giftMoment} isSelf={giftMoment.senderId === selfId} />
@@ -745,6 +758,8 @@ function LiveRoom() {
           </button>
         </BottomSheet>
       )}
+
+      {topGiftersOpen && <TopGiftersSheet gifters={topGifters} selfId={selfId} onClose={() => setTopGiftersOpen(false)} />}
 
       {peopleOpen && stage && isStaff && (
         <PeopleSheet liveId={params.id} state={stage} onRefresh={() => void refreshStage()} onClose={() => setPeopleOpen(false)} />

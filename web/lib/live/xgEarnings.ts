@@ -106,6 +106,8 @@ export async function getXgEarningsSummary(userId: string, now = new Date()) {
     nextPayoutXg: nextPayout?.xg ?? 0,
     nextPayoutKobo: nextPayout?.kobo ?? 0,
     holdDays,
+    // What the creator earns per XG received — the one number they see
+    // (explicit ask, 2026-10-04). The platform's share is never exposed.
     rateKobo,
   };
 }
@@ -453,4 +455,34 @@ export async function getLiveSupport(liveSessionId: string) {
       .sort((a, b) => b.xg - a.xg),
     supporters,
   };
+}
+
+/**
+ * The public gift leaderboard for one Live (explicit ask, 2026-10-04: "the
+ * live viewer should see the top gifter"). Gift XG only — everyone in the
+ * room already sees gifts land — never the host's Naira earnings or paid
+ * access/requests.
+ */
+export async function getTopGifters(liveSessionId: string, limit = 5) {
+  const totals = await db.liveGift.groupBy({
+    by: ["senderId"],
+    where: { liveSessionId },
+    _sum: { xgAmount: true },
+    _count: true,
+    orderBy: { _sum: { xgAmount: "desc" } },
+    take: limit,
+  });
+  const users = await db.user.findMany({
+    where: { id: { in: totals.map((t) => t.senderId) } },
+    select: { id: true, handle: true, displayName: true, avatarUrl: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+  return totals.map((t) => ({
+    userId: t.senderId,
+    handle: byId.get(t.senderId)?.handle ?? "",
+    displayName: byId.get(t.senderId)?.displayName ?? "Deleted user",
+    avatarUrl: byId.get(t.senderId)?.avatarUrl ?? null,
+    xg: t._sum.xgAmount ?? 0,
+    giftsCount: t._count,
+  }));
 }

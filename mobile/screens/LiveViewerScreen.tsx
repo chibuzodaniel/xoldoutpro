@@ -17,6 +17,7 @@ import { AddBalance, BottomSheet, GiftBanner, GiftCelebration, InitialsAvatar, L
 import { CloseIcon, EyeIcon, GiftArt, MicLineIcon, XgCoin } from "../components/live/LiveIcons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState, type StageEvent } from "../components/live/Stage";
 import { useToast } from "../components/ToastProvider";
+import { TopGifterChip, TopGiftersSheet, useTopGifters } from "../components/live/TopGifters";
 import {
   FloatingReactions,
   isLiveEmoji,
@@ -323,6 +324,11 @@ function ViewerRoomContent({
   const { state: stage, refresh: refreshStage } = useStageState(liveSessionId);
   const stageActions = useStageActions(liveSessionId, refreshStage, stage?.maxGuests);
   const [peopleOpen, setPeopleOpen] = useState(false);
+  // Top gifter chip + leaderboard (explicit ask, 2026-10-04); giftVersion
+  // bumps on every gift.
+  const [giftVersion, setGiftVersion] = useState(0);
+  const [topGiftersOpen, setTopGiftersOpen] = useState(false);
+  const topGifters = useTopGifters(liveSessionId, giftVersion);
   const [invitedBy, setInvitedBy] = useState<string | null>(null);
   const [stageMicOn, setStageMicOn] = useState(true);
   const meOnStage = stage?.onStage.some((p) => p.userId === selfId) ?? false;
@@ -446,6 +452,7 @@ function ViewerRoomContent({
     try {
       const data = JSON.parse(text);
       if (data.kind === "gift") {
+        setGiftVersion((v) => v + 1);
         const event = data as GiftEvent;
         setFeed((f) => {
           const { feed: next, count } = appendGift(f, event);
@@ -617,6 +624,7 @@ function ViewerRoomContent({
             <CloseIcon size={24} />
           </TouchableOpacity>
         </View>
+        <TopGifterChip top={topGifters[0]} selfId={selfId} onOpen={() => setTopGiftersOpen(true)} />
         {giftMoment && (
           <View style={{ marginTop: 16 }}>
             <GiftBanner key={giftMoment.key} moment={giftMoment} isSelf={giftMoment.senderId === selfId} />
@@ -680,6 +688,8 @@ function ViewerRoomContent({
           </TouchableOpacity>
         </View>
       </View>
+
+      <TopGiftersSheet gifters={topGifters} selfId={selfId} visible={topGiftersOpen} onClose={() => setTopGiftersOpen(false)} />
 
       {stage && isStaff && (
         <PeopleSheet liveId={liveSessionId} state={stage} visible={peopleOpen} onRefresh={refreshStage} onClose={() => setPeopleOpen(false)} />

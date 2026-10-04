@@ -222,7 +222,7 @@ export function EarnedXgSection() {
         </div>
       )}
       <p className="mb-6 text-[12px] text-ink-3">
-        {holdCopy(data.holdDays)} to withdraw as usual. You earn {naira(data.rateKobo)} per XG received.
+        {holdCopy(data.holdDays)} to withdraw as usual. You earn {naira(data.rateKobo)} per XG you receive.
       </p>
 
       {data.lives.length > 0 && (

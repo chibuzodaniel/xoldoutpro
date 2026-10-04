@@ -213,7 +213,7 @@ export function EarnedXgSection() {
         </View>
       )}
       <Text style={styles.note}>
-        {holdCopy(data.holdDays)} to withdraw as usual. You earn {naira(data.rateKobo)} per XG received.
+        {holdCopy(data.holdDays)} to withdraw as usual. You earn {naira(data.rateKobo)} per XG you receive.
       </Text>
 
       {data.lives.length > 0 && (
