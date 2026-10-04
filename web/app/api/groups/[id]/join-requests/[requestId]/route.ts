@@ -12,8 +12,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const { id, requestId } = await params;
     const { action } = bodySchema.parse(await req.json());
 
-    const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
-    if (membership?.role !== "ADMIN") return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    // Admins, plus the owner unconditionally — same set that sees the
+    // request in GET /api/groups/join-requests.
+    const [membership, owned] = await Promise.all([
+      db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } }),
+      db.fanbaseGroup.count({ where: { id, creatorId: user.id } }),
+    ]);
+    if (membership?.role !== "ADMIN" && owned === 0) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
 
     const request = await db.joinRequest.findUnique({ where: { id: requestId } });
     if (!request || request.groupId !== id) return NextResponse.json({ error: "Not found" }, { status: 404 });

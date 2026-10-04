@@ -264,7 +264,7 @@ export default function ProfilePage() {
             </div>
             <span className="text-ink-3">›</span>
           </div>
-          <Link href="/socials?tab=fanbase" className="flex items-center gap-3 py-3">
+          <Link href="/groups/requests" className="flex items-center gap-3 py-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4 text-ink-3 shrink-0">
               <rect x="5" y="10" width="14" height="10" rx="2" />
               <path d="M8 10V7a4 4 0 118 0v3" />

@@ -17,6 +17,7 @@ import { CollectionScreen } from "./screens/CollectionScreen";
 import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { GroupScreen } from "./screens/GroupScreen";
 import { GroupMembersScreen } from "./screens/GroupMembersScreen";
+import { FanbaseRequestsScreen } from "./screens/FanbaseRequestsScreen";
 import { PublishScreen } from "./screens/PublishScreen";
 import { PublishMusicScreen } from "./screens/PublishMusicScreen";
 import { PublishBeatScreen } from "./screens/PublishBeatScreen";
@@ -88,6 +89,7 @@ export default function App() {
             />
             <Stack.Screen name="Group" component={GroupScreen} options={{ title: "" }} />
             <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
+            <Stack.Screen name="FanbaseRequests" component={FanbaseRequestsScreen} options={{ title: "" }} />
             <Stack.Screen
               name="Publish"
               component={PublishScreen}

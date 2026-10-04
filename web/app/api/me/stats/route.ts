@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
         _sum: { sold: true },
       }),
       db.joinRequest.count({
-        where: { status: "PENDING", group: { memberships: { some: { userId: user.id, role: "ADMIN" } } } },
+        where: {
+          status: "PENDING",
+          group: { OR: [{ creatorId: user.id }, { memberships: { some: { userId: user.id, role: "ADMIN" } } }] },
+        },
       }),
     ]);
 

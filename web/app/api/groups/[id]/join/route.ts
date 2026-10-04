@@ -33,12 +33,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
 
     if (!priorRequest || priorRequest.status !== "PENDING") {
+      // The owner always hears about it (explicit ask, 2026-10-04), even if
+      // their own membership row were ever missing or not ADMIN — plus any
+      // other admins. Tapping it opens the pending list directly.
       const admins = await db.membership.findMany({ where: { groupId: id, role: "ADMIN" }, select: { userId: true } });
-      notifyUsersAfterResponse(admins.map((a) => a.userId), {
+      notifyUsersAfterResponse([group.creatorId, ...admins.map((a) => a.userId)], {
         kind: "FANBASE",
         title: "New Fanbase request",
         body: `${user.displayName} wants to join ${group.name}`,
-        url: `/groups/${id}`,
+        url: "/groups/requests",
         icon: user.avatarUrl ?? undefined,
       });
     }
