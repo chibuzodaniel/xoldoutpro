@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View, StyleSheet } from "react-native";
-import { useNavigation } from "@react-navigation/native";
+import { ActivityIndicator, AppState, FlatList, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { useIsFocused, useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../../lib/AuthContext";
 import { apiGet } from "../../lib/api";
@@ -20,18 +20,44 @@ export function LiveNowPanel() {
   const { firebaseUser } = useAuth();
   const [sessions, setSessions] = useState<LiveSessionSummary[] | null>(null);
   const [upcoming, setUpcoming] = useState<UpcomingLiveSummary[]>([]);
+  // Upcoming is collapsed by default and searchable once opened (explicit
+  // ask, 2026-10-04) — mirrors web's UpcomingSection.
+  const [upcomingOpen, setUpcomingOpen] = useState(false);
+  const [upcomingQuery, setUpcomingQuery] = useState("");
+  const q = upcomingQuery.trim().toLowerCase();
+  const upcomingMatches = q
+    ? upcoming.filter((u) => u.title.toLowerCase().includes(q) || u.creator.displayName.toLowerCase().includes(q))
+    : upcoming;
   const [earningsXg, setEarningsXg] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    // `upcoming` is optional: older API deploys don't send it.
-    const data = await apiGet<{ sessions: LiveSessionSummary[]; upcoming?: UpcomingLiveSummary[] }>("/api/live");
-    setSessions(data.sessions);
-    setUpcoming(data.upcoming ?? []);
+    try {
+      // `upcoming` is optional: older API deploys don't send it.
+      const data = await apiGet<{ sessions: LiveSessionSummary[]; upcoming?: UpcomingLiveSummary[] }>("/api/live");
+      setSessions(data.sessions);
+      setUpcoming(data.upcoming ?? []);
+    } catch {
+      setSessions((cur) => cur ?? []);
+    }
   }, []);
 
+  // Fresh whenever this screen/tab is in view: on focus, every 20s while
+  // focused, and when the app returns to the foreground. It used to load
+  // once on mount — and the Socials tab stays mounted — so Lives that
+  // started later never showed until the app restarted.
+  const isFocused = useIsFocused();
   useEffect(() => {
+    if (!isFocused) return;
     load();
-  }, [load]);
+    const id = setInterval(load, 20_000);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [isFocused, load]);
 
   useEffect(() => {
     if (!firebaseUser) return;
@@ -92,10 +118,40 @@ export function LiveNowPanel() {
       ListFooterComponent={
         upcoming.length > 0 ? (
           <View style={styles.upcomingWrap}>
-            <Text style={styles.sectionHeader}>Upcoming</Text>
-            {upcoming.map((u) => (
-              <UpcomingRow key={u.id} live={u} onPress={() => navigation.navigate("LiveViewer", { id: u.id })} />
-            ))}
+            <TouchableOpacity style={styles.upcomingHeader} onPress={() => setUpcomingOpen((v) => !v)} accessibilityState={{ expanded: upcomingOpen }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.sectionHeader}>
+                  Upcoming <Text style={styles.upcomingCount}>· {upcoming.length}</Text>
+                </Text>
+                {!upcomingOpen && (
+                  <Text style={styles.upcomingNext} numberOfLines={1}>
+                    Next: {upcoming[0].creator.displayName} — {upcoming[0].title}
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.upcomingChevron}>{upcomingOpen ? "▴" : "▾"}</Text>
+            </TouchableOpacity>
+            {upcomingOpen && (
+              <>
+                {upcoming.length > 1 && (
+                  <TextInput
+                    value={upcomingQuery}
+                    onChangeText={setUpcomingQuery}
+                    placeholder="Search upcoming Lives by artist or title"
+                    placeholderTextColor={colors.ink3}
+                    style={styles.upcomingSearch}
+                    returnKeyType="search"
+                  />
+                )}
+                {upcomingMatches.length === 0 ? (
+                  <Text style={styles.emptyText}>No upcoming Lives match "{upcomingQuery.trim()}".</Text>
+                ) : (
+                  upcomingMatches.map((u) => (
+                    <UpcomingRow key={u.id} live={u} onPress={() => navigation.navigate("LiveViewer", { id: u.id })} />
+                  ))
+                )}
+              </>
+            )}
           </View>
         ) : null
       }
@@ -140,6 +196,32 @@ const styles = StyleSheet.create({
   sectionCount: { color: colors.ink3, fontSize: 14 },
   row: { gap: 12, marginBottom: 12 },
   upcomingWrap: { marginTop: 24 },
+  upcomingHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1,
+    borderColor: colors.lineSoft,
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+  },
+  upcomingCount: { color: colors.ink3, fontSize: 15, fontWeight: "500" },
+  upcomingNext: { color: colors.ink3, fontSize: 12, marginTop: 2 },
+  upcomingChevron: { color: colors.ink3, fontSize: 16 },
+  upcomingSearch: {
+    borderWidth: 1,
+    borderColor: colors.line,
+    backgroundColor: colors.surface2,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: colors.ink,
+    fontSize: 14,
+    marginBottom: 10,
+  },
 });
 
 /** One scheduled Live — opens its countdown / Remind me / Share screen. */

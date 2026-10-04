@@ -4,19 +4,27 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { LiveCard } from "@/components/live/LiveCard";
 import { GoLiveButton, UpcomingSection } from "@/components/live/LiveNowPanel";
 import { ShieldIcon } from "@/components/live/LiveIcons";
+import { AutoRefresh } from "@/components/live/AutoRefresh";
 
 // Explicit ask: web can go live too, not just mobile — app/(app)/live/new
 // and app/(app)/live/[id]/broadcast/page.tsx do the getUserMedia capture,
 // same shape as mobile's @livekit/react-native screens, sharing the same
 // API routes and the same "chat"/"live-event" data-channel protocol either
 // way, so a Live works the same regardless of which side started it.
-export const revalidate = 30;
+//
+// Always rendered fresh (explicit report, 2026-10-04: "sometimes Live now
+// doesn't show the Lives that are active"). It used to be ISR-cached with
+// revalidate = 30, and on Vercel the first visit after that window still got
+// the old copy while a new one built — on a quiet site, minutes stale.
+// AutoRefresh below keeps an open page current too.
+export const dynamic = "force-dynamic";
 
 export default async function LivePage() {
   const [sessions, upcoming] = await Promise.all([listLiveSessionsNow(), listUpcomingLiveSessions()]);
 
   return (
     <div className="pb-10">
+      <AutoRefresh intervalMs={20_000} />
       <BackHeader
         title="Live"
         action={

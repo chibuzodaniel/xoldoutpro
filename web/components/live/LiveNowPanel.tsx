@@ -19,14 +19,29 @@ export function LiveNowPanel() {
   const [upcoming, setUpcoming] = useState<UpcomingLiveCardData[]>([]);
   const [earningsXg, setEarningsXg] = useState<number | null>(null);
 
+  // Loaded on mount, then every 20s while the tab is visible and again
+  // whenever it becomes visible — it used to load once, so a Live that
+  // started after the tab was opened never appeared.
   useEffect(() => {
-    apiFetch("/api/live")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!data) return;
-        setSessions(data.sessions);
-        setUpcoming(data.upcoming ?? []);
-      });
+    const load = () =>
+      apiFetch("/api/live")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data) return;
+          setSessions(data.sessions);
+          setUpcoming(data.upcoming ?? []);
+        })
+        .catch(() => {});
+    const refresh = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    void load();
+    const id = setInterval(refresh, 20_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", refresh);
+    };
   }, []);
 
   useEffect(() => {
@@ -83,16 +98,73 @@ export function LiveNowPanel() {
 }
 
 /** Scheduled Lives, soonest first — shared with app/(app)/live/page.tsx. */
+// Collapsed by default, with a search once opened (explicit ask,
+// 2026-10-04: "the lives that start in … should be collapsed and can be
+// searched instead of having everything open"). Matches artist name or
+// Live title; the list is already soonest-first from the server.
 export function UpcomingSection({ upcoming }: { upcoming: UpcomingLiveCardData[] }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   if (upcoming.length === 0) return null;
+
+  const q = query.trim().toLowerCase();
+  const matches = q
+    ? upcoming.filter((l) => l.title.toLowerCase().includes(q) || l.creator.displayName.toLowerCase().includes(q))
+    : upcoming;
+  const next = upcoming[0];
+
   return (
     <div className="mt-8">
-      <h2 className="text-xl font-bold mb-3">Upcoming</h2>
-      <div className="flex flex-col gap-2">
-        {upcoming.map((live) => (
-          <UpcomingLiveRow key={live.id} live={live} />
-        ))}
-      </div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between rounded-xl border border-line-soft bg-surface px-4 py-3 text-left"
+      >
+        <div className="min-w-0">
+          <p className="text-xl font-bold">
+            Upcoming <span className="text-base font-medium text-ink-3">· {upcoming.length}</span>
+          </p>
+          {!open && (
+            <p className="truncate text-[12px] text-ink-3">
+              Next: {next.creator.displayName} — {next.title}
+            </p>
+          )}
+        </div>
+        <svg
+          viewBox="0 0 24 24"
+          className={`h-5 w-5 shrink-0 text-ink-3 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-3">
+          {upcoming.length > 1 && (
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search upcoming Lives by artist or title"
+              className="mb-3 w-full rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-red"
+            />
+          )}
+          {matches.length === 0 ? (
+            <p className="py-4 text-center text-sm text-ink-3">No upcoming Lives match &ldquo;{query.trim()}&rdquo;.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {matches.map((live) => (
+                <UpcomingLiveRow key={live.id} live={live} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
