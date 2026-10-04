@@ -16,16 +16,21 @@ import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { initializePayment } from "@/lib/bachs";
 
-// Placeholder pricing (business decision still to be finalized — these are
-// round Naira numbers loosely tracking the $0.99/$4.99/$9.99/$24.99 mockup
-// tiers at no fixed FX rate, since Bachs only settles in NGN). Update freely;
-// nothing else depends on these specific numbers, only on `xgAmount` being
-// what's credited and `priceKobo` being what's charged.
+// XG pricing (explicit asks, 2026-10-04): buying starts at ₦500 and ₦1,000,
+// and every pack carries a small bonus that rounds it to a clean XG amount,
+// bigger packs a little better per XG — the same shape as TikTok coin packs.
+// Bonuses are measured against a ₦15/XG base and kept modest: even the best
+// pack (₦12.96/XG) sells XG at more than double the ₦6 creator payout
+// (PlatformSettings.xgPayoutRateKobo), so every gift stays well in margin.
+// A checkout snapshots its XG amount onto the Payment row at creation, so
+// changing this list never changes what an in-flight purchase credits.
 export const XG_TOPUP_PACKS = [
-  { xgAmount: 100, priceKobo: 150_000, bonusPercent: 0 }, // ₦1,500
-  { xgAmount: 500, priceKobo: 700_000, bonusPercent: 0 }, // ₦7,000
-  { xgAmount: 1200, priceKobo: 1_400_000, bonusPercent: 20 }, // ₦14,000 (+20% bonus already folded into xgAmount)
-  { xgAmount: 3000, priceKobo: 3_500_000, bonusPercent: 20 }, // ₦35,000 (+20% bonus already folded into xgAmount)
+  { xgAmount: 35, priceKobo: 50_000, bonusPercent: 5 }, // ₦500    → ₦14.29/XG
+  { xgAmount: 70, priceKobo: 100_000, bonusPercent: 5 }, // ₦1,000  → ₦14.29/XG
+  { xgAmount: 105, priceKobo: 150_000, bonusPercent: 5 }, // ₦1,500  → ₦14.29/XG
+  { xgAmount: 500, priceKobo: 700_000, bonusPercent: 7 }, // ₦7,000  → ₦14.00/XG
+  { xgAmount: 1050, priceKobo: 1_400_000, bonusPercent: 13 }, // ₦14,000 → ₦13.33/XG
+  { xgAmount: 2700, priceKobo: 3_500_000, bonusPercent: 16 }, // ₦35,000 → ₦12.96/XG
 ] as const;
 
 export async function getCoinBalance(userId: string, client: Prisma.TransactionClient | typeof db = db): Promise<number> {
