@@ -127,8 +127,10 @@ async function notifyNewMessage(args: {
   if (args.recipient.mutedUntil && args.recipient.mutedUntil.getTime() > now) return;
   if (args.recipient.lastReadAt && now - args.recipient.lastReadAt.getTime() < ACTIVELY_VIEWING_MS) return;
   await sendPushToUsers([args.recipient.userId], {
-    title: args.isRequest ? `${args.sender.displayName} wants to send you a message` : args.sender.displayName,
-    body: args.isRequest ? "Open your message requests to see it." : args.preview,
+    // Labelled as a direct message, not just a name (explicit ask,
+    // 2026-10-05: "direct messages should say it's a message").
+    title: args.isRequest ? `💬 Message request from ${args.sender.displayName}` : `💬 New message from ${args.sender.displayName}`,
+    body: args.isRequest ? `${args.sender.displayName} wants to send you a message. Open your message requests to see it.` : args.preview,
     url: `/messages/${args.conversationId}`,
     icon: args.sender.avatarUrl ?? undefined,
     tag: `dm-${args.conversationId}`,
@@ -480,7 +482,7 @@ export async function proposeDisappearing(conversationId: string, userId: string
     );
   });
   await sendPushToUsers([other.userId], {
-    title: me.displayName,
+    title: `💬 Message from ${me.displayName}`,
     body: seconds === 0 ? "Asked to turn off disappearing messages" : `Asked to turn on disappearing messages (${disappearLabel(seconds)})`,
     url: `/messages/${conversationId}`,
     tag: `dm-${conversationId}`,

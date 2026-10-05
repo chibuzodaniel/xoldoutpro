@@ -94,9 +94,9 @@ export function InAppMessageBanner() {
       >
         <Avatar uri={banner.sender.avatarUrl} name={banner.sender.displayName} index={0} size={40} />
         <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={[styles.label, banner.isRequest && styles.labelRequest]}>💬 {banner.isRequest ? "MESSAGE REQUEST" : "MESSAGE"}</Text>
           <Text style={styles.name} numberOfLines={1}>
             {banner.sender.displayName}
-            {banner.isRequest ? <Text style={styles.request}>  Message request</Text> : null}
           </Text>
           <Text style={styles.preview} numberOfLines={1}>
             {banner.preview}
@@ -126,7 +126,8 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
   },
   name: { color: colors.ink, fontSize: 14, fontWeight: "700" },
-  request: { color: colors.amber, fontSize: 11, fontWeight: "500" },
+  label: { color: colors.redSoft, fontSize: 10, fontWeight: "800", letterSpacing: 1.2 },
+  labelRequest: { color: colors.amber },
   preview: { color: colors.ink2, fontSize: 13, marginTop: 1 },
   open: { color: colors.redSoft, fontSize: 12, fontWeight: "700" },
 });

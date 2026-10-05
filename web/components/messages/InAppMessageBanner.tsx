@@ -92,10 +92,10 @@ export function InAppMessageBanner() {
       >
         <DmAvatar person={banner.sender} className="h-10 w-10 text-sm" />
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-[14px] font-semibold">
-            {banner.sender.displayName}
-            {banner.isRequest && <span className="ml-1.5 text-[11px] font-normal text-amber">Message request</span>}
+          <span className={`block text-[10px] font-bold uppercase tracking-widest ${banner.isRequest ? "text-amber" : "text-red-soft"}`}>
+            💬 {banner.isRequest ? "Message request" : "Message"}
           </span>
+          <span className="block truncate text-[14px] font-semibold">{banner.sender.displayName}</span>
           <span className="block truncate text-[13px] text-ink-2">{banner.preview}</span>
         </span>
         <span className="shrink-0 text-[12px] font-semibold text-red-soft">Open</span>
