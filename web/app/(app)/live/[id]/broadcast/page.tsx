@@ -61,7 +61,7 @@ const WELCOME_ITEM: FeedItem = { kind: "system", id: "welcome", text: "You're li
 export default function LiveBroadcastPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { firebaseUser, loading: authLoading } = useAuth();
+  const { firebaseUser, appUser, loading: authLoading } = useAuth();
   const toast = useToast();
   const videoContainerRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<Room | null>(null);
@@ -115,7 +115,14 @@ export default function LiveBroadcastPage() {
   const [chatText, setChatText] = useState("");
   const [retryTick, setRetryTick] = useState(0);
 
-  const myName = firebaseUser?.displayName ?? "You";
+  // Display names everywhere in a Live (explicit ask, 2026-10-05: "every
+  // user should be known by display name on Live, not switching between
+  // display name and username"). Received chat uses the sender's LiveKit
+  // participant name — set server-side from their XOLDOUT display name when
+  // they joined (lib/live/liveKit.ts) — rather than whatever name the sender's
+  // app put in the message; sending uses the XOLDOUT display name too, never
+  // the sign-in (Firebase) account's name.
+  const myName = appUser?.displayName ?? "Host";
 
   useEffect(() => {
     if (authLoading) return;
@@ -179,7 +186,7 @@ export default function LiveBroadcastPage() {
               floating.push(data.emoji);
             }
           } else if (topic === "chat") {
-            setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: data.senderName, text: data.text }]);
+            setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: participant?.name || data.senderName, text: data.text }]);
           } else if (topic === "live-event" && data.kind === "gift") {
             setFeed((f) => {
               const { feed: next, count } = appendGift(f, data);

@@ -45,17 +45,21 @@ export function extractMentions(text: string, candidates: MentionCandidate[]): C
   return out;
 }
 
-/** Chat text with each tagged @handle highlighted. */
+/**
+ * Chat text with each tagged person highlighted — shown by display name
+ * ("@XaintLeo"), not the @handle that was typed (explicit ask, 2026-10-05:
+ * people are known by display name throughout a Live).
+ */
 export function MentionText({ text, mentions }: { text: string; mentions?: ChatMention[] }) {
   if (!mentions || mentions.length === 0) return <>{text}</>;
-  const handles = new Set(mentions.map((m) => m.handle.toLowerCase()));
+  const nameByHandle = new Map(mentions.map((m) => [m.handle.toLowerCase(), m.displayName]));
   const parts = text.split(/(@[\w.]+)/g);
   return (
     <>
       {parts.map((part, i) =>
-        part.startsWith("@") && handles.has(part.slice(1).toLowerCase()) ? (
+        part.startsWith("@") && nameByHandle.has(part.slice(1).toLowerCase()) ? (
           <span key={i} className="font-semibold text-amber">
-            {part}
+            @{nameByHandle.get(part.slice(1).toLowerCase())}
           </span>
         ) : (
           <span key={i}>{part}</span>

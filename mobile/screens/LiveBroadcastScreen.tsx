@@ -152,7 +152,7 @@ function BroadcastRoomContent({
   onEndLive: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, appUser } = useAuth();
   const { localParticipant } = useLocalParticipant();
   const remoteParticipants = useRemoteParticipants();
   // People sheet (explicit asks, 2026-10-04): who's watching, adding them to
@@ -193,7 +193,14 @@ function BroadcastRoomContent({
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
   const [chatText, setChatText] = useState("");
 
-  const myName = firebaseUser?.displayName ?? "You";
+  // Display names everywhere in a Live (explicit ask, 2026-10-05: "every
+  // user should be known by display name on Live, not switching between
+  // display name and username"). Received chat uses the sender's LiveKit
+  // participant name — set server-side from their XOLDOUT display name when
+  // they joined (lib/live/liveKit.ts) — rather than whatever name the sender's
+  // app put in the message; sending uses the XOLDOUT display name too, never
+  // the sign-in (Firebase) account's name.
+  const myName = appUser?.displayName ?? "Host";
 
   // Stable callback refs — useDataChannel re-runs its internal setup effect
   // whenever `onMessage` changes identity, so an inline arrow function here
@@ -202,11 +209,11 @@ function BroadcastRoomContent({
   // resubscribe). useCallback with an empty dep array is safe since both
   // handlers only ever use the functional setState form, never closing over
   // stale `feed`.
-  const onChatMessage = useCallback((msg: { payload: Uint8Array }) => {
+  const onChatMessage = useCallback((msg: { payload: Uint8Array; from?: { name?: string } }) => {
     const text = new TextDecoder().decode(msg.payload);
     try {
       const data = JSON.parse(text);
-      setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: data.senderName, text: data.text }]);
+      setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: msg.from?.name || data.senderName, text: data.text }]);
     } catch {
       // ignore malformed data messages
     }

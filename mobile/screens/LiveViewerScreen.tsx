@@ -318,7 +318,7 @@ function ViewerRoomContent({
   const [requestMessage, setRequestMessage] = useState("");
   const [requestXg, setRequestXg] = useState(MIN_REQUEST_XG);
   const [requestBusy, setRequestBusy] = useState(false);
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, appUser } = useAuth();
   const toast = useToast();
 
   // Co-hosting (explicit ask, 2026-10-04) — mirrors web's viewer page.
@@ -431,7 +431,7 @@ function ViewerRoomContent({
   useEffect(() => {
     chatContextRef.current = { hostId, selfId, notify: (name: string) => toast.success(`${name} mentioned you`) };
   }, [hostId, selfId, toast]);
-  const onChatMessage = useCallback((msg: { payload: Uint8Array; from?: { identity: string } }) => {
+  const onChatMessage = useCallback((msg: { payload: Uint8Array; from?: { identity: string; name?: string } }) => {
     const text = new TextDecoder().decode(msg.payload);
     try {
       const data = JSON.parse(text);
@@ -441,9 +441,9 @@ function ViewerRoomContent({
       const mentionsMe = !!mentions?.some((m: { userId: string }) => m.userId === ctx.selfId);
       setFeed((f) => [
         ...f,
-        { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: data.senderName, text: data.text, mentions, fromHost, mentionsMe },
+        { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: msg.from?.name || data.senderName, text: data.text, mentions, fromHost, mentionsMe },
       ]);
-      if (mentionsMe) ctx.notify(data.senderName);
+      if (mentionsMe) ctx.notify(msg.from?.name || data.senderName);
     } catch {
       // ignore malformed data messages
     }
@@ -499,7 +499,14 @@ function ViewerRoomContent({
   function sendChat() {
     const text = chatText.trim();
     if (!text) return;
-    const senderName = firebaseUser?.displayName ?? "You";
+    // Display names everywhere in a Live (explicit ask, 2026-10-05: "every
+    // user should be known by display name on Live, not switching between
+    // display name and username"). Received chat uses the sender's LiveKit
+    // participant name — set server-side from their XOLDOUT display name when
+    // they joined (lib/live/liveKit.ts) — rather than whatever name the sender's
+    // app put in the message; sending uses the XOLDOUT display name too, never
+    // the sign-in (Firebase) account's name.
+    const senderName = appUser?.displayName ?? "Viewer";
     const payload = new TextEncoder().encode(JSON.stringify({ senderName, text }));
     sendChatData(payload, { topic: "chat", reliable: true });
     setFeed((f) => [...f, { kind: "chat", id: `${Date.now()}-${Math.random()}`, senderName: "You", text }]);

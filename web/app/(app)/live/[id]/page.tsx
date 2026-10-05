@@ -81,7 +81,7 @@ const GIFT_MOMENT_MS = 3200;
 function LiveRoom() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const { firebaseUser, loading: authLoading } = useAuth();
+  const { firebaseUser, appUser, loading: authLoading } = useAuth();
   const toast = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<Room | null>(null);
@@ -269,9 +269,9 @@ function LiveRoom() {
           const mentionsMe = !!mentions?.some((m) => m.userId === selfIdRef.current);
           setFeed((f) => [
             ...f,
-            { kind: "chat", id: crypto.randomUUID(), senderName: data.senderName, text: data.text, mentions, fromHost, mentionsMe },
+            { kind: "chat", id: crypto.randomUUID(), senderName: participant?.name || data.senderName, text: data.text, mentions, fromHost, mentionsMe },
           ]);
-          if (mentionsMe) toastRef.current.success(`${data.senderName} mentioned you`);
+          if (mentionsMe) toastRef.current.success(`${participant?.name || data.senderName} mentioned you`);
         } else if (topic === "live-event" && data.kind === "gift") {
           setGiftVersion((v) => v + 1);
           setFeed((f) => {
@@ -375,7 +375,14 @@ function LiveRoom() {
     const text = chatText.trim();
     const room = roomRef.current;
     if (!text || !room) return;
-    const senderName = firebaseUser?.displayName ?? "You";
+    // Display names everywhere in a Live (explicit ask, 2026-10-05: "every
+    // user should be known by display name on Live, not switching between
+    // display name and username"). Received chat uses the sender's LiveKit
+    // participant name — set server-side from their XOLDOUT display name when
+    // they joined (lib/live/liveKit.ts) — rather than whatever name the sender's
+    // app put in the message; sending uses the XOLDOUT display name too, never
+    // the sign-in (Firebase) account's name.
+    const senderName = appUser?.displayName ?? "Viewer";
     const payload = new TextEncoder().encode(JSON.stringify({ senderName, text }));
     room.localParticipant.publishData(payload, { topic: "chat", reliable: true });
     setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: "You", text }]);
