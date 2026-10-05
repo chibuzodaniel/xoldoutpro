@@ -64,6 +64,7 @@ export default function ConversationPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [disappearOpen, setDisappearOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
+  const [muteOpen, setMuteOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -220,6 +221,7 @@ export default function ConversationPage() {
           <span className="min-w-0">
             <span className="block truncate text-[15px] font-semibold">{t.other.displayName}</span>
             <span className="block truncate text-xs text-ink-3">
+              {t.mutedUntil && "🔕 "}
               {t.disappear.seconds ? `⏱ Disappearing messages · ${t.disappear.label}` : `@${t.other.handle}`}
             </span>
           </span>
@@ -438,6 +440,25 @@ export default function ConversationPage() {
             >
               Disappearing messages <span className="text-ink-3">· {t.disappear.label}</span>
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                setMuteOpen(true);
+              }}
+              className="py-3.5 text-left text-[15px]"
+            >
+              {t.mutedUntil ? "Unmute or change mute" : "Mute notifications"}
+              {t.mutedUntil && (
+                <span className="text-ink-3">
+                  {" "}
+                  ·{" "}
+                  {new Date(t.mutedUntil).getFullYear() >= 2100
+                    ? "muted"
+                    : `until ${new Date(t.mutedUntil).toLocaleString("en-NG", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`}
+                </span>
+              )}
+            </button>
             <Link href={`/u/${t.other.handle}`} className="py-3.5 text-[15px]">
               View profile
             </Link>
@@ -457,6 +478,35 @@ export default function ConversationPage() {
             <button type="button" onClick={deleteConversation} className="py-3.5 text-left text-[15px] text-red-soft">
               Delete conversation
             </button>
+          </div>
+        </BottomSheet>
+      )}
+
+      {muteOpen && (
+        <BottomSheet onClose={() => setMuteOpen(false)}>
+          <h2 className="mb-1 font-serif text-[24px] leading-tight">Mute notifications</h2>
+          <p className="mb-4 text-sm text-ink-3">No pushes or banners from this chat. New messages still show as unread.</p>
+          <div className="flex flex-col divide-y divide-white/10">
+            {(
+              [
+                ["8h", "For 8 hours"],
+                ["1w", "For 1 week"],
+                ["always", "Until I turn it back on"],
+                ...(t.mutedUntil ? ([["off", "Unmute"]] as const) : []),
+              ] as const
+            ).map(([duration, label]) => (
+              <button
+                key={duration}
+                type="button"
+                onClick={async () => {
+                  setMuteOpen(false);
+                  await action({ action: "mute", duration }, duration === "off" ? "Notifications back on." : "Chat muted.");
+                }}
+                className={`py-3.5 text-left text-[15px] ${duration === "off" ? "text-red-soft" : ""}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </BottomSheet>
       )}

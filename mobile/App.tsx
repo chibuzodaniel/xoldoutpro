@@ -1,5 +1,7 @@
 import { registerGlobals } from "@livekit/react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useEffect } from "react";
+import * as Notifications from "expo-notifications";
 import { NavigationContainer, DarkTheme } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
@@ -9,6 +11,8 @@ import { AuthProvider } from "./lib/AuthContext";
 import { PlayerProvider } from "./lib/PlayerContext";
 import { ToastProvider } from "./components/ToastProvider";
 import { UpdateBanner } from "./components/UpdateBanner";
+import { InAppMessageBanner } from "./components/messages/InAppMessageBanner";
+import { navigationRef, openNotificationUrl } from "./lib/messageNotify";
 import { BottomTabs } from "./navigation/BottomTabs";
 import { ProductScreen } from "./screens/ProductScreen";
 import { CreatorScreen } from "./screens/CreatorScreen";
@@ -64,14 +68,35 @@ const navTheme = {
   colors: { ...DarkTheme.colors, background: colors.bg, card: colors.bg, border: colors.lineSoft },
 };
 
+// Tapping a push (any kind) opens the screen it points at — a chat, a Live,
+// the request list, a product… (explicit ask, 2026-10-05). Covers the app
+// being opened by the tap too (cold start), once navigation is ready.
+function usePushTapNavigation() {
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      openNotificationUrl((response.notification.request.content.data as { url?: string } | undefined)?.url);
+    });
+    return () => sub.remove();
+  }, []);
+}
+
+function openLaunchNotification() {
+  Notifications.getLastNotificationResponseAsync()
+    .then((response) => {
+      if (response) openNotificationUrl((response.notification.request.content.data as { url?: string } | undefined)?.url);
+    })
+    .catch(() => {});
+}
+
 export default function App() {
+  usePushTapNavigation();
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
     <AuthProvider>
       <PlayerProvider>
         <ToastProvider>
         <UpdateBanner />
-        <NavigationContainer theme={navTheme}>
+        <NavigationContainer theme={navTheme} ref={navigationRef} onReady={openLaunchNotification}>
           <Stack.Navigator
             screenOptions={{
               headerStyle: { backgroundColor: colors.bg },
@@ -125,6 +150,7 @@ export default function App() {
             <Stack.Screen name="LiveCoins" component={LiveCoinsScreen} options={{ title: "" }} />
           </Stack.Navigator>
           <StatusBar style="light" />
+          <InAppMessageBanner />
         </NavigationContainer>
         </ToastProvider>
       </PlayerProvider>

@@ -25,6 +25,7 @@ import { Avatar } from "../components/Avatar";
 import { ActionSheet } from "../components/ActionSheet";
 import { ReportSheet } from "../components/ReportSheet";
 import { useToast } from "../components/ToastProvider";
+import { setOpenConversation } from "../lib/messageNotify";
 
 // Mirrors web's app/(app)/messages/[id]/page.tsx (direct messages, explicit
 // ask 2026-10-04) — rules live server-side in web's lib/messages. Opened
@@ -57,6 +58,14 @@ export function ConversationScreen() {
   const [disappearOpen, setDisappearOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [selected, setSelected] = useState<DmMessage | null>(null);
+  const [muteOpen, setMuteOpen] = useState(false);
+
+  // While this chat is on screen, its pushes and banners are suppressed.
+  useEffect(() => {
+    if (!isFocused || !conversationId) return;
+    setOpenConversation(conversationId);
+    return () => setOpenConversation(null);
+  }, [isFocused, conversationId]);
   const scrollRef = useRef<ScrollView | null>(null);
 
   // Calls the API and surfaces the server's own error text.
@@ -226,7 +235,13 @@ export function ConversationScreen() {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={90}>
-      {t?.disappear.seconds ? <Text style={styles.disappearBar}>⏱ Disappearing messages · {t.disappear.label}</Text> : null}
+      {t?.disappear.seconds || t?.mutedUntil ? (
+        <Text style={styles.disappearBar}>
+          {t?.mutedUntil ? "🔕 Muted" : ""}
+          {t?.mutedUntil && t?.disappear.seconds ? " · " : ""}
+          {t?.disappear.seconds ? `⏱ Disappearing messages · ${t.disappear.label}` : ""}
+        </Text>
+      ) : null}
 
       {t?.disappear.pending && (
         <View style={styles.pendingBar}>
@@ -411,6 +426,13 @@ export function ConversationScreen() {
               },
             },
             {
+              label: t.mutedUntil ? "Unmute or change mute" : "Mute notifications",
+              onPress: () => {
+                setMenuOpen(false);
+                setMuteOpen(true);
+              },
+            },
+            {
               label: "View profile",
               onPress: () => {
                 setMenuOpen(false);
@@ -468,6 +490,20 @@ export function ConversationScreen() {
             }))}
         />
       )}
+
+      <ActionSheet
+        visible={muteOpen}
+        title="No pushes or banners from this chat. New messages still show as unread."
+        onClose={() => setMuteOpen(false)}
+        actions={[
+          { label: "For 8 hours", onPress: () => { setMuteOpen(false); act({ action: "mute", duration: "8h" }, "Chat muted."); } },
+          { label: "For 1 week", onPress: () => { setMuteOpen(false); act({ action: "mute", duration: "1w" }, "Chat muted."); } },
+          { label: "Until I turn it back on", onPress: () => { setMuteOpen(false); act({ action: "mute", duration: "always" }, "Chat muted."); } },
+          ...(t?.mutedUntil
+            ? [{ label: "Unmute", destructive: true, onPress: () => { setMuteOpen(false); act({ action: "mute", duration: "off" }, "Notifications back on."); } }]
+            : []),
+        ]}
+      />
 
       <ActionSheet
         visible={!!selected}

@@ -11,6 +11,7 @@ import { ToastProvider } from "@/components/ui/ToastProvider";
 import { CurrencyProvider } from "@/components/currency/CurrencyProvider";
 import { VisitTracker } from "@/components/analytics/VisitTracker";
 import { PushAutoEnroll } from "@/components/push/PushAutoEnroll";
+import { InAppMessageBanner } from "@/components/messages/InAppMessageBanner";
 
 export const metadata: Metadata = {
   // Lets per-page generateMetadata (product/profile detail pages) set
@@ -62,6 +63,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <CurrencyProvider>
               <VisitTracker />
               <PushAutoEnroll />
+              <InAppMessageBanner />
               <InstallGuideProvider>
                 <PlayerProvider>
                   <div className="flex h-full flex-col">

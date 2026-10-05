@@ -50,7 +50,13 @@ export function PushAutoEnroll() {
     let unsubscribe: (() => void) | null = null;
     let cancelled = false;
     void listenForForegroundPush((data) => {
-      if (data.title) toast.success(data.body ? `${data.title} — ${data.body}` : data.title);
+      // Direct messages get the in-app message banner instead of a toast
+      // (components/messages/InAppMessageBanner.tsx) — check for it now.
+      if (data.url?.startsWith("/messages/")) {
+        window.dispatchEvent(new Event("xoldout:messages-check"));
+      } else if (data.title) {
+        toast.success(data.body ? `${data.title} — ${data.body}` : data.title);
+      }
       window.dispatchEvent(new Event("xoldout:notifications-changed"));
     }).then((fn) => {
       if (cancelled) fn();

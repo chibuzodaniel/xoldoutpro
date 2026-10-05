@@ -154,7 +154,14 @@ export default function MessagesPage() {
                   <Link href={`/messages/${c.id}`} className="flex items-center gap-3 py-3">
                     <DmAvatar person={c.other} className="h-12 w-12 text-base" />
                     <div className="min-w-0 flex-1">
-                      <p className={`truncate text-[15px] ${c.unread ? "font-bold text-white" : "font-semibold"}`}>{c.other.displayName}</p>
+                      <p className={`truncate text-[15px] ${c.unread ? "font-bold text-white" : "font-semibold"}`}>
+                        {c.other.displayName}
+                        {c.muted && (
+                          <span className="ml-1.5 text-[12px] text-ink-3" aria-label="Muted">
+                            🔕
+                          </span>
+                        )}
+                      </p>
                       <p className={`truncate text-[13px] ${c.unread ? "font-semibold text-ink" : "text-ink-3"}`}>
                         {c.lastMessage ? `${c.lastMessage.fromMe ? "You: " : ""}${c.lastMessage.preview}` : "Say hello"}
                       </p>

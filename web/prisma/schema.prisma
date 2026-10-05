@@ -1779,6 +1779,9 @@ model ConversationParticipant {
   // Set when they delete the conversation (or a request) from their list;
   // a newer message brings it back.
   hiddenAt       DateTime?
+  // Muted (no pushes or in-app banners from this chat) until this time.
+  // Unread counts still show in the inbox.
+  mutedUntil     DateTime?
   createdAt      DateTime                      @default(now())
 
   @@id([conversationId, userId])

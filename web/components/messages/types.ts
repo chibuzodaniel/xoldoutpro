@@ -8,6 +8,7 @@ export type DmConversationRow = {
   other: DmPerson | null;
   lastMessage: { fromMe: boolean; preview: string; createdAt: string } | null;
   unread: number;
+  muted: boolean;
   lastMessageAt: string;
 };
 
@@ -37,6 +38,7 @@ export type DmThread = {
   id: string;
   other: DmPerson;
   myStatus: "ACTIVE" | "REQUEST";
+  mutedUntil: string | null;
   otherStatus: "ACTIVE" | "REQUEST";
   waitingForAccept: boolean;
   blockedByMe: boolean;

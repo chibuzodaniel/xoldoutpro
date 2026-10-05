@@ -158,6 +158,7 @@ export function MessagesScreen() {
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.name, item.unread > 0 && styles.unreadName]} numberOfLines={1}>
                   {item.other!.displayName}
+                  {item.muted ? "  🔕" : ""}
                 </Text>
                 <Text style={[styles.preview, item.unread > 0 && styles.unreadPreview]} numberOfLines={1}>
                   {item.lastMessage ? `${item.lastMessage.fromMe ? "You: " : ""}${item.lastMessage.preview}` : "Say hello"}

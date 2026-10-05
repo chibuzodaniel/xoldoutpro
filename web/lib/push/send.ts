@@ -1,5 +1,6 @@
 import { adminMessaging } from "@/lib/firebase/admin";
 import { db } from "@/lib/db";
+import { Prisma } from "@/generated/prisma/client";
 
 export type PushPayload = {
   title: string;
@@ -157,6 +158,21 @@ export async function sendPushToUsers(userIds: string[], payload: PushPayload): 
     _count: { _all: true },
   });
   const badgeFor = new Map(unread.map((u) => [u.userId, u._count._all]));
+  // The app-icon badge also counts direct-message conversations with unread
+  // messages (explicit ask, 2026-10-05), not just unseen bell notifications.
+  const recipientIds = recipients.map((r) => r.id);
+  const dmUnread = await db.$queryRaw<{ userId: string; n: bigint }[]>`
+    SELECT p."userId", COUNT(DISTINCT p."conversationId") AS n
+    FROM "ConversationParticipant" p
+    JOIN "DirectMessage" m ON m."conversationId" = p."conversationId"
+    WHERE p."userId" IN (${Prisma.join(recipientIds)})
+      AND m."senderId" <> p."userId"
+      AND m."kind" <> 'SYSTEM'
+      AND m."createdAt" > COALESCE(p."lastReadAt", TIMESTAMP 'epoch')
+      AND (m."expiresAt" IS NULL OR m."expiresAt" > now())
+    GROUP BY p."userId"
+  `.catch(() => []);
+  for (const row of dmUnread) badgeFor.set(row.userId, (badgeFor.get(row.userId) ?? 0) + Number(row.n));
 
   const tokenToUser = new Map<string, string>();
   const outgoing: Outgoing[] = [];

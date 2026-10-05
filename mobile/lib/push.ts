@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import type { User as FirebaseUser } from "firebase/auth";
 import { apiPatch, apiPost } from "./api";
+import { getOpenConversation, requestMessageCheck } from "./messageNotify";
 
 // Mirrors web's lib/push.ts (same PATCH /api/me {pushEnabled, fcmTokens}
 // shape — the field is a plain string[] with no platform tag, holding FCM
@@ -27,13 +28,23 @@ function projectId(): string | undefined {
 
 // Aggressive by design (explicit ask): even while the app is open, show the
 // banner, play the sound and update the app-icon unread badge.
+//
+// Direct messages (explicit ask, 2026-10-05): while the app is open a message
+// push doesn't pop its own banner — the in-app message banner shows it
+// instead (components/messages/InAppMessageBanner.tsx) — but it still lands
+// in the notification tray with sound. A push for the chat already on screen
+// is dropped entirely.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
+  handleNotification: async (notification) => {
+    const url = (notification.request.content.data as { url?: string } | undefined)?.url;
+    const conversationId = url?.match(/^\/messages\/([^/?#]+)$/)?.[1];
+    if (conversationId) {
+      const open = conversationId === getOpenConversation();
+      if (!open) requestMessageCheck();
+      return { shouldShowBanner: false, shouldShowList: !open, shouldPlaySound: !open, shouldSetBadge: true };
+    }
+    return { shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true };
+  },
 });
 
 export async function enablePush(firebaseUser: FirebaseUser): Promise<{ ok: true } | { ok: false; error: string }> {

@@ -106,8 +106,27 @@ function normalize(message: OutgoingMessage) {
   };
 }
 
-async function notifyNewMessage(args: { recipientId: string; sender: { displayName: string; avatarUrl: string | null }; conversationId: string; preview: string; isRequest: boolean }) {
-  await sendPushToUsers([args.recipientId], {
+// Someone whose lastReadAt is this recent has the conversation open right
+// now (it refreshes every 3s and marks itself read each time).
+const ACTIVELY_VIEWING_MS = 8_000;
+
+/**
+ * Push for a new message (explicit ask, 2026-10-05: "full time push and in
+ * app notification"). Sent whether the app is closed or open — except when
+ * the recipient is looking at this very conversation, or has muted it.
+ * In-app banners come separately from latestIncoming() below.
+ */
+async function notifyNewMessage(args: {
+  recipient: { userId: string; lastReadAt: Date | null; mutedUntil: Date | null };
+  sender: { displayName: string; avatarUrl: string | null };
+  conversationId: string;
+  preview: string;
+  isRequest: boolean;
+}) {
+  const now = Date.now();
+  if (args.recipient.mutedUntil && args.recipient.mutedUntil.getTime() > now) return;
+  if (args.recipient.lastReadAt && now - args.recipient.lastReadAt.getTime() < ACTIVELY_VIEWING_MS) return;
+  await sendPushToUsers([args.recipient.userId], {
     title: args.isRequest ? `${args.sender.displayName} wants to send you a message` : args.sender.displayName,
     body: args.isRequest ? "Open your message requests to see it." : args.preview,
     url: `/messages/${args.conversationId}`,
@@ -191,7 +210,7 @@ export async function sendMessage(conversationId: string, senderId: string, mess
 
   const sender = await db.user.findUniqueOrThrow({ where: { id: senderId }, select: { displayName: true, avatarUrl: true } });
   await notifyNewMessage({
-    recipientId: other.userId,
+    recipient: other,
     sender,
     conversationId,
     preview: previewOf(created),
@@ -254,6 +273,7 @@ export async function listConversations(userId: string, box: "inbox" | "requests
               }
             : null,
           unread,
+          muted: !!p.mutedUntil && p.mutedUntil > now,
           lastMessageAt: p.conversation.lastMessageAt.toISOString(),
         };
       }),
@@ -370,6 +390,7 @@ export async function getThread(conversationId: string, userId: string, after?: 
     other: otherUser,
     myStatus: me.status,
     otherStatus: other.status,
+    mutedUntil: me.mutedUntil && me.mutedUntil > now ? me.mutedUntil.toISOString() : null,
     // You've used your one message and they haven't accepted yet.
     waitingForAccept: other.status === "REQUEST" && myMessagesSent > 0,
     blockedByMe: blockedByMe > 0,
@@ -523,4 +544,67 @@ export async function conversationIdWith(userId: string, otherId: string) {
 export async function purgeExpiredMessages() {
   const { count } = await db.directMessage.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   return count;
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────
+
+export const MUTE_OPTIONS = { "8h": 8 * 3600_000, "1w": 7 * 86_400_000 } as const;
+// "Always" is stored as a far-future date rather than a separate flag.
+const MUTED_FOREVER = new Date("2100-01-01T00:00:00Z");
+
+/** Mute a conversation for 8 hours, 1 week, always — or unmute ("off"). */
+export async function setMuted(conversationId: string, userId: string, duration: "8h" | "1w" | "always" | "off") {
+  await loadParticipant(conversationId, userId);
+  const mutedUntil =
+    duration === "off" ? null : duration === "always" ? MUTED_FOREVER : new Date(Date.now() + MUTE_OPTIONS[duration]);
+  await db.conversationParticipant.update({
+    where: { conversationId_userId: { conversationId, userId } },
+    data: { mutedUntil },
+  });
+}
+
+/**
+ * Newest incoming messages since `since` (max 5), for the in-app banner
+ * that slides in while someone is elsewhere in the app. Skips muted chats,
+ * blocked people, system lines and anything that's already been read.
+ */
+export async function latestIncoming(userId: string, since: Date) {
+  const now = new Date();
+  const blocks = await db.userBlock.findMany({ where: { blockerId: userId }, select: { blockedId: true } });
+  const messages = await db.directMessage.findMany({
+    where: {
+      createdAt: { gt: since },
+      senderId: { not: userId, notIn: blocks.map((b) => b.blockedId) },
+      kind: { not: "SYSTEM" },
+      deletedAt: null,
+      ...notExpired(now),
+      conversation: {
+        participants: {
+          some: { userId, OR: [{ mutedUntil: null }, { mutedUntil: { lt: now } }] },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    include: {
+      sender: { select: { displayName: true, avatarUrl: true } },
+      conversation: { select: { participants: { where: { userId }, select: { status: true, lastReadAt: true } } } },
+    },
+  });
+  return messages
+    .filter((m) => {
+      const me = m.conversation.participants[0];
+      return !me?.lastReadAt || m.createdAt > me.lastReadAt;
+    })
+    .map((m) => {
+      const isRequest = m.conversation.participants[0]?.status === "REQUEST";
+      return {
+        messageId: m.id,
+        conversationId: m.conversationId,
+        sender: m.sender,
+        isRequest,
+        preview: isRequest ? "wants to send you a message" : previewOf(m),
+        createdAt: m.createdAt.toISOString(),
+      };
+    });
 }
