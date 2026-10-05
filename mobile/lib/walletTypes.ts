@@ -24,6 +24,8 @@ export type WalletData = {
   pendingKobo: number;
   totalEarnedKobo: number;
   totalWithdrawnKobo: number;
+  totalRefundedKobo: number;
+  otherSpentKobo: number;
   earnedByCategory: Record<string, number>;
   payouts: Payout[];
   commissionPercent: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number };

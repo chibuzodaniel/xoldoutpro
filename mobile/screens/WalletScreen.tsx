@@ -4,7 +4,12 @@ import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../lib/AuthContext";
 import { apiGet } from "../lib/api";
-import { formatNaira } from "../lib/format";
+// Not lib/format's formatNaira: that renders 0 as "Free" (it's for prices)
+// and puts a minus after the ₦. −₦492, not ₦-492.
+function formatNaira(kobo: number) {
+  const value = `₦${(Math.abs(kobo) / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+  return kobo < 0 ? `−${value}` : value;
+}
 import type { RootStackParamList } from "../lib/navigation";
 import type { WalletData, Payout } from "../lib/walletTypes";
 import { colors, fonts } from "../lib/theme";
@@ -117,8 +122,18 @@ export function WalletScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.balanceCard}>
         <Text style={styles.balanceLabel}>Available</Text>
-        <Text style={styles.balanceValue}>{formatNaira(data.availableKobo)}</Text>
+        <Text style={[styles.balanceValue, data.availableKobo < 0 && { color: colors.redSoft }]}>{formatNaira(data.availableKobo)}</Text>
       </View>
+      {data.availableKobo < 0 && (
+        <View style={styles.negativeNote}>
+          <Text style={styles.negativeNoteText}>
+            {data.totalRefundedKobo > 0
+              ? "Refunds came in after you had already withdrawn, so your balance is below zero. "
+              : "Your balance is below zero. "}
+            The {formatNaira(-data.availableKobo)} will come out of your next earnings before you can withdraw again.
+          </Text>
+        </View>
+      )}
       <Text style={styles.commissionNote}>Totals shown are after our platform fee — {commissionCopy(data.commissionPercent)}.</Text>
 
       <View style={styles.statsRow}>
@@ -129,6 +144,33 @@ export function WalletScreen() {
         <View style={styles.statBox}>
           <Text style={styles.statLabel}>Total earned</Text>
           <Text style={styles.statValue}>{formatNaira(data.totalEarnedKobo)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.breakdown}>
+        <View style={styles.breakdownRow}>
+          <Text style={styles.breakdownLabel}>Total earned</Text>
+          <Text style={styles.breakdownValue}>{formatNaira(data.totalEarnedKobo)}</Text>
+        </View>
+        <View style={styles.breakdownRow}>
+          <Text style={styles.breakdownLabel}>Withdrawn</Text>
+          <Text style={styles.breakdownValue}>{formatNaira(-data.totalWithdrawnKobo)}</Text>
+        </View>
+        {data.totalRefundedKobo > 0 && (
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>Refunds</Text>
+            <Text style={styles.breakdownValue}>{formatNaira(-data.totalRefundedKobo)}</Text>
+          </View>
+        )}
+        {data.otherSpentKobo !== 0 && (
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>Plan fees & billboards</Text>
+            <Text style={styles.breakdownValue}>{formatNaira(-data.otherSpentKobo)}</Text>
+          </View>
+        )}
+        <View style={styles.breakdownRow}>
+          <Text style={[styles.breakdownLabel, styles.breakdownTotal]}>Balance</Text>
+          <Text style={[styles.breakdownValue, styles.breakdownTotal]}>{formatNaira(data.availableKobo + data.pendingKobo)}</Text>
         </View>
       </View>
 
@@ -210,6 +252,21 @@ const styles = StyleSheet.create({
   statLabel: { color: colors.ink3, fontSize: 11, letterSpacing: 0.6, textTransform: "uppercase" },
   statValue: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif, marginTop: 2 },
   availableNote: { color: colors.ink3, fontSize: 12, marginBottom: 16 },
+  negativeNote: {
+    borderWidth: 1,
+    borderColor: "rgba(225,29,46,0.3)",
+    backgroundColor: "rgba(225,29,46,0.1)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  negativeNoteText: { color: colors.ink2, fontSize: 13 },
+  breakdown: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.lineSoft, marginBottom: 16 },
+  breakdownRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8 },
+  breakdownLabel: { color: colors.ink3, fontSize: 13 },
+  breakdownValue: { color: colors.ink, fontSize: 13 },
+  breakdownTotal: { color: colors.ink, fontWeight: "700" },
   xgCard: {
     flexDirection: "row",
     alignItems: "center",

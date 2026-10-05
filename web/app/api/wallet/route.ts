@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const { availableKobo, pendingKobo } = await getWalletBalances(user.id);
 
-    const [earned, withdrawn, categoryBreakdown, payouts] = await Promise.all([
+    const [earned, withdrawn, refunded, categoryBreakdown, payouts] = await Promise.all([
       // Every kind that credits/debits a user as part of a sale itself
       // (as opposed to a withdrawal) — widened alongside the ambassador
       // and ticket-promoter features so totalEarnedKobo never diverges
@@ -51,6 +51,11 @@ export async function GET(req: NextRequest) {
       }),
       db.walletLedgerEntry.aggregate({
         where: { userId: user.id, kind: "PAYOUT_DEBIT" },
+        _sum: { amountKobo: true },
+      }),
+      // Money taken back for refunded orders (e.g. a gift nobody claimed).
+      db.walletLedgerEntry.aggregate({
+        where: { userId: user.id, kind: "REFUND_DEBIT" },
         _sum: { amountKobo: true },
       }),
       // findMany + manual reduce, not groupBy's _sum(priceKobo) — priceKobo
@@ -89,6 +94,17 @@ export async function GET(req: NextRequest) {
       pendingKobo,
       totalEarnedKobo: earned._sum.amountKobo ?? 0,
       totalWithdrawnKobo: Math.abs(withdrawn._sum.amountKobo ?? 0),
+      // So the wallet adds up on screen (explicit ask, 2026-10-05, after a
+      // creator saw "₦-492" with no explanation): earned − withdrawn −
+      // refunded − otherSpent = available + pending. otherSpent is whatever
+      // remains (billboards, creator-plan fees and the like), computed as the
+      // remainder so the sum always balances exactly.
+      totalRefundedKobo: Math.abs(refunded._sum.amountKobo ?? 0),
+      otherSpentKobo:
+        (earned._sum.amountKobo ?? 0) -
+        Math.abs(withdrawn._sum.amountKobo ?? 0) -
+        Math.abs(refunded._sum.amountKobo ?? 0) -
+        (availableKobo + pendingKobo),
       earnedByCategory: byCategory,
       payouts,
       // Earned XG still being held (lib/live/xgEarnings.ts) — shown on the

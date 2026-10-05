@@ -11,6 +11,8 @@ type WalletData = {
   pendingKobo: number;
   totalEarnedKobo: number;
   totalWithdrawnKobo: number;
+  totalRefundedKobo: number;
+  otherSpentKobo: number;
   earnedByCategory: Record<string, number>;
   payouts: Payout[];
   // Live, moderator-editable rates (moderation page's SiteControlsPanel) —
@@ -32,8 +34,10 @@ type Payout = {
   payoutAccount: { bankName: string; accountNumber: string; accountName: string };
 };
 
+// −₦492, not ₦-492.
 function naira(kobo: number) {
-  return `₦${(kobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+  const value = `₦${(Math.abs(kobo) / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+  return kobo < 0 ? `−${value}` : value;
 }
 
 function formatDate(iso: string) {
@@ -243,8 +247,16 @@ export default function WalletPage() {
 
       <div className="rounded-xl border border-line bg-surface p-4 mb-1">
         <p className="text-[11px] uppercase tracking-widest text-ink-3">Available</p>
-        <p className="font-serif text-3xl">{naira(data.availableKobo)}</p>
+        <p className={`font-serif text-3xl ${data.availableKobo < 0 ? "text-red-soft" : ""}`}>{naira(data.availableKobo)}</p>
       </div>
+      {data.availableKobo < 0 && (
+        <div className="mt-2 mb-1 rounded-xl border border-red/30 bg-red/10 px-4 py-3 text-[13px] text-ink-2">
+          {data.totalRefundedKobo > 0
+            ? "Refunds came in after you had already withdrawn, so your balance is below zero. "
+            : "Your balance is below zero. "}
+          The {naira(-data.availableKobo)} will come out of your next earnings before you can withdraw again.
+        </div>
+      )}
       <p className="text-[11px] text-ink-3 mb-3">
         Totals shown are after our platform fee — {commissionCopy(data.commissionPercent)}.
       </p>
@@ -257,6 +269,34 @@ export default function WalletPage() {
         <div className="rounded-xl border border-line bg-surface p-3">
           <p className="text-[11px] uppercase tracking-widest text-ink-3">Total earned</p>
           <p className="font-serif text-lg">{naira(data.totalEarnedKobo)}</p>
+        </div>
+      </div>
+
+      {/* How the balance adds up — refunds and other spending only when there are any. */}
+      <div className="mb-6 flex flex-col divide-y divide-line-soft border-y border-line-soft text-sm">
+        <div className="flex items-center justify-between py-2">
+          <span className="text-ink-3">Total earned</span>
+          <span>{naira(data.totalEarnedKobo)}</span>
+        </div>
+        <div className="flex items-center justify-between py-2">
+          <span className="text-ink-3">Withdrawn</span>
+          <span>{naira(-data.totalWithdrawnKobo)}</span>
+        </div>
+        {data.totalRefundedKobo > 0 && (
+          <div className="flex items-center justify-between py-2">
+            <span className="text-ink-3">Refunds</span>
+            <span>{naira(-data.totalRefundedKobo)}</span>
+          </div>
+        )}
+        {data.otherSpentKobo !== 0 && (
+          <div className="flex items-center justify-between py-2">
+            <span className="text-ink-3">Plan fees &amp; billboards</span>
+            <span>{naira(-data.otherSpentKobo)}</span>
+          </div>
+        )}
+        <div className="flex items-center justify-between py-2 font-semibold">
+          <span>Balance</span>
+          <span>{naira(data.availableKobo + data.pendingKobo)}</span>
         </div>
       </div>
 
