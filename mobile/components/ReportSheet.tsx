@@ -5,7 +5,7 @@ import { apiPost } from "../lib/api";
 import { colors, fonts } from "../lib/theme";
 
 export type ReportReason = "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST";
-export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE";
+export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION";
 
 const CONTENT_REASONS: { value: ReportReason; label: string }[] = [
   { value: "INAPPROPRIATE_CONTENT", label: "Inappropriate content" },

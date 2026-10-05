@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { FollowButton } from "./FollowButton";
 import { ClickablePhoto } from "./ClickablePhoto";
+import { MessageButton } from "@/components/messages/MessageButton";
 
 type Props = {
   targetUserId: string;
@@ -58,7 +59,10 @@ export function ProfileHeaderRow({ targetUserId, avatarUrl, displayName }: Props
           Edit profile
         </Link>
       ) : (
-        <FollowButton targetUserId={targetUserId} />
+        <div className="flex items-center gap-2">
+          <MessageButton targetUserId={targetUserId} />
+          <FollowButton targetUserId={targetUserId} />
+        </div>
       )}
     </div>
   );

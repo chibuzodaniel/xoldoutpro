@@ -15,7 +15,7 @@ import { useAuth } from "../lib/AuthContext";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors } from "../lib/theme";
 import { AppLogoHeader } from "../components/AppLogoHeader";
-import { BellIcon } from "../components/NavIcons";
+import { BellIcon, MessageIcon } from "../components/NavIcons";
 import { DiscoverScreen } from "./DiscoverScreen";
 
 type SearchResultProduct = {
@@ -36,6 +36,8 @@ export function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  // Direct messages badge: conversations with unread messages + requests.
+  const [dmCount, setDmCount] = useState(0);
 
   useEffect(() => {
     if (!isFocused || !firebaseUser) return;
@@ -43,6 +45,11 @@ export function HomeScreen() {
       .getIdToken()
       .then((idToken) => apiGet<{ unreadCount: number }>("/api/notifications", idToken))
       .then((data) => setUnreadCount(data.unreadCount))
+      .catch(() => {});
+    firebaseUser
+      .getIdToken()
+      .then((idToken) => apiGet<{ unreadConversations: number; requests: number }>("/api/messages/unread", idToken))
+      .then((data) => setDmCount(data.unreadConversations + data.requests))
       .catch(() => {});
   }, [isFocused, firebaseUser]);
 
@@ -72,6 +79,15 @@ export function HomeScreen() {
         <View style={styles.wordmarkRow}>
           <AppLogoHeader
             right={
+              <View style={styles.headerIcons}>
+              <TouchableOpacity style={styles.bellButton} onPress={() => navigation.navigate("Messages")} accessibilityLabel="Messages">
+                <MessageIcon color={colors.ink2} />
+                {dmCount > 0 && (
+                  <View style={styles.unreadBadge}>
+                    <Text style={styles.unreadBadgeText}>{dmCount > 9 ? "9+" : dmCount}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
               <TouchableOpacity style={styles.bellButton} onPress={() => navigation.navigate("Notifications")}>
                 <BellIcon color={colors.ink2} />
                 {unreadCount > 0 && (
@@ -80,6 +96,7 @@ export function HomeScreen() {
                   </View>
                 )}
               </TouchableOpacity>
+              </View>
             }
           />
         </View>
@@ -123,6 +140,7 @@ const styles = StyleSheet.create({
   searchResults: { flex: 1, paddingHorizontal: 20 },
   wordmarkRow: { marginBottom: 16 },
   bellButton: { position: "relative", padding: 4 },
+  headerIcons: { flexDirection: "row", alignItems: "center", gap: 14 },
   unreadBadge: {
     position: "absolute",
     top: 0,

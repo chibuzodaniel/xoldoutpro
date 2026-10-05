@@ -115,7 +115,9 @@ export function NotificationsScreen() {
   // page on the website.
   function openUrl(url: string) {
     const liveId = url.match(/^\/live\/([^/?#]+)$/)?.[1];
-    if (url === "/groups/requests") navigation.navigate("FanbaseRequests");
+    const conversationId = url.match(/^\/messages\/([^/?#]+)$/)?.[1];
+    if (conversationId) navigation.navigate("Conversation", { id: conversationId });
+    else if (url === "/groups/requests") navigation.navigate("FanbaseRequests");
     else if (liveId) navigation.navigate("LiveViewer", { id: liveId });
     else Linking.openURL(`${API_BASE_URL}${url}`);
   }

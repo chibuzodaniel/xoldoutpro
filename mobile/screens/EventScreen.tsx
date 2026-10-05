@@ -1,3 +1,4 @@
+import { SendToChatButton } from "../components/messages/SendToChat";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -109,6 +110,7 @@ export function EventScreen() {
               <Text style={styles.shareIcon}>↗</Text>
               <Text style={styles.shareText}>Share</Text>
             </TouchableOpacity>
+            <SendToChatButton share={{ type: "EVENT", id: event.id }} />
             <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} />
           </View>
         </View>

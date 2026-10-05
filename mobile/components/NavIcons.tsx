@@ -65,6 +65,14 @@ export function ComposeIcon({ color, size = 18 }: IconProps) {
   );
 }
 
+export function MessageIcon({ color, size = 20 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>
+      <Path d="M4 5h16v11H8l-4 3.5V5z" strokeLinejoin="round" />
+    </Svg>
+  );
+}
+
 export function BellIcon({ color, size = 20 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>

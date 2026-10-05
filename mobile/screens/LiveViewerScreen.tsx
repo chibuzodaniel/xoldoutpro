@@ -1,3 +1,4 @@
+import { SendToChatButton } from "../components/messages/SendToChat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -620,6 +621,7 @@ function ViewerRoomContent({
             </TouchableOpacity>
           )}
           <ShareLiveButton liveSessionId={liveSessionId} message={`${creatorName} is live on XOLDOUT — join now`} />
+          <SendToChatButton share={{ type: "LIVE", id: liveSessionId }} style={styles.peopleButton} textStyle={styles.peopleButtonText} />
           <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityLabel="Leave Live">
             <CloseIcon size={24} />
           </TouchableOpacity>

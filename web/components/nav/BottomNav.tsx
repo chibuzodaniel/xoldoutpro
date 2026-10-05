@@ -59,6 +59,8 @@ function hasBottomNav(pathname: string) {
   // A Live's viewer/broadcast screens are full-bleed video with their own
   // chat bar at the bottom — the list, coins, and Go Live setup pages keep it.
   if (/^\/live\/(?!coins(\/|$)|new$)[^/]+(\/broadcast)?$/.test(pathname)) return false;
+  // A direct-message conversation fills the screen, composer at the bottom.
+  if (/^\/messages\/[^/]+$/.test(pathname)) return false;
   return true;
 }
 

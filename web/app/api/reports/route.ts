@@ -21,7 +21,7 @@ const SLA_HOURS: Partial<Record<string, number>> = {
 };
 
 const createSchema = z.object({
-  targetType: z.enum(["PRODUCT", "EVENT", "POST", "PROFILE"]),
+  targetType: z.enum(["PRODUCT", "EVENT", "POST", "PROFILE", "CONVERSATION"]),
   targetId: z.string().min(1),
   reason: z.enum(["INAPPROPRIATE_CONTENT", "COPYRIGHT_CLAIM", "BUG", "FEATURE_REQUEST"]),
   details: z.string().trim().max(1000).optional(),
@@ -43,6 +43,14 @@ export async function POST(req: NextRequest) {
     } else if (targetType === "POST") {
       const post = await db.post.findUnique({ where: { id: targetId }, select: { id: true } });
       if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    } else if (targetType === "CONVERSATION") {
+      // Only one of the two people in a direct-message conversation can
+      // report it — and filing the report is what lets moderators read it.
+      const mine = await db.conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId: targetId, userId: user.id } },
+        select: { userId: true },
+      });
+      if (!mine) return NextResponse.json({ error: "Not found" }, { status: 404 });
     } else {
       // Self-targeting a PROFILE is how general app feedback (bug/feature
       // request) is filed — there's no dedicated "app" target type, and PRD
@@ -65,6 +73,7 @@ export async function POST(req: NextRequest) {
         eventId: targetType === "EVENT" ? targetId : null,
         postId: targetType === "POST" ? targetId : null,
         profileId: targetType === "PROFILE" ? targetId : null,
+        conversationId: targetType === "CONVERSATION" ? targetId : null,
         reason,
         details: details || null,
         slaDueAt: slaHours ? new Date(Date.now() + slaHours * 60 * 60 * 1000) : null,

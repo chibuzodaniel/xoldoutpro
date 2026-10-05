@@ -9,7 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type ReportRow = {
   id: string;
-  targetType: "PRODUCT" | "EVENT" | "POST" | "PROFILE";
+  targetType: "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION";
   reason: "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST";
   status: "OPEN" | "IN_REVIEW" | "RESOLVED";
   details: string | null;
@@ -20,6 +20,7 @@ type ReportRow = {
   event: { id: string; title: string; creator: { handle: string; displayName: string } } | null;
   post: { id: string; body: string; author: { handle: string; displayName: string } } | null;
   profile: { id: string; handle: string; displayName: string } | null;
+  conversationId: string | null;
 };
 
 const REASON_LABEL: Record<ReportRow["reason"], string> = {
@@ -47,6 +48,9 @@ function targetSummary(r: ReportRow) {
   }
   if (r.profile) {
     return { label: `Profile · @${r.profile.handle}`, href: `/u/${r.profile.handle}` };
+  }
+  if (r.conversationId) {
+    return { label: "Direct message conversation", href: null };
   }
   return { label: "Unknown target", href: null };
 }
@@ -147,6 +151,7 @@ export function ReportsQueuePanel() {
                   <p className="text-sm font-semibold mb-1">{target.label}</p>
                 )}
                 {r.details && <p className="text-sm text-ink-2 mb-2">{r.details}</p>}
+                {r.conversationId && <ReportedConversation conversationId={r.conversationId} />}
                 <p className="text-[12px] text-ink-3 mb-3">
                   Reported by {r.reporter.displayName} · {new Date(r.createdAt).toLocaleString("en-NG")} · {r.status}
                 </p>
@@ -183,6 +188,84 @@ export function ReportsQueuePanel() {
               </div>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+type ConversationView = {
+  participants: { id: string; handle: string; displayName: string }[];
+  messages: {
+    id: string;
+    senderId: string;
+    kind: string;
+    body: string | null;
+    imageUrl: string | null;
+    shareType: string | null;
+    shareId: string | null;
+    deletedAt: string | null;
+    createdAt: string;
+  }[];
+};
+
+// A reported direct-message conversation (explicit ask, 2026-10-04) —
+// moderators can only open a conversation someone in it has reported (GET
+// /api/admin/conversations/[id] checks that). Loaded on demand.
+function ReportedConversation({ conversationId }: { conversationId: string }) {
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<ConversationView | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  async function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && !data) {
+      const res = await apiFetch(`/api/admin/conversations/${conversationId}`).catch(() => null);
+      if (res?.ok) setData(await res.json());
+      else setFailed(true);
+    }
+  }
+
+  const nameOf = (id: string) => data?.participants.find((p) => p.id === id)?.displayName ?? "Someone";
+  return (
+    <div className="mb-3">
+      <button type="button" onClick={toggle} className="text-xs font-semibold text-red-soft">
+        {open ? "Hide conversation" : "View conversation"}
+      </button>
+      {open && (
+        <div className="mt-2 max-h-80 overflow-y-auto rounded-lg border border-line-soft bg-surface-2 p-3">
+          {failed ? (
+            <p className="text-xs text-ink-3">Couldn&apos;t load this conversation.</p>
+          ) : !data ? (
+            <p className="text-xs text-ink-3">Loading…</p>
+          ) : data.messages.length === 0 ? (
+            <p className="text-xs text-ink-3">No messages (they may have disappeared).</p>
+          ) : (
+            <ul className="flex flex-col gap-1.5">
+              {data.messages.map((m) => (
+                <li key={m.id} className="text-xs">
+                  <span className="font-semibold">{nameOf(m.senderId)}</span>{" "}
+                  <span className="text-ink-3">{new Date(m.createdAt).toLocaleString("en-NG")}</span>
+                  <br />
+                  {m.deletedAt ? (
+                    <span className="italic text-ink-3">Deleted by sender</span>
+                  ) : m.kind === "IMAGE" && m.imageUrl ? (
+                    <a href={m.imageUrl} target="_blank" rel="noreferrer" className="text-red-soft underline">
+                      Photo{m.body ? ` — ${m.body}` : ""}
+                    </a>
+                  ) : m.kind === "SHARE" ? (
+                    <span className="text-ink-2">
+                      Shared {m.shareType?.toLowerCase()} {m.shareId}
+                      {m.body ? ` — ${m.body}` : ""}
+                    </span>
+                  ) : (
+                    <span className={m.kind === "SYSTEM" ? "italic text-ink-3" : "text-ink-2"}>{m.body}</span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
     </div>

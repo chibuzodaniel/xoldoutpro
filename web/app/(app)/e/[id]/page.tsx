@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { EventTierPicker } from "@/components/product/EventTierPicker";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { SoldCount } from "@/components/product/SoldCount";
@@ -80,6 +81,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
           </div>
           <div className="flex items-center gap-3 shrink-0 pt-1">
             <ShareButton title={event.title} text={`${event.title} — ${event.creator.displayName} on XOLDOUT`} path={`/e/${event.id}`} />
+            <SendToChatButton share={{ type: "EVENT", id: event.id }} />
             <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} className="text-xs text-ink-3" />
           </div>
         </div>

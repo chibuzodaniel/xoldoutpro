@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
@@ -70,6 +71,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
           </div>
           <div className="flex items-center gap-3 shrink-0 pt-1">
             <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/b/${product.id}`} />
+            <SendToChatButton share={{ type: "PRODUCT", id: product.id }} />
             <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3" />
           </div>
         </div>

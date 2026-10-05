@@ -16,6 +16,9 @@ export type RootStackParamList = {
   Group: { id: string; name: string };
   GroupMembers: { id: string; isCreator: boolean };
   FanbaseRequests: undefined;
+  Messages: undefined;
+  // Direct messages: an existing conversation by id, or a new one with someone.
+  Conversation: { id?: string; toUserId?: string };
   Publish: undefined;
   PublishMusic: undefined;
   PublishBeat: undefined;

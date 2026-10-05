@@ -1,3 +1,4 @@
+import { SendToChatButton } from "../components/messages/SendToChat";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -199,6 +200,7 @@ export function ProductScreen() {
               <Text style={styles.shareIcon}>↗</Text>
               <Text style={styles.shareText}>Share</Text>
             </TouchableOpacity>
+            <SendToChatButton share={{ type: "PRODUCT", id: product.id }} />
             <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} />
           </View>
         </View>

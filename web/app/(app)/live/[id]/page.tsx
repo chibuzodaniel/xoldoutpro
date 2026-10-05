@@ -19,6 +19,7 @@ import { appendGift, GiftBanner, GiftCelebration, LiveFeed, type FeedItem, type 
 import { LiveChatInput } from "@/components/live/LiveChatInput";
 import { UpcomingLive, type LivePublicInfo } from "@/components/live/UpcomingLive";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { MicLineIcon } from "@/components/live/LiveIcons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState } from "@/components/live/stage";
 import type { ChatMention } from "@/components/live/mentions";
@@ -599,6 +600,7 @@ function LiveRoom() {
               label="Share"
               className="bg-white/15 text-white backdrop-blur-sm"
             />
+            <SendToChatButton share={{ type: "LIVE", id: params.id }} className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-[13px] font-semibold text-white backdrop-blur-sm" />
             <button onClick={() => router.push("/live")} aria-label="Leave Live" className="shrink-0 p-1 text-white">
               <CloseIcon className="h-6 w-6" />
             </button>

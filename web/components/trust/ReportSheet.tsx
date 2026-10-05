@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 
 export type ReportReason = "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST";
-export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE";
+export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION";
 
 type Props = {
   open: boolean;

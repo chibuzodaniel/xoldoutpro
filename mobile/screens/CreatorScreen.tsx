@@ -1,3 +1,4 @@
+import { useAuth } from "../lib/AuthContext";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -26,6 +27,7 @@ const HORIZONTAL_PADDING = 16;
 export function CreatorScreen() {
   const { width } = useWindowDimensions();
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { appUser } = useAuth();
   const route = useRoute<RouteProp<RootStackParamList, "Creator">>();
   const { handle } = route.params;
 
@@ -74,6 +76,11 @@ export function CreatorScreen() {
 
         <Text style={styles.name}>{user.displayName}</Text>
         <Text style={styles.handle}>@{user.handle}</Text>
+        {appUser && appUser.id !== user.id && (
+          <TouchableOpacity style={styles.messageButton} onPress={() => navigation.navigate("Conversation", { toUserId: user.id })}>
+            <Text style={styles.messageButtonText}>Message</Text>
+          </TouchableOpacity>
+        )}
         {user.bio && <Text style={styles.bio}>{user.bio}</Text>}
 
         <View style={styles.statsRow}>
@@ -136,6 +143,8 @@ const styles = StyleSheet.create({
   avatarRow: { marginBottom: 10 },
   name: { color: colors.ink, fontSize: 20, fontFamily: fonts.serif },
   handle: { color: colors.ink3, fontSize: 13, marginBottom: 8 },
+  messageButton: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7, marginBottom: 10 },
+  messageButtonText: { color: colors.ink2, fontSize: 13, fontWeight: "600" },
   bio: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 12, maxWidth: 320 },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
   statBox: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingVertical: 12, alignItems: "center" },

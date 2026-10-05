@@ -189,6 +189,10 @@ model User {
   liveReminders     LiveReminder[]
   liveModeratorOf   LiveModerator[]
   liveStageRequests LiveStageRequest[]
+  conversationParticipants ConversationParticipant[]
+  directMessagesSent       DirectMessage[]
+  blocksMade               UserBlock[]             @relation("BlocksMade")
+  blocksReceived           UserBlock[]             @relation("BlocksReceived")
   coinLedgerEntries CoinLedgerEntry[]
   xgEarnings        XgEarning[]
 }
@@ -987,6 +991,7 @@ model Gift {
 // ─── Trust & safety ─────────────────────────────────────────────────────
 
 enum ReportTargetType {
+  CONVERSATION // a direct-message thread (lib/messages/), reported by one of its two people
   PRODUCT
   EVENT // Event is not a Product (DECISIONS.md — tiers are); reported separately
   POST
@@ -1023,6 +1028,8 @@ model Report {
   post       Post?            @relation("ReportsOnPost", fields: [postId], references: [id])
   profileId  String?
   profile    User?            @relation("ReportsOnProfile", fields: [profileId], references: [id])
+  conversationId String?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id])
   reason     ReportReason
   details    String? // reporter's free-text context, optional
   status     ReportStatus     @default(OPEN)
@@ -1724,4 +1731,98 @@ model Job {
   createdAt DateTime  @default(now())
 
   @@index([status, runAt])
+}
+
+// ─── Direct messages (explicit ask, 2026-10-04) ────────────────────────────
+// One-to-one conversations between users — see lib/messages/. Requests work
+// like Instagram's: a first message from someone the recipient doesn't
+// follow lands in their Requests (participant status REQUEST) and the
+// sender can't send more until it's accepted. Disappearing messages work
+// like WhatsApp's, except that turning them on, changing the timer or
+// turning them off is a proposal the other person must approve.
+//
+// pairKey is the two user ids sorted and joined, so a pair can only ever
+// have one conversation, however many times either side starts one.
+model Conversation {
+  id            String   @id @default(cuid())
+  pairKey       String   @unique
+  createdAt     DateTime @default(now())
+  lastMessageAt DateTime @default(now())
+
+  // Active disappearing-messages timer in seconds, null when off. New
+  // messages get expiresAt = createdAt + this.
+  disappearSeconds        Int?
+  // A proposed change waiting for the other person: seconds, or 0 for "off".
+  pendingDisappearSeconds Int?
+  pendingDisappearById    String?
+
+  participants ConversationParticipant[]
+  messages     DirectMessage[]
+  reports      Report[]
+
+  @@index([lastMessageAt])
+}
+
+enum ConversationParticipantStatus {
+  ACTIVE // in their inbox
+  REQUEST // a message request they haven't accepted
+}
+
+model ConversationParticipant {
+  conversationId String
+  conversation   Conversation                  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User                          @relation(fields: [userId], references: [id])
+  status         ConversationParticipantStatus @default(ACTIVE)
+  // Read receipts and unread counts: messages after this are unread.
+  lastReadAt     DateTime?
+  // Set when they delete the conversation (or a request) from their list;
+  // a newer message brings it back.
+  hiddenAt       DateTime?
+  createdAt      DateTime                      @default(now())
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+enum DirectMessageKind {
+  TEXT
+  IMAGE
+  SHARE // a product or Live card (shareType + shareId)
+  SYSTEM // "Disappearing messages set to 24 hours" and similar
+}
+
+model DirectMessage {
+  id             String            @id @default(cuid())
+  conversationId String
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User              @relation(fields: [senderId], references: [id])
+  kind           DirectMessageKind @default(TEXT)
+  body           String?
+  imageUrl       String?
+  shareType      String? // "PRODUCT" | "LIVE"
+  shareId        String?
+  createdAt      DateTime          @default(now())
+  // "Delete for everyone": content is cleared and the bubble reads
+  // "Message deleted".
+  deletedAt      DateTime?
+  // Disappearing messages: hidden once past, purged daily.
+  expiresAt      DateTime?
+
+  @@index([conversationId, createdAt])
+  @@index([expiresAt])
+}
+
+// Blocking (direct messages, for now): neither side can message the other,
+// and the conversation disappears from the blocker's list.
+model UserBlock {
+  blockerId String
+  blocker   User     @relation("BlocksMade", fields: [blockerId], references: [id])
+  blockedId String
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
 }
