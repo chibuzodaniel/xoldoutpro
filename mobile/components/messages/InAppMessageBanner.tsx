@@ -12,7 +12,8 @@ import { Avatar } from "../Avatar";
 // in Expo Go too, where push doesn't); a foreground push triggers a check
 // straight away via requestMessageCheck().
 
-const POLL_MS = 6_000;
+// 30s (was 6s) — Vercel CPU, 2026-10-06; pushes trigger an immediate check.
+const POLL_MS = 30_000;
 const SHOW_MS = 5_000;
 // Rendered outside every screen (no safe-area provider there), so clear the
 // status bar / notch directly.

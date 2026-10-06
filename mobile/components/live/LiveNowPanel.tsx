@@ -49,7 +49,7 @@ export function LiveNowPanel() {
   useEffect(() => {
     if (!isFocused) return;
     load();
-    const id = setInterval(load, 20_000);
+    const id = setInterval(load, 45_000);
     const sub = AppState.addEventListener("change", (state) => {
       if (state === "active") load();
     });

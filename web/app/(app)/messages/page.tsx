@@ -56,7 +56,7 @@ export default function MessagesPage() {
     const refresh = () => {
       if (document.visibilityState === "visible") void load();
     };
-    const id = setInterval(refresh, 10_000);
+    const id = setInterval(refresh, 20_000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       clearInterval(id);

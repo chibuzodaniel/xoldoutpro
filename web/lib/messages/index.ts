@@ -19,7 +19,7 @@
 // Delivery is by short-interval refreshing while a conversation is open,
 // plus a push notification for each new message (or new request).
 
-import type { Prisma } from "@/generated/prisma/client";
+import { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push/send";
 
@@ -107,8 +107,8 @@ function normalize(message: OutgoingMessage) {
 }
 
 // Someone whose lastReadAt is this recent has the conversation open right
-// now (it refreshes every 3s and marks itself read each time).
-const ACTIVELY_VIEWING_MS = 8_000;
+// now (it refreshes every 5s and marks itself read each time).
+const ACTIVELY_VIEWING_MS = 12_000;
 
 /**
  * Push for a new message (explicit ask, 2026-10-05: "full time push and in
@@ -247,23 +247,35 @@ export async function listConversations(userId: string, box: "inbox" | "requests
   });
 
   const now = new Date();
+  const visible = mine
+    // Deleted from the list, and nothing new since.
+    .filter((p) => !p.hiddenAt || p.conversation.lastMessageAt > p.hiddenAt)
+    // A request only shows once there's an actual message in it.
+    .filter((p) => p.conversation.messages.length > 0 || box === "inbox");
+
+  // Unread counts for every row in ONE query — it used to be one query per
+  // conversation on every inbox refresh (see the CPU note on unreadSummary).
+  const unreadById = new Map<string, number>();
+  if (visible.length > 0) {
+    const counts = await db.$queryRaw<{ conversationId: string; n: bigint }[]>`
+      SELECT m."conversationId", COUNT(*) AS n
+      FROM "DirectMessage" m
+      JOIN "ConversationParticipant" p ON p."conversationId" = m."conversationId" AND p."userId" = ${userId}
+      WHERE m."conversationId" IN (${Prisma.join(visible.map((v) => v.conversationId))})
+        AND m."senderId" <> ${userId}
+        AND m."kind" <> 'SYSTEM'
+        AND m."createdAt" > COALESCE(p."lastReadAt", TIMESTAMP 'epoch')
+        AND (m."expiresAt" IS NULL OR m."expiresAt" > now())
+      GROUP BY m."conversationId"
+    `;
+    for (const c of counts) unreadById.set(c.conversationId, Number(c.n));
+  }
+
   const rows = await Promise.all(
-    mine
-      // Deleted from the list, and nothing new since.
-      .filter((p) => !p.hiddenAt || p.conversation.lastMessageAt > p.hiddenAt)
-      // A request only shows once there's an actual message in it.
-      .filter((p) => p.conversation.messages.length > 0 || box === "inbox")
-      .map(async (p) => {
+    visible.map(async (p) => {
         const other = p.conversation.participants.find((x) => x.userId !== userId);
         const last = p.conversation.messages[0] ?? null;
-        const unread = await db.directMessage.count({
-          where: {
-            conversationId: p.conversationId,
-            senderId: { not: userId },
-            createdAt: { gt: p.lastReadAt ?? new Date(0) },
-            ...notExpired(now),
-          },
-        });
+        const unread = unreadById.get(p.conversationId) ?? 0;
         return {
           id: p.conversationId,
           other: other?.user ?? null,
@@ -284,9 +296,44 @@ export async function listConversations(userId: string, box: "inbox" | "requests
 }
 
 /** Badge numbers: conversations with unread messages, and pending requests. */
+//
+// A single query (explicit report, 2026-10-06: the Vercel free tier's Fluid
+// Active CPU ran out). This runs on every badge refresh for every signed-in
+// user, and used to build both full conversation lists — with a count query
+// per conversation — just to produce two numbers.
 export async function unreadSummary(userId: string) {
-  const [inbox, requests] = await Promise.all([listConversations(userId, "inbox"), listConversations(userId, "requests")]);
-  return { unreadConversations: inbox.filter((c) => c.unread > 0).length, requests: requests.length };
+  const rows = await db.$queryRaw<{ unread: bigint; requests: bigint }[]>`
+    SELECT
+      COUNT(*) FILTER (
+        WHERE p."status" = 'ACTIVE' AND EXISTS (
+          SELECT 1 FROM "DirectMessage" m
+          WHERE m."conversationId" = p."conversationId"
+            AND m."senderId" <> ${userId}
+            AND m."kind" <> 'SYSTEM'
+            AND m."createdAt" > COALESCE(p."lastReadAt", TIMESTAMP 'epoch')
+            AND (m."expiresAt" IS NULL OR m."expiresAt" > now())
+        )
+      ) AS unread,
+      COUNT(*) FILTER (
+        WHERE p."status" = 'REQUEST'
+          AND (p."hiddenAt" IS NULL OR c."lastMessageAt" > p."hiddenAt")
+          AND EXISTS (
+            SELECT 1 FROM "DirectMessage" m
+            WHERE m."conversationId" = p."conversationId"
+              AND m."kind" <> 'SYSTEM'
+              AND (m."expiresAt" IS NULL OR m."expiresAt" > now())
+          )
+      ) AS requests
+    FROM "ConversationParticipant" p
+    JOIN "Conversation" c ON c."id" = p."conversationId"
+    WHERE p."userId" = ${userId}
+      AND NOT EXISTS (
+        SELECT 1 FROM "ConversationParticipant" o
+        JOIN "UserBlock" b ON b."blockerId" = ${userId} AND b."blockedId" = o."userId"
+        WHERE o."conversationId" = p."conversationId" AND o."userId" <> ${userId}
+      )
+  `;
+  return { unreadConversations: Number(rows[0]?.unread ?? 0), requests: Number(rows[0]?.requests ?? 0) };
 }
 
 type ShareCard = { type: string; id: string; title: string; subtitle: string; imageUrl: string | null; href: string; status?: string };

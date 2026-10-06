@@ -170,7 +170,7 @@ function BroadcastRoomContent({
   // send no room event, so a slow poll picks those up.
   const support = useLiveSupport(liveSessionId, true, supportVersion);
   useEffect(() => {
-    const id = setInterval(() => setSupportVersion((v) => v + 1), 30_000);
+    const id = setInterval(() => setSupportVersion((v) => v + 1), 60_000);
     return () => clearInterval(id);
   }, []);
   const refreshStageRef = useRef(refreshStage);

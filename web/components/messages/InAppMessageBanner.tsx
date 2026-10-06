@@ -13,7 +13,10 @@ import { DmAvatar } from "./Avatar";
 // short poll of GET /api/messages/latest, so it works even where push is
 // blocked; a foreground push (PushAutoEnroll) just triggers an immediate check.
 
-const POLL_MS = 6_000;
+// 30s (was 6s): this runs for every signed-in user on every page, and the
+// Vercel free tier's Fluid Active CPU ran out (2026-10-06). A foreground
+// push triggers an immediate check, so with push on it's still instant.
+const POLL_MS = 30_000;
 const SHOW_MS = 5_000;
 
 type Incoming = {
@@ -42,7 +45,10 @@ export function InAppMessageBanner() {
     const since = sinceRef.current;
     const res = await apiFetch(`/api/messages/latest${since ? `?since=${encodeURIComponent(since)}` : ""}`).catch(() => null);
     if (!res?.ok) return;
-    const data: { messages: Incoming[]; serverTime: string } = await res.json();
+    const data: { messages: Incoming[]; unread?: { unreadConversations: number; requests: number }; serverTime: string } = await res.json();
+    if (data.unread) {
+      window.dispatchEvent(new CustomEvent("xoldout:dm-unread", { detail: data.unread.unreadConversations + data.unread.requests }));
+    }
     const first = sinceRef.current === null;
     sinceRef.current = data.serverTime;
     // The very first check only sets the starting point — no banners for
@@ -55,7 +61,6 @@ export function InAppMessageBanner() {
     fresh.forEach((m) => shownRef.current.add(m.messageId));
     if (fresh.length > 0) {
       setBanner(fresh[0]);
-      window.dispatchEvent(new Event("xoldout:notifications-changed"));
     }
   }, []);
 

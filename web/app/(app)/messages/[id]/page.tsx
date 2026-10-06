@@ -18,7 +18,8 @@ import { DISAPPEAR_CHOICES, type DmMessage, type DmThread } from "@/components/m
 // (new messages, deletions, read receipts and disappearing-message changes
 // all come with it); a push notification covers when it isn't open.
 
-const REFRESH_MS = 3_000;
+// 5s (was 3s) — Vercel CPU, 2026-10-06.
+const REFRESH_MS = 5_000;
 
 function timeOf(iso: string) {
   return new Date(iso).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });

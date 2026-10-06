@@ -62,7 +62,7 @@ export function MessagesScreen() {
   useEffect(() => {
     if (!isFocused) return;
     load();
-    const id = setInterval(load, 10_000);
+    const id = setInterval(load, 20_000);
     const sub = AppState.addEventListener("change", (s) => {
       if (s === "active") load();
     });

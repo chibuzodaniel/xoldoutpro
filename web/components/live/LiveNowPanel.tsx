@@ -36,7 +36,7 @@ export function LiveNowPanel() {
       if (document.visibilityState === "visible") void load();
     };
     void load();
-    const id = setInterval(refresh, 20_000);
+    const id = setInterval(refresh, 45_000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       clearInterval(id);

@@ -32,7 +32,8 @@ import { setOpenConversation } from "../lib/messageNotify";
 // with { id } for an existing conversation or { toUserId } to start one.
 // Refreshes every 3s while focused.
 
-const REFRESH_MS = 3_000;
+// 5s (was 3s) — Vercel CPU, 2026-10-06.
+const REFRESH_MS = 5_000;
 
 function timeOf(iso: string) {
   return new Date(iso).toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" });

@@ -24,7 +24,7 @@ export default async function LivePage() {
 
   return (
     <div className="pb-10">
-      <AutoRefresh intervalMs={20_000} />
+      <AutoRefresh intervalMs={60_000} />
       <BackHeader
         title="Live"
         action={

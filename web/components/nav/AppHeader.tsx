@@ -34,10 +34,10 @@ export function AppHeader() {
         })
         .catch(() => {});
     };
-    // Messages also arrive without a push while this tab is open.
-    const dmPoll = setInterval(() => {
-      if (document.visibilityState === "visible") refresh();
-    }, 30_000);
+    // The in-app message banner's poll carries the DM badge numbers — no
+    // second poll here (Vercel CPU, 2026-10-06).
+    const onDmUnread = (e: Event) => setDmCount((e as CustomEvent<number>).detail);
+    window.addEventListener("xoldout:dm-unread", onDmUnread);
     const onVisible = () => {
       if (document.visibilityState === "visible") refresh();
     };
@@ -47,7 +47,7 @@ export function AppHeader() {
     return () => {
       window.removeEventListener("xoldout:notifications-changed", refresh);
       document.removeEventListener("visibilitychange", onVisible);
-      clearInterval(dmPoll);
+      window.removeEventListener("xoldout:dm-unread", onDmUnread);
     };
   }, [appUser]);
 

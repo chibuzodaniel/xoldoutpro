@@ -91,7 +91,7 @@ export default function LiveBroadcastPage() {
   const support = useLiveSupport(params.id, room !== null, supportVersion);
   useEffect(() => {
     if (!room) return;
-    const id = setInterval(() => setSupportVersion((v) => v + 1), 30_000);
+    const id = setInterval(() => setSupportVersion((v) => v + 1), 60_000);
     return () => clearInterval(id);
   }, [room]);
   // Emoji reactions (explicit ask, 2026-10-04) — components/live/reactions.tsx.
