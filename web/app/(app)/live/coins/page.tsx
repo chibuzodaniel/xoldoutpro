@@ -12,9 +12,14 @@ export default function LiveCoinsPage() {
   const [balanceXg, setBalanceXg] = useState<number | null>(null);
 
   useEffect(() => {
-    apiFetch("/api/coins")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => data && setBalanceXg(data.balanceXg));
+    const load = () =>
+      apiFetch("/api/coins")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => data && setBalanceXg(data.balanceXg));
+    void load();
+    // A pack bought from the wallet (AddBalance) lands instantly.
+    window.addEventListener("xoldout:xg-balance-changed", load);
+    return () => window.removeEventListener("xoldout:xg-balance-changed", load);
   }, []);
 
   return (

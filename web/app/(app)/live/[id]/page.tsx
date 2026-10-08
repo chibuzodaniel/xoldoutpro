@@ -33,6 +33,7 @@ import {
 } from "@/components/live/reactions";
 import { unlockGiftSounds } from "@/components/live/giftSound";
 import { TopGifterChip, TopGiftersSheet, useTopGifters } from "@/components/live/TopGifters";
+import { BattleBar, BattleDetailsSheet, isBattleActive, isBattleShown, isBattleEvent, useBattle } from "@/components/live/battle";
 
 function HandIcon({ className = "h-5 w-5" }: { className?: string }) {
   return (
@@ -134,6 +135,16 @@ function LiveRoom() {
   const hostIdRef = useRef<string | null>(null);
   const selfIdRef = useRef<string | null>(null);
   const { state: stage, refresh: refreshStage } = useStageState(params.id, room !== null);
+  // Live battles (explicit ask, 2026-10-08) — components/live/battle.tsx.
+  const battleState = useBattle(params.id, room !== null);
+  const { battle } = battleState;
+  const [battleDetailsOpen, setBattleDetailsOpen] = useState(false);
+  // Who a gift goes to while a battle runs: a competitor's id, or null = the host.
+  const [giftTarget, setGiftTarget] = useState<string | null>(null);
+  const battleRef = useRef(battleState);
+  useEffect(() => {
+    battleRef.current = battleState;
+  }, [battleState]);
   const stageActions = useStageActions(params.id, () => void refreshStage());
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [invitedBy, setInvitedBy] = useState<string | null>(null);
@@ -272,8 +283,11 @@ function LiveRoom() {
             { kind: "chat", id: crypto.randomUUID(), senderName: participant?.name || data.senderName, text: data.text, mentions, fromHost, mentionsMe },
           ]);
           if (mentionsMe) toastRef.current.success(`${participant?.name || data.senderName} mentioned you`);
+        } else if (topic === "live-event" && isBattleEvent(data)) {
+          void battleRef.current.refresh();
         } else if (topic === "live-event" && data.kind === "gift") {
           setGiftVersion((v) => v + 1);
+          if (data.competitorId) battleRef.current.bumpGift(data.competitorId, data.xgAmount);
           setFeed((f) => {
             const { feed: next, count } = appendGift(f, data);
             setGiftMoment({
@@ -404,8 +418,9 @@ function LiveRoom() {
     setLastSentType(giftType);
     const xgAmount = GIFT_TYPES.find((g) => g.type === giftType)?.xgAmount ?? 0;
     setBalanceXg((b) => (b === null ? b : b - xgAmount));
+    const competitorId = isBattleActive(battle) && giftTarget && battle.competitors.some((c) => c.id === giftTarget) ? giftTarget : undefined;
     try {
-      const res = await apiFetch(`/api/live/${params.id}/gifts`, { method: "POST", body: JSON.stringify({ giftType }) });
+      const res = await apiFetch(`/api/live/${params.id}/gifts`, { method: "POST", body: JSON.stringify({ giftType, competitorId }) });
       const data = await res.json();
       if (!res.ok) {
         setBalanceXg((b) => (b === null ? b : b + xgAmount));
@@ -461,7 +476,12 @@ function LiveRoom() {
 
   const addBalanceSheet = addBalanceOpen && (
     <BottomSheet onClose={() => setAddBalanceOpen(false)} z="z-[60]">
-      <AddBalance />
+      <AddBalance
+        onBought={(xg) => {
+          setBalanceXg((b) => (b === null ? b : b + xg));
+          setAddBalanceOpen(false);
+        }}
+      />
     </BottomSheet>
   );
 
@@ -619,6 +639,24 @@ function LiveRoom() {
             </div>
           )}
 
+          {isBattleShown(battle) && (
+            <BattleBar
+              battle={battle}
+              skewMs={battleState.skewMs}
+              isHost={false}
+              act={battleState.act}
+              onDismiss={battleState.dismiss}
+              onSupport={(competitorId) => {
+                setGiftTarget(competitorId);
+                setGiftSheetOpen(true);
+              }}
+              onOpenDetails={() => {
+                void battleState.refresh();
+                setBattleDetailsOpen(true);
+              }}
+            />
+          )}
+
           {giftMoment && (
             <div className="mt-4">
               <GiftBanner key={giftMoment.key} moment={giftMoment} isSelf={giftMoment.senderId === selfId} />
@@ -702,6 +740,25 @@ function LiveRoom() {
               <span className="ml-1 text-xl font-normal leading-none">+</span>
             </button>
           </div>
+          {isBattleActive(battle) && (
+            <div className="mb-4">
+              <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Send to</p>
+              <div className="flex flex-wrap gap-2">
+                {[{ id: null as string | null, name: creatorName || "Host" }, ...battle.competitors.map((c) => ({ id: c.id as string | null, name: c.user.displayName }))]
+                  .filter((t) => t.id === null || battle.competitors.find((c) => c.id === t.id)?.user.id !== selfId)
+                  .map((t) => (
+                    <button
+                      key={t.id ?? "host"}
+                      type="button"
+                      onClick={() => setGiftTarget(t.id)}
+                      className={`rounded-full border px-3 py-1.5 text-[13px] font-semibold ${giftTarget === t.id ? "border-red bg-red/20 text-white" : "border-line text-ink-2"}`}
+                    >
+                      {t.id === null ? `${t.name} (host)` : t.name}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-4 gap-2">
             {GIFT_TYPES.map((g) => {
               const selected = lastSentType === g.type;
@@ -768,6 +825,8 @@ function LiveRoom() {
         </BottomSheet>
       )}
 
+      {battleDetailsOpen && battle && <BattleDetailsSheet battle={battle} onClose={() => setBattleDetailsOpen(false)} />}
+
       {topGiftersOpen && <TopGiftersSheet gifters={topGifters} selfId={selfId} onClose={() => setTopGiftersOpen(false)} />}
 
       {peopleOpen && stage && isStaff && (
@@ -800,7 +859,11 @@ function LiveRoom() {
 }
 
 // How often a waiting page re-checks whether a scheduled Live has started.
-const SCHEDULED_POLL_MS = 15_000;
+// Only checks from 5 minutes before the scheduled time onward, and only in
+// a visible tab — a page left open for hours waiting costs nothing
+// (Vercel CPU budget, see CLAUDE.md).
+const SCHEDULED_POLL_MS = 30_000;
+const SCHEDULED_POLL_LEAD_MS = 5 * 60_000;
 
 /**
  * Entry point for any /live/[id] link — including shared ones (explicit ask:
@@ -839,14 +902,17 @@ export default function LiveViewerPage() {
   // drops straight into the room once the host starts.
   useEffect(() => {
     if (live?.status !== "SCHEDULED") return;
+    const scheduledFor = live.scheduledFor ? new Date(live.scheduledFor).getTime() : null;
     const id = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      if (scheduledFor && Date.now() < scheduledFor - SCHEDULED_POLL_LEAD_MS) return;
       const res = await apiFetch(`/api/live/${params.id}`);
       if (!res.ok) return;
       const data: { live: LivePublicInfo } = await res.json();
       if (data.live.status !== "SCHEDULED") setLive(data.live);
     }, SCHEDULED_POLL_MS);
     return () => clearInterval(id);
-  }, [live?.status, params.id]);
+  }, [live?.status, live?.scheduledFor, params.id]);
 
   if (state === "loading") {
     return (

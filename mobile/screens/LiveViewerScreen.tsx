@@ -1,6 +1,6 @@
 import { SendToChatButton } from "../components/messages/SendToChat";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Alert, AppState, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,6 +17,7 @@ import { useLiveAudioSession } from "../lib/liveAudio";
 import { AddBalance, BottomSheet, GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
 import { CloseIcon, EyeIcon, GiftArt, MicLineIcon, XgCoin } from "../components/live/LiveIcons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState, type StageEvent } from "../components/live/Stage";
+import { BattleBar, BattleDetailsSheet, isBattleActive, isBattleEvent, isBattleShown, useBattle } from "../components/live/Battle";
 import { useToast } from "../components/ToastProvider";
 import { TopGifterChip, TopGiftersSheet, useTopGifters } from "../components/live/TopGifters";
 import {
@@ -130,12 +131,19 @@ export function LiveViewerScreen() {
   useEffect(() => {
     if (status !== "scheduled") return;
     const tick = setInterval(() => setNow(Date.now()), 1000);
-    const poll = setInterval(() => attemptJoin(), 15000);
+    // Only re-checks from 5 minutes before the start time, every 30s, while
+    // the app is in front (Vercel CPU budget — see CLAUDE.md).
+    const startsAt = scheduled?.scheduledFor ? new Date(scheduled.scheduledFor).getTime() : null;
+    const poll = setInterval(() => {
+      if (AppState.currentState !== "active") return;
+      if (startsAt && Date.now() < startsAt - 5 * 60_000) return;
+      attemptJoin();
+    }, 30_000);
     return () => {
       clearInterval(tick);
       clearInterval(poll);
     };
-  }, [status, attemptJoin]);
+  }, [status, attemptJoin, scheduled?.scheduledFor]);
 
   async function startScheduled() {
     if (!firebaseUser || !scheduled) return;
@@ -330,6 +338,16 @@ function ViewerRoomContent({
   const [giftVersion, setGiftVersion] = useState(0);
   const [topGiftersOpen, setTopGiftersOpen] = useState(false);
   const topGifters = useTopGifters(liveSessionId, giftVersion);
+  // Live battles (explicit ask, 2026-10-08) — components/live/Battle.tsx.
+  const battleState = useBattle(liveSessionId);
+  const { battle } = battleState;
+  const [battleDetailsOpen, setBattleDetailsOpen] = useState(false);
+  // Who a gift goes to while a battle runs: a competitor's id, or null = the host.
+  const [giftTarget, setGiftTarget] = useState<string | null>(null);
+  const battleRef = useRef(battleState);
+  useEffect(() => {
+    battleRef.current = battleState;
+  }, [battleState]);
   const [invitedBy, setInvitedBy] = useState<string | null>(null);
   const [stageMicOn, setStageMicOn] = useState(true);
   const meOnStage = stage?.onStage.some((p) => p.userId === selfId) ?? false;
@@ -452,8 +470,11 @@ function ViewerRoomContent({
     const text = new TextDecoder().decode(msg.payload);
     try {
       const data = JSON.parse(text);
-      if (data.kind === "gift") {
+      if (isBattleEvent(data)) {
+        battleRef.current.refresh();
+      } else if (data.kind === "gift") {
         setGiftVersion((v) => v + 1);
+        if (data.competitorId) battleRef.current.bumpGift(data.competitorId, data.xgAmount);
         const event = data as GiftEvent;
         setFeed((f) => {
           const { feed: next, count } = appendGift(f, event);
@@ -523,7 +544,8 @@ function ViewerRoomContent({
     setBalanceXg((b) => (b === null ? b : b - xgAmount));
     try {
       const idToken = await firebaseUser.getIdToken();
-      await apiPost(`/api/live/${liveSessionId}/gifts`, idToken, { giftType });
+      const competitorId = isBattleActive(battle) && giftTarget && battle.competitors.some((c) => c.id === giftTarget) ? giftTarget : undefined;
+      await apiPost(`/api/live/${liveSessionId}/gifts`, idToken, { giftType, competitorId });
     } catch (e) {
       setBalanceXg((b) => (b === null ? b : b + xgAmount));
       if (isInsufficientXg(e)) setAddBalanceOpen(true);
@@ -634,6 +656,23 @@ function ViewerRoomContent({
           </TouchableOpacity>
         </View>
         <TopGifterChip top={topGifters[0]} selfId={selfId} onOpen={() => setTopGiftersOpen(true)} />
+        {isBattleShown(battle) && (
+          <BattleBar
+            battle={battle}
+            skewMs={battleState.skewMs}
+            isHost={false}
+            act={battleState.act}
+            onDismiss={battleState.dismiss}
+            onSupport={(competitorId) => {
+              setGiftTarget(competitorId);
+              openGiftSheet();
+            }}
+            onOpenDetails={() => {
+              battleState.refresh();
+              setBattleDetailsOpen(true);
+            }}
+          />
+        )}
         {giftMoment && (
           <View style={{ marginTop: 16 }}>
             <GiftBanner key={giftMoment.key} moment={giftMoment} isSelf={giftMoment.senderId === selfId} />
@@ -698,6 +737,8 @@ function ViewerRoomContent({
         </View>
       </View>
 
+      <BattleDetailsSheet battle={battle} visible={battleDetailsOpen} onClose={() => setBattleDetailsOpen(false)} />
+
       <TopGiftersSheet gifters={topGifters} selfId={selfId} visible={topGiftersOpen} onClose={() => setTopGiftersOpen(false)} />
 
       {stage && isStaff && (
@@ -730,6 +771,18 @@ function ViewerRoomContent({
             <Text style={styles.balancePlus}>+</Text>
           </TouchableOpacity>
         </View>
+        {isBattleActive(battle) && (
+          <View style={{ marginBottom: 14 }}>
+            <Text style={styles.sendToLabel}>SEND TO</Text>
+            <View style={styles.sendToRow}>
+              {[{ id: null as string | null, name: `${creatorName || "Host"} (host)` }, ...battle.competitors.filter((c) => c.user.id !== selfId).map((c) => ({ id: c.id as string | null, name: c.user.displayName }))].map((t) => (
+                <TouchableOpacity key={t.id ?? "host"} onPress={() => setGiftTarget(t.id)} style={[styles.sendToChip, giftTarget === t.id && styles.sendToChipOn]}>
+                  <Text style={[styles.sendToChipText, giftTarget === t.id && { color: "#fff" }]}>{t.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
         <View style={styles.giftGrid}>
           {GIFT_CATALOG.map((g) => (
             <TouchableOpacity
@@ -856,6 +909,11 @@ const styles = StyleSheet.create({
   topScrim: { position: "absolute", left: 0, right: 0, top: 0, height: 160 },
   bottomScrim: { position: "absolute", left: 0, right: 0, bottom: 0, height: "55%" },
   top: { position: "absolute", left: 0, right: 0, top: 0, paddingHorizontal: 12 },
+  sendToLabel: { fontSize: 12, color: colors.ink3, letterSpacing: 0.5, marginBottom: 8 },
+  sendToRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  sendToChip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
+  sendToChipOn: { borderColor: colors.red, backgroundColor: "rgba(225,29,46,0.2)" },
+  sendToChipText: { color: colors.ink2, fontSize: 13, fontWeight: "700" },
   headerRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   hostPill: {
     flexDirection: "row",

@@ -37,20 +37,42 @@ async function loadLiveSession(liveSessionId: string) {
   return { ...session, roomName: session.roomName };
 }
 
-export async function sendLiveGift(args: { liveSessionId: string; senderId: string; giftType: GiftType }) {
+export class BattleCompetitorNotFoundError extends Error {}
+
+/**
+ * Sends a gift to the host — or, during a battle, to one competitor
+ * (`competitorId`, a LiveBattleCompetitor id): that competitor earns the XG
+ * and it counts toward their battle score (lib/live/battle.ts).
+ */
+export async function sendLiveGift(args: { liveSessionId: string; senderId: string; giftType: GiftType; competitorId?: string }) {
   const session = await loadLiveSession(args.liveSessionId);
-  if (session.creatorId === args.senderId) throw new CannotGiftOwnLiveError();
   const { xgAmount, label } = GIFT_CATALOG[args.giftType];
+
+  let recipientId = session.creatorId;
+  let battleId: string | null = null;
+  if (args.competitorId) {
+    const competitor = await db.liveBattleCompetitor.findFirst({
+      where: { id: args.competitorId, battle: { liveSessionId: args.liveSessionId, status: { in: ["IN_PROGRESS", "VOTING"] } } },
+      select: { userId: true, battleId: true },
+    });
+    if (!competitor) throw new BattleCompetitorNotFoundError();
+    recipientId = competitor.userId;
+    battleId = competitor.battleId;
+  }
+  if (recipientId === args.senderId) throw new CannotGiftOwnLiveError();
 
   const [gift, sender] = await db.$transaction(async (tx) => {
     await debitCoins(tx, args.senderId, xgAmount, "GIFT_DEBIT");
-    await creditCreatorXg(tx, { creatorId: session.creatorId, xgAmount, source: "LIVE_GIFT", liveSessionId: args.liveSessionId });
+    await creditCreatorXg(tx, { creatorId: recipientId, xgAmount, source: "LIVE_GIFT", liveSessionId: args.liveSessionId });
     const gift = await tx.liveGift.create({
-      data: { liveSessionId: args.liveSessionId, senderId: args.senderId, type: args.giftType, xgAmount },
+      data: { liveSessionId: args.liveSessionId, senderId: args.senderId, type: args.giftType, xgAmount, recipientId, battleId },
     });
     const sender = await tx.user.findUniqueOrThrow({ where: { id: args.senderId }, select: { displayName: true } });
     return [gift, sender];
   });
+  const recipientName = battleId
+    ? (await db.user.findUnique({ where: { id: recipientId }, select: { displayName: true } }))?.displayName ?? null
+    : null;
 
   await publishLiveEvent(session.roomName, {
     kind: "gift",
@@ -60,6 +82,7 @@ export async function sendLiveGift(args: { liveSessionId: string; senderId: stri
     xgAmount,
     senderId: args.senderId,
     senderName: sender.displayName,
+    ...(battleId ? { battleId, competitorId: args.competitorId, recipientId, recipientName } : {}),
     createdAt: gift.createdAt.toISOString(),
   });
 

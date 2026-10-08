@@ -164,7 +164,7 @@ export function WalletScreen() {
         )}
         {data.otherSpentKobo !== 0 && (
           <View style={styles.breakdownRow}>
-            <Text style={styles.breakdownLabel}>Plan fees & billboards</Text>
+            <Text style={styles.breakdownLabel}>XG, plan fees & billboards</Text>
             <Text style={styles.breakdownValue}>{formatNaira(-data.otherSpentKobo)}</Text>
           </View>
         )}

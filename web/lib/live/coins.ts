@@ -15,6 +15,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { initializePayment } from "@/lib/bachs";
+import { getWalletBalances } from "@/lib/commerce/ledger";
 
 // XG pricing (explicit asks, 2026-10-04): buying starts at ₦500 and ₦1,000,
 // and every pack carries a small bonus that rounds it to a clean XG amount,
@@ -56,7 +57,7 @@ export async function debitCoins(
   tx: Prisma.TransactionClient,
   userId: string,
   xgAmount: number,
-  kind: "GIFT_DEBIT" | "PAID_ACCESS_DEBIT" | "PAID_REQUEST_DEBIT",
+  kind: "GIFT_DEBIT" | "PAID_ACCESS_DEBIT" | "PAID_REQUEST_DEBIT" | "BATTLE_PRIZE_HOLD",
 ): Promise<void> {
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
 
@@ -142,4 +143,29 @@ export async function finalizeCoinTopUpPayment(
   });
 
   return { alreadyProcessed: false };
+}
+
+export class InsufficientWalletError extends Error {}
+
+/**
+ * Buy an XG pack with wallet money instead of a Bachs checkout (explicit
+ * ask, 2026-10-08: "users can buy XG using their wallet balance"). One
+ * transaction: lock on the user (the same advisory lock withdrawals,
+ * billboards and creator-plan charges take, so none of them can spend the
+ * same Naira twice), check the available balance, debit the wallet
+ * (XG_PURCHASE) and credit the XG (TOPUP_CREDIT).
+ */
+export async function buyXgWithWallet(userId: string, packIndex: number): Promise<{ xgAmount: number; priceKobo: number }> {
+  const pack = XG_TOPUP_PACKS[packIndex];
+  if (!pack) throw new InvalidTopUpPackError();
+  await db.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${userId}))`;
+    const { availableKobo } = await getWalletBalances(userId, tx);
+    if (availableKobo < pack.priceKobo) throw new InsufficientWalletError();
+    await tx.walletLedgerEntry.create({
+      data: { userId, amountKobo: -pack.priceKobo, kind: "XG_PURCHASE", status: "AVAILABLE" },
+    });
+    await tx.coinLedgerEntry.create({ data: { userId, xgAmount: pack.xgAmount, kind: "TOPUP_CREDIT" } });
+  });
+  return { xgAmount: pack.xgAmount, priceKobo: pack.priceKobo };
 }

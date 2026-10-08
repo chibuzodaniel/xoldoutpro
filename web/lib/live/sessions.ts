@@ -11,6 +11,7 @@
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { createLiveKitRoom, endLiveKitRoom, getParticipantCount, getRoomViewerCounts } from "@/lib/live/liveKit";
+import { settleBattlesOnLiveEnd } from "@/lib/live/battle";
 import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 export class AlreadyLiveError extends Error {
@@ -182,6 +183,9 @@ export async function endLiveSession(args: { liveSessionId: string; creatorId: s
     // peak lower than who was actually still watching. Best-effort: ending
     // the Live must never fail because LiveKit was slow to answer.
     await recordViewerJoin(session.id, session.roomName).catch((err) => console.error("final peakViewers read failed", err));
+    // A battle still running is settled first: voting finishes with the
+    // votes so far, anything earlier is cancelled and the prize refunded.
+    await settleBattlesOnLiveEnd(session.id).catch((err) => console.error("battle settle on Live end failed", err));
     await endLiveKitRoom(session.roomName);
   }
   return db.liveSession.update({ where: { id: args.liveSessionId }, data: { status: "ENDED", endedAt: new Date() } });
@@ -191,7 +195,7 @@ export async function endLiveSession(args: { liveSessionId: string; creatorId: s
 export async function getLiveSessionSummary(liveSessionId: string) {
   const [session, gifts, accessGrants, requests] = await Promise.all([
     db.liveSession.findUnique({ where: { id: liveSessionId }, select: { peakViewers: true } }),
-    db.liveGift.aggregate({ where: { liveSessionId }, _sum: { xgAmount: true }, _count: true }),
+    db.liveGift.aggregate({ where: { liveSessionId, battleId: null }, _sum: { xgAmount: true }, _count: true }),
     db.liveAccessGrant.aggregate({ where: { liveSessionId }, _sum: { xgPaid: true }, _count: true }),
     db.liveRequest.aggregate({ where: { liveSessionId, status: { not: "DECLINED" } }, _sum: { xgAmount: true }, _count: true }),
   ]);

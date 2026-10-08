@@ -82,6 +82,7 @@ export function BottomNav() {
     if (!appUser || onSocials) return;
     let cancelled = false;
     function poll() {
+      if (document.visibilityState !== "visible") return; // Vercel CPU budget — see CLAUDE.md
       apiFetch("/api/socials/unread")
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {

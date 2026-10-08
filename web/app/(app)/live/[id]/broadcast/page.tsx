@@ -15,6 +15,7 @@ import { LiveChatInput } from "@/components/live/LiveChatInput";
 import { ShareButton } from "@/components/ui/ShareButton";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "@/components/live/stage";
 import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "@/components/live/SupportSheets";
+import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle } from "@/components/live/battle";
 import {
   FloatingReactions,
   LIVE_EMOJIS,
@@ -102,6 +103,22 @@ export default function LiveBroadcastPage() {
   useEffect(() => unlockGiftSounds(), []);
   const { state: stage, refresh: refreshStage } = useStageState(params.id, room !== null);
   // The room event handlers are registered once, inside the connect effect.
+  // Live battles (explicit ask, 2026-10-08) — components/live/battle.tsx.
+  const battleState = useBattle(params.id, room !== null);
+  const { battle } = battleState;
+  const [battleSheet, setBattleSheet] = useState<"setup" | "details" | null>(null);
+  const [hostXg, setHostXg] = useState<number | null>(null);
+  const battleRef = useRef(battleState);
+  useEffect(() => {
+    battleRef.current = battleState;
+  }, [battleState]);
+  const battleRunning = !!battle && (battle.status === "READY" || battle.status === "IN_PROGRESS" || battle.status === "VOTING");
+  async function openBattleSetup() {
+    setBattleSheet("setup");
+    void refreshStage();
+    const res = await apiFetch("/api/coins").catch(() => null);
+    if (res?.ok) setHostXg((await res.json()).balanceXg);
+  }
   const refreshStageRef = useRef(refreshStage);
   useEffect(() => {
     refreshStageRef.current = refreshStage;
@@ -187,6 +204,16 @@ export default function LiveBroadcastPage() {
             }
           } else if (topic === "chat") {
             setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: participant?.name || data.senderName, text: data.text }]);
+          } else if (topic === "live-event" && isBattleEvent(data)) {
+            void battleRef.current.refresh();
+          } else if (topic === "live-event" && data.kind === "gift" && data.competitorId) {
+            // A gift to a battle competitor: theirs, not the host's — show it, don't count it.
+            battleRef.current.bumpGift(data.competitorId, data.xgAmount);
+            setFeed((f) => {
+              const { feed: next, count } = appendGift(f, data);
+              setGiftMoment({ key: data.giftId, giftType: data.giftType, label: data.label, senderName: data.senderName, count });
+              return next;
+            });
           } else if (topic === "live-event" && data.kind === "gift") {
             setFeed((f) => {
               const { feed: next, count } = appendGift(f, data);
@@ -506,7 +533,30 @@ export default function LiveBroadcastPage() {
                 ›
               </span>
             </button>
+            {!battleRunning && (
+              <button
+                type="button"
+                onClick={() => void openBattleSetup()}
+                className="flex items-center gap-1 rounded-full bg-amber/90 px-3 py-1 text-[14px] font-semibold text-black"
+              >
+                Battle
+              </button>
+            )}
           </div>
+
+          {isBattleShown(battle) && (
+            <BattleBar
+              battle={battle}
+              skewMs={battleState.skewMs}
+              isHost
+              act={battleState.act}
+              onDismiss={battleState.dismiss}
+              onOpenDetails={() => {
+                void battleState.refresh();
+                setBattleSheet("details");
+              }}
+            />
+          )}
 
           {giftMoment && (
             <div className="mt-2.5">
@@ -571,6 +621,11 @@ export default function LiveBroadcastPage() {
 
       {supportSheet === "supporters" && <SupportersSheet data={support} onClose={() => setSupportSheet(null)} />}
       {supportSheet === "coins" && <CoinStatsSheet data={support} onClose={() => setSupportSheet(null)} />}
+
+      {battleSheet === "setup" && (
+        <BattleSetupSheet onStage={stage?.onStage ?? []} balanceXg={hostXg} act={battleState.act} onClose={() => setBattleSheet(null)} />
+      )}
+      {battleSheet === "details" && battle && <BattleDetailsSheet battle={battle} onClose={() => setBattleSheet(null)} />}
 
       {peopleOpen && stage && (
         <PeopleSheet liveId={params.id} state={stage} onRefresh={() => void refreshStage()} onClose={() => setPeopleOpen(false)} />

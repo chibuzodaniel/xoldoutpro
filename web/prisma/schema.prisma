@@ -184,6 +184,10 @@ model User {
 
   liveSessions      LiveSession[]
   liveGiftsSent     LiveGift[]
+  liveGiftsReceived LiveGift[]                @relation("LiveGiftsReceived")
+  battlesHosted     LiveBattle[]
+  battleEntries     LiveBattleCompetitor[]
+  battleVotes       LiveBattleVote[]
   liveAccessGrants  LiveAccessGrant[]
   liveRequestsSent  LiveRequest[]
   liveReminders     LiveReminder[]
@@ -470,6 +474,9 @@ enum LedgerKind {
   // from 2026-10-04 on (those kinds stay only for historical rows). One row
   // per creator per conversion run; see lib/live/xgEarnings.ts.
   XG_EARNINGS_PAYOUT
+  // XG pack bought with wallet money instead of a Bachs checkout
+  // (explicit ask, 2026-10-08) — a debit, like BILLBOARD_FEE.
+  XG_PURCHASE
 }
 
 // Three creator-selectable monetization plans (DECISIONS.md) — see
@@ -1503,6 +1510,7 @@ model LiveSession {
   reminders     LiveReminder[]
   moderators    LiveModerator[]
   stageRequests LiveStageRequest[]
+  battles       LiveBattle[]
 
   @@index([creatorId])
   @@index([status])
@@ -1540,6 +1548,12 @@ model LiveGift {
   sender        User         @relation(fields: [senderId], references: [id])
   type          LiveGiftType
   xgAmount      Int // snapshot at send time, independent of a later catalog price change
+  // Battles (lib/live/battle.ts): a gift sent to a competitor instead of
+  // the host. Null = to the host, as before.
+  recipientId   String?
+  recipient     User?        @relation("LiveGiftsReceived", fields: [recipientId], references: [id])
+  battleId      String?
+  battle        LiveBattle?  @relation(fields: [battleId], references: [id])
   createdAt     DateTime     @default(now())
 
   @@index([liveSessionId, createdAt])
@@ -1638,6 +1652,10 @@ enum CoinLedgerKind {
   GIFT_DEBIT
   PAID_ACCESS_DEBIT
   PAID_REQUEST_DEBIT
+  // A battle's prize, held from the host's XG when the battle starts
+  // (lib/live/battle.ts) and returned for any place nobody won, or a cancel.
+  BATTLE_PRIZE_HOLD
+  BATTLE_PRIZE_REFUND
 }
 
 model CoinLedgerEntry {
@@ -1665,6 +1683,7 @@ enum XgEarningSource {
   LIVE_GIFT
   LIVE_ACCESS
   LIVE_REQUEST
+  BATTLE_PRIZE // a battle winner's share of the host's prize
 }
 
 model XgEarning {
@@ -1828,4 +1847,99 @@ model UserBlock {
 
   @@id([blockerId, blockedId])
   @@index([blockedId])
+}
+
+// ─── Live battles (explicit ask, 2026-10-08) ─────────────────────────────
+// "Competitions and things like rap battles in Live: a host, a timer for
+// each competitor's turn, recorded; each competitor has supporters who gift
+// them; the host sets a reward for the winner(s)." Run inside a host's Live
+// (lib/live/battle.ts). Only results are recorded — never video.
+//
+// Score = 50% share of the battle's gift XG + 50% share of the audience
+// vote. The host's prize XG is held from their balance at start and paid to
+// the top `prizePlaces.length` competitors as earned XG.
+enum LiveBattleStatus {
+  READY // created, not started yet
+  IN_PROGRESS
+  VOTING
+  FINISHED
+  CANCELLED
+}
+
+model LiveBattle {
+  id              String           @id @default(cuid())
+  liveSessionId   String
+  liveSession     LiveSession      @relation(fields: [liveSessionId], references: [id])
+  hostId          String
+  host            User             @relation(fields: [hostId], references: [id])
+  title           String
+  status          LiveBattleStatus @default(READY)
+  rounds          Int
+  turnSeconds     Int
+  votingSeconds   Int
+  // XG per place, best first — e.g. [500] for one winner, [300, 150, 50] for three.
+  prizePlaces     Int[]
+  prizeXg         Int
+  // Whose turn is on now (null between turns) and when it ends.
+  currentTurnId   String?
+  votingEndsAt    DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  createdAt       DateTime         @default(now())
+
+  competitors LiveBattleCompetitor[]
+  turns       LiveBattleTurn[]
+  votes       LiveBattleVote[]
+  gifts       LiveGift[]
+
+  @@index([liveSessionId])
+  @@index([status, finishedAt])
+}
+
+model LiveBattleCompetitor {
+  id       String     @id @default(cuid())
+  battleId String
+  battle   LiveBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User       @relation(fields: [userId], references: [id])
+  // Turn order within each round.
+  position Int
+  // Filled in when the battle finishes.
+  giftsXg  Int        @default(0)
+  votes    Int        @default(0)
+  score    Float      @default(0)
+  place    Int?
+  prizeXg  Int        @default(0)
+
+  turns LiveBattleTurn[]
+  votesReceived LiveBattleVote[]
+
+  @@unique([battleId, userId])
+}
+
+// Every turn, recorded with its real start and end.
+model LiveBattleTurn {
+  id           String               @id @default(cuid())
+  battleId     String
+  battle       LiveBattle           @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  competitorId String
+  competitor   LiveBattleCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  round        Int
+  startedAt    DateTime             @default(now())
+  endsAt       DateTime
+  endedAt      DateTime?
+
+  @@index([battleId, round])
+}
+
+model LiveBattleVote {
+  battleId     String
+  battle       LiveBattle           @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  voterId      String
+  voter        User                 @relation(fields: [voterId], references: [id])
+  competitorId String
+  competitor   LiveBattleCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  createdAt    DateTime             @default(now())
+
+  @@id([battleId, voterId])
 }

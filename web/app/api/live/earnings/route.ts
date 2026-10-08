@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const { user } = await requireUser(req);
     const [gifts, balance, lives, conversions] = await Promise.all([
       db.liveGift.aggregate({
-        where: { liveSession: { creatorId: user.id } },
+        where: { liveSession: { creatorId: user.id }, battleId: null },
         _sum: { xgAmount: true },
         _count: true,
       }),

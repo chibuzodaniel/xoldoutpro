@@ -17,6 +17,7 @@ import { useToast } from "../components/ToastProvider";
 import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "../components/live/Stage";
 import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "../components/live/SupportSheets";
+import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle } from "../components/live/Battle";
 import {
   FloatingReactions,
   isLiveEmoji,
@@ -173,6 +174,27 @@ function BroadcastRoomContent({
     const id = setInterval(() => setSupportVersion((v) => v + 1), 60_000);
     return () => clearInterval(id);
   }, []);
+  // Live battles (explicit ask, 2026-10-08) — components/live/Battle.tsx.
+  const battleState = useBattle(liveSessionId);
+  const { battle } = battleState;
+  const [battleSheet, setBattleSheet] = useState<"setup" | "details" | null>(null);
+  const [hostXg, setHostXg] = useState<number | null>(null);
+  const battleRef = useRef(battleState);
+  useEffect(() => {
+    battleRef.current = battleState;
+  }, [battleState]);
+  const battleRunning = !!battle && (battle.status === "READY" || battle.status === "IN_PROGRESS" || battle.status === "VOTING");
+  async function openBattleSetup() {
+    setBattleSheet("setup");
+    refreshStage();
+    if (!firebaseUser) return;
+    try {
+      const data = await apiGet<{ balanceXg: number }>("/api/coins", await firebaseUser.getIdToken());
+      setHostXg(data.balanceXg);
+    } catch {
+      // the server still checks the balance when the battle starts
+    }
+  }
   const refreshStageRef = useRef(refreshStage);
   useEffect(() => {
     refreshStageRef.current = refreshStage;
@@ -222,7 +244,18 @@ function BroadcastRoomContent({
     const text = new TextDecoder().decode(msg.payload);
     try {
       const data = JSON.parse(text);
-      if (data.kind === "gift") {
+      if (isBattleEvent(data)) {
+        battleRef.current.refresh();
+      } else if (data.kind === "gift" && data.competitorId) {
+        // A gift to a battle competitor: theirs, not the host's — show it, don't count it.
+        battleRef.current.bumpGift(data.competitorId, data.xgAmount);
+        const event = data as GiftEvent;
+        setFeed((f) => {
+          const { feed: next, count } = appendGift(f, event);
+          setGiftMoment({ key: event.giftId, giftType: event.giftType, label: event.label, senderName: event.senderName, senderId: event.senderId, count });
+          return next;
+        });
+      } else if (data.kind === "gift") {
         const event = data as GiftEvent;
         setFeed((f) => {
           const { feed: next, count } = appendGift(f, event);
@@ -428,7 +461,26 @@ function BroadcastRoomContent({
               {supporterCount} supporter{supporterCount === 1 ? "" : "s"} ›
             </Text>
           </TouchableOpacity>
+          {!battleRunning && (
+            <TouchableOpacity style={[styles.statChip, styles.battleChip]} onPress={openBattleSetup}>
+              <Text style={styles.battleChipText}>Battle</Text>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {isBattleShown(battle) && (
+          <BattleBar
+            battle={battle}
+            skewMs={battleState.skewMs}
+            isHost
+            act={battleState.act}
+            onDismiss={battleState.dismiss}
+            onOpenDetails={() => {
+              battleState.refresh();
+              setBattleSheet("details");
+            }}
+          />
+        )}
 
         {giftMoment && (
           <View style={{ marginTop: 10 }}>
@@ -487,6 +539,15 @@ function BroadcastRoomContent({
           <Text style={styles.endButtonText}>End live</Text>
         </TouchableOpacity>
       </View>
+      <BattleSetupSheet
+        visible={battleSheet === "setup"}
+        onStage={stage?.onStage ?? []}
+        balanceXg={hostXg}
+        act={battleState.act}
+        onClose={() => setBattleSheet(null)}
+      />
+      <BattleDetailsSheet battle={battle} visible={battleSheet === "details"} onClose={() => setBattleSheet(null)} />
+
       <SupportersSheet data={support} visible={supportSheet === "supporters"} onClose={() => setSupportSheet(null)} />
       <CoinStatsSheet data={support} visible={supportSheet === "coins"} onClose={() => setSupportSheet(null)} />
 
@@ -569,6 +630,8 @@ const styles = StyleSheet.create({
   statChip: { flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: "rgba(0,0,0,0.45)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
   statXg: { color: colors.amber, fontSize: 14, fontWeight: "700" },
   statSupporters: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  battleChip: { backgroundColor: "rgba(217,154,43,0.9)" },
+  battleChipText: { color: "#000", fontSize: 14, fontWeight: "700" },
   bottom: { position: "absolute", left: 0, right: 0, bottom: 0 },
   requestsWrap: { maxHeight: 180, paddingHorizontal: 12, marginBottom: 8, gap: 8 },
   requestCard: { borderWidth: 1, borderColor: "rgba(217,154,43,0.4)", backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 12, padding: 10 },

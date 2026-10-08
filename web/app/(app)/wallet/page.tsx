@@ -114,7 +114,7 @@ function PayoutDetailSheet({
   // never runs as a background drain on/off the wallet page.
   useEffect(() => {
     if (!payout || payout.status !== "PROCESSING") return;
-    const id = setInterval(onRefresh, 10_000);
+    const id = setInterval(onRefresh, 30_000);
     return () => clearInterval(id);
   }, [payout, onRefresh]);
 
@@ -290,7 +290,7 @@ export default function WalletPage() {
         )}
         {data.otherSpentKobo !== 0 && (
           <div className="flex items-center justify-between py-2">
-            <span className="text-ink-3">Plan fees &amp; billboards</span>
+            <span className="text-ink-3">XG, plan fees &amp; billboards</span>
             <span>{naira(-data.otherSpentKobo)}</span>
           </div>
         )}

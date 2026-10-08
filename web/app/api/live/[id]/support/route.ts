@@ -14,7 +14,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const session = await db.liveSession.findUnique({ where: { id }, select: { id: true, creatorId: true } });
     if (!session) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if ((await getLiveRole(session, user.id)) === "viewer") return NextResponse.json({ error: "Not authorized" }, { status: 403 });
-    return NextResponse.json(await getLiveSupport(id));
+    return NextResponse.json(await getLiveSupport(id, session.creatorId));
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     console.error(err);

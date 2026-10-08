@@ -43,7 +43,7 @@ export async function getXgPayoutRateKobo(client: DbClient = db): Promise<number
 /** The seller side of an XG spend — run inside the same transaction as the spender's debitCoins. */
 export async function creditCreatorXg(
   tx: Prisma.TransactionClient,
-  args: { creatorId: string; xgAmount: number; source: "LIVE_GIFT" | "LIVE_ACCESS" | "LIVE_REQUEST"; liveSessionId: string },
+  args: { creatorId: string; xgAmount: number; source: "LIVE_GIFT" | "LIVE_ACCESS" | "LIVE_REQUEST" | "BATTLE_PRIZE"; liveSessionId: string },
 ): Promise<void> {
   const koboPerXg = await getXgPayoutRateKobo(tx);
   await tx.xgEarning.create({
@@ -224,7 +224,8 @@ export async function getLiveXgStats(creatorId: string, limit = 50): Promise<Liv
   const ids = sessions.map((s) => s.id);
 
   const [gifts, access, requests, earned, giftsBySender] = await Promise.all([
-    db.liveGift.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids } }, _count: true, _sum: { xgAmount: true } }),
+    // battleId: null — gifts to battle competitors are theirs, not the host's.
+    db.liveGift.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids }, battleId: null }, _count: true, _sum: { xgAmount: true } }),
     db.liveAccessGrant.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids } }, _count: true, _sum: { xgPaid: true } }),
     db.liveRequest.groupBy({ by: ["liveSessionId"], where: { liveSessionId: { in: ids } }, _count: true, _sum: { xgAmount: true } }),
     db.xgEarning.findMany({
@@ -233,7 +234,7 @@ export async function getLiveXgStats(creatorId: string, limit = 50): Promise<Liv
     }),
     db.liveGift.groupBy({
       by: ["liveSessionId", "senderId"],
-      where: { liveSessionId: { in: ids } },
+      where: { liveSessionId: { in: ids }, battleId: null },
       _count: true,
       _sum: { xgAmount: true },
     }),
@@ -378,12 +379,12 @@ type SourceTotals = { xg: number; kobo: number; count: number };
  * force when each XG arrived), and a supporter's Naira is their share of
  * each source — exact unless the rate changed mid-Live.
  */
-export async function getLiveSupport(liveSessionId: string) {
+export async function getLiveSupport(liveSessionId: string, hostId: string) {
   const [gifts, access, requests, earned] = await Promise.all([
-    db.liveGift.findMany({ where: { liveSessionId }, select: { senderId: true, type: true, xgAmount: true, createdAt: true } }),
+    db.liveGift.findMany({ where: { liveSessionId, battleId: null }, select: { senderId: true, type: true, xgAmount: true, createdAt: true } }),
     db.liveAccessGrant.findMany({ where: { liveSessionId }, select: { userId: true, xgPaid: true } }),
     db.liveRequest.findMany({ where: { liveSessionId }, select: { senderId: true, xgAmount: true } }),
-    db.xgEarning.findMany({ where: { liveSessionId }, select: { source: true, xgAmount: true, koboPerXg: true } }),
+    db.xgEarning.findMany({ where: { liveSessionId, userId: hostId }, select: { source: true, xgAmount: true, koboPerXg: true } }),
   ]);
 
   const earnedBy: Record<string, { xg: number; kobo: number }> = {};
