@@ -9,8 +9,10 @@ import { AndroidAudioTypePresets, AudioSession } from "@livekit/react-native";
  * video); the broadcaster gets the voice-communication profile, which is
  * what enables proper mic capture with echo cancellation.
  */
-export function useLiveAudioSession(role: "viewer" | "broadcaster") {
+export function useLiveAudioSession(role: "viewer" | "broadcaster" | null) {
   useEffect(() => {
+    // null = no Live connected (lib/LiveRoomContext.tsx owns the session now).
+    if (!role) return;
     let active = true;
     (async () => {
       try {

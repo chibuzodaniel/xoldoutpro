@@ -106,10 +106,10 @@ const styles = StyleSheet.create({
   },
   sellBadgeText: { color: colors.ink, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
   footer: { position: "absolute", left: 16, right: 16, bottom: 16 },
-  creator: { color: "rgba(255,255,255,0.6)", fontSize: 12, letterSpacing: 1, marginBottom: 4 },
+  creator: { color: "rgba(255,255,255,0.9)", fontSize: 12, letterSpacing: 1, marginBottom: 4 },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   stat: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
-  statDim: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+  statDim: { color: "rgba(255,255,255,0.9)", fontSize: 12 },
   price: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif },
 });

@@ -45,7 +45,9 @@ export function InAppMessageBanner() {
     const since = sinceRef.current;
     const res = await apiFetch(`/api/messages/latest${since ? `?since=${encodeURIComponent(since)}` : ""}`).catch(() => null);
     if (!res?.ok) return;
-    const data: { messages: Incoming[]; unread?: { unreadConversations: number; requests: number }; serverTime: string } = await res.json();
+    const data: { messages: Incoming[]; unread?: { unreadConversations: number; requests: number }; battleInvite?: unknown; serverTime: string } = await res.json();
+    // A battle invite still ringing (components/live/BattleInviteRing.tsx).
+    if (data.battleInvite) window.dispatchEvent(new CustomEvent("xoldout:battle-invite", { detail: data.battleInvite }));
     if (data.unread) {
       window.dispatchEvent(new CustomEvent("xoldout:dm-unread", { detail: data.unread.unreadConversations + data.unread.requests }));
     }

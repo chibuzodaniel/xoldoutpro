@@ -20,7 +20,8 @@ import { db } from "@/lib/db";
 import { debitCoins } from "@/lib/live/coins";
 import { creditCreatorXg } from "@/lib/live/xgEarnings";
 import { publishLiveEvent } from "@/lib/live/liveKit";
-import { MAX_STAGE_GUESTS, inviteToStage } from "@/lib/live/stage";
+import { MAX_STAGE_GUESTS, alertGuestFollowers, inviteToStage } from "@/lib/live/stage";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 export const BATTLE_LIMITS = {
   minCompetitors: 2,
@@ -75,6 +76,8 @@ function announce(roomName: string | null, type: string, battleId: string) {
 export type BattleSetup = {
   title: string;
   competitorIds: string[];
+  // Mutual followers to ring — they join as competitors when they accept.
+  inviteIds?: string[];
   rounds: number;
   turnSeconds: number;
   votingSeconds: number;
@@ -87,11 +90,17 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
   if (await activeBattle(liveSessionId)) throw new BattleError("A battle is already running in this Live", 409);
 
   const ids = [...new Set(setup.competitorIds)];
+  const inviteIds = [...new Set(setup.inviteIds ?? [])].filter((id) => !ids.includes(id));
   const L = BATTLE_LIMITS;
-  if (ids.length < L.minCompetitors || ids.length > L.maxCompetitors) {
-    throw new BattleError(`Pick ${L.minCompetitors}–${L.maxCompetitors} competitors`, 400);
+  const total = ids.length + inviteIds.length;
+  if (total < L.minCompetitors || total > L.maxCompetitors) {
+    throw new BattleError(`Pick or invite ${L.minCompetitors}–${L.maxCompetitors} competitors`, 400);
   }
-  if (ids.includes(hostId)) throw new BattleError("The host runs the battle — pick other people to compete", 400);
+  if (ids.includes(hostId) || inviteIds.includes(hostId)) throw new BattleError("The host runs the battle — pick other people to compete", 400);
+  if (inviteIds.length > 0) {
+    const mutual = await mutualFollowerIds(hostId, inviteIds);
+    if (mutual.size !== inviteIds.length) throw new BattleError("You can only invite people you follow who follow you back", 400);
+  }
   if (setup.rounds < 1 || setup.rounds > L.maxRounds) throw new BattleError(`Rounds must be 1–${L.maxRounds}`, 400);
   if (setup.turnSeconds < L.minTurnSeconds || setup.turnSeconds > L.maxTurnSeconds) {
     throw new BattleError("Each turn must be between 30 seconds and 5 minutes", 400);
@@ -100,7 +109,7 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
     throw new BattleError("Voting must last 1–3 minutes", 400);
   }
   const places = setup.prizePlaces.filter((x) => x > 0);
-  if (places.length > Math.min(L.maxWinners, ids.length)) throw new BattleError("Too many winning places for the number of competitors", 400);
+  if (places.length > Math.min(L.maxWinners, total)) throw new BattleError("Too many winning places for the number of competitors", 400);
   if (places.some((x) => !Number.isInteger(x))) throw new BattleError("Prizes must be whole XG", 400);
 
   const users = await db.user.count({ where: { id: { in: ids }, deletedAt: null } });
@@ -117,13 +126,16 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
       prizePlaces: places,
       prizeXg: places.reduce((a, b) => a + b, 0),
       competitors: { create: ids.map((userId, position) => ({ userId, position })) },
+      invites: { create: inviteIds.map((userId) => ({ userId })) },
     },
+    include: { invites: { select: { id: true, userId: true } } },
   });
+  if (battle.invites.length > 0) await ringInvitees(battle.id);
   // Picked straight from the viewers (explicit ask, 2026-10-08): bring
   // everyone competing on stage now so they can get ready before Start.
   // Best-effort — someone already up, or a full stage, is fine.
   for (const userId of ids) {
-    await inviteToStage({ liveSessionId, actorId: hostId, targetUserId: userId }).catch(() => {});
+    await inviteToStage({ liveSessionId, actorId: hostId, targetUserId: userId, battleTitle: battle.title }).catch(() => {});
   }
   await announce(session.roomName, "created", battle.id);
   return battle;
@@ -134,6 +146,11 @@ export async function startBattle(liveSessionId: string, hostId: string) {
   const session = await requireHost(liveSessionId, hostId);
   const battle = await activeBattle(liveSessionId);
   if (!battle || battle.status !== "READY") throw new BattleError("No battle waiting to start", 409);
+  if (battle.competitors.length < BATTLE_LIMITS.minCompetitors) {
+    throw new BattleError("Wait for at least 2 competitors — invites still ringing count once they accept", 409);
+  }
+  // Anyone who hasn't answered by now misses this one.
+  await db.liveBattleInvite.updateMany({ where: { battleId: battle.id, status: "PENDING" }, data: { status: "EXPIRED", respondedAt: new Date() } });
 
   await db.$transaction(async (tx) => {
     if (battle.prizeXg > 0) await debitCoins(tx, hostId, battle.prizeXg, "BATTLE_PRIZE_HOLD");
@@ -147,7 +164,7 @@ export async function startBattle(liveSessionId: string, hostId: string) {
   // Everyone competing goes on the shared stage (best-effort — someone who
   // stepped out of the Live can be brought back up later).
   for (const c of battle.competitors) {
-    await inviteToStage({ liveSessionId, actorId: hostId, targetUserId: c.userId }).catch(() => {});
+    await inviteToStage({ liveSessionId, actorId: hostId, targetUserId: c.userId, battleTitle: battle.title }).catch(() => {});
   }
   await announce(session.roomName, "started", battle.id);
 }
@@ -335,6 +352,7 @@ export async function cancelBattle(liveSessionId: string, hostId: string | null)
     });
     if (count === 0) return;
     await tx.liveBattleTurn.updateMany({ where: { battleId: battle.id, endedAt: null }, data: { endedAt: new Date() } });
+    await tx.liveBattleInvite.updateMany({ where: { battleId: battle.id, status: "PENDING" }, data: { status: "EXPIRED", respondedAt: new Date() } });
     if (battle.status !== "READY" && battle.prizeXg > 0) {
       await tx.coinLedgerEntry.create({ data: { userId: battle.hostId, xgAmount: battle.prizeXg, kind: "BATTLE_PRIZE_REFUND" } });
     }
@@ -381,6 +399,7 @@ export async function describeBattle(battleId: string, viewerId: string | null) 
     include: {
       competitors: { orderBy: { position: "asc" }, include: { user: { select: PERSON } } },
       turns: { orderBy: { startedAt: "asc" } },
+      invites: { where: { status: { in: ["PENDING", "DECLINED"] } }, include: { user: { select: PERSON } }, orderBy: { createdAt: "asc" } },
       host: { select: PERSON },
       liveSession: { select: { id: true, title: true } },
     },
@@ -440,6 +459,15 @@ export async function describeBattle(battleId: string, viewerId: string | null) 
       seconds: t.endedAt ? Math.round((t.endedAt.getTime() - t.startedAt.getTime()) / 1000) : null,
     })),
     totalVotes: finished ? [...votesByCompetitor.values()].reduce((a, b) => a + b, 0) : null,
+    // Invites still ringing (or turned down) while the battle is being set up.
+    invites:
+      battle.status === "READY"
+        ? battle.invites.map((i) => ({
+            id: i.id,
+            user: i.user,
+            status: i.status === "PENDING" && i.createdAt.getTime() < Date.now() - INVITE_TTL_MS ? ("EXPIRED" as const) : i.status,
+          }))
+        : [],
     serverTime: new Date().toISOString(),
   };
 }
@@ -466,4 +494,172 @@ export async function listBattles(liveSessionId: string) {
 export function battleErrorResponse(err: unknown): { status: number; error: string } | null {
   if (err instanceof BattleError) return { status: err.status, error: err.message };
   return null;
+}
+
+// ─── Invites (explicit ask, 2026-10-08) ─────────────────────────────────
+// The host invites mutual followers; their phone rings with the battle's
+// details. Accepting makes them a competitor and tells their followers to
+// come and support them.
+
+/** How long an invite keeps ringing. */
+export const INVITE_TTL_MS = 5 * 60_000;
+
+/** Of `candidateIds`, the ones who follow the host and whom the host follows. */
+async function mutualFollowerIds(hostId: string, candidateIds: string[]) {
+  const rows = await db.user.findMany({
+    where: {
+      id: { in: candidateIds },
+      deletedAt: null,
+      followers: { some: { followerId: hostId } },
+      following: { some: { followedId: hostId } },
+    },
+    select: { id: true },
+  });
+  return new Set(rows.map((r) => r.id));
+}
+
+/** People the host can invite: everyone they follow who follows them back. */
+export async function listInvitable(liveSessionId: string, hostId: string) {
+  await requireHost(liveSessionId, hostId);
+  return db.user.findMany({
+    where: {
+      id: { not: hostId },
+      deletedAt: null,
+      followers: { some: { followerId: hostId } },
+      following: { some: { followedId: hostId } },
+    },
+    select: PERSON,
+    orderBy: { displayName: "asc" },
+    take: 200,
+  });
+}
+
+function fmtClock(s: number) {
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+const INVITE_INCLUDE = {
+  user: { select: PERSON },
+  battle: {
+    include: {
+      host: { select: PERSON },
+      competitors: { include: { user: { select: PERSON } }, orderBy: { position: "asc" as const } },
+      invites: { where: { status: { in: ["PENDING", "ACCEPTED"] as ("PENDING" | "ACCEPTED")[] } }, include: { user: { select: PERSON } } },
+    },
+  },
+};
+
+type InviteRow = NonNullable<Awaited<ReturnType<typeof loadInvite>>>;
+
+function loadInvite(inviteId: string) {
+  return db.liveBattleInvite.findUnique({ where: { id: inviteId }, include: INVITE_INCLUDE });
+}
+
+/** What the ringing screen shows: who's inviting, everyone in it, and the battle's settings. */
+function ringPayload(invite: InviteRow) {
+  const b = invite.battle;
+  // Everyone taking part: already-picked competitors plus everyone invited.
+  const seen = new Set<string>();
+  const people = [...b.competitors.map((c) => c.user), ...b.invites.map((i) => i.user)].filter((p) => {
+    if (seen.has(p.id)) return false;
+    seen.add(p.id);
+    return true;
+  });
+  return {
+    id: invite.id,
+    status: invite.status,
+    expiresAt: new Date(invite.createdAt.getTime() + INVITE_TTL_MS).toISOString(),
+    liveSessionId: b.liveSessionId,
+    host: b.host,
+    battle: {
+      id: b.id,
+      title: b.title,
+      status: b.status,
+      rounds: b.rounds,
+      turnSeconds: b.turnSeconds,
+      votingSeconds: b.votingSeconds,
+      prizePlaces: b.prizePlaces,
+      prizeXg: b.prizeXg,
+    },
+    people,
+  };
+}
+
+export type BattleInviteRing = ReturnType<typeof ringPayload>;
+
+/** Pushes the ring to everyone invited to this battle (one push each — the link carries their own invite). */
+async function ringInvitees(battleId: string) {
+  const invites = await db.liveBattleInvite.findMany({ where: { battleId, status: "PENDING" }, include: INVITE_INCLUDE });
+  for (const invite of invites) {
+    const ring = ringPayload(invite);
+    const others = ring.people.filter((p) => p.id !== invite.userId).map((p) => `@${p.handle}`);
+    const prize = ring.battle.prizeXg > 0 ? ` · ${ring.battle.prizeXg.toLocaleString("en-NG")} XG prize` : "";
+    notifyUsersAfterResponse([invite.userId], {
+      kind: "LIVE",
+      title: `⚔️ ${ring.host.displayName} is inviting you to a battle`,
+      body: `${ring.battle.title}${others.length ? ` · with ${others.join(", ")}` : ""} · ${ring.battle.rounds} round${ring.battle.rounds === 1 ? "" : "s"} · ${fmtClock(ring.battle.turnSeconds)} per turn${prize}`,
+      url: `/live/${ring.liveSessionId}?battleInvite=${invite.id}`,
+      icon: ring.host.avatarUrl ?? undefined,
+      tag: `battle-invite-${invite.id}`,
+    });
+  }
+}
+
+/** The invite for its ring screen (only the person invited can see it). */
+export async function getInvite(inviteId: string, userId: string) {
+  const invite = await loadInvite(inviteId);
+  if (!invite || invite.userId !== userId) return null;
+  return ringPayload(invite);
+}
+
+/**
+ * The newest invite still ringing for this user — rides along the in-app
+ * message poll (GET /api/messages/latest), so the ring also shows for anyone
+ * whose push didn't arrive. One indexed lookup; usually finds nothing.
+ */
+export async function pendingInviteFor(userId: string) {
+  const invite = await db.liveBattleInvite.findFirst({
+    where: { userId, status: "PENDING", createdAt: { gt: new Date(Date.now() - INVITE_TTL_MS) }, battle: { status: "READY" } },
+    orderBy: { createdAt: "desc" },
+    include: INVITE_INCLUDE,
+  });
+  return invite ? ringPayload(invite) : null;
+}
+
+/** Accept or decline. Accepting adds them as a competitor and calls their followers in to support them. */
+export async function respondToInvite(inviteId: string, userId: string, accept: boolean) {
+  const invite = await loadInvite(inviteId);
+  if (!invite || invite.userId !== userId) throw new BattleError("Invite not found", 404);
+  if (invite.status !== "PENDING") throw new BattleError("You've already answered this invite", 409);
+  const lapsed = invite.createdAt.getTime() < Date.now() - INVITE_TTL_MS;
+  if (invite.battle.status !== "READY" || lapsed) {
+    await db.liveBattleInvite.updateMany({ where: { id: inviteId, status: "PENDING" }, data: { status: "EXPIRED", respondedAt: new Date() } });
+    throw new BattleError(invite.battle.status === "READY" ? "This invite has expired" : "That battle has already started", 409);
+  }
+
+  await db.$transaction(async (tx) => {
+    const { count } = await tx.liveBattleInvite.updateMany({
+      where: { id: inviteId, status: "PENDING" },
+      data: { status: accept ? "ACCEPTED" : "DECLINED", respondedAt: new Date() },
+    });
+    if (count === 0) throw new BattleError("You've already answered this invite", 409);
+    if (!accept) return;
+    const competitors = await tx.liveBattleCompetitor.count({ where: { battleId: invite.battleId } });
+    if (competitors >= BATTLE_LIMITS.maxCompetitors) throw new BattleError("The battle is already full", 409);
+    await tx.liveBattleCompetitor.create({ data: { battleId: invite.battleId, userId, position: competitors } });
+  });
+
+  const session = await db.liveSession.findUnique({ where: { id: invite.battle.liveSessionId }, select: { roomName: true } });
+  await announce(session?.roomName ?? null, accept ? "invite-accepted" : "invite-declined", invite.battleId);
+
+  if (accept) {
+    const target = { liveSessionId: invite.battle.liveSessionId, hostId: invite.battle.hostId, battleTitle: invite.battle.title };
+    // Already in the room? Bring them up now (otherwise Start does it) —
+    // that also alerts their followers, minus anyone already watching.
+    await inviteToStage({ ...target, actorId: target.hostId, targetUserId: userId }).catch(() => {});
+    // Not in the room yet: tell their followers now anyway ("X is live with
+    // Host in a battle"). A no-op if the line above already did.
+    await alertGuestFollowers({ ...target, guestId: userId });
+  }
+  return { liveSessionId: invite.battle.liveSessionId };
 }

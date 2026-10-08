@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Room, RoomEvent, Track, type RemoteTrack } from "livekit-client";
 import { apiFetch } from "@/lib/api";
+import { parkLive, roomListeners, takeDockedLive } from "@/lib/live/dock";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -85,6 +86,11 @@ function LiveRoom() {
   const toast = useToast();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<Room | null>(null);
+  // Mini player (lib/live/dock.ts): navigating anywhere but "Leave" parks
+  // the still-connected Room, so the Live keeps playing in a small window.
+  const leavingRef = useRef(false);
+  const listenRef = useRef<ReturnType<typeof roomListeners> | null>(null);
+  const dockInfoRef = useRef<{ session: SessionInfo | null; viewerId: string | null; hostId: string | null }>({ session: null, viewerId: null, hostId: null });
   // Each connect() run gets its own guard object and immediately claims
   // this ref as "the active run" — see the long comment on the effect below
   // for why a single shared boolean doesn't work here (StrictMode's dev
@@ -231,40 +237,21 @@ function LiveRoom() {
     const guard = { cancelled: false };
     activeGuardRef.current = guard;
 
-    const res = await apiFetch(`/api/live/${params.id}/join`);
-    if (guard.cancelled) return;
-    if (res.status === 402) {
-      const data = await res.json();
-      if (guard.cancelled) return;
-      setPriceXg(data.priceXg ?? null);
-      setStatus("needs-payment");
-      return;
-    }
-    if (!res.ok) {
-      setStatus(res.status === 404 ? "ended" : "error");
-      return;
-    }
-    const { token, url, viewerId, hostId, session: sessionInfo } = await res.json();
-    if (guard.cancelled) return;
-    setSession(sessionInfo ?? null);
-    setSelfId(viewerId ?? null);
-    selfIdRef.current = viewerId ?? null;
-    hostIdRef.current = hostId ?? null;
-
-    const room = new Room();
-
-    room.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => attachTrack(track, participant.identity));
-    room.on(RoomEvent.TrackUnsubscribed, (track) => {
+    const wire = (room: Room) => {
+      const listen = roomListeners(room);
+      listenRef.current = listen;
+    listen.on(RoomEvent.TrackSubscribed, (track, _publication, participant) => attachTrack(track, participant.identity));
+    listen.on(RoomEvent.TrackUnsubscribed, (track) => {
       if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove());
     });
-    room.on(RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio));
-    room.on(RoomEvent.ParticipantConnected, () => setViewerCount(room.remoteParticipants.size + 1));
-    room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+    listen.on(RoomEvent.AudioPlaybackStatusChanged, () => setAudioBlocked(!room.canPlaybackAudio));
+    listen.on(RoomEvent.ParticipantConnected, () => setViewerCount(room.remoteParticipants.size + 1));
+    listen.on(RoomEvent.ParticipantDisconnected, (participant) => {
       setViewerCount(room.remoteParticipants.size + 1);
       if (participant.permissions?.canPublish) void onStageEventRef.current({ kind: "stage", type: "left-room", userId: participant.identity });
     });
-    room.on(RoomEvent.Disconnected, () => setStatus("ended"));
-    room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
+    listen.on(RoomEvent.Disconnected, () => setStatus("ended"));
+    listen.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
       const text = new TextDecoder().decode(payload);
       try {
         const data = JSON.parse(text);
@@ -311,6 +298,55 @@ function LiveRoom() {
         // ignore malformed data messages
       }
     });
+    };
+
+    // Coming back from the mini player: same Room, no new join.
+    const parked = takeDockedLive(params.id);
+    if (parked) {
+      const restore = parked.restore as { session?: SessionInfo | null; viewerId?: string | null; hostId?: string | null };
+      dockInfoRef.current = { session: restore.session ?? null, viewerId: restore.viewerId ?? null, hostId: restore.hostId ?? null };
+      setSession(restore.session ?? null);
+      setSelfId(restore.viewerId ?? null);
+      selfIdRef.current = restore.viewerId ?? null;
+      hostIdRef.current = restore.hostId ?? null;
+      const room = parked.room;
+      wire(room);
+      room.remoteParticipants.forEach((p) =>
+        p.trackPublications.forEach((pub) => {
+          if (pub.track) attachTrack(pub.track as RemoteTrack, p.identity);
+        }),
+      );
+      roomRef.current = room;
+      setRoom(room);
+      setViewerCount(room.remoteParticipants.size + 1);
+      setAudioBlocked(!room.canPlaybackAudio);
+      setStatus("connected");
+      return;
+    }
+
+    const res = await apiFetch(`/api/live/${params.id}/join`);
+    if (guard.cancelled) return;
+    if (res.status === 402) {
+      const data = await res.json();
+      if (guard.cancelled) return;
+      setPriceXg(data.priceXg ?? null);
+      setStatus("needs-payment");
+      return;
+    }
+    if (!res.ok) {
+      setStatus(res.status === 404 ? "ended" : "error");
+      return;
+    }
+    const { token, url, viewerId, hostId, session: sessionInfo } = await res.json();
+    if (guard.cancelled) return;
+    setSession(sessionInfo ?? null);
+    dockInfoRef.current = { session: sessionInfo ?? null, viewerId: viewerId ?? null, hostId: hostId ?? null };
+    setSelfId(viewerId ?? null);
+    selfIdRef.current = viewerId ?? null;
+    hostIdRef.current = hostId ?? null;
+
+    const room = new Room();
+    wire(room);
 
     await room.connect(url, token);
     if (guard.cancelled) {
@@ -342,7 +378,24 @@ function LiveRoom() {
     connect();
     return () => {
       activeGuardRef.current.cancelled = true;
-      roomRef.current?.disconnect();
+      const room = roomRef.current;
+      if (room && room.state === "connected" && !leavingRef.current) {
+        listenRef.current?.offAll();
+        room.remoteParticipants.forEach((p) => p.trackPublications.forEach((pub) => pub.track?.detach()));
+        const info = dockInfoRef.current;
+        parkLive({
+          liveId: params.id,
+          role: "viewer",
+          room,
+          title: info.session?.title ?? "Live",
+          hostName: info.session?.creator.displayName ?? "Live",
+          hostAvatarUrl: info.session?.creator.avatarUrl ?? null,
+          hostId: info.hostId,
+          restore: { ...info },
+        });
+      } else {
+        room?.disconnect();
+      }
       roomRef.current = null;
       setRoom(null);
     };
@@ -594,7 +647,7 @@ function LiveRoom() {
                     Live
                   </span>
                 </div>
-                {session?.title && <p className="truncate text-[13px] text-white/75">{session.title}</p>}
+                {session?.title && <p className="truncate text-[13px] text-white/90">{session.title}</p>}
               </div>
             </div>
             <span className="ml-auto flex shrink-0 items-center gap-1.5 text-[16px] text-white">
@@ -620,7 +673,14 @@ function LiveRoom() {
               </button>
             )}
             <LiveShareButtons liveId={params.id} title={session?.title ?? "Live on XOLDOUT"} text={`${creatorName} is live on XOLDOUT — join now`} />
-            <button onClick={() => router.push("/live")} aria-label="Leave Live" className="shrink-0 p-1 text-white">
+            <button
+              onClick={() => {
+                leavingRef.current = true;
+                router.push("/live");
+              }}
+              aria-label="Leave Live"
+              className="shrink-0 p-1 text-white"
+            >
               <CloseIcon className="h-6 w-6" />
             </button>
           </div>

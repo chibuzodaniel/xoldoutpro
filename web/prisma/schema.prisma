@@ -188,11 +188,13 @@ model User {
   battlesHosted     LiveBattle[]
   battleEntries     LiveBattleCompetitor[]
   battleVotes       LiveBattleVote[]
+  battleInvites     LiveBattleInvite[]
   liveAccessGrants  LiveAccessGrant[]
   liveRequestsSent  LiveRequest[]
   liveReminders     LiveReminder[]
   liveModeratorOf   LiveModerator[]
   liveStageRequests LiveStageRequest[]
+  liveGuestAlerts   LiveGuestAlert[]
   conversationParticipants ConversationParticipant[]
   directMessagesSent       DirectMessage[]
   blocksMade               UserBlock[]             @relation("BlocksMade")
@@ -1514,6 +1516,7 @@ model LiveSession {
   reminders     LiveReminder[]
   moderators    LiveModerator[]
   stageRequests LiveStageRequest[]
+  guestAlerts   LiveGuestAlert[]
   battles       LiveBattle[]
 
   @@index([creatorId])
@@ -1619,6 +1622,21 @@ model LiveStageRequest {
 
   @@unique([liveSessionId, userId])
   @@index([liveSessionId, status])
+}
+
+// One row per (Live, guest) whose followers were told "X is live with Host"
+// (explicit ask, 2026-10-08: anyone who comes on stage, battle competitors
+// included, calls their followers in). Inserted before the alert goes out,
+// so stepping down and back up — or a battle bringing an already-alerted
+// competitor on stage — never pings the same followers twice.
+model LiveGuestAlert {
+  liveSessionId String
+  liveSession   LiveSession @relation(fields: [liveSessionId], references: [id])
+  userId        String
+  user          User        @relation(fields: [userId], references: [id])
+  createdAt     DateTime    @default(now())
+
+  @@id([liveSessionId, userId])
 }
 
 enum LiveRequestStatus {
@@ -1895,6 +1913,7 @@ model LiveBattle {
   turns       LiveBattleTurn[]
   votes       LiveBattleVote[]
   gifts       LiveGift[]
+  invites     LiveBattleInvite[]
 
   @@index([liveSessionId])
   @@index([status, finishedAt])
@@ -1934,6 +1953,31 @@ model LiveBattleTurn {
   endedAt      DateTime?
 
   @@index([battleId, round])
+}
+
+// A host inviting mutual followers into a battle (explicit ask, 2026-10-08):
+// the invitee's phone rings with the battle's details; accepting makes them
+// a competitor (lib/live/battle.ts respondToInvite). Pending invites lapse
+// after a few minutes, or when the battle starts or is cancelled.
+enum LiveBattleInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model LiveBattleInvite {
+  id          String                 @id @default(cuid())
+  battleId    String
+  battle      LiveBattle             @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User                   @relation(fields: [userId], references: [id])
+  status      LiveBattleInviteStatus @default(PENDING)
+  createdAt   DateTime               @default(now())
+  respondedAt DateTime?
+
+  @@unique([battleId, userId])
+  @@index([userId, status, createdAt])
 }
 
 model LiveBattleVote {

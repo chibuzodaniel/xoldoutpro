@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { LiveKitRoom, VideoTrack, useTracks, useDataChannel, useLocalParticipant, useRemoteParticipants } from "@livekit/react-native";
+import { VideoTrack, useTracks, useDataChannel, useLocalParticipant, useRemoteParticipants } from "@livekit/react-native";
 import { Track } from "livekit-client";
 import { useAuth } from "../lib/AuthContext";
 import { apiDelete, apiGet, apiPost } from "../lib/api";
@@ -12,9 +12,9 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { GiftEvent, GiftMoment, LiveJoinResponse, LiveFeedItem } from "../lib/liveTypes";
 import { appendGift, GIFT_CATALOG, type GiftType } from "../lib/liveTypes";
 import { colors, fonts } from "../lib/theme";
-import { useLiveAudioSession } from "../lib/liveAudio";
+import { useLiveRoom } from "../lib/LiveRoomContext";
 import { AddBalance, BottomSheet, GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
-import { CloseIcon, EyeIcon, GiftArt, MicLineIcon, XgCoin } from "../components/live/LiveIcons";
+import { ChevronDownIcon, CloseIcon, EyeIcon, GiftArt, MicLineIcon, XgCoin } from "../components/live/LiveIcons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState, type StageEvent } from "../components/live/Stage";
 import { LiveShareButtons } from "../components/live/LiveShareButtons";
 import { BattleBar, BattleDetailsSheet, isBattleActive, isBattleEvent, isBattleShown, useBattle } from "../components/live/Battle";
@@ -73,13 +73,27 @@ function isInsufficientXg(e: unknown) {
 export function LiveViewerScreen() {
   // Switches to the voice-call audio profile while this viewer is on stage
   // (co-hosting) so their microphone is captured properly.
-  const [onStage, setOnStage] = useState(false);
-  useLiveAudioSession(onStage ? "broadcaster" : "viewer");
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "LiveViewer">>();
   const { firebaseUser } = useAuth();
-  const [join, setJoin] = useState<LiveJoinResponse | null>(null);
-  const [status, setStatus] = useState<"loading" | "needs-payment" | "ended" | "ready" | "scheduled">("loading");
+  // The room itself lives at the app root (lib/LiveRoomContext.tsx) so the
+  // Live keeps playing in the mini player when the viewer leaves this screen.
+  const live = useLiveRoom();
+  const mine = live.active?.liveId === route.params.id ? live.active : null;
+  // Connected at some point — so losing the connection means the Live ended.
+  const [hadLive, setHadLive] = useState(!!mine);
+  useEffect(() => {
+    if (mine) setHadLive(true);
+  }, [mine]);
+  useFocusEffect(
+    useCallback(() => {
+      live.setVisibleLiveId(route.params.id);
+      return () => live.setVisibleLiveId(null);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [route.params.id]),
+  );
+  const [join, setJoin] = useState<LiveJoinResponse | null>(mine?.join ?? null);
+  const [status, setStatus] = useState<"loading" | "needs-payment" | "ended" | "ready" | "scheduled">(mine ? "ready" : "loading");
   // A scheduled Live (opened from a shared link or the Upcoming rail) — shown
   // as a countdown with Remind me / Share until the host starts it.
   const [scheduled, setScheduled] = useState<ScheduledInfo | null>(null);
@@ -94,10 +108,19 @@ export function LiveViewerScreen() {
 
   const attemptJoin = useCallback(async () => {
     if (!firebaseUser) return;
+    // Already connected (back from the mini player) — reuse it.
+    if (live.active?.liveId === route.params.id) return;
+    // The user's own Live is running minimised — don't cut it off.
+    if (live.active?.role === "host") {
+      Alert.alert("You're live right now", "End your Live before watching another one.");
+      navigation.goBack();
+      return;
+    }
     const idToken = await firebaseUser.getIdToken();
     try {
       const data = await apiGet<LiveJoinResponse>(`/api/live/${route.params.id}/join`, idToken);
       setJoin(data);
+      live.start({ liveId: route.params.id, role: "viewer", join: data, startedAt: Date.now() });
       setStatus("ready");
     } catch (e) {
       // A 402 here always means paid access is required (the only reason
@@ -120,6 +143,7 @@ export function LiveViewerScreen() {
       }
       setStatus("ended");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [firebaseUser, route.params.id]);
 
   useEffect(() => {
@@ -268,7 +292,7 @@ export function LiveViewerScreen() {
     );
   }
 
-  if (status === "ended" || !join) {
+  if (status === "ended" || !join || (!mine && hadLive)) {
     return (
       <View style={styles.centered}>
         <Text style={styles.title}>This Live has ended</Text>
@@ -279,16 +303,26 @@ export function LiveViewerScreen() {
     );
   }
 
+  if (!mine) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={colors.ink} />
+      </View>
+    );
+  }
+
   return (
-    <LiveKitRoom serverUrl={join.url} token={join.token} video={false} audio={false} connect>
-      <ViewerRoomContent
-        liveSessionId={route.params.id}
-        session={join.session}
-        hostId={join.hostId}
-        onStageChange={setOnStage}
-        onClose={() => navigation.navigate("LiveNow")}
-      />
-    </LiveKitRoom>
+    <ViewerRoomContent
+      liveSessionId={route.params.id}
+      session={join.session}
+      hostId={join.hostId}
+      onStageChange={live.setOnStage}
+      onClose={() => {
+        live.stop();
+        navigation.navigate("LiveNow");
+      }}
+      onMinimize={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Tabs"))}
+    />
   );
 }
 
@@ -298,12 +332,14 @@ function ViewerRoomContent({
   hostId,
   onStageChange,
   onClose,
+  onMinimize,
 }: {
   liveSessionId: string;
   session?: LiveJoinResponse["session"];
   hostId?: string;
   onStageChange: (onStage: boolean) => void;
   onClose: () => void;
+  onMinimize: () => void;
 }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -609,6 +645,9 @@ function ViewerRoomContent({
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>
+          <TouchableOpacity onPress={onMinimize} hitSlop={10} accessibilityLabel="Minimise — keep watching while you use the app">
+            <ChevronDownIcon size={26} />
+          </TouchableOpacity>
           <View style={styles.hostPill}>
             <InitialsAvatar name={creatorName || "?"} avatarUrl={session?.creator.avatarUrl} size={44} />
             <View style={{ flexShrink: 1 }}>
@@ -712,7 +751,7 @@ function ViewerRoomContent({
             onChangeText={setChatText}
             onSubmitEditing={sendChat}
             placeholder="Say something…"
-            placeholderTextColor="rgba(255,255,255,0.5)"
+            placeholderTextColor="rgba(255,255,255,0.75)"
             style={styles.chatInput}
           />
           {stage && !meOnStage && stage.role !== "host" && (
@@ -930,7 +969,7 @@ const styles = StyleSheet.create({
   liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.red, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
   liveBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
-  sessionTitle: { color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 1 },
+  sessionTitle: { color: "rgba(255,255,255,0.9)", fontSize: 13, marginTop: 1 },
   viewerCount: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" },
   viewerCountText: { color: "#fff", fontSize: 16 },
   bottom: { position: "absolute", left: 0, right: 0, bottom: 0 },

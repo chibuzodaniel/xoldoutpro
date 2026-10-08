@@ -35,7 +35,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("create"),
     title: z.string().max(80).default(""),
-    competitorIds: z.array(z.string().min(1)).min(2).max(4),
+    competitorIds: z.array(z.string().min(1)).max(3).default([]),
+    inviteIds: z.array(z.string().min(1)).max(3).default([]),
     rounds: z.number().int(),
     turnSeconds: z.number().int(),
     votingSeconds: z.number().int(),

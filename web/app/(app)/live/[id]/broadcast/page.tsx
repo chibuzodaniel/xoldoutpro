@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Room, RoomEvent, Track, type LocalVideoTrack } from "livekit-client";
 import { apiFetch } from "@/lib/api";
+import { parkLive, roomListeners, takeDockedLive } from "@/lib/live/dock";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -67,6 +68,12 @@ export default function LiveBroadcastPage() {
   const videoContainerRef = useRef<HTMLVideoElement | null>(null);
   const roomRef = useRef<Room | null>(null);
   const startedAtRef = useRef<number | null>(null);
+  // Mini player (lib/live/dock.ts): leaving this page any way other than
+  // "End live" or a retry parks the still-connected Room instead of
+  // disconnecting it, so the Live keeps going while the host browses.
+  const endingRef = useRef(false);
+  const retryingRef = useRef(false);
+  const dockInfoRef = useRef<{ isBattleLive: boolean; myName: string }>({ isBattleLive: false, myName: "Host" });
 
   const [status, setStatus] = useState<"connecting" | "live" | "camera-blocked" | "ended" | "error">("connecting");
   const [feed, setFeed] = useState<FeedItem[]>([WELCOME_ITEM]);
@@ -150,6 +157,9 @@ export default function LiveBroadcastPage() {
   // app put in the message; sending uses the XOLDOUT display name too, never
   // the sign-in (Firebase) account's name.
   const myName = appUser?.displayName ?? "Host";
+  useEffect(() => {
+    dockInfoRef.current.myName = myName;
+  }, [myName]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -169,9 +179,110 @@ export default function LiveBroadcastPage() {
     // instead of racing a fresh one — the same discipline production needs
     // too, for a user who navigates away mid-connect.
     let cancelled = false;
+    // Mutated field by field, never replaced — so cleanup still sees the latest values.
+    const dockInfo = dockInfoRef.current;
     let localRoom: Room | null = null;
+    let listen: ReturnType<typeof roomListeners> | null = null;
+    retryingRef.current = false;
+
+    function wire(room: Room) {
+      listen = roomListeners(room);
+    const updateViewers = () => {
+      setViewerCount(room.remoteParticipants.size);
+      void refreshStageRef.current();
+    };
+    listen.on(RoomEvent.TrackSubscribed, (track) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      const el = track.attach();
+      el.setAttribute("playsinline", "true");
+      audioContainerRef.current?.appendChild(el);
+    });
+    listen.on(RoomEvent.TrackUnsubscribed, (track) => {
+      if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove());
+    });
+    listen.on(RoomEvent.ParticipantConnected, updateViewers);
+    listen.on(RoomEvent.ParticipantDisconnected, updateViewers);
+    listen.on(RoomEvent.Disconnected, () => setStatus("ended"));
+    listen.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
+      const text = new TextDecoder().decode(payload);
+      try {
+        const data = JSON.parse(text);
+        if (topic === "reaction") {
+          if (participant && allowReaction(participant.identity) && (LIVE_EMOJIS as readonly string[]).includes(data.emoji)) {
+            floating.push(data.emoji);
+          }
+        } else if (topic === "chat") {
+          setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: participant?.name || data.senderName, text: data.text }]);
+        } else if (topic === "live-event" && isBattleEvent(data)) {
+          void battleRef.current.refresh();
+        } else if (topic === "live-event" && data.kind === "gift" && data.competitorId) {
+          // A gift to a battle competitor: theirs, not the host's — show it, don't count it.
+          battleRef.current.bumpGift(data.competitorId, data.xgAmount);
+          setFeed((f) => {
+            const { feed: next, count } = appendGift(f, data);
+            setGiftMoment({ key: data.giftId, giftType: data.giftType, label: data.label, senderName: data.senderName, count });
+            return next;
+          });
+        } else if (topic === "live-event" && data.kind === "gift") {
+          setFeed((f) => {
+            const { feed: next, count } = appendGift(f, data);
+            setGiftMoment({ key: data.giftId, giftType: data.giftType, label: data.label, senderName: data.senderName, count });
+            return next;
+          });
+          setSupportVersion((v) => v + 1);
+          setGiftTotals((t) => ({
+            xg: t.xg + (data.xgAmount ?? giftByType(data.giftType)?.xgAmount ?? 0),
+            supporterIds: new Set(t.supporterIds).add(data.senderId),
+          }));
+        } else if (topic === "live-event" && data.kind === "request") {
+          setSupportVersion((v) => v + 1);
+          setPendingRequests((r) => [
+            ...r,
+            { id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount },
+          ]);
+        } else if (topic === "live-event" && isStageEvent(data)) {
+          void refreshStageRef.current();
+          if (data.type === "requested") {
+            setFeed((f) => [...f, { kind: "system", id: crypto.randomUUID(), text: `${data.displayName ?? "Someone"} asked to join the Live` }]);
+          }
+        }
+      } catch {
+        // ignore malformed data messages
+      }
+    });
+      return updateViewers;
+    }
 
     async function connect() {
+      // Coming back from the mini player: same Room, no new join.
+      const parked = takeDockedLive(params.id);
+      if (parked) {
+        const room = parked.room;
+        localRoom = room;
+        const restore = parked.restore as { isBattleLive?: boolean; startedAt?: number | null };
+        setIsBattleLive(!!restore.isBattleLive);
+        dockInfoRef.current.isBattleLive = !!restore.isBattleLive;
+        autoBattleRef.current = true;
+        startedAtRef.current = restore.startedAt ?? Date.now();
+        const updateViewers = wire(room);
+        room.remoteParticipants.forEach((p) =>
+          p.trackPublications.forEach((pub) => {
+            if (pub.track?.kind !== Track.Kind.Audio) return;
+            const el = pub.track.attach();
+            el.setAttribute("playsinline", "true");
+            audioContainerRef.current?.appendChild(el);
+          }),
+        );
+        const cam = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+        if (cam && videoContainerRef.current) cam.attach(videoContainerRef.current);
+        setMicEnabled(room.localParticipant.isMicrophoneEnabled);
+        updateViewers();
+        roomRef.current = room;
+        setRoom(room);
+        setStatus(cam ? "live" : "camera-blocked");
+        return;
+      }
+
       const res = await apiFetch(`/api/live/${params.id}/join`);
       if (cancelled) return;
       if (!res.ok) {
@@ -180,6 +291,7 @@ export default function LiveBroadcastPage() {
       }
       const { token, url, isHost, session: joined } = await res.json();
       setIsBattleLive(!!joined?.isBattle);
+      dockInfoRef.current.isBattleLive = !!joined?.isBattle;
       if (cancelled) return;
       if (!isHost) {
         router.replace(`/live/${params.id}`);
@@ -188,70 +300,7 @@ export default function LiveBroadcastPage() {
 
       const room = new Room();
       localRoom = room;
-
-      const updateViewers = () => {
-        setViewerCount(room.remoteParticipants.size);
-        void refreshStageRef.current();
-      };
-      room.on(RoomEvent.TrackSubscribed, (track) => {
-        if (track.kind !== Track.Kind.Audio) return;
-        const el = track.attach();
-        el.setAttribute("playsinline", "true");
-        audioContainerRef.current?.appendChild(el);
-      });
-      room.on(RoomEvent.TrackUnsubscribed, (track) => {
-        if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove());
-      });
-      room.on(RoomEvent.ParticipantConnected, updateViewers);
-      room.on(RoomEvent.ParticipantDisconnected, updateViewers);
-      room.on(RoomEvent.Disconnected, () => setStatus("ended"));
-      room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
-        const text = new TextDecoder().decode(payload);
-        try {
-          const data = JSON.parse(text);
-          if (topic === "reaction") {
-            if (participant && allowReaction(participant.identity) && (LIVE_EMOJIS as readonly string[]).includes(data.emoji)) {
-              floating.push(data.emoji);
-            }
-          } else if (topic === "chat") {
-            setFeed((f) => [...f, { kind: "chat", id: crypto.randomUUID(), senderName: participant?.name || data.senderName, text: data.text }]);
-          } else if (topic === "live-event" && isBattleEvent(data)) {
-            void battleRef.current.refresh();
-          } else if (topic === "live-event" && data.kind === "gift" && data.competitorId) {
-            // A gift to a battle competitor: theirs, not the host's — show it, don't count it.
-            battleRef.current.bumpGift(data.competitorId, data.xgAmount);
-            setFeed((f) => {
-              const { feed: next, count } = appendGift(f, data);
-              setGiftMoment({ key: data.giftId, giftType: data.giftType, label: data.label, senderName: data.senderName, count });
-              return next;
-            });
-          } else if (topic === "live-event" && data.kind === "gift") {
-            setFeed((f) => {
-              const { feed: next, count } = appendGift(f, data);
-              setGiftMoment({ key: data.giftId, giftType: data.giftType, label: data.label, senderName: data.senderName, count });
-              return next;
-            });
-            setSupportVersion((v) => v + 1);
-            setGiftTotals((t) => ({
-              xg: t.xg + (data.xgAmount ?? giftByType(data.giftType)?.xgAmount ?? 0),
-              supporterIds: new Set(t.supporterIds).add(data.senderId),
-            }));
-          } else if (topic === "live-event" && data.kind === "request") {
-            setSupportVersion((v) => v + 1);
-            setPendingRequests((r) => [
-              ...r,
-              { id: data.requestId, senderName: data.senderName, message: data.message, xgAmount: data.xgAmount },
-            ]);
-          } else if (topic === "live-event" && isStageEvent(data)) {
-            void refreshStageRef.current();
-            if (data.type === "requested") {
-              setFeed((f) => [...f, { kind: "system", id: crypto.randomUUID(), text: `${data.displayName ?? "Someone"} asked to join the Live` }]);
-            }
-          }
-        } catch {
-          // ignore malformed data messages
-        }
-      });
+      const updateViewers = wire(room);
 
       await room.connect(url, token);
       if (cancelled) {
@@ -308,7 +357,25 @@ export default function LiveBroadcastPage() {
 
     return () => {
       cancelled = true;
-      localRoom?.disconnect();
+      const room = localRoom;
+      const keep = room && roomRef.current === room && room.state === "connected" && !endingRef.current && !retryingRef.current;
+      if (room && keep) {
+        listen?.offAll();
+        room.localParticipant.getTrackPublication(Track.Source.Camera)?.track?.detach();
+        room.remoteParticipants.forEach((p) => p.trackPublications.forEach((pub) => pub.track?.detach()));
+        parkLive({
+          liveId: params.id,
+          role: "host",
+          room,
+          title: "Your Live",
+          hostName: dockInfo.myName,
+          hostAvatarUrl: null,
+          hostId: null,
+          restore: { isBattleLive: dockInfo.isBattleLive, startedAt: startedAtRef.current },
+        });
+      } else {
+        room?.disconnect();
+      }
       roomRef.current = null;
       setRoom(null);
     };
@@ -332,6 +399,7 @@ export default function LiveBroadcastPage() {
 
   async function handleEndLive() {
     setEnding(true);
+    endingRef.current = true;
     try {
       const res = await apiFetch(`/api/live/${params.id}/end`, { method: "POST" });
       const data = await res.json();
@@ -455,12 +523,13 @@ export default function LiveBroadcastPage() {
             <CameraOffIcon className="h-9 w-9" />
           </div>
           <p className="font-serif text-[30px] leading-tight text-white">Camera access is off</p>
-          <p className="mt-3 text-[15px] leading-relaxed text-white/55">
+          <p className="mt-3 text-[15px] leading-relaxed text-white/90">
             Allow camera and microphone for Xoldout in your settings, then try again.
           </p>
           <button
             onClick={() => {
               setStatus("connecting");
+              retryingRef.current = true;
               setRetryTick((t) => t + 1);
             }}
             className="mt-6 flex items-center gap-2 rounded-xl bg-white/[0.08] px-6 py-3 text-[16px] text-white transition-colors hover:bg-white/[0.12]"
@@ -491,7 +560,7 @@ export default function LiveBroadcastPage() {
                     Live
                   </span>
                 </div>
-                <p className="text-[13px] tabular-nums text-white/75">{formatElapsed(elapsed)}</p>
+                <p className="text-[13px] tabular-nums text-white/90">{formatElapsed(elapsed)}</p>
               </div>
             </div>
             <button
@@ -523,7 +592,7 @@ export default function LiveBroadcastPage() {
             >
               <XgCoin className="h-4 w-4" />
               {(support?.totalXg ?? giftTotals.xg).toLocaleString("en-NG")} XG
-              <span className="text-white/60" aria-hidden>
+              <span className="text-white/90" aria-hidden>
                 ›
               </span>
             </button>
@@ -534,7 +603,7 @@ export default function LiveBroadcastPage() {
               className="flex items-center gap-1 rounded-full bg-black/45 px-3 py-1 text-[14px] font-medium text-white backdrop-blur-sm"
             >
               {supporterCount} supporter{supporterCount === 1 ? "" : "s"}
-              <span className="text-white/60" aria-hidden>
+              <span className="text-white/90" aria-hidden>
                 ›
               </span>
             </button>
@@ -628,7 +697,7 @@ export default function LiveBroadcastPage() {
       {supportSheet === "coins" && <CoinStatsSheet data={support} onClose={() => setSupportSheet(null)} />}
 
       {battleSheet === "setup" && (
-        <BattleSetupSheet people={stage?.watching ?? []} balanceXg={hostXg} act={battleState.act} onClose={() => setBattleSheet(null)} />
+        <BattleSetupSheet liveId={params.id} people={stage?.watching ?? []} balanceXg={hostXg} act={battleState.act} onClose={() => setBattleSheet(null)} />
       )}
       {battleSheet === "details" && battle && <BattleDetailsSheet battle={battle} onClose={() => setBattleSheet(null)} />}
 

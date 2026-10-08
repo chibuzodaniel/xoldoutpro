@@ -33,7 +33,7 @@ export function LiveChatInput({
         placeholder={placeholder}
         enterKeyHint="send"
         autoComplete="off"
-        className={`w-full rounded-full border border-white/15 bg-white/10 py-3 pl-5 text-white placeholder:text-white/50 outline-none backdrop-blur-sm ${hasText ? "pr-12" : "pr-5"}`}
+        className={`w-full rounded-full border border-white/15 bg-white/10 py-3 pl-5 text-white placeholder:text-white/90 outline-none backdrop-blur-sm ${hasText ? "pr-12" : "pr-5"}`}
       />
       {hasText && (
         <button

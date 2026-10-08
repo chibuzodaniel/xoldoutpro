@@ -1,4 +1,5 @@
 import { createNavigationContainerRef } from "@react-navigation/native";
+import { ringBattleInvite } from "./battleInviteBus";
 import type { RootStackParamList } from "./navigation";
 
 // Shared state for direct-message notifications on mobile (explicit ask,
@@ -35,6 +36,12 @@ export function requestMessageCheck() {
 export function openNotificationUrl(url: string | undefined) {
   if (!url || !navigationRef.isReady()) return;
   const m = (re: RegExp) => url.match(re)?.[1];
+  // A battle invite push (/live/<id>?battleInvite=<inviteId>) rings instead of opening the Live.
+  const battleInvite = m(/^\/live\/[^/?#]+\?battleInvite=([^&#]+)/);
+  if (battleInvite) {
+    ringBattleInvite({ inviteId: battleInvite });
+    return;
+  }
   const conversationId = m(/^\/messages\/([^/?#]+)$/);
   const liveId = m(/^\/live\/([^/?#]+)$/);
   const eventId = m(/^\/e\/([^/?#]+)$/);

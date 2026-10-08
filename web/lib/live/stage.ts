@@ -17,10 +17,13 @@
 // Postgres and never something a client can grant itself. Every change is
 // announced on the room's "live-event" data topic (kind "stage" / "roles") so
 // every open client refreshes its lists and the affected viewer reacts
-// (turns their camera on, shows "you've been added", etc.).
+// (turns their camera on, shows "you've been added", etc.). The first time
+// someone comes up in a Live, their followers are told "X is live with Host"
+// (alertGuestFollowers).
 
 import { db } from "@/lib/db";
 import { listRoomParticipants, publishLiveEvent, setParticipantOnStage, type RoomParticipant } from "@/lib/live/liveKit";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 // Guests on stage at once, not counting the host — beyond this the screen
 // stops being watchable on a phone.
@@ -59,14 +62,55 @@ function announce(roomName: string, event: Record<string, unknown>) {
   return publishLiveEvent(roomName, event).catch((err) => console.error("live stage announce failed", err));
 }
 
-async function putOnStage(session: { roomName: string; creatorId: string }, targetUserId: string) {
+/** Brings a viewer up; returns who's in the room (null if they were already on stage). */
+async function putOnStage(session: { roomName: string; creatorId: string }, targetUserId: string): Promise<Set<string> | null> {
   const participants = await listRoomParticipants(session.roomName);
   const target = participants.find((p) => p.identity === targetUserId);
   if (!target) throw new NotInRoomError();
-  if (target.canPublish) return; // already on stage — nothing to do
+  if (target.canPublish) return null; // already on stage — nothing to do
   const guests = participants.filter((p) => p.canPublish && p.identity !== session.creatorId);
   if (guests.length >= MAX_STAGE_GUESTS) throw new StageFullError();
   await setParticipantOnStage(session.roomName, targetUserId, true);
+  return new Set(participants.map((p) => p.identity));
+}
+
+/**
+ * "X is live with Host" to the guest's followers (explicit ask, 2026-10-08:
+ * anyone who comes on stage — battle competitors included — calls their
+ * followers in). Once per guest per Live: the LiveGuestAlert insert is the
+ * claim, so concurrent or repeat calls can't ping the same followers twice.
+ * `battleTitle` swaps in the battle wording; `inRoom` skips followers who
+ * are already watching.
+ */
+export async function alertGuestFollowers(args: {
+  liveSessionId: string;
+  hostId: string;
+  guestId: string;
+  battleTitle?: string;
+  inRoom?: Set<string>;
+}) {
+  if (args.guestId === args.hostId) return;
+  const { count } = await db.liveGuestAlert.createMany({
+    data: [{ liveSessionId: args.liveSessionId, userId: args.guestId }],
+    skipDuplicates: true,
+  });
+  if (count === 0) return;
+  const [people, followers] = await Promise.all([
+    peopleById([args.guestId, args.hostId]),
+    db.follow.findMany({ where: { followedId: args.guestId }, select: { followerId: true } }),
+  ]);
+  const guest = people.get(args.guestId);
+  const host = people.get(args.hostId);
+  const ids = followers.map((f) => f.followerId).filter((id) => id !== args.hostId && !args.inRoom?.has(id));
+  if (!guest || !host || ids.length === 0) return;
+  notifyUsersAfterResponse(ids, {
+    kind: "LIVE",
+    title: args.battleTitle ? `⚔️ ${guest.displayName} is live with ${host.displayName} in a battle` : `🔴 ${guest.displayName} is live with ${host.displayName}`,
+    body: args.battleTitle ? `Join and support them in “${args.battleTitle}”` : "They're on stage now — join the Live",
+    url: `/live/${args.liveSessionId}`,
+    icon: guest.avatarUrl ?? undefined,
+    tag: `live-${args.liveSessionId}-${args.guestId}`,
+  });
 }
 
 type PersonInfo = { userId: string; displayName: string; handle: string; avatarUrl: string | null };
@@ -171,7 +215,7 @@ export async function respondToStageRequest(args: { liveSessionId: string; actor
 
   // Bring them up first, so a full stage or a viewer who already left keeps
   // the request pending instead of marking it approved for nothing.
-  if (args.approve) await putOnStage(session, args.targetUserId);
+  const inRoom = args.approve ? await putOnStage(session, args.targetUserId) : null;
 
   const { count } = await db.liveStageRequest.updateMany({
     where,
@@ -179,19 +223,27 @@ export async function respondToStageRequest(args: { liveSessionId: string; actor
   });
   if (count === 0) throw new StageRequestNotPendingError();
   await announce(session.roomName, { kind: "stage", type: args.approve ? "approved" : "declined", userId: args.targetUserId });
+  if (inRoom) await alertGuestFollowers({ liveSessionId: session.id, hostId: session.creatorId, guestId: args.targetUserId, inRoom });
 }
 
-/** Host or moderator brings someone watching straight onto the stage. */
-export async function inviteToStage(args: { liveSessionId: string; actorId: string; targetUserId: string }) {
+/**
+ * Host or moderator brings someone watching straight onto the stage.
+ * `battleTitle`: they're coming up as a battle competitor (lib/live/battle.ts),
+ * so their followers get the battle wording.
+ */
+export async function inviteToStage(args: { liveSessionId: string; actorId: string; targetUserId: string; battleTitle?: string }) {
   const { session } = await requireStaff(args.liveSessionId, args.actorId);
   if (args.targetUserId === session.creatorId) throw new InvalidStageTargetError();
-  await putOnStage(session, args.targetUserId);
+  const inRoom = await putOnStage(session, args.targetUserId);
   await db.liveStageRequest.updateMany({
     where: { liveSessionId: args.liveSessionId, userId: args.targetUserId, status: "PENDING" },
     data: { status: "APPROVED", respondedById: args.actorId },
   });
   const actor = await db.user.findUniqueOrThrow({ where: { id: args.actorId }, select: { displayName: true } });
   await announce(session.roomName, { kind: "stage", type: "invited", userId: args.targetUserId, byName: actor.displayName });
+  if (inRoom) {
+    await alertGuestFollowers({ liveSessionId: session.id, hostId: session.creatorId, guestId: args.targetUserId, battleTitle: args.battleTitle, inRoom });
+  }
 }
 
 /** Host or moderator takes a guest off stage. */

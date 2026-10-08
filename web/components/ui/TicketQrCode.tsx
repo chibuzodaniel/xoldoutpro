@@ -51,7 +51,7 @@ export function TicketQrCode({
             onClick={(e) => e.stopPropagation()}
           />
           {label && <p className="text-sm font-semibold text-white text-center px-4">{label}</p>}
-          <p className="text-xs text-white/60">Tap anywhere to close</p>
+          <p className="text-xs text-white/90">Tap anywhere to close</p>
         </div>
       )}
     </>

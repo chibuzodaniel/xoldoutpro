@@ -35,7 +35,7 @@ export default function HeavyRotationPage() {
       </p>
 
       {products.length === 0 ? (
-        <p className="text-sm text-ink-3">Nothing here yet — play something you own and it'll show up.</p>
+        <p className="text-sm text-ink-3">Nothing here yet — play something you own and it&apos;ll show up.</p>
       ) : (
         <div className="grid grid-cols-3 gap-3">
           {products.map((p) => (

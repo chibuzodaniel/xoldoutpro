@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
-import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
+import { useFocusEffect, useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { LiveKitRoom, VideoTrack, useTracks, useDataChannel, useLocalParticipant, useRemoteParticipants } from "@livekit/react-native";
+import { VideoTrack, useTracks, useDataChannel, useLocalParticipant, useRemoteParticipants } from "@livekit/react-native";
 import { Track, type LocalVideoTrack } from "livekit-client";
 import { useAuth } from "../lib/AuthContext";
 import { apiGet, apiPatch, apiPost } from "../lib/api";
@@ -12,7 +12,7 @@ import type { RootStackParamList } from "../lib/navigation";
 import type { GiftEvent, GiftMoment, LiveJoinResponse, LiveFeedItem, PendingLiveRequest } from "../lib/liveTypes";
 import { appendGift, giftByType } from "../lib/liveTypes";
 import { colors, fonts } from "../lib/theme";
-import { useLiveAudioSession } from "../lib/liveAudio";
+import { useLiveRoom } from "../lib/LiveRoomContext";
 import { useToast } from "../components/ToastProvider";
 import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed } from "../components/live/LiveBits";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "../components/live/Stage";
@@ -35,7 +35,7 @@ import {
   MentionSuggestions,
   type MentionCandidate,
 } from "../components/live/mentions";
-import { CameraOffIcon, EyeIcon, FlipCameraIcon, MicLineIcon, RefreshIcon, XgCoin } from "../components/live/LiveIcons";
+import { CameraOffIcon, ChevronDownIcon, EyeIcon, FlipCameraIcon, MicLineIcon, RefreshIcon, XgCoin } from "../components/live/LiveIcons";
 
 type SummaryResponse = {
   summary: { peakViewers: number; giftsXg: number; giftsCount: number; paidAccessXg: number; paidRequestsXg: number };
@@ -52,34 +52,43 @@ const WELCOME_ITEM: LiveFeedItem = { kind: "system", id: "welcome", text: "You'r
 // WebRTC module isn't present in plain Expo Go (see App.tsx's registerGlobals
 // try/catch and mobile's own Expo Go native-limits note).
 export function LiveBroadcastScreen() {
-  useLiveAudioSession("broadcaster");
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const route = useRoute<RouteProp<RootStackParamList, "LiveBroadcast">>();
   const { firebaseUser } = useAuth();
   const toast = useToast();
-  const [join, setJoin] = useState<LiveJoinResponse | null>(null);
+  // The room itself lives at the app root (lib/LiveRoomContext.tsx) so the
+  // Live keeps going in the mini player when the host leaves this screen.
+  const live = useLiveRoom();
+  const mine = live.active?.liveId === route.params.id ? live.active : null;
+  // Connected at some point — so losing the connection means the Live ended.
+  const [hadLive, setHadLive] = useState(!!mine);
+  useEffect(() => {
+    if (mine) setHadLive(true);
+  }, [mine]);
   const [error, setError] = useState<string | null>(null);
-  const [cameraBlocked, setCameraBlocked] = useState(false);
-  // Bumped on "Try again" to force <LiveKitRoom> to unmount/remount, which
-  // is what actually re-attempts getUserMedia — it only requests devices
-  // once, on mount.
-  const [retryKey, setRetryKey] = useState(0);
-  // Owned up here (not in BroadcastRoomContent) so the clock keeps running
-  // across a "Try again" remount — the Live itself never stopped.
-  const startedAtRef = useRef(Date.now());
+  useFocusEffect(
+    useCallback(() => {
+      live.setVisibleLiveId(route.params.id);
+      return () => live.setVisibleLiveId(null);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [route.params.id]),
+  );
 
   useEffect(() => {
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
+  // Coming back from the mini player reuses the connection — no new join.
+  const alreadyConnected = !!mine;
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || alreadyConnected || hadLive) return;
     firebaseUser
       .getIdToken()
       .then((idToken) => apiGet<LiveJoinResponse>(`/api/live/${route.params.id}/join`, idToken))
-      .then(setJoin)
+      .then((join) => live.start({ liveId: route.params.id, role: "host", join, startedAt: Date.now() }))
       .catch((e) => setError(e instanceof Error ? e.message : "Could not start broadcast"));
-  }, [firebaseUser, route.params.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firebaseUser, route.params.id, alreadyConnected, hadLive]);
 
   async function endLive() {
     if (!firebaseUser) return;
@@ -87,8 +96,10 @@ export function LiveBroadcastScreen() {
       const idToken = await firebaseUser.getIdToken();
       const data = await apiPost<SummaryResponse>(`/api/live/${route.params.id}/end`, idToken);
       toast.liveSummary(data.summary);
-      navigation.navigate("LiveNow");
     } catch {
+      // ended either way
+    } finally {
+      live.stop();
       navigation.navigate("LiveNow");
     }
   }
@@ -104,7 +115,18 @@ export function LiveBroadcastScreen() {
     );
   }
 
-  if (!join) {
+  if (!mine && hadLive) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>Your Live has ended</Text>
+        <TouchableOpacity onPress={() => navigation.navigate("LiveNow")} style={styles.errorButton}>
+          <Text style={styles.errorButtonText}>Back to Live</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!mine) {
     return (
       <View style={styles.centered}>
         <ActivityIndicator color={colors.ink} />
@@ -116,28 +138,15 @@ export function LiveBroadcastScreen() {
   // header still shows) — the mockup's "Camera access is off" is an overlay
   // on the live screen, not a separate page.
   return (
-    <LiveKitRoom
-      key={retryKey}
-      serverUrl={join.url}
-      token={join.token}
-      video
-      audio
-      connect
-      onMediaDeviceFailure={() => setCameraBlocked(true)}
-      onError={() => setCameraBlocked(true)}
-    >
-      <BroadcastRoomContent
-        liveSessionId={route.params.id}
-        isBattleLive={!!join.session?.isBattle}
-        startedAt={startedAtRef.current}
-        cameraBlocked={cameraBlocked}
-        onRetryCamera={() => {
-          setCameraBlocked(false);
-          setRetryKey((k) => k + 1);
-        }}
-        onEndLive={endLive}
-      />
-    </LiveKitRoom>
+    <BroadcastRoomContent
+      liveSessionId={route.params.id}
+      isBattleLive={!!mine.join.session?.isBattle}
+      startedAt={mine.startedAt}
+      cameraBlocked={live.cameraBlocked}
+      onRetryCamera={live.retryCamera}
+      onEndLive={endLive}
+      onMinimize={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate("Tabs"))}
+    />
   );
 }
 
@@ -148,6 +157,7 @@ function BroadcastRoomContent({
   cameraBlocked,
   onRetryCamera,
   onEndLive,
+  onMinimize,
 }: {
   liveSessionId: string;
   isBattleLive: boolean;
@@ -155,6 +165,7 @@ function BroadcastRoomContent({
   cameraBlocked: boolean;
   onRetryCamera: () => void;
   onEndLive: () => void;
+  onMinimize: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { firebaseUser, appUser } = useAuth();
@@ -432,6 +443,9 @@ function BroadcastRoomContent({
 
       <View style={[styles.top, { paddingTop: insets.top + 8 }]}>
         <View style={styles.headerRow}>
+          <TouchableOpacity onPress={onMinimize} hitSlop={10} accessibilityLabel="Minimise — keep your Live going while you use the app">
+            <ChevronDownIcon size={26} />
+          </TouchableOpacity>
           <View style={styles.hostPill}>
             <InitialsAvatar name={myName} size={44} />
             <View>
@@ -537,7 +551,7 @@ function BroadcastRoomContent({
             onChangeText={setChatText}
             onSubmitEditing={sendChat}
             placeholder="Say something… type @ to tag"
-            placeholderTextColor="rgba(255,255,255,0.5)"
+            placeholderTextColor="rgba(255,255,255,0.75)"
             style={styles.chatInput}
           />
           <TouchableOpacity onPress={toggleMic} hitSlop={8} accessibilityLabel={micEnabled ? "Mute microphone" : "Unmute microphone"}>
@@ -553,6 +567,7 @@ function BroadcastRoomContent({
         </TouchableOpacity>
       </View>
       <BattleSetupSheet
+        liveId={liveSessionId}
         visible={battleSheet === "setup"}
         people={stage?.watching ?? []}
         balanceXg={hostXg}
@@ -605,7 +620,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 0 },
   },
   cameraOffTitle: { color: colors.ink, fontSize: 30, fontFamily: fonts.serif, textAlign: "center" },
-  cameraOffSubtitle: { color: "rgba(255,255,255,0.55)", fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: 12 },
+  cameraOffSubtitle: { color: "rgba(255,255,255,0.9)", fontSize: 15, lineHeight: 22, textAlign: "center", marginTop: 12 },
   tryAgainButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -636,7 +651,7 @@ const styles = StyleSheet.create({
   liveBadge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.red, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "#fff" },
   liveBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 },
-  elapsedText: { color: "rgba(255,255,255,0.75)", fontSize: 13, marginTop: 1, fontVariant: ["tabular-nums"] },
+  elapsedText: { color: "rgba(255,255,255,0.9)", fontSize: 13, marginTop: 1, fontVariant: ["tabular-nums"] },
   viewerCount: { flexDirection: "row", alignItems: "center", gap: 6, marginLeft: "auto" },
   viewerCountText: { color: "#fff", fontSize: 16 },
   statRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },

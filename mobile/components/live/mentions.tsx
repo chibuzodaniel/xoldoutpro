@@ -89,5 +89,5 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 12, paddingVertical: 8 },
   name: { flex: 1, color: "#fff", fontSize: 14 },
-  handle: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+  handle: { color: "rgba(255,255,255,0.9)", fontSize: 12 },
 });

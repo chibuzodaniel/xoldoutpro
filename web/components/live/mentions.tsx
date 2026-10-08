@@ -96,7 +96,7 @@ export function MentionSuggestions({
               fallback={<InitialsAvatar name={c.displayName || "?"} className="h-7 w-7 text-[10px]" />}
             />
             <span className="min-w-0 flex-1 truncate text-[14px] text-white">{c.displayName}</span>
-            <span className="shrink-0 text-[12px] text-white/60">@{c.handle}</span>
+            <span className="shrink-0 text-[12px] text-white/90">@{c.handle}</span>
           </button>
         </li>
       ))}

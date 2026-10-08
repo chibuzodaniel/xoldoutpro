@@ -25,7 +25,7 @@ export function EyeIcon({ color = "#fff", size = 14 }: IconProps) {
   );
 }
 
-export function ShieldIcon({ color = "#6e6e78", size = 14 }: IconProps) {
+export function ShieldIcon({ color = "#c9c9d1", size = 14 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6L12 3z" />
@@ -67,6 +67,14 @@ export function RefreshIcon({ color = "#fff", size = 18 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M20 11a8 8 0 00-14.3-4.6L4 8M4 4v4h4M4 13a8 8 0 0014.3 4.6L20 16M20 20v-4h-4" />
+    </Svg>
+  );
+}
+
+export function ChevronDownIcon({ color = "#fff", size = 24 }: IconProps) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M6 9l6 6 6-6" />
     </Svg>
   );
 }

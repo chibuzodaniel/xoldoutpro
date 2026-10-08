@@ -49,5 +49,5 @@ const styles = StyleSheet.create({
   closeText: { color: colors.ink, fontSize: 16 },
   qrLarge: { backgroundColor: colors.ink, borderRadius: 20, padding: 24 },
   label: { color: colors.ink, fontSize: 14, fontWeight: "600", textAlign: "center" },
-  hint: { color: "rgba(255,255,255,0.6)", fontSize: 12 },
+  hint: { color: "rgba(255,255,255,0.9)", fontSize: 12 },
 });

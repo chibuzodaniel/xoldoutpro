@@ -54,6 +54,8 @@ export type Battle = {
   competitors: BattleCompetitor[];
   turns: { id: string; competitorId: string; round: number; startedAt: string; endedAt: string | null; seconds: number | null }[];
   totalVotes: number | null;
+  // Mutual followers invited while the battle is being set up.
+  invites: { id: string; user: BattlePerson; status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED" }[];
   serverTime: string;
 };
 
@@ -221,12 +223,12 @@ export function BattleBar({
         )}
       </button>
       {finished && onDismiss && (
-        <button type="button" onClick={onDismiss} aria-label="Hide the battle result" className="absolute right-2 top-1.5 px-1 text-[16px] text-white/60">
+        <button type="button" onClick={onDismiss} aria-label="Hide the battle result" className="absolute right-2 top-1.5 px-1 text-[16px] text-white/90">
           ×
         </button>
       )}
 
-      <p className="mt-1 text-[12px] text-white/70">
+      <p className="mt-1 text-[12px] text-white/90">
         {battle.status === "READY" && "Getting ready…"}
         {battle.status === "IN_PROGRESS" &&
           (performer
@@ -237,6 +239,19 @@ export function BattleBar({
         {battle.status === "VOTING" && `Vote for the winner${voteLeft !== null ? ` · ${clock(voteLeft)}` : ""}`}
         {finished && (winners[0] ? `Winner: ${winners[0].user.displayName}` : "Battle over")}
       </p>
+
+      {battle.status === "READY" && battle.invites.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {battle.invites.map((i) => (
+            <span
+              key={i.id}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${i.status === "PENDING" ? "bg-amber/20 text-amber" : "bg-white/10 text-white/90"}`}
+            >
+              {i.status === "PENDING" ? "📞 Ringing" : i.status === "DECLINED" ? "Declined" : "No answer"} · @{i.user.handle}
+            </span>
+          ))}
+        </div>
+      )}
 
       {performer && turnLeft !== null && (
         <div className="mt-1.5 flex items-center gap-2">
@@ -279,7 +294,7 @@ export function BattleBar({
                 </span>
               )}
               {battle.status === "VOTING" && battle.canVote && (
-                <span className={`text-[10px] font-bold ${voted ? "text-red-soft" : "text-white/60"}`}>{voted ? "Your vote" : "Vote"}</span>
+                <span className={`text-[10px] font-bold ${voted ? "text-red-soft" : "text-white/90"}`}>{voted ? "Your vote" : "Vote"}</span>
               )}
             </button>
           );
@@ -287,14 +302,14 @@ export function BattleBar({
       </div>
 
       {!isHost && onSupport && battle.status === "IN_PROGRESS" && (
-        <p className="mt-1.5 text-center text-[11px] text-white/55">Tap a competitor to gift them</p>
+        <p className="mt-1.5 text-center text-[11px] text-white/90">Tap a competitor to gift them</p>
       )}
 
       {isHost && (
         <div className="mt-2 flex gap-1.5">
           {battle.status === "READY" && (
-            <HostButton busy={busy} primary onClick={() => run({ action: "start" })}>
-              Start battle
+            <HostButton busy={busy || battle.competitors.length < 2} primary onClick={() => run({ action: "start" })}>
+              {battle.competitors.length < 2 ? "Waiting for 2 competitors…" : "Start battle"}
             </HostButton>
           )}
           {battle.status === "IN_PROGRESS" && performer && (
@@ -442,11 +457,13 @@ const VOTE_OPTIONS = [60, 120, 180];
  * viewers straight"); anyone picked who isn't on stage is brought up.
  */
 export function BattleSetupSheet({
+  liveId,
   people,
   balanceXg,
   act,
   onClose,
 }: {
+  liveId: string;
   people: StagePerson[];
   balanceXg: number | null;
   act: (body: Record<string, unknown>) => Promise<Battle | null>;
@@ -458,23 +475,38 @@ export function BattleSetupSheet({
   const watchers = guests.filter((g) => !g.onStage);
   const [title, setTitle] = useState("");
   const [picked, setPicked] = useState<string[]>(() => onStageGuests.slice(0, 3).map((g) => g.userId));
-  const full = picked.length >= 3;
+  // Mutual followers to ring (explicit ask, 2026-10-08) — they join when they accept.
+  const [invitable, setInvitable] = useState<BattlePerson[] | null>(null);
+  const [invited, setInvited] = useState<string[]>([]);
+  const [inviteQuery, setInviteQuery] = useState("");
+  useEffect(() => {
+    apiFetch(`/api/live/${liveId}/battle/invitable`)
+      .then((res) => (res.ok ? res.json() : { people: [] }))
+      .then((data) => setInvitable(data.people ?? []))
+      .catch(() => setInvitable([]));
+  }, [liveId]);
+  const inRoom = new Set(guests.map((g) => g.userId));
+  const count = picked.length + invited.length;
+  const full = count >= 3;
   const [rounds, setRounds] = useState(2);
   const [turnSeconds, setTurnSeconds] = useState(60);
   const [votingSeconds, setVotingSeconds] = useState(60);
+  // The prize is optional (explicit ask, 2026-10-08): off by default — the
+  // competitors still keep every gift they're sent either way.
+  const [withPrize, setWithPrize] = useState(false);
   const [winners, setWinners] = useState(1);
   const [prizes, setPrizes] = useState<number[]>([0, 0, 0]);
   const [busy, setBusy] = useState(false);
 
   const maxWinners = Math.min(3, Math.max(1, picked.length));
-  const places = prizes.slice(0, Math.min(winners, maxWinners));
+  const places = withPrize ? prizes.slice(0, Math.min(winners, maxWinners)) : [];
   const total = places.reduce((a, b) => a + (b || 0), 0);
   const short = balanceXg !== null && total > balanceXg;
 
   async function create() {
     setBusy(true);
     try {
-      await act({ action: "create", title, competitorIds: picked, rounds, turnSeconds, votingSeconds, prizePlaces: places.map((x) => x || 0) });
+      await act({ action: "create", title, competitorIds: picked, inviteIds: invited, rounds, turnSeconds, votingSeconds, prizePlaces: places.map((x) => x || 0) });
       toast.success("Battle set — press Start when everyone's ready.");
       onClose();
     } catch (err) {
@@ -500,10 +532,10 @@ export function BattleSetupSheet({
           className="mb-4 w-full rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-red"
         />
 
-        <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Competitors · pick 2–3 ({picked.length} picked)</p>
-        {guests.length < 2 ? (
+        <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Competitors · pick or invite 2–3 ({count} chosen)</p>
+        {guests.length === 0 ? (
           <p className="mb-4 rounded-lg bg-white/[0.04] p-3 text-[13px] text-ink-2">
-            Waiting for people to join — once at least 2 are watching, pick your competitors here. Share your Live to bring them in.
+            No one&apos;s watching yet — invite people below, or share your Live to bring them in.
           </p>
         ) : (
           <div className="mb-4 flex flex-col gap-3">
@@ -539,6 +571,47 @@ export function BattleSetupSheet({
           </div>
         )}
 
+        <p className="mb-1.5 text-[11px] text-ink-3">Invite mutual followers — their phone rings with the battle details</p>
+        {invitable === null ? (
+          <p className="mb-4 text-[13px] text-ink-3">Loading…</p>
+        ) : invitable.filter((p) => !inRoom.has(p.id)).length === 0 ? (
+          <p className="mb-4 text-[13px] text-ink-3">No mutual followers to invite yet — people you follow who follow you back show here.</p>
+        ) : (
+          <div className="mb-4">
+            {invitable.length > 8 && (
+              <input
+                value={inviteQuery}
+                onChange={(e) => setInviteQuery(e.target.value)}
+                placeholder="Search mutual followers"
+                className="mb-2 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-red"
+              />
+            )}
+            <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+              {invitable
+                .filter((p) => !inRoom.has(p.id))
+                .filter((p) => {
+                  const q = inviteQuery.trim().toLowerCase();
+                  return !q || p.displayName.toLowerCase().includes(q) || p.handle.toLowerCase().includes(q);
+                })
+                .map((p) => {
+                  const on = invited.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      disabled={!on && full}
+                      onClick={() => setInvited((cur) => (on ? cur.filter((x) => x !== p.id) : [...cur, p.id]))}
+                      className={`${chip(on)} disabled:opacity-40`}
+                    >
+                      {on ? "📞 " : ""}
+                      {p.displayName}
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+
         <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Rounds</p>
         <div className="mb-4 flex gap-2">
           {[1, 2, 3, 4, 5].map((r) => (
@@ -566,7 +639,21 @@ export function BattleSetupSheet({
           ))}
         </div>
 
-        <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Prize (XG from your balance)</p>
+        <button
+          type="button"
+          onClick={() => setWithPrize((v) => !v)}
+          className="mb-3 flex w-full items-center justify-between rounded-lg border border-line px-3 py-2.5"
+        >
+          <span className="text-left">
+            <span className="block text-sm font-semibold">Add an XG prize</span>
+            <span className="block text-[12px] text-ink-3">Optional — paid from your own XG balance</span>
+          </span>
+          <span className={`inline-flex h-6 w-11 shrink-0 items-center rounded-full px-0.5 transition-colors ${withPrize ? "justify-end bg-red" : "justify-start bg-surface-2"}`}>
+            <span className="h-5 w-5 rounded-full bg-white" />
+          </span>
+        </button>
+        {withPrize && (
+        <>
         <div className="mb-3 flex gap-2">
           {[1, 2, 3].map((w) => (
             <button key={w} type="button" disabled={w > maxWinners} onClick={() => setWinners(w)} className={`${chip(winners === w)} disabled:opacity-40`}>
@@ -594,18 +681,20 @@ export function BattleSetupSheet({
             </label>
           ))}
         </div>
+        </>
+        )}
         <p className={`mb-5 text-[12px] ${short ? "text-red-soft" : "text-ink-3"}`}>
-          {total > 0 ? `${total.toLocaleString("en-NG")} XG is held when you start and paid to the winners; you get back any place nobody fills.` : "No prize — just bragging rights."}
+          {total > 0 ? `${total.toLocaleString("en-NG")} XG is held when you start and paid to the winners; you get back any place nobody fills.` : "No prize — competitors keep every gift they're sent, and the winner gets the bragging rights."}
           {balanceXg !== null ? ` You have ${balanceXg.toLocaleString("en-NG")} XG.` : ""}
         </p>
 
         <button
           type="button"
           onClick={create}
-          disabled={busy || picked.length < 2 || short}
+          disabled={busy || count < 2 || short}
           className="w-full rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {busy ? "Setting up…" : "Set up battle"}
+          {busy ? "Setting up…" : invited.length > 0 ? `Set up & ring ${invited.length}` : "Set up battle"}
         </button>
       </div>
     </BottomSheet>

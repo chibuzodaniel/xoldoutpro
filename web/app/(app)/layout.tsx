@@ -4,6 +4,9 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { Suspense } from "react";
+import { LiveDock } from "@/components/live/LiveDock";
+import { BattleInviteRing } from "@/components/live/BattleInviteRing";
 
 // Open-browsing routes under (app) — viewable without an account. Everything
 // else here (library, profile, publish, wallet, socials, analytics, checkout)
@@ -55,5 +58,15 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
     return <LoadingSpinner full size="lg" />;
   }
 
-  return children;
+  return (
+    <>
+      {children}
+      {/* A Live the user stepped away from keeps playing here (lib/live/dock.ts). */}
+      <LiveDock />
+      {/* A battle invite ringing (lib/live/battle.ts invites). */}
+      <Suspense fallback={null}>
+        <BattleInviteRing />
+      </Suspense>
+    </>
+  );
 }

@@ -149,7 +149,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
           </div>
 
           <div className="absolute left-4 right-4 bottom-4">
-            <p className="text-[12px] text-white/60 uppercase tracking-wide mb-1">{hero.creator.displayName}</p>
+            <p className="text-[12px] text-white/90 uppercase tracking-wide mb-1">{hero.creator.displayName}</p>
             <h2 className="font-serif text-2xl text-white leading-tight mb-2">{hero.title}</h2>
             <div className="flex items-center justify-between">
               {heroRemaining !== null ? (
@@ -159,7 +159,7 @@ export default async function DiscoverPage({ searchParams }: { searchParams: Pro
               ) : heroWeeklySold > 0 ? (
                 <span className="text-xs font-semibold text-red-soft">{heroWeeklySold} sold this week</span>
               ) : (
-                <span className="text-xs text-white/60">{heroSold} sold</span>
+                <span className="text-xs text-white/90">{heroSold} sold</span>
               )}
               <span className="font-serif text-lg text-white"><Price kobo={hero.priceKobo} freeLabel="Free" /></span>
             </div>

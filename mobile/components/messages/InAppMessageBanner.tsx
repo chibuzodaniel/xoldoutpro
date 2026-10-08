@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ringBattleInvite } from "../../lib/battleInviteBus";
 import { Animated, AppState, Platform, StatusBar, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useAuth } from "../../lib/AuthContext";
 import { apiGet } from "../../lib/api";
@@ -39,10 +40,12 @@ export function InAppMessageBanner() {
     try {
       const idToken = await firebaseUser.getIdToken();
       const since = sinceRef.current;
-      const data = await apiGet<{ messages: Incoming[]; serverTime: string }>(
+      const data = await apiGet<{ messages: Incoming[]; battleInvite?: { id: string } | null; serverTime: string }>(
         `/api/messages/latest${since ? `?since=${encodeURIComponent(since)}` : ""}`,
         idToken,
       );
+      // A battle invite still ringing (components/live/BattleInviteRing.tsx).
+      if (data.battleInvite) ringBattleInvite({ inviteId: data.battleInvite.id, invite: data.battleInvite });
       const first = sinceRef.current === null;
       sinceRef.current = data.serverTime;
       if (first) return; // starting point only — nothing from before the app opened

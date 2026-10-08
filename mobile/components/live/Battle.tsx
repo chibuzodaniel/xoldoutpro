@@ -51,6 +51,8 @@ export type Battle = {
   competitors: BattleCompetitor[];
   turns: { id: string; competitorId: string; round: number; startedAt: string; endedAt: string | null; seconds: number | null }[];
   totalVotes: number | null;
+  // Mutual followers invited while the battle is being set up.
+  invites: { id: string; user: BattlePerson; status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED" }[];
   serverTime: string;
 };
 
@@ -233,6 +235,18 @@ export function BattleBar({
       </View>
       <Text style={styles.barLine}>{line}</Text>
 
+      {battle.status === "READY" && battle.invites.length > 0 && (
+        <View style={styles.inviteRow}>
+          {battle.invites.map((i) => (
+            <View key={i.id} style={[styles.inviteChip, i.status === "PENDING" && styles.inviteChipRinging]}>
+              <Text style={[styles.inviteChipText, i.status === "PENDING" && { color: colors.amber }]}>
+                {i.status === "PENDING" ? "📞 Ringing" : i.status === "DECLINED" ? "Declined" : "No answer"} · @{i.user.handle}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+
       {performer && turnLeft !== null && (
         <View style={styles.timerRow}>
           <View style={styles.timerTrack}>
@@ -284,7 +298,14 @@ export function BattleBar({
 
       {isHost && (
         <View style={styles.hostRow}>
-          {battle.status === "READY" && <HostButton busy={busy} primary label="Start battle" onPress={() => run({ action: "start" })} />}
+          {battle.status === "READY" && (
+            <HostButton
+              busy={busy || battle.competitors.length < 2}
+              primary
+              label={battle.competitors.length < 2 ? "Waiting for 2 competitors…" : "Start battle"}
+              onPress={() => run({ action: "start" })}
+            />
+          )}
           {battle.status === "IN_PROGRESS" && performer && <HostButton busy={busy} label="End turn" onPress={() => run({ action: "end-turn" })} />}
           {battle.status === "IN_PROGRESS" && !performer && !allTurnsDone && (
             <HostButton
@@ -394,6 +415,7 @@ const VOTE_OPTIONS = [60, 120, 180];
 
 /** Host: competitors come from everyone in the room — on stage or just watching (picked viewers are brought on stage). */
 export function BattleSetupSheet({
+  liveId,
   visible,
   people,
   balanceXg,
@@ -401,6 +423,7 @@ export function BattleSetupSheet({
   onClose,
 }: {
   visible: boolean;
+  liveId: string;
   people: StagePerson[];
   balanceXg: number | null;
   act: (body: Record<string, unknown>) => Promise<Battle | null>;
@@ -415,22 +438,48 @@ export function BattleSetupSheet({
   const [rounds, setRounds] = useState(2);
   const [turnSeconds, setTurnSeconds] = useState(60);
   const [votingSeconds, setVotingSeconds] = useState(60);
+  // The prize is optional (explicit ask, 2026-10-08): off by default.
+  const [withPrize, setWithPrize] = useState(false);
   const [winners, setWinners] = useState(1);
   const [prizes, setPrizes] = useState<number[]>([0, 0, 0]);
   const [busy, setBusy] = useState(false);
 
   // Everyone on stage (up to 3) is picked until the host changes it.
   const chosen = picked ?? onStageGuests.slice(0, 3).map((g) => g.userId);
-  const full = chosen.length >= 3;
+  // Mutual followers to ring (explicit ask, 2026-10-08) — they join when they accept.
+  const { firebaseUser } = useAuth();
+  const [invitable, setInvitable] = useState<BattlePerson[] | null>(null);
+  const [invited, setInvited] = useState<string[]>([]);
+  useEffect(() => {
+    if (!visible || !firebaseUser) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/live/${liveId}/battle/invitable`, {
+          headers: { Authorization: `Bearer ${await firebaseUser.getIdToken()}` },
+        });
+        const data = res.ok ? await res.json() : { people: [] };
+        if (!cancelled) setInvitable(data.people ?? []);
+      } catch {
+        if (!cancelled) setInvitable([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [visible, firebaseUser, liveId]);
+  const inRoom = new Set(guests.map((g) => g.userId));
+  const count = chosen.length + invited.length;
+  const full = count >= 3;
   const maxWinners = Math.min(3, Math.max(1, chosen.length));
-  const places = prizes.slice(0, Math.min(winners, maxWinners));
+  const places = withPrize ? prizes.slice(0, Math.min(winners, maxWinners)) : [];
   const total = places.reduce((a, b) => a + (b || 0), 0);
   const short = balanceXg !== null && total > balanceXg;
 
   async function create() {
     setBusy(true);
     try {
-      await act({ action: "create", title, competitorIds: chosen, rounds, turnSeconds, votingSeconds, prizePlaces: places });
+      await act({ action: "create", title, competitorIds: chosen, inviteIds: invited, rounds, turnSeconds, votingSeconds, prizePlaces: places });
       toast.success("Battle set — press Start when everyone's ready.");
       onClose();
     } catch (err) {
@@ -461,9 +510,9 @@ export function BattleSetupSheet({
           style={styles.input}
         />
 
-        <Text style={styles.label}>Competitors · pick 2–3 ({chosen.length} picked)</Text>
-        {guests.length < 2 ? (
-          <Text style={styles.note}>Waiting for people to join — once at least 2 are watching, pick your competitors here. Share your Live to bring them in.</Text>
+        <Text style={styles.label}>Competitors · pick or invite 2–3 ({count} chosen)</Text>
+        {guests.length === 0 ? (
+          <Text style={styles.note}>No one's watching yet — invite people below, or share your Live to bring them in.</Text>
         ) : (
           [
             { label: "On stage", list: onStageGuests },
@@ -494,6 +543,30 @@ export function BattleSetupSheet({
           <Text style={styles.note}>Anyone picked from the viewers is brought on stage when you set up the battle.</Text>
         )}
 
+        <Text style={styles.note}>Invite mutual followers — their phone rings with the battle details</Text>
+        {invitable === null ? (
+          <Text style={styles.note}>Loading…</Text>
+        ) : invitable.filter((p) => !inRoom.has(p.id)).length === 0 ? (
+          <Text style={styles.note}>No mutual followers to invite yet — people you follow who follow you back show here.</Text>
+        ) : (
+          <View style={styles.chips}>
+            {invitable
+              .filter((p) => !inRoom.has(p.id))
+              .map((p) => {
+                const on = invited.includes(p.id);
+                return (
+                  <Chip
+                    key={p.id}
+                    on={on}
+                    disabled={!on && full}
+                    label={`${on ? "📞 " : ""}${p.displayName}`}
+                    onPress={() => setInvited((cur) => (on ? cur.filter((x) => x !== p.id) : [...cur, p.id]))}
+                  />
+                );
+              })}
+          </View>
+        )}
+
         <Text style={styles.label}>Rounds</Text>
         <View style={styles.chips}>
           {[1, 2, 3, 4, 5].map((r) => (
@@ -515,12 +588,22 @@ export function BattleSetupSheet({
           ))}
         </View>
 
-        <Text style={styles.label}>Prize (XG from your balance)</Text>
-        <View style={styles.chips}>
-          {[1, 2, 3].map((w) => (
-            <Chip key={w} on={winners === w} disabled={w > maxWinners} label={w === 1 ? "1 winner" : `${w} winners`} onPress={() => setWinners(w)} />
-          ))}
-        </View>
+        <TouchableOpacity style={styles.prizeToggle} onPress={() => setWithPrize((v) => !v)}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.prizeToggleTitle}>Add an XG prize</Text>
+            <Text style={styles.note}>Optional — paid from your own XG balance</Text>
+          </View>
+          <View style={[styles.switchTrack, withPrize && styles.switchTrackOn]}>
+            <View style={styles.switchThumb} />
+          </View>
+        </TouchableOpacity>
+        {withPrize && (
+          <View style={styles.chips}>
+            {[1, 2, 3].map((w) => (
+              <Chip key={w} on={winners === w} disabled={w > maxWinners} label={w === 1 ? "1 winner" : `${w} winners`} onPress={() => setWinners(w)} />
+            ))}
+          </View>
+        )}
         {places.map((x, i) => (
           <View key={i} style={styles.prizeInputRow}>
             <Text style={styles.prizePlace}>{PLACE[i]}</Text>
@@ -541,16 +624,16 @@ export function BattleSetupSheet({
         <Text style={[styles.note, short && { color: colors.redSoft }]}>
           {total > 0
             ? `${total.toLocaleString("en-NG")} XG is held when you start and paid to the winners; you get back any place nobody fills.`
-            : "No prize — just bragging rights."}
+            : "No prize — competitors keep every gift they're sent, and the winner gets the bragging rights."}
           {balanceXg !== null ? ` You have ${balanceXg.toLocaleString("en-NG")} XG.` : ""}
         </Text>
 
         <TouchableOpacity
           onPress={create}
-          disabled={busy || chosen.length < 2 || short}
-          style={[styles.createButton, (busy || chosen.length < 2 || short) && { opacity: 0.5 }]}
+          disabled={busy || count < 2 || short}
+          style={[styles.createButton, (busy || count < 2 || short) && { opacity: 0.5 }]}
         >
-          <Text style={styles.createButtonText}>{busy ? "Setting up…" : "Set up battle"}</Text>
+          <Text style={styles.createButtonText}>{busy ? "Setting up…" : invited.length > 0 ? `Set up & ring ${invited.length}` : "Set up battle"}</Text>
         </TouchableOpacity>
       </ScrollView>
     </BottomSheet>
@@ -566,8 +649,8 @@ const styles = StyleSheet.create({
   barTitle: { flex: 1, color: "#fff", fontSize: 14, fontWeight: "700" },
   prizeRow: { flexDirection: "row", alignItems: "center", gap: 3 },
   prizeText: { color: colors.amber, fontSize: 12, fontWeight: "700" },
-  dismiss: { color: "rgba(255,255,255,0.6)", fontSize: 18 },
-  barLine: { marginTop: 4, color: "rgba(255,255,255,0.7)", fontSize: 12 },
+  dismiss: { color: "rgba(255,255,255,0.9)", fontSize: 18 },
+  barLine: { marginTop: 4, color: "rgba(255,255,255,0.9)", fontSize: 12 },
   timerRow: { marginTop: 6, flexDirection: "row", alignItems: "center", gap: 8 },
   timerTrack: { flex: 1, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.15)", overflow: "hidden" },
   timerFill: { height: "100%", borderRadius: 3, backgroundColor: colors.amber },
@@ -589,7 +672,7 @@ const styles = StyleSheet.create({
   competitorName: { color: "#fff", fontSize: 11, fontWeight: "700", maxWidth: "100%" },
   competitorXg: { color: colors.amber, fontSize: 11 },
   competitorPlace: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "800" },
-  hint: { marginTop: 6, textAlign: "center", color: "rgba(255,255,255,0.55)", fontSize: 11 },
+  hint: { marginTop: 6, textAlign: "center", color: "rgba(255,255,255,0.9)", fontSize: 11 },
   hostRow: { marginTop: 8, flexDirection: "row", gap: 6 },
   hostButton: { flex: 1, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.15)", paddingVertical: 8, paddingHorizontal: 6, alignItems: "center" },
   hostButtonPrimary: { backgroundColor: colors.red },
@@ -613,6 +696,15 @@ const styles = StyleSheet.create({
   chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6 },
   chipOn: { borderColor: colors.red, backgroundColor: "rgba(225,29,46,0.2)" },
   chipText: { color: colors.ink2, fontSize: 13, fontWeight: "700" },
+  inviteRow: { marginTop: 6, flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  inviteChip: { borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, backgroundColor: "rgba(255,255,255,0.1)" },
+  inviteChipRinging: { backgroundColor: "rgba(217,154,43,0.2)" },
+  inviteChipText: { color: "rgba(255,255,255,0.9)", fontSize: 11, fontWeight: "700" },
+  prizeToggle: { flexDirection: "row", alignItems: "center", gap: 12, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 12, paddingTop: 10, marginBottom: 12 },
+  prizeToggleTitle: { color: colors.ink, fontSize: 14, fontWeight: "700", marginBottom: 2 },
+  switchTrack: { width: 44, height: 24, borderRadius: 12, backgroundColor: colors.surface2, padding: 2, justifyContent: "center", marginBottom: 10 },
+  switchTrackOn: { backgroundColor: colors.red, alignItems: "flex-end" },
+  switchThumb: { width: 20, height: 20, borderRadius: 10, backgroundColor: "#fff" },
   prizeInputRow: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 8 },
   prizePlace: { width: 40, color: colors.amber, fontWeight: "700", fontSize: 14 },
   createButton: { backgroundColor: colors.red, borderRadius: 8, paddingVertical: 13, alignItems: "center", marginTop: 4, marginBottom: 8 },

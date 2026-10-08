@@ -306,7 +306,7 @@ export default function ConversationPage() {
                           {m.body && <p className="whitespace-pre-wrap break-words text-sm">{m.body}</p>}
                         </>
                       )}
-                      <p className={`mt-0.5 text-right text-[10px] ${m.fromMe && !m.deleted ? "text-white/70" : "text-ink-3"}`}>
+                      <p className={`mt-0.5 text-right text-[10px] ${m.fromMe && !m.deleted ? "text-white/90" : "text-ink-3"}`}>
                         {m.expiresAt && "⏱ "}
                         {timeOf(m.createdAt)}
                       </p>

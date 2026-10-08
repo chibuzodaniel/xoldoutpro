@@ -12,6 +12,9 @@ import { PlayerProvider } from "./lib/PlayerContext";
 import { ToastProvider } from "./components/ToastProvider";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { InAppMessageBanner } from "./components/messages/InAppMessageBanner";
+import { LiveRoomProvider } from "./lib/LiveRoomContext";
+import { MiniLivePlayer } from "./components/live/MiniLivePlayer";
+import { BattleInviteRing } from "./components/live/BattleInviteRing";
 import { navigationRef, openNotificationUrl } from "./lib/messageNotify";
 import { BottomTabs } from "./navigation/BottomTabs";
 import { ProductScreen } from "./screens/ProductScreen";
@@ -95,6 +98,7 @@ export default function App() {
     <AuthProvider>
       <PlayerProvider>
         <ToastProvider>
+        <LiveRoomProvider>
         <UpdateBanner />
         <NavigationContainer theme={navTheme} ref={navigationRef} onReady={openLaunchNotification}>
           <Stack.Navigator
@@ -152,6 +156,11 @@ export default function App() {
           <StatusBar style="light" />
           <InAppMessageBanner />
         </NavigationContainer>
+        {/* A Live the user stepped away from keeps playing here. */}
+        <MiniLivePlayer />
+        {/* A battle invite ringing. */}
+        <BattleInviteRing />
+        </LiveRoomProvider>
         </ToastProvider>
       </PlayerProvider>
     </AuthProvider>
