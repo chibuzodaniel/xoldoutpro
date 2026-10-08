@@ -14,9 +14,10 @@ import { appendGift, giftByType } from "../lib/liveTypes";
 import { colors, fonts } from "../lib/theme";
 import { useLiveAudioSession } from "../lib/liveAudio";
 import { useToast } from "../components/ToastProvider";
-import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
+import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed } from "../components/live/LiveBits";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "../components/live/Stage";
 import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "../components/live/SupportSheets";
+import { LiveShareButtons } from "../components/live/LiveShareButtons";
 import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle } from "../components/live/Battle";
 import {
   FloatingReactions,
@@ -127,6 +128,7 @@ export function LiveBroadcastScreen() {
     >
       <BroadcastRoomContent
         liveSessionId={route.params.id}
+        isBattleLive={!!join.session?.isBattle}
         startedAt={startedAtRef.current}
         cameraBlocked={cameraBlocked}
         onRetryCamera={() => {
@@ -141,12 +143,14 @@ export function LiveBroadcastScreen() {
 
 function BroadcastRoomContent({
   liveSessionId,
+  isBattleLive,
   startedAt,
   cameraBlocked,
   onRetryCamera,
   onEndLive,
 }: {
   liveSessionId: string;
+  isBattleLive: boolean;
   startedAt: number;
   cameraBlocked: boolean;
   onRetryCamera: () => void;
@@ -195,6 +199,15 @@ function BroadcastRoomContent({
       // the server still checks the balance when the battle starts
     }
   }
+  // A Live set up as a battle on the Go Live form opens the battle setup
+  // as soon as it's running (once — closing it leaves the Battle chip).
+  const autoBattleRef = useRef(false);
+  useEffect(() => {
+    if (!isBattleLive || !battleState.loaded || battle || autoBattleRef.current) return;
+    autoBattleRef.current = true;
+    openBattleSetup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once when ready
+  }, [isBattleLive, battleState.loaded, battle]);
   const refreshStageRef = useRef(refreshStage);
   useEffect(() => {
     refreshStageRef.current = refreshStage;
@@ -448,7 +461,7 @@ function BroadcastRoomContent({
               </View>
             )}
           </TouchableOpacity>
-          <ShareLiveButton liveSessionId={liveSessionId} message={`${myName} is live on XOLDOUT — join now`} />
+          <LiveShareButtons liveSessionId={liveSessionId} message={`${myName} is live on XOLDOUT — join now`} accent />
         </View>
 
         <View style={styles.statRow}>
@@ -541,7 +554,7 @@ function BroadcastRoomContent({
       </View>
       <BattleSetupSheet
         visible={battleSheet === "setup"}
-        onStage={stage?.onStage ?? []}
+        people={stage?.watching ?? []}
         balanceXg={hostXg}
         act={battleState.act}
         onClose={() => setBattleSheet(null)}

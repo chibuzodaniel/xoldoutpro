@@ -3,6 +3,7 @@ export type LiveSessionSummary = {
   title: string;
   isPaidAccess: boolean;
   priceXg: number;
+  isBattle?: boolean;
   // Optional: older API deploys don't send it yet (see web's lib/live/sessions.ts listLiveSessionsNow).
   viewerCount?: number;
   startedAt: string;
@@ -16,6 +17,7 @@ export type UpcomingLiveSummary = {
   scheduledFor: string | null;
   isPaidAccess: boolean;
   priceXg: number;
+  isBattle?: boolean;
   reminderCount: number;
   creator: { handle: string; displayName: string; avatarUrl: string | null };
 };
@@ -31,7 +33,7 @@ export type LiveJoinResponse = {
   // anyone else on stage shows as a tile (components/live/Stage.tsx).
   hostId?: string;
   roomName: string;
-  session?: { title: string; creator: { displayName: string; avatarUrl: string | null }; pinnedProduct: PinnedLiveProduct | null };
+  session?: { title: string; creator: { displayName: string; avatarUrl: string | null }; pinnedProduct: PinnedLiveProduct | null; isBattle?: boolean };
 };
 
 export type XgPack = { xgAmount: number; priceKobo: number; bonusPercent?: number };

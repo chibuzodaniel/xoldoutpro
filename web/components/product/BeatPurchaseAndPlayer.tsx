@@ -51,7 +51,6 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   const [entitled, setEntitled] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [gifting, setGifting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   // Defaults true (the common case) so the button doesn't flash in then out
   // for everyone — corrected from the access response once it loads.
@@ -131,30 +130,6 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
     }
   }
 
-  async function handleGift() {
-    if (!firebaseUser) {
-      router.push("/login");
-      return;
-    }
-    setGifting(true);
-    try {
-      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true, gateway }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
-      if (data.free) {
-        router.push("/library?tab=gifts");
-      } else {
-        router.push(data.checkoutUrl);
-      }
-    } catch (err) {
-      if (err instanceof GatewayPickerCancelled) return;
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setGifting(false);
-    }
-  }
-
   const serviceChargeKobo = serviceChargePercent != null ? Math.round((priceKobo * serviceChargePercent) / 100) : 0;
 
   return (
@@ -181,17 +156,6 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
                 : serviceChargePercent != null && priceKobo > 0
                   ? `Buy · ${nairaAmount(priceKobo + serviceChargeKobo)}`
                   : formatNaira(priceKobo)}
-          </button>
-        )}
-        {!isOwner && !isSoldOut && (
-          <button
-            onClick={handleGift}
-            disabled={gifting}
-            className={`rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-2 disabled:opacity-50 ${
-              entitled ? "flex-1" : "shrink-0"
-            }`}
-          >
-            {gifting ? "Starting…" : "Gift this"}
           </button>
         )}
       </div>

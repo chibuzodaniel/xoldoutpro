@@ -12,7 +12,7 @@ import { CameraOffIcon, EyeIcon, FlipCameraIcon, MicLineIcon, RefreshIcon, XgCoi
 import { giftByType } from "@/components/live/giftCatalog";
 import { appendGift, GiftBanner, GiftCelebration, LiveFeed, type FeedItem, type GiftMoment } from "@/components/live/LiveFeed";
 import { LiveChatInput } from "@/components/live/LiveChatInput";
-import { ShareButton } from "@/components/ui/ShareButton";
+import { LiveShareButtons } from "@/components/live/LiveShareButtons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "@/components/live/stage";
 import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "@/components/live/SupportSheets";
 import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle } from "@/components/live/battle";
@@ -119,6 +119,16 @@ export default function LiveBroadcastPage() {
     const res = await apiFetch("/api/coins").catch(() => null);
     if (res?.ok) setHostXg((await res.json()).balanceXg);
   }
+  // A Live set up as a battle on the Go Live form opens the battle setup as
+  // soon as it's running (once — closing it leaves the Battle chip).
+  const [isBattleLive, setIsBattleLive] = useState(false);
+  const autoBattleRef = useRef(false);
+  useEffect(() => {
+    if (!isBattleLive || !room || !battleState.loaded || battle || autoBattleRef.current) return;
+    autoBattleRef.current = true;
+    void openBattleSetup();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- openBattleSetup is a plain function; run once when ready
+  }, [isBattleLive, room, battleState.loaded, battle]);
   const refreshStageRef = useRef(refreshStage);
   useEffect(() => {
     refreshStageRef.current = refreshStage;
@@ -168,7 +178,8 @@ export default function LiveBroadcastPage() {
         setStatus(res.status === 404 ? "ended" : "error");
         return;
       }
-      const { token, url, isHost } = await res.json();
+      const { token, url, isHost, session: joined } = await res.json();
+      setIsBattleLive(!!joined?.isBattle);
       if (cancelled) return;
       if (!isHost) {
         router.replace(`/live/${params.id}`);
@@ -500,13 +511,7 @@ export default function LiveBroadcastPage() {
                 </span>
               )}
             </button>
-            <ShareButton
-              title="Live on XOLDOUT"
-              text={`${myName} is live on XOLDOUT — join now`}
-              path={`/live/${params.id}`}
-              label="Share"
-              className="bg-red text-white"
-            />
+            <LiveShareButtons liveId={params.id} title="Live on XOLDOUT" text={`${myName} is live on XOLDOUT — join now`} accent />
           </div>
 
           <div className="mt-2.5 flex items-center gap-2">
@@ -623,7 +628,7 @@ export default function LiveBroadcastPage() {
       {supportSheet === "coins" && <CoinStatsSheet data={support} onClose={() => setSupportSheet(null)} />}
 
       {battleSheet === "setup" && (
-        <BattleSetupSheet onStage={stage?.onStage ?? []} balanceXg={hostXg} act={battleState.act} onClose={() => setBattleSheet(null)} />
+        <BattleSetupSheet people={stage?.watching ?? []} balanceXg={hostXg} act={battleState.act} onClose={() => setBattleSheet(null)} />
       )}
       {battleSheet === "details" && battle && <BattleDetailsSheet battle={battle} onClose={() => setBattleSheet(null)} />}
 

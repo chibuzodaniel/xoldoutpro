@@ -49,6 +49,7 @@ type LiveDetails = {
   isPaidAccess: boolean;
   priceXg: number;
   pinnedProductId?: string;
+  isBattle?: boolean;
 };
 
 async function assertPinnableProduct(creatorId: string, pinnedProductId?: string) {
@@ -68,6 +69,7 @@ function detailsData(args: LiveDetails) {
     isPaidAccess: args.isPaidAccess,
     priceXg: args.isPaidAccess ? Math.max(0, Math.round(args.priceXg)) : 0,
     pinnedProductId: args.pinnedProductId,
+    isBattle: args.isBattle ?? false,
   };
 }
 
@@ -76,7 +78,7 @@ function detailsData(args: LiveDetails) {
  * followers (explicit ask: people should be able to join the Live). Saved to
  * each bell and pushed, after the response (lib/notifications/create.ts).
  */
-async function notifyLiveStarted(session: { id: string; title: string; creatorId: string }) {
+async function notifyLiveStarted(session: { id: string; title: string; creatorId: string; isBattle?: boolean }) {
   const [creator, reminders, followers] = await Promise.all([
     db.user.findUnique({ where: { id: session.creatorId }, select: { displayName: true, avatarUrl: true } }),
     db.liveReminder.findMany({ where: { liveSessionId: session.id }, select: { userId: true } }),
@@ -86,7 +88,7 @@ async function notifyLiveStarted(session: { id: string; title: string; creatorId
   if (!creator || recipients.length === 0) return;
   notifyUsersAfterResponse(recipients, {
     kind: "LIVE",
-    title: `🔴 ${creator.displayName} is live now`,
+    title: session.isBattle ? `⚔️ ${creator.displayName} is live with a battle` : `🔴 ${creator.displayName} is live now`,
     body: session.title,
     url: `/live/${session.id}`,
     icon: creator.avatarUrl ?? undefined,
@@ -250,6 +252,7 @@ export async function getLivePublicInfo(liveSessionId: string, viewerId: string 
       startedAt: true,
       isPaidAccess: true,
       priceXg: true,
+      isBattle: true,
       coverImageLadder: true,
       creatorId: true,
       creator: { select: { handle: true, displayName: true, avatarUrl: true } },

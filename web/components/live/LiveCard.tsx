@@ -6,6 +6,7 @@ export type LiveCardSession = {
   id: string;
   title: string;
   isPaidAccess: boolean;
+  isBattle?: boolean;
   priceXg: number;
   viewerCount: number;
   creator: { displayName: string; avatarUrl: string | null };
@@ -59,6 +60,9 @@ export function LiveCard({ session, index }: { session: LiveCardSession; index: 
           <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
           Live
         </span>
+        {session.isBattle && (
+          <span className="absolute left-2.5 top-8 rounded-md bg-amber px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-black">⚔️ Battle</span>
+        )}
         <span className="absolute right-2.5 top-2.5 rounded-full bg-black/45 backdrop-blur-sm px-2.5 py-1 text-[11px] font-semibold text-white flex items-center gap-1">
           <EyeIcon className="h-3.5 w-3.5" />
           {session.viewerCount.toLocaleString("en-NG")}
@@ -85,6 +89,7 @@ export type UpcomingLiveCardData = {
   title: string;
   scheduledFor: string | Date | null;
   isPaidAccess: boolean;
+  isBattle?: boolean;
   priceXg: number;
   reminderCount: number;
   creator: { displayName: string; avatarUrl: string | null };
@@ -102,7 +107,10 @@ export function UpcomingLiveRow({ live }: { live: UpcomingLiveCardData }) {
         fallback={<InitialsAvatar name={live.creator.displayName} className="h-11 w-11 text-[13px]" />}
       />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[14px] font-semibold">{live.title}</p>
+        <p className="truncate text-[14px] font-semibold">
+          {live.isBattle && <span className="mr-1.5 rounded bg-amber px-1.5 py-0.5 align-middle text-[10px] font-bold uppercase text-black">⚔️ Battle</span>}
+          {live.title}
+        </p>
         <p className="truncate text-[12px] text-ink-3" suppressHydrationWarning>
           {live.creator.displayName}
           {when && ` · ${when.toLocaleString(undefined, { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`}

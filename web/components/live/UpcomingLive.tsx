@@ -17,6 +17,7 @@ export type LivePublicInfo = {
   status: "SCHEDULED" | "LIVE" | "ENDED";
   scheduledFor: string | null;
   isPaidAccess: boolean;
+  isBattle?: boolean;
   priceXg: number;
   coverImageLadder: Record<string, string> | null;
   creator: { handle: string; displayName: string; avatarUrl: string | null };
@@ -127,7 +128,7 @@ export function UpcomingLive({ live, onChange }: { live: LivePublicInfo; onChang
         </span>
       </div>
 
-      <p className="text-[13px] text-ink-3">@{live.creator.handle} is going live</p>
+      <p className="text-[13px] text-ink-3">@{live.creator.handle} is going live{live.isBattle ? " with a battle ⚔️" : ""}</p>
       <h1 className="mt-1 font-serif text-[28px] leading-tight">{live.title}</h1>
       {live.description && <p className="mt-2 text-sm text-ink-2 whitespace-pre-wrap">{live.description}</p>}
 

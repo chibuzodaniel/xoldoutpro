@@ -1498,6 +1498,10 @@ model LiveSession {
   pinnedProductId  String?
   pinnedProduct    Product?          @relation(fields: [pinnedProductId], references: [id])
   peakViewers      Int               @default(0)
+  // Set up as a battle from the Go Live form (explicit ask, 2026-10-08):
+  // badged as a battle on cards/links, and the host's battle setup opens as
+  // soon as the Live starts. The battles themselves are LiveBattle rows.
+  isBattle         Boolean           @default(false)
   // When a SCHEDULED Live is planned to start (shown as a countdown on its
   // link). startedAt is reset to the real start time when it goes live.
   scheduledFor     DateTime?

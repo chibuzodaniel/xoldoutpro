@@ -51,6 +51,9 @@ export default function NewLivePage() {
   // Go live right away, or schedule it for later with a shareable link.
   const [mode, setMode] = useState<"now" | "schedule">("now");
   const [scheduleAt, setScheduleAt] = useState("");
+  // A battle Live (explicit ask, 2026-10-08): badged as a battle, and the
+  // battle setup opens the moment the Live starts — see components/live/battle.tsx.
+  const [isBattle, setIsBattle] = useState(false);
 
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [coverImageLadder, setCoverImageLadder] = useState<Record<string, string> | null>(null);
@@ -136,6 +139,7 @@ export default function NewLivePage() {
           isPaidAccess,
           priceXg: price,
           pinnedProductId: pinnedProductId ?? undefined,
+          isBattle,
           scheduledFor,
         }),
       });
@@ -177,6 +181,30 @@ export default function NewLivePage() {
               {m === "now" ? "Go live now" : "Schedule for later"}
             </button>
           ))}
+        </div>
+
+        <div>
+          <p className="text-[12px] uppercase tracking-widest text-ink-3 mb-2">Type of Live</p>
+          <div className="grid grid-cols-2 gap-2">
+            {([false, true] as const).map((b) => (
+              <button
+                key={String(b)}
+                type="button"
+                onClick={() => setIsBattle(b)}
+                className={`rounded-xl border px-3 py-3 text-left transition-colors ${isBattle === b ? "border-red bg-red/10" : "border-line"}`}
+              >
+                <span className="block text-sm font-semibold">{b ? "⚔️ Battle" : "🎙 Regular Live"}</span>
+                <span className="mt-0.5 block text-[11px] text-ink-3">
+                  {b ? "Rap battle, face-off or contest — timed turns, gifts + votes, XG prize" : "Perform, chat and take gifts"}
+                </span>
+              </button>
+            ))}
+          </div>
+          {isBattle && (
+            <p className="mt-1.5 text-[11px] text-ink-3">
+              Your Live shows as a battle. When it starts you&apos;ll pick 2–3 competitors from the people watching and set the rounds, timer and prize.
+            </p>
+          )}
         </div>
 
         {mode === "schedule" && (

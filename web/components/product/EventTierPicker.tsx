@@ -46,7 +46,6 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
   const [access, setAccess] = useState<Record<string, AccessTier> | null>(null);
   const [isOwner, setIsOwner] = useState(false);
   const [busyProductId, setBusyProductId] = useState<string | null>(null);
-  const [giftingProductId, setGiftingProductId] = useState<string | null>(null);
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
   const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
@@ -115,31 +114,6 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusyProductId(null);
-    }
-  }
-
-  async function handleGift(productId: string) {
-    if (!firebaseUser) {
-      router.push("/login");
-      return;
-    }
-    setGiftingProductId(productId);
-    try {
-      const priceKobo = tiers.find((t) => t.productId === productId)?.priceKobo ?? 0;
-      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, isGift: true, gateway }) });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
-      if (data.free) {
-        router.push("/library?tab=gifts");
-      } else {
-        router.push(data.checkoutUrl);
-      }
-    } catch (err) {
-      if (err instanceof GatewayPickerCancelled) return;
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setGiftingProductId(null);
     }
   }
 
@@ -225,15 +199,6 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
                           : tier.priceKobo * qty,
                       )}`}
                 </button>
-                {qty === 1 && (
-                  <button
-                    onClick={() => handleGift(tier.productId)}
-                    disabled={giftingProductId === tier.productId}
-                    className="shrink-0 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink-2 disabled:opacity-50"
-                  >
-                    {giftingProductId === tier.productId ? "Starting…" : "Gift"}
-                  </button>
-                )}
                 </div>
               </div>
             )}

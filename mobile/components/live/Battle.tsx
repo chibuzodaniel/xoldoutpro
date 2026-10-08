@@ -72,6 +72,7 @@ export function isBattleShown(b: Battle | null): b is Battle {
 export function useBattle(liveId: string) {
   const { firebaseUser } = useAuth();
   const [battle, setBattle] = useState<Battle | null>(null);
+  const [loaded, setLoaded] = useState(false);
   const [skewMs, setSkewMs] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -83,6 +84,7 @@ export function useBattle(liveId: string) {
       if (!res.ok) return;
       const data: { battle: Battle | null } = await res.json();
       setBattle(data.battle);
+      setLoaded(true);
       if (data.battle) setSkewMs(new Date(data.battle.serverTime).getTime() - Date.now());
     } catch {
       // keep the last good state
@@ -117,7 +119,7 @@ export function useBattle(liveId: string) {
 
   const dismiss = useCallback(() => setBattle(null), []);
 
-  return { battle, skewMs, refresh, act, bumpGift, dismiss };
+  return { battle, loaded, skewMs, refresh, act, bumpGift, dismiss };
 }
 
 function useCountdown(endsAt: string | null | undefined, skewMs: number) {
@@ -390,21 +392,24 @@ export function BattleDetailsSheet({ battle, visible, onClose }: { battle: Battl
 const TURN_OPTIONS = [30, 60, 90, 120, 180, 300];
 const VOTE_OPTIONS = [60, 120, 180];
 
+/** Host: competitors come from everyone in the room — on stage or just watching (picked viewers are brought on stage). */
 export function BattleSetupSheet({
   visible,
-  onStage,
+  people,
   balanceXg,
   act,
   onClose,
 }: {
   visible: boolean;
-  onStage: StagePerson[];
+  people: StagePerson[];
   balanceXg: number | null;
   act: (body: Record<string, unknown>) => Promise<Battle | null>;
   onClose: () => void;
 }) {
   const toast = useToast();
-  const guests = onStage.filter((p) => p.role !== "host");
+  const guests = people.filter((p) => p.role !== "host");
+  const onStageGuests = guests.filter((g) => g.onStage);
+  const watchers = guests.filter((g) => !g.onStage);
   const [title, setTitle] = useState("");
   const [picked, setPicked] = useState<string[] | null>(null);
   const [rounds, setRounds] = useState(2);
@@ -414,8 +419,9 @@ export function BattleSetupSheet({
   const [prizes, setPrizes] = useState<number[]>([0, 0, 0]);
   const [busy, setBusy] = useState(false);
 
-  // Everyone on stage is picked until the host changes it.
-  const chosen = picked ?? guests.map((g) => g.userId);
+  // Everyone on stage (up to 3) is picked until the host changes it.
+  const chosen = picked ?? onStageGuests.slice(0, 3).map((g) => g.userId);
+  const full = chosen.length >= 3;
   const maxWinners = Math.min(3, Math.max(1, chosen.length));
   const places = prizes.slice(0, Math.min(winners, maxWinners));
   const total = places.reduce((a, b) => a + (b || 0), 0);
@@ -455,23 +461,37 @@ export function BattleSetupSheet({
           style={styles.input}
         />
 
-        <Text style={styles.label}>Competitors (from your stage)</Text>
+        <Text style={styles.label}>Competitors · pick 2–3 ({chosen.length} picked)</Text>
         {guests.length < 2 ? (
-          <Text style={styles.note}>Bring at least 2 people on stage first (People → add to stage).</Text>
+          <Text style={styles.note}>Waiting for people to join — once at least 2 are watching, pick your competitors here. Share your Live to bring them in.</Text>
         ) : (
-          <View style={styles.chips}>
-            {guests.map((g) => {
-              const on = chosen.includes(g.userId);
-              return (
-                <Chip
-                  key={g.userId}
-                  on={on}
-                  label={g.displayName}
-                  onPress={() => setPicked(on ? chosen.filter((x) => x !== g.userId) : [...chosen, g.userId])}
-                />
-              );
-            })}
-          </View>
+          [
+            { label: "On stage", list: onStageGuests },
+            { label: "Watching", list: watchers },
+          ]
+            .filter((g) => g.list.length > 0)
+            .map((group) => (
+              <View key={group.label}>
+                <Text style={styles.note}>{group.label}</Text>
+                <View style={styles.chips}>
+                  {group.list.map((g) => {
+                    const on = chosen.includes(g.userId);
+                    return (
+                      <Chip
+                        key={g.userId}
+                        on={on}
+                        disabled={!on && full}
+                        label={g.displayName}
+                        onPress={() => setPicked(on ? chosen.filter((x) => x !== g.userId) : [...chosen, g.userId])}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            ))
+        )}
+        {chosen.some((id) => watchers.some((w) => w.userId === id)) && (
+          <Text style={styles.note}>Anyone picked from the viewers is brought on stage when you set up the battle.</Text>
         )}
 
         <Text style={styles.label}>Rounds</Text>

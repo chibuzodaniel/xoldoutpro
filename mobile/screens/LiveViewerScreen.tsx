@@ -1,4 +1,3 @@
-import { SendToChatButton } from "../components/messages/SendToChat";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Alert, AppState, Text, TextInput, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
@@ -17,6 +16,7 @@ import { useLiveAudioSession } from "../lib/liveAudio";
 import { AddBalance, BottomSheet, GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed, ShareLiveButton } from "../components/live/LiveBits";
 import { CloseIcon, EyeIcon, GiftArt, MicLineIcon, XgCoin } from "../components/live/LiveIcons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageActions, useStageState, type StageEvent } from "../components/live/Stage";
+import { LiveShareButtons } from "../components/live/LiveShareButtons";
 import { BattleBar, BattleDetailsSheet, isBattleActive, isBattleEvent, isBattleShown, useBattle } from "../components/live/Battle";
 import { useToast } from "../components/ToastProvider";
 import { TopGifterChip, TopGiftersSheet, useTopGifters } from "../components/live/TopGifters";
@@ -649,8 +649,7 @@ function ViewerRoomContent({
               )}
             </TouchableOpacity>
           )}
-          <ShareLiveButton liveSessionId={liveSessionId} message={`${creatorName} is live on XOLDOUT — join now`} />
-          <SendToChatButton share={{ type: "LIVE", id: liveSessionId }} style={styles.peopleButton} textStyle={styles.peopleButtonText} />
+          <LiveShareButtons liveSessionId={liveSessionId} message={`${creatorName} is live on XOLDOUT — join now`} />
           <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityLabel="Leave Live">
             <CloseIcon size={24} />
           </TouchableOpacity>

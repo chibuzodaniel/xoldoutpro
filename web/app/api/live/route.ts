@@ -21,6 +21,7 @@ export async function GET() {
       title: s.title,
       isPaidAccess: s.isPaidAccess,
       priceXg: s.priceXg,
+      isBattle: s.isBattle,
       viewerCount: s.viewerCount,
       startedAt: s.startedAt,
       creator: s.creator,
@@ -31,6 +32,7 @@ export async function GET() {
       scheduledFor: s.scheduledFor,
       isPaidAccess: s.isPaidAccess,
       priceXg: s.priceXg,
+      isBattle: s.isBattle,
       reminderCount: s.reminderCount,
       creator: s.creator,
     })),
@@ -44,6 +46,7 @@ const bodySchema = z.object({
   isPaidAccess: z.boolean().default(false),
   priceXg: z.number().int().min(0).default(0),
   pinnedProductId: z.string().optional(),
+  isBattle: z.boolean().default(false),
   // Set = schedule for later (gets a shareable link now, no room until the
   // host starts it); absent = go live right away.
   scheduledFor: z.coerce.date().optional(),

@@ -117,6 +117,15 @@ export async function POST(req: NextRequest) {
     if (product.creatorId === buyer.id) {
       return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
     }
+    // Buying songs/beats/tickets as gifts is switched off (explicit ask,
+    // 2026-10-08): unclaimed gifts expired and were refunded, which made
+    // creators' sales counts go up and then back down. Gifts bought before
+    // this keep working — claim links, the Library "Gifts" tab and the
+    // expiry sweep (lib/commerce/gifts.ts) are untouched. To bring gifting
+    // back, remove this check and restore the "Gift" buttons.
+    if (isGift) {
+      return NextResponse.json({ error: "Gifting isn't available right now" }, { status: 400 });
+    }
     if (isGift && !GIFTABLE_TYPES.includes(product.type as (typeof GIFTABLE_TYPES)[number])) {
       return NextResponse.json({ error: "This can't be gifted" }, { status: 400 });
     }

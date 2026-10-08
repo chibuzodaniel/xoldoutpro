@@ -232,6 +232,7 @@ function UpcomingRow({ live, onPress }: { live: UpcomingLiveSummary; onPress: ()
       <InitialsAvatar name={live.creator.displayName} avatarUrl={live.creator.avatarUrl} size={44} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={rowStyles.title} numberOfLines={1}>
+          {live.isBattle ? "⚔️ " : ""}
           {live.title}
         </Text>
         <Text style={rowStyles.meta} numberOfLines={1}>

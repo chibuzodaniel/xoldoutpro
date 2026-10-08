@@ -42,6 +42,8 @@ export function GoLiveScreen() {
   const [busy, setBusy] = useState(false);
   // Go live right away, or schedule it for later with a shareable link.
   const [mode, setMode] = useState<"now" | "schedule">("now");
+  // A battle Live (explicit ask, 2026-10-08) — mirrors web's Go Live form.
+  const [isBattle, setIsBattle] = useState(false);
   const [scheduleAt, setScheduleAt] = useState<Date | null>(null);
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [endingActive, setEndingActive] = useState(false);
@@ -115,6 +117,7 @@ export function GoLiveScreen() {
         isPaidAccess,
         priceXg: price,
         pinnedProductId: pinnedProductId ?? undefined,
+        isBattle,
         scheduledFor: mode === "schedule" && scheduleAt ? scheduleAt.toISOString() : undefined,
       });
       if (mode === "schedule") {
@@ -142,6 +145,25 @@ export function GoLiveScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        <Text style={styles.label}>Type of Live</Text>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {([false, true] as const).map((b) => (
+            <TouchableOpacity
+              key={String(b)}
+              onPress={() => setIsBattle(b)}
+              style={[styles.typeOption, isBattle === b && styles.typeOptionActive]}
+            >
+              <Text style={styles.typeTitle}>{b ? "⚔️ Battle" : "🎙 Regular Live"}</Text>
+              <Text style={styles.typeSub}>{b ? "Rap battle, face-off or contest — turns, gifts + votes, XG prize" : "Perform, chat and take gifts"}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        {isBattle && (
+          <Text style={styles.typeHint}>
+            Your Live shows as a battle. When it starts you'll pick 2–3 competitors from the people watching and set the rounds, timer and prize.
+          </Text>
+        )}
+
         {mode === "schedule" && (
           <View style={{ marginBottom: 8 }}>
             <DateTimeField label="Starts at" value={scheduleAt} onChange={setScheduleAt} />
@@ -298,6 +320,11 @@ const styles = StyleSheet.create({
   submitButton: { backgroundColor: colors.red, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginTop: 28 },
   submitButtonText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
   modeRow: { flexDirection: "row", gap: 4, backgroundColor: colors.surface, borderRadius: 12, padding: 4, marginBottom: 16 },
+  typeOption: { flex: 1, borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 12 },
+  typeOptionActive: { borderColor: colors.red, backgroundColor: "rgba(225,29,46,0.1)" },
+  typeTitle: { color: colors.ink, fontSize: 14, fontWeight: "700" },
+  typeSub: { color: colors.ink3, fontSize: 11, marginTop: 3 },
+  typeHint: { color: colors.ink3, fontSize: 11, marginTop: 6 },
   modeOption: { flex: 1, borderRadius: 9, paddingVertical: 10, alignItems: "center" },
   modeOptionActive: { backgroundColor: colors.red },
   modeText: { color: colors.ink3, fontSize: 13, fontWeight: "700" },

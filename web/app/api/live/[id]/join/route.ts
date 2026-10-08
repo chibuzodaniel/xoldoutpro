@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       // full-screen and show anyone else on stage (lib/live/stage.ts) as tiles.
       hostId: session.creatorId,
       roomName,
-      session: { title: session.title, creator: session.creator, pinnedProduct: session.pinnedProduct },
+      session: { title: session.title, creator: session.creator, pinnedProduct: session.pinnedProduct, isBattle: session.isBattle },
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

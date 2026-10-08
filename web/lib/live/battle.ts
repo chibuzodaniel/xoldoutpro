@@ -119,6 +119,12 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
       competitors: { create: ids.map((userId, position) => ({ userId, position })) },
     },
   });
+  // Picked straight from the viewers (explicit ask, 2026-10-08): bring
+  // everyone competing on stage now so they can get ready before Start.
+  // Best-effort — someone already up, or a full stage, is fine.
+  for (const userId of ids) {
+    await inviteToStage({ liveSessionId, actorId: hostId, targetUserId: userId }).catch(() => {});
+  }
   await announce(session.roomName, "created", battle.id);
   return battle;
 }

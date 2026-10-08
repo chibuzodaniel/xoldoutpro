@@ -57,6 +57,11 @@ export function LiveCard({ session, index, onPress }: { session: LiveSessionSumm
         <View style={styles.liveDot} />
         <Text style={styles.cardLiveText}>LIVE</Text>
       </View>
+      {session.isBattle && (
+        <View style={styles.cardBattleBadge}>
+          <Text style={styles.cardBattleText}>⚔️ BATTLE</Text>
+        </View>
+      )}
       <View style={styles.cardViewers}>
         <EyeIcon size={13} />
         <Text style={styles.cardViewersText}>{(session.viewerCount ?? 0).toLocaleString("en-NG")}</Text>
@@ -315,6 +320,8 @@ const styles = StyleSheet.create({
   initialsText: { color: "#fff", fontWeight: "700" },
 
   card: { flex: 1, aspectRatio: 3 / 4, borderRadius: 16, overflow: "hidden", backgroundColor: colors.surface2 },
+  cardBattleBadge: { position: "absolute", left: 10, top: 34, backgroundColor: colors.amber, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
+  cardBattleText: { color: "#000", fontSize: 11, fontWeight: "800" },
   cardLiveBadge: {
     position: "absolute",
     left: 10,

@@ -74,6 +74,7 @@ export function isBattleShown(b: Battle | null): b is Battle {
 
 export function useBattle(liveId: string, enabled: boolean) {
   const [battle, setBattle] = useState<Battle | null>(null);
+  const [loaded, setLoaded] = useState(false);
   // Server clock minus ours, so every phone's countdown agrees.
   const [skewMs, setSkewMs] = useState(0);
   const refresh = useCallback(async () => {
@@ -81,6 +82,7 @@ export function useBattle(liveId: string, enabled: boolean) {
     if (!res?.ok) return;
     const data: { battle: Battle | null } = await res.json();
     setBattle(data.battle);
+    setLoaded(true);
     if (data.battle) setSkewMs(new Date(data.battle.serverTime).getTime() - Date.now());
   }, [liveId]);
 
@@ -111,7 +113,7 @@ export function useBattle(liveId: string, enabled: boolean) {
 
   const dismiss = useCallback(() => setBattle(null), []);
 
-  return { battle, skewMs, refresh, act, bumpGift, dismiss };
+  return { battle, loaded, skewMs, refresh, act, bumpGift, dismiss };
 }
 
 function useCountdown(endsAt: string | null | undefined, skewMs: number) {
@@ -434,22 +436,29 @@ export function BattleDetailsSheet({ battle, onClose }: { battle: Battle; onClos
 const TURN_OPTIONS = [30, 60, 90, 120, 180, 300];
 const VOTE_OPTIONS = [60, 120, 180];
 
-/** Host: set up a battle with people already on stage. */
+/**
+ * Host: set up a battle. Competitors come from everyone in the room —
+ * people on stage or just watching (explicit ask, 2026-10-08: "select from
+ * viewers straight"); anyone picked who isn't on stage is brought up.
+ */
 export function BattleSetupSheet({
-  onStage,
+  people,
   balanceXg,
   act,
   onClose,
 }: {
-  onStage: StagePerson[];
+  people: StagePerson[];
   balanceXg: number | null;
   act: (body: Record<string, unknown>) => Promise<Battle | null>;
   onClose: () => void;
 }) {
   const toast = useToast();
-  const guests = onStage.filter((p) => p.role !== "host");
+  const guests = people.filter((p) => p.role !== "host");
+  const onStageGuests = guests.filter((g) => g.onStage);
+  const watchers = guests.filter((g) => !g.onStage);
   const [title, setTitle] = useState("");
-  const [picked, setPicked] = useState<string[]>(() => guests.map((g) => g.userId));
+  const [picked, setPicked] = useState<string[]>(() => onStageGuests.slice(0, 3).map((g) => g.userId));
+  const full = picked.length >= 3;
   const [rounds, setRounds] = useState(2);
   const [turnSeconds, setTurnSeconds] = useState(60);
   const [votingSeconds, setVotingSeconds] = useState(60);
@@ -491,24 +500,42 @@ export function BattleSetupSheet({
           className="mb-4 w-full rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-red"
         />
 
-        <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Competitors (from your stage)</p>
+        <p className="mb-2 text-[12px] uppercase tracking-wide text-ink-3">Competitors · pick 2–3 ({picked.length} picked)</p>
         {guests.length < 2 ? (
-          <p className="mb-4 rounded-lg bg-white/[0.04] p-3 text-[13px] text-ink-2">Bring at least 2 people on stage first (People → add to stage).</p>
+          <p className="mb-4 rounded-lg bg-white/[0.04] p-3 text-[13px] text-ink-2">
+            Waiting for people to join — once at least 2 are watching, pick your competitors here. Share your Live to bring them in.
+          </p>
         ) : (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {guests.map((g) => {
-              const on = picked.includes(g.userId);
-              return (
-                <button
-                  key={g.userId}
-                  type="button"
-                  onClick={() => setPicked((p) => (on ? p.filter((x) => x !== g.userId) : [...p, g.userId]))}
-                  className={chip(on)}
-                >
-                  {g.displayName}
-                </button>
-              );
-            })}
+          <div className="mb-4 flex flex-col gap-3">
+            {[
+              { label: "On stage", list: onStageGuests },
+              { label: "Watching", list: watchers },
+            ]
+              .filter((g) => g.list.length > 0)
+              .map((group) => (
+                <div key={group.label}>
+                  <p className="mb-1.5 text-[11px] text-ink-3">{group.label}</p>
+                  <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                    {group.list.map((g) => {
+                      const on = picked.includes(g.userId);
+                      return (
+                        <button
+                          key={g.userId}
+                          type="button"
+                          disabled={!on && full}
+                          onClick={() => setPicked((p) => (on ? p.filter((x) => x !== g.userId) : [...p, g.userId]))}
+                          className={`${chip(on)} disabled:opacity-40`}
+                        >
+                          {g.displayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            {picked.some((id) => watchers.some((w) => w.userId === id)) && (
+              <p className="text-[11px] text-ink-3">Anyone picked from the viewers is brought on stage when you set up the battle.</p>
+            )}
           </div>
         )}
 
