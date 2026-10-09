@@ -523,20 +523,32 @@ async function mutualFollowerIds(hostId: string, candidateIds: string[]) {
   return new Set(rows.map((r) => r.id));
 }
 
-/** People the host can invite: everyone they follow who follows them back. */
-export async function listInvitable(liveSessionId: string, hostId: string) {
+const INVITABLE_PAGE = 50;
+
+/**
+ * People the host can invite: everyone they follow who follows them back.
+ * `query` searches all of them by name or @handle on the server (explicit
+ * ask, 2026-10-09 — the old fixed first-200 list hid everyone past it);
+ * without one, the first page A–Z. `more` says there are others to search for.
+ */
+export async function listInvitable(liveSessionId: string, hostId: string, query?: string) {
   await requireHost(liveSessionId, hostId);
-  return db.user.findMany({
+  const q = query?.trim().replace(/^@/, "").slice(0, 50) ?? "";
+  const rows = await db.user.findMany({
     where: {
       id: { not: hostId },
       deletedAt: null,
       followers: { some: { followerId: hostId } },
       following: { some: { followedId: hostId } },
+      ...(q
+        ? { OR: [{ displayName: { contains: q, mode: "insensitive" as const } }, { handle: { contains: q, mode: "insensitive" as const } }] }
+        : {}),
     },
     select: PERSON,
     orderBy: { displayName: "asc" },
-    take: 200,
+    take: INVITABLE_PAGE + 1,
   });
+  return { people: rows.slice(0, INVITABLE_PAGE), more: rows.length > INVITABLE_PAGE };
 }
 
 function fmtClock(s: number) {

@@ -449,25 +449,41 @@ export function BattleSetupSheet({
   // Mutual followers to ring (explicit ask, 2026-10-08) — they join when they accept.
   const { firebaseUser } = useAuth();
   const [invitable, setInvitable] = useState<BattlePerson[] | null>(null);
+  const [moreInvitable, setMoreInvitable] = useState(false);
   const [invited, setInvited] = useState<string[]>([]);
+  const [inviteQuery, setInviteQuery] = useState("");
+  // Everyone seen in any result, so invited people stay listed while a
+  // search shows others.
+  const [knownPeople, setKnownPeople] = useState<Map<string, BattlePerson>>(new Map());
+  // Searches every mutual follower on the server (explicit ask, 2026-10-09),
+  // debounced so typing doesn't fire a request per key.
   useEffect(() => {
     if (!visible || !firebaseUser) return;
     let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/live/${liveId}/battle/invitable`, {
-          headers: { Authorization: `Bearer ${await firebaseUser.getIdToken()}` },
-        });
-        const data = res.ok ? await res.json() : { people: [] };
-        if (!cancelled) setInvitable(data.people ?? []);
-      } catch {
-        if (!cancelled) setInvitable([]);
-      }
-    })();
+    const q = inviteQuery.trim();
+    const timer = setTimeout(
+      async () => {
+        try {
+          const res = await fetch(`${API_BASE_URL}/api/live/${liveId}/battle/invitable${q ? `?q=${encodeURIComponent(q)}` : ""}`, {
+            headers: { Authorization: `Bearer ${await firebaseUser.getIdToken()}` },
+          });
+          const data: { people?: BattlePerson[]; more?: boolean } = res.ok ? await res.json() : { people: [] };
+          if (cancelled) return;
+          const people = data.people ?? [];
+          setInvitable(people);
+          setMoreInvitable(!!data.more);
+          setKnownPeople((cur) => new Map([...cur, ...people.map((p) => [p.id, p] as const)]));
+        } catch {
+          if (!cancelled) setInvitable([]);
+        }
+      },
+      q ? 350 : 0,
+    );
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [visible, firebaseUser, liveId]);
+  }, [visible, firebaseUser, liveId, inviteQuery]);
   const inRoom = new Set(guests.map((g) => g.userId));
   const count = chosen.length + invited.length;
   const full = count >= 3;
@@ -549,11 +565,29 @@ export function BattleSetupSheet({
         <Text style={styles.note}>Invite mutual followers — their phone rings with the battle details</Text>
         {invitable === null ? (
           <Text style={styles.note}>Loading…</Text>
-        ) : invitable.filter((p) => !inRoom.has(p.id)).length === 0 ? (
+        ) : !inviteQuery && invited.length === 0 && invitable.filter((p) => !inRoom.has(p.id)).length === 0 ? (
           <Text style={styles.note}>No mutual followers to invite yet — people you follow who follow you back show here.</Text>
         ) : (
+          <>
+          <TextInput
+            value={inviteQuery}
+            onChangeText={setInviteQuery}
+            placeholder="Search all your mutual followers"
+            placeholderTextColor={colors.ink3}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.input, { marginBottom: 8 }]}
+          />
+          {!inviteQuery && moreInvitable && <Text style={styles.note}>Showing the first {invitable.length} A–Z — search to find anyone else.</Text>}
+          {!!inviteQuery && invitable.filter((p) => !inRoom.has(p.id)).length === 0 && (
+            <Text style={styles.note}>No mutual followers match “{inviteQuery.trim()}”.</Text>
+          )}
           <View style={styles.chips}>
-            {invitable
+            {[
+              // Invited people first and always shown, then the current results.
+              ...invited.map((id) => knownPeople.get(id)).filter((p): p is BattlePerson => !!p),
+              ...invitable.filter((p) => !invited.includes(p.id)),
+            ]
               .filter((p) => !inRoom.has(p.id))
               .map((p) => {
                 const on = invited.includes(p.id);
@@ -568,6 +602,7 @@ export function BattleSetupSheet({
                 );
               })}
           </View>
+          </>
         )}
 
         <Text style={styles.label}>Rounds</Text>

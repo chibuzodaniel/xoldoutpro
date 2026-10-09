@@ -477,14 +477,37 @@ export function BattleSetupSheet({
   const [picked, setPicked] = useState<string[]>(() => onStageGuests.slice(0, 3).map((g) => g.userId));
   // Mutual followers to ring (explicit ask, 2026-10-08) — they join when they accept.
   const [invitable, setInvitable] = useState<BattlePerson[] | null>(null);
+  const [moreInvitable, setMoreInvitable] = useState(false);
   const [invited, setInvited] = useState<string[]>([]);
   const [inviteQuery, setInviteQuery] = useState("");
+  // Everyone seen in any result, so invited people stay listed while a
+  // search shows others.
+  const [knownPeople, setKnownPeople] = useState<Map<string, BattlePerson>>(new Map());
+  // Searches every mutual follower on the server (explicit ask, 2026-10-09),
+  // debounced so typing doesn't fire a request per key.
   useEffect(() => {
-    apiFetch(`/api/live/${liveId}/battle/invitable`)
-      .then((res) => (res.ok ? res.json() : { people: [] }))
-      .then((data) => setInvitable(data.people ?? []))
-      .catch(() => setInvitable([]));
-  }, [liveId]);
+    let cancelled = false;
+    const q = inviteQuery.trim();
+    const timer = setTimeout(
+      () => {
+        apiFetch(`/api/live/${liveId}/battle/invitable${q ? `?q=${encodeURIComponent(q)}` : ""}`)
+          .then((res) => (res.ok ? res.json() : { people: [] }))
+          .then((data: { people?: BattlePerson[]; more?: boolean }) => {
+            if (cancelled) return;
+            const people = data.people ?? [];
+            setInvitable(people);
+            setMoreInvitable(!!data.more);
+            setKnownPeople((cur) => new Map([...cur, ...people.map((p) => [p.id, p] as const)]));
+          })
+          .catch(() => !cancelled && setInvitable([]));
+      },
+      q ? 350 : 0,
+    );
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [liveId, inviteQuery]);
   const inRoom = new Set(guests.map((g) => g.userId));
   const count = picked.length + invited.length;
   const full = count >= 3;
@@ -579,25 +602,27 @@ export function BattleSetupSheet({
         <p className="mb-1.5 text-[11px] text-ink-3">Invite mutual followers — their phone rings with the battle details</p>
         {invitable === null ? (
           <p className="mb-4 text-[13px] text-ink-3">Loading…</p>
-        ) : invitable.filter((p) => !inRoom.has(p.id)).length === 0 ? (
+        ) : !inviteQuery && invited.length === 0 && invitable.filter((p) => !inRoom.has(p.id)).length === 0 ? (
           <p className="mb-4 text-[13px] text-ink-3">No mutual followers to invite yet — people you follow who follow you back show here.</p>
         ) : (
           <div className="mb-4">
-            {invitable.length > 8 && (
-              <input
-                value={inviteQuery}
-                onChange={(e) => setInviteQuery(e.target.value)}
-                placeholder="Search mutual followers"
-                className="mb-2 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-red"
-              />
-            )}
+            <input
+              value={inviteQuery}
+              onChange={(e) => setInviteQuery(e.target.value)}
+              placeholder="Search all your mutual followers"
+              className="mb-2 w-full rounded-lg border border-line bg-surface-2 px-3 py-2 text-sm outline-none focus:border-red"
+            />
+            {!inviteQuery && moreInvitable && <p className="mb-2 text-[11px] text-ink-3">Showing the first {invitable.length} A–Z — search to find anyone else.</p>}
             <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
-              {invitable
+              {inviteQuery && invitable.filter((p) => !inRoom.has(p.id)).length === 0 && (
+                <p className="text-[13px] text-ink-3">No mutual followers match “{inviteQuery.trim()}”.</p>
+              )}
+              {[
+                // Invited people first and always shown, then the current results.
+                ...invited.map((id) => knownPeople.get(id)).filter((p): p is BattlePerson => !!p),
+                ...invitable.filter((p) => !invited.includes(p.id)),
+              ]
                 .filter((p) => !inRoom.has(p.id))
-                .filter((p) => {
-                  const q = inviteQuery.trim().toLowerCase();
-                  return !q || p.displayName.toLowerCase().includes(q) || p.handle.toLowerCase().includes(q);
-                })
                 .map((p) => {
                   const on = invited.includes(p.id);
                   return (
