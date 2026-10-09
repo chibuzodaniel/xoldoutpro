@@ -21,6 +21,7 @@ export type BattleCompetitor = {
   position: number;
   giftsXg: number;
   votes: number | null;
+  turnVotes: number | null;
   score: number | null;
   place: number | null;
   prizeXg: number;
@@ -47,10 +48,12 @@ export type Battle = {
   turnsDone: number;
   turnsTotal: number;
   myVoteCompetitorId: string | null;
+  myTurnVoted: boolean;
   canVote: boolean;
   competitors: BattleCompetitor[];
   turns: { id: string; competitorId: string; round: number; startedAt: string; endedAt: string | null; seconds: number | null }[];
   totalVotes: number | null;
+  totalTurnVotes: number | null;
   // Mutual followers invited while the battle is being set up.
   invites: { id: string; user: BattlePerson; status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED" }[];
   serverTime: string;
@@ -122,6 +125,31 @@ export function useBattle(liveId: string) {
   const dismiss = useCallback(() => setBattle(null), []);
 
   return { battle, loaded, skewMs, refresh, act, bumpGift, dismiss };
+}
+
+/**
+ * Host's screen only: keeps invites ringing like a call (explicit ask,
+ * 2026-10-09; mirrors web's useKeepInvitesRinging) — asks the server to ring
+ * anyone who hasn't answered every 20s, until they answer or it lapses.
+ */
+export function useKeepInvitesRinging(liveId: string, battle: Battle | null) {
+  const { firebaseUser } = useAuth();
+  const ringing = battle?.status === "READY" && battle.invites.some((i) => i.status === "PENDING");
+  useEffect(() => {
+    if (!ringing || !firebaseUser) return;
+    const id = setInterval(async () => {
+      try {
+        await fetch(`${API_BASE_URL}/api/live/${liveId}/battle`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${await firebaseUser.getIdToken()}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "ring" }),
+        });
+      } catch {
+        // next tick tries again
+      }
+    }, 20_000);
+    return () => clearInterval(id);
+  }, [liveId, ringing, firebaseUser]);
 }
 
 function useCountdown(endsAt: string | null | undefined, skewMs: number) {
@@ -256,6 +284,19 @@ export function BattleBar({
         </View>
       )}
 
+      {/* Vote for whoever is performing (explicit ask, 2026-10-09) — counts toward the winner. */}
+      {performer && battle.canVote && turnLeft !== 0 && (
+        <TouchableOpacity
+          disabled={busy || battle.myTurnVoted}
+          onPress={() => run({ action: "turn-vote" })}
+          style={[styles.turnVote, battle.myTurnVoted && styles.turnVoteDone]}
+        >
+          <Text style={[styles.turnVoteText, battle.myTurnVoted && { color: colors.redSoft }]}>
+            {battle.myTurnVoted ? `✓ You voted for ${performer.user.displayName}` : `👍 Vote for ${performer.user.displayName}`}
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.competitorRow}>
         {battle.competitors.map((c) => {
           const up = performer?.id === c.id;
@@ -287,7 +328,7 @@ export function BattleBar({
                 </Text>
               )}
               {battle.status === "VOTING" && battle.canVote && (
-                <Text style={[styles.competitorPlace, voted && { color: colors.redSoft }]}>{voted ? "Your vote" : "Vote"}</Text>
+                <Text style={[styles.voteChip, voted && styles.voteChipDone]}>{voted ? "✓ Voted" : "Vote"}</Text>
               )}
             </TouchableOpacity>
           );
@@ -351,8 +392,9 @@ export function BattleDetailsSheet({ battle, visible, onClose }: { battle: Battl
           </Text>
           {finished && (
             <Text style={styles.sheetSub}>
-              Score = 50% share of gifts + 50% share of votes
-              {battle.totalVotes !== null ? ` · ${battle.totalVotes} vote${battle.totalVotes === 1 ? "" : "s"}` : ""}
+              Score = ⅓ share of gifts + ⅓ share of votes during performances + ⅓ share of the final vote
+              {battle.totalTurnVotes ? ` · ${battle.totalTurnVotes} performance vote${battle.totalTurnVotes === 1 ? "" : "s"}` : ""}
+              {battle.totalVotes !== null ? ` · ${battle.totalVotes} final vote${battle.totalVotes === 1 ? "" : "s"}` : ""}
             </Text>
           )}
           {ordered.map((c) => (
@@ -366,7 +408,8 @@ export function BattleDetailsSheet({ battle, visible, onClose }: { battle: Battl
                   </Text>
                   <Text style={styles.scoreMeta}>
                     {c.giftsXg.toLocaleString("en-NG")} XG gifted
-                    {c.votes !== null ? ` · ${c.votes} vote${c.votes === 1 ? "" : "s"}` : ""}
+                    {c.turnVotes ? ` · ${c.turnVotes} performance vote${c.turnVotes === 1 ? "" : "s"}` : ""}
+                    {c.votes !== null ? ` · ${c.votes} final vote${c.votes === 1 ? "" : "s"}` : ""}
                     {c.score !== null ? ` · score ${c.score}` : ""}
                   </Text>
                 </View>
@@ -517,7 +560,7 @@ export function BattleSetupSheet({
     <BottomSheet visible={visible} onClose={onClose}>
       <ScrollView style={{ maxHeight: 560 }} keyboardShouldPersistTaps="handled">
         <Text style={styles.sheetTitle}>Start a battle</Text>
-        <Text style={styles.sheetSub}>Competitors take timed turns, viewers gift who they back, then everyone votes. Score is half gifts, half votes.</Text>
+        <Text style={styles.sheetSub}>Competitors take timed turns, viewers gift and vote for whoever is performing, then everyone picks a winner. Score is a third gifts, a third performance votes, a third the final vote.</Text>
 
         <TextInput
           value={title}
@@ -711,6 +754,11 @@ const styles = StyleSheet.create({
   competitorXg: { color: colors.amber, fontSize: 11 },
   competitorPlace: { color: "rgba(255,255,255,0.8)", fontSize: 10, fontWeight: "800" },
   hint: { marginTop: 6, textAlign: "center", color: "rgba(255,255,255,0.9)", fontSize: 11 },
+  turnVote: { marginTop: 8, borderRadius: 12, backgroundColor: colors.red, paddingVertical: 10, alignItems: "center" },
+  turnVoteDone: { backgroundColor: "rgba(225,29,46,0.15)", borderWidth: 1, borderColor: "rgba(225,29,46,0.6)" },
+  turnVoteText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  voteChip: { marginTop: 2, alignSelf: "stretch", textAlign: "center", overflow: "hidden", borderRadius: 8, backgroundColor: colors.red, color: "#fff", fontSize: 12, fontWeight: "800", paddingVertical: 4 },
+  voteChipDone: { backgroundColor: "rgba(225,29,46,0.3)" },
   hostRow: { marginTop: 8, flexDirection: "row", gap: 6 },
   hostButton: { flex: 1, borderRadius: 8, backgroundColor: "rgba(255,255,255,0.15)", paddingVertical: 8, paddingHorizontal: 6, alignItems: "center" },
   hostButtonPrimary: { backgroundColor: colors.red },

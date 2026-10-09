@@ -24,6 +24,7 @@ export type BattleCompetitor = {
   position: number;
   giftsXg: number;
   votes: number | null;
+  turnVotes: number | null;
   score: number | null;
   place: number | null;
   prizeXg: number;
@@ -50,10 +51,12 @@ export type Battle = {
   turnsDone: number;
   turnsTotal: number;
   myVoteCompetitorId: string | null;
+  myTurnVoted: boolean;
   canVote: boolean;
   competitors: BattleCompetitor[];
   turns: { id: string; competitorId: string; round: number; startedAt: string; endedAt: string | null; seconds: number | null }[];
   totalVotes: number | null;
+  totalTurnVotes: number | null;
   // Mutual followers invited while the battle is being set up.
   invites: { id: string; user: BattlePerson; status: "PENDING" | "ACCEPTED" | "DECLINED" | "EXPIRED" }[];
   serverTime: string;
@@ -116,6 +119,22 @@ export function useBattle(liveId: string, enabled: boolean) {
   const dismiss = useCallback(() => setBattle(null), []);
 
   return { battle, loaded, skewMs, refresh, act, bumpGift, dismiss };
+}
+
+/**
+ * Host's screen only: keeps invites ringing like a call (explicit ask,
+ * 2026-10-09) — asks the server to ring anyone who hasn't answered every
+ * 20s, until they answer or the invite lapses (the server throttles it too).
+ */
+export function useKeepInvitesRinging(liveId: string, battle: Battle | null) {
+  const ringing = battle?.status === "READY" && battle.invites.some((i) => i.status === "PENDING");
+  useEffect(() => {
+    if (!ringing) return;
+    const id = setInterval(() => {
+      apiFetch(`/api/live/${liveId}/battle`, { method: "POST", body: JSON.stringify({ action: "ring" }) }).catch(() => {});
+    }, 20_000);
+    return () => clearInterval(id);
+  }, [liveId, ringing]);
 }
 
 function useCountdown(endsAt: string | null | undefined, skewMs: number) {
@@ -262,6 +281,20 @@ export function BattleBar({
         </div>
       )}
 
+      {/* Vote for whoever is performing (explicit ask, 2026-10-09) — counts toward the winner. */}
+      {performer && battle.canVote && turnLeft !== 0 && (
+        <button
+          type="button"
+          disabled={busy || battle.myTurnVoted}
+          onClick={() => run({ action: "turn-vote" })}
+          className={`mt-2 w-full rounded-xl px-3 py-2.5 text-[14px] font-bold ${
+            battle.myTurnVoted ? "border border-red/60 bg-red/15 text-red-soft" : "bg-red text-white active:scale-[0.98]"
+          }`}
+        >
+          {battle.myTurnVoted ? `✓ You voted for ${performer.user.displayName}` : `👍 Vote for ${performer.user.displayName}`}
+        </button>
+      )}
+
       <div className="mt-2 flex gap-1.5">
         {battle.competitors.map((c) => {
           const up = performer?.id === c.id;
@@ -294,7 +327,9 @@ export function BattleBar({
                 </span>
               )}
               {battle.status === "VOTING" && battle.canVote && (
-                <span className={`text-[10px] font-bold ${voted ? "text-red-soft" : "text-white/90"}`}>{voted ? "Your vote" : "Vote"}</span>
+                <span className={`mt-0.5 w-full rounded-lg px-1 py-1 text-[12px] font-bold ${voted ? "bg-red/30 text-white" : "bg-red text-white"}`}>
+                  {voted ? "✓ Voted" : "Vote"}
+                </span>
               )}
             </button>
           );
@@ -363,7 +398,13 @@ export function BattleScoreboard({ battle }: { battle: Battle }) {
   const nameOf = (id: string) => battle.competitors.find((c) => c.id === id)?.user.displayName ?? "";
   return (
     <div>
-      {finished && <p className="mb-3 text-[12px] text-ink-3">Score = 50% share of gifts + 50% share of votes{battle.totalVotes !== null ? ` · ${battle.totalVotes} vote${battle.totalVotes === 1 ? "" : "s"}` : ""}</p>}
+      {finished && (
+        <p className="mb-3 text-[12px] text-ink-3">
+          Score = ⅓ share of gifts + ⅓ share of votes during performances + ⅓ share of the final vote
+          {battle.totalTurnVotes ? ` · ${battle.totalTurnVotes} performance vote${battle.totalTurnVotes === 1 ? "" : "s"}` : ""}
+          {battle.totalVotes !== null ? ` · ${battle.totalVotes} final vote${battle.totalVotes === 1 ? "" : "s"}` : ""}
+        </p>
+      )}
       <div className="flex flex-col gap-3">
         {ordered.map((c) => (
           <div key={c.id} className="rounded-2xl border border-line-soft bg-surface p-3">
@@ -376,7 +417,8 @@ export function BattleScoreboard({ battle }: { battle: Battle }) {
                 </Link>
                 <p className="text-[12px] text-ink-3">
                   {c.giftsXg.toLocaleString("en-NG")} XG gifted
-                  {c.votes !== null ? ` · ${c.votes} vote${c.votes === 1 ? "" : "s"}` : ""}
+                  {c.turnVotes ? ` · ${c.turnVotes} performance vote${c.turnVotes === 1 ? "" : "s"}` : ""}
+                  {c.votes !== null ? ` · ${c.votes} final vote${c.votes === 1 ? "" : "s"}` : ""}
                   {c.score !== null ? ` · score ${c.score}` : ""}
                 </p>
               </div>
@@ -547,7 +589,7 @@ export function BattleSetupSheet({
     <BottomSheet onClose={onClose}>
       <div className="max-h-[75vh] overflow-y-auto">
         <h2 className="mb-1 font-serif text-[26px] leading-tight">Start a battle</h2>
-        <p className="mb-4 text-[13px] text-ink-3">Competitors take timed turns, viewers gift who they back, then everyone votes. Score is half gifts, half votes.</p>
+        <p className="mb-4 text-[13px] text-ink-3">Competitors take timed turns, viewers gift and vote for whoever is performing, then everyone picks a winner. Score is a third gifts, a third performance votes, a third the final vote.</p>
 
         <input
           value={title}

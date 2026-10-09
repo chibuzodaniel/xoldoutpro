@@ -15,6 +15,7 @@
 // read after that does it too (settleExpired), so nothing depends on one
 // device staying connected.
 
+import { after } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { debitCoins } from "@/lib/live/coins";
@@ -22,6 +23,7 @@ import { creditCreatorXg } from "@/lib/live/xgEarnings";
 import { publishLiveEvent } from "@/lib/live/liveKit";
 import { MAX_STAGE_GUESTS, alertGuestFollowers, inviteToStage } from "@/lib/live/stage";
 import { notifyUsersAfterResponse } from "@/lib/notifications/create";
+import { sendPushToUsers } from "@/lib/push/send";
 
 export const BATTLE_LIMITS = {
   minCompetitors: 2,
@@ -118,6 +120,7 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
   const users = await db.user.count({ where: { id: { in: ids }, deletedAt: null } });
   if (users !== ids.length) throw new BattleError("One of those competitors isn't available", 400);
 
+  const ringAt = new Date();
   const battle = await db.liveBattle.create({
     data: {
       liveSessionId,
@@ -129,11 +132,11 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
       prizePlaces: places,
       prizeXg: places.reduce((a, b) => a + b, 0),
       competitors: { create: lineup.map((userId, position) => ({ userId, position })) },
-      invites: { create: inviteIds.map((userId) => ({ userId })) },
+      invites: { create: inviteIds.map((userId) => ({ userId, lastRungAt: ringAt })) },
     },
     include: { invites: { select: { id: true, userId: true } } },
   });
-  if (battle.invites.length > 0) await ringInvitees(battle.id);
+  if (battle.invites.length > 0) await ringInvitees(battle.id, ringAt);
   // Picked straight from the viewers (explicit ask, 2026-10-08): bring
   // everyone competing on stage now so they can get ready before Start.
   // Best-effort — someone already up, or a full stage, is fine.
@@ -276,14 +279,35 @@ export async function castVote(liveSessionId: string, voterId: string, competito
   });
 }
 
+/**
+ * A viewer votes for whoever is performing right now (explicit ask,
+ * 2026-10-09). Once per turn — a second tap is a no-op. Competitors and the
+ * host can't. Counts toward the winner alongside gifts and the final vote.
+ */
+export async function castTurnVote(liveSessionId: string, voterId: string) {
+  const battle = await activeBattle(liveSessionId);
+  if (!battle || battle.status !== "IN_PROGRESS" || !battle.currentTurnId) throw new BattleError("No one is performing right now", 409);
+  if (battle.hostId === voterId || battle.competitors.some((c) => c.userId === voterId)) {
+    throw new BattleError("Competitors and the host can't vote", 403);
+  }
+  const turn = await db.liveBattleTurn.findUnique({ where: { id: battle.currentTurnId }, select: { id: true, competitorId: true, endsAt: true, endedAt: true } });
+  if (!turn || turn.endedAt || turn.endsAt <= new Date()) throw new BattleError("That performance just ended", 409);
+  await db.liveBattleTurnVote.createMany({
+    data: [{ turnId: turn.id, battleId: battle.id, competitorId: turn.competitorId, voterId }],
+    skipDuplicates: true,
+  });
+}
+
 async function tallies(battleId: string) {
-  const [gifts, votes] = await Promise.all([
+  const [gifts, votes, turnVotes] = await Promise.all([
     db.liveGift.groupBy({ by: ["recipientId"], where: { battleId }, _sum: { xgAmount: true } }),
     db.liveBattleVote.groupBy({ by: ["competitorId"], where: { battleId }, _count: true }),
+    db.liveBattleTurnVote.groupBy({ by: ["competitorId"], where: { battleId }, _count: true }),
   ]);
   return {
     giftsByUser: new Map(gifts.map((g) => [g.recipientId ?? "", g._sum.xgAmount ?? 0])),
     votesByCompetitor: new Map(votes.map((v) => [v.competitorId, v._count])),
+    turnVotesByCompetitor: new Map(turnVotes.map((v) => [v.competitorId, v._count])),
   };
 }
 
@@ -294,19 +318,26 @@ export async function finishBattle(battleId: string) {
     include: { competitors: { orderBy: { position: "asc" } }, liveSession: { select: { roomName: true } } },
   });
   if (!battle || (battle.status !== "VOTING" && battle.status !== "IN_PROGRESS")) return;
-  const { giftsByUser, votesByCompetitor } = await tallies(battleId);
-  const totalGifts = [...giftsByUser.values()].reduce((a, b) => a + b, 0);
-  const totalVotes = [...votesByCompetitor.values()].reduce((a, b) => a + b, 0);
+  const { giftsByUser, votesByCompetitor, turnVotesByCompetitor } = await tallies(battleId);
+  const sum = (m: Map<string, number>) => [...m.values()].reduce((a, b) => a + b, 0);
+  const totalGifts = sum(giftsByUser);
+  const totalVotes = sum(votesByCompetitor);
+  const totalTurnVotes = sum(turnVotesByCompetitor);
+  // Out of 100, a third each (explicit ask, 2026-10-09 — performance votes
+  // now count too): share of gift XG, share of votes cast during their
+  // performances, share of the final vote. A part nobody used scores 0 for all.
+  const share = (n: number, total: number) => (total ? (100 / 3) * (n / total) : 0);
 
   const scored = battle.competitors
     .map((c) => {
       const giftsXg = giftsByUser.get(c.userId) ?? 0;
       const votes = votesByCompetitor.get(c.id) ?? 0;
-      const score = (totalGifts ? (50 * giftsXg) / totalGifts : 0) + (totalVotes ? (50 * votes) / totalVotes : 0);
-      return { ...c, giftsXg, votes, score: Math.round(score * 10) / 10 };
+      const turnVotes = turnVotesByCompetitor.get(c.id) ?? 0;
+      const score = share(giftsXg, totalGifts) + share(turnVotes, totalTurnVotes) + share(votes, totalVotes);
+      return { ...c, giftsXg, votes, turnVotes, score: Math.round(score * 10) / 10 };
     })
-    // Ties: more gift XG first, then whoever performed first.
-    .sort((a, b) => b.score - a.score || b.giftsXg - a.giftsXg || a.position - b.position);
+    // Ties: more gift XG first, then more performance votes, then whoever performed first.
+    .sort((a, b) => b.score - a.score || b.giftsXg - a.giftsXg || b.turnVotes - a.turnVotes || a.position - b.position);
 
   const now = new Date();
   await db.$transaction(async (tx) => {
@@ -324,7 +355,7 @@ export async function finishBattle(battleId: string) {
       const prizeXg = c.userId === battle.hostId ? 0 : (battle.prizePlaces[i] ?? 0);
       await tx.liveBattleCompetitor.update({
         where: { id: c.id },
-        data: { giftsXg: c.giftsXg, votes: c.votes, score: c.score, place: i + 1, prizeXg },
+        data: { giftsXg: c.giftsXg, votes: c.votes, turnVotes: c.turnVotes, score: c.score, place: i + 1, prizeXg },
       });
       if (prizeXg > 0) {
         await creditCreatorXg(tx, { creatorId: c.userId, xgAmount: prizeXg, source: "BATTLE_PRIZE", liveSessionId: battle.liveSessionId });
@@ -411,12 +442,16 @@ export async function describeBattle(battleId: string, viewerId: string | null) 
   });
   if (!battle) return null;
   const finished = battle.status === "FINISHED";
-  const { giftsByUser, votesByCompetitor } = await tallies(battleId);
+  const { giftsByUser, votesByCompetitor, turnVotesByCompetitor } = await tallies(battleId);
   const supporters = await supportersFor(battleId, battle.competitors.map((c) => c.userId));
   const myVote = viewerId
     ? await db.liveBattleVote.findUnique({ where: { battleId_voterId: { battleId, voterId: viewerId } }, select: { competitorId: true } })
     : null;
   const currentTurn = battle.currentTurnId ? battle.turns.find((t) => t.id === battle.currentTurnId) ?? null : null;
+  const myTurnVote =
+    viewerId && currentTurn
+      ? await db.liveBattleTurnVote.findUnique({ where: { turnId_voterId: { turnId: currentTurn.id, voterId: viewerId } }, select: { turnId: true } })
+      : null;
   const turnsDone = battle.turns.length;
 
   return {
@@ -441,6 +476,8 @@ export async function describeBattle(battleId: string, viewerId: string | null) 
     turnsDone,
     turnsTotal: battle.rounds * battle.competitors.length,
     myVoteCompetitorId: myVote?.competitorId ?? null,
+    // Already voted for whoever is performing now (one vote per performance).
+    myTurnVoted: !!myTurnVote,
     canVote: !!viewerId && viewerId !== battle.hostId && !battle.competitors.some((c) => c.userId === viewerId),
     competitors: battle.competitors.map((c) => ({
       id: c.id,
@@ -449,6 +486,7 @@ export async function describeBattle(battleId: string, viewerId: string | null) 
       giftsXg: finished ? c.giftsXg : (giftsByUser.get(c.userId) ?? 0),
       // Vote counts stay hidden until the result, so they don't sway the vote.
       votes: finished ? c.votes : null,
+      turnVotes: finished ? c.turnVotes : null,
       score: finished ? c.score : null,
       place: c.place,
       prizeXg: c.prizeXg,
@@ -464,6 +502,7 @@ export async function describeBattle(battleId: string, viewerId: string | null) 
       seconds: t.endedAt ? Math.round((t.endedAt.getTime() - t.startedAt.getTime()) / 1000) : null,
     })),
     totalVotes: finished ? [...votesByCompetitor.values()].reduce((a, b) => a + b, 0) : null,
+    totalTurnVotes: finished ? [...turnVotesByCompetitor.values()].reduce((a, b) => a + b, 0) : null,
     // Invites still ringing (or turned down) while the battle is being set up.
     invites:
       battle.status === "READY"
@@ -604,22 +643,61 @@ function ringPayload(invite: InviteRow) {
 
 export type BattleInviteRing = ReturnType<typeof ringPayload>;
 
-/** Pushes the ring to everyone invited to this battle (one push each — the link carries their own invite). */
-async function ringInvitees(battleId: string) {
-  const invites = await db.liveBattleInvite.findMany({ where: { battleId, status: "PENDING" }, include: INVITE_INCLUDE });
+/**
+ * Pushes the ring to the invites stamped with `ringAt` (one push each — the
+ * link carries their own invite). The first ring also lands in the bell;
+ * re-rings are push-only, and share the tag so each one replaces the last
+ * on screen and alerts again, like a call still ringing.
+ */
+async function ringInvitees(battleId: string, ringAt: Date, rering = false) {
+  const invites = await db.liveBattleInvite.findMany({ where: { battleId, status: "PENDING", lastRungAt: ringAt }, include: INVITE_INCLUDE });
   for (const invite of invites) {
     const ring = ringPayload(invite);
     const others = ring.people.filter((p) => p.id !== invite.userId).map((p) => `@${p.handle}`);
     const prize = ring.battle.prizeXg > 0 ? ` · ${ring.battle.prizeXg.toLocaleString("en-NG")} XG prize` : "";
-    notifyUsersAfterResponse([invite.userId], {
-      kind: "LIVE",
+    const push = {
       title: `⚔️ ${ring.host.displayName} is inviting you to a battle`,
       body: `${ring.battle.title}${others.length ? ` · with ${others.join(", ")}` : ""} · ${ring.battle.rounds} round${ring.battle.rounds === 1 ? "" : "s"} · ${fmtClock(ring.battle.turnSeconds)} per turn${prize}`,
       url: `/live/${ring.liveSessionId}?battleInvite=${invite.id}`,
       icon: ring.host.avatarUrl ?? undefined,
       tag: `battle-invite-${invite.id}`,
-    });
+    };
+    if (!rering) notifyUsersAfterResponse([invite.userId], { kind: "LIVE", ...push });
+    else {
+      const send = () => sendPushToUsers([invite.userId], push).catch((err) => console.error("battle re-ring failed", err));
+      try {
+        after(send);
+      } catch {
+        void send();
+      }
+    }
   }
+}
+
+const RERING_EVERY_MS = 20_000;
+
+/**
+ * Host's screen, every ~20s while invites are still ringing: rings anyone
+ * who hasn't answered again, until they do or the invite lapses. Throttled
+ * here (lastRungAt), so extra calls — two host tabs, a fast client — can't
+ * ring faster than that.
+ */
+export async function reringInvites(liveSessionId: string, hostId: string) {
+  await requireHost(liveSessionId, hostId);
+  const battle = await db.liveBattle.findFirst({ where: { liveSessionId, status: "READY" }, select: { id: true } });
+  if (!battle) return;
+  const now = new Date();
+  const { count } = await db.liveBattleInvite.updateMany({
+    where: {
+      battleId: battle.id,
+      status: "PENDING",
+      createdAt: { gt: new Date(now.getTime() - INVITE_TTL_MS) },
+      // A little slack, so a client timer firing slightly early still rings.
+      OR: [{ lastRungAt: null }, { lastRungAt: { lt: new Date(now.getTime() - RERING_EVERY_MS + 3000) } }],
+    },
+    data: { lastRungAt: now },
+  });
+  if (count > 0) await ringInvitees(battle.id, now, true);
 }
 
 /** The invite for its ring screen (only the person invited can see it). */

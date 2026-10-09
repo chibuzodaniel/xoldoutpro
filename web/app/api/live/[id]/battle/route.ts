@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, getOptionalUser, AuthError } from "@/lib/auth/session";
 import {
   BattleError,
+  castTurnVote,
   castVote,
   cancelBattle,
   createBattle,
@@ -13,6 +14,7 @@ import {
   openVoting,
   startBattle,
   startTurn,
+  reringInvites,
 } from "@/lib/live/battle";
 import { InsufficientCoinsError } from "@/lib/live/coins";
 
@@ -48,6 +50,8 @@ const bodySchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("open-voting") }),
   z.object({ action: z.literal("finish") }),
   z.object({ action: z.literal("cancel") }),
+  z.object({ action: z.literal("ring") }),
+  z.object({ action: z.literal("turn-vote") }),
   z.object({ action: z.literal("vote"), competitorId: z.string().min(1) }),
 ]);
 
@@ -56,6 +60,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { user } = await requireUser(req);
     const { id } = await params;
     const body = bodySchema.parse(await req.json());
+    // Host's ~20s re-ring while invites are pending — answered without the
+    // full battle read, since it fires on a timer.
+    if (body.action === "ring") {
+      await reringInvites(id, user.id);
+      return NextResponse.json({ ok: true });
+    }
     switch (body.action) {
       case "create":
         await createBattle(id, user.id, body);
@@ -77,6 +87,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         break;
       case "cancel":
         await cancelBattle(id, user.id);
+        break;
+      case "turn-vote":
+        await castTurnVote(id, user.id);
         break;
       case "vote":
         await castVote(id, user.id, body.competitorId);

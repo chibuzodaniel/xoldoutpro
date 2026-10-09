@@ -52,7 +52,10 @@ export function PushAutoEnroll() {
     void listenForForegroundPush((data) => {
       // Direct messages get the in-app message banner instead of a toast
       // (components/messages/InAppMessageBanner.tsx) — check for it now.
-      if (data.url?.startsWith("/messages/")) {
+      // A battle invite rings its call screen right away too — the same check
+      // returns the invite (components/live/BattleInviteRing.tsx), instead of
+      // waiting up to 30s for the next poll.
+      if (data.url?.startsWith("/messages/") || data.url?.includes("battleInvite=")) {
         window.dispatchEvent(new Event("xoldout:messages-check"));
       } else if (data.title) {
         toast.success(data.body ? `${data.title} — ${data.body}` : data.title);

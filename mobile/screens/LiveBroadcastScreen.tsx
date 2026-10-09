@@ -18,7 +18,7 @@ import { GiftBanner, GiftCelebration, InitialsAvatar, LiveFeed } from "../compon
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "../components/live/Stage";
 import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "../components/live/SupportSheets";
 import { LiveShareButtons } from "../components/live/LiveShareButtons";
-import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle } from "../components/live/Battle";
+import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle, useKeepInvitesRinging } from "../components/live/Battle";
 import {
   FloatingReactions,
   isLiveEmoji,
@@ -191,6 +191,7 @@ function BroadcastRoomContent({
   }, []);
   // Live battles (explicit ask, 2026-10-08) — components/live/Battle.tsx.
   const battleState = useBattle(liveSessionId);
+  useKeepInvitesRinging(liveSessionId, battleState.battle);
   const { battle } = battleState;
   const [battleSheet, setBattleSheet] = useState<"setup" | "details" | null>(null);
   const [hostXg, setHostXg] = useState<number | null>(null);

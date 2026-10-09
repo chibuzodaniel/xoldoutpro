@@ -4,6 +4,7 @@ import Constants from "expo-constants";
 import type { User as FirebaseUser } from "firebase/auth";
 import { apiPatch, apiPost } from "./api";
 import { getOpenConversation, requestMessageCheck } from "./messageNotify";
+import { ringBattleInvite } from "./battleInviteBus";
 
 // Mirrors web's lib/push.ts (same PATCH /api/me {pushEnabled, fcmTokens}
 // shape — the field is a plain string[] with no platform tag, holding FCM
@@ -37,6 +38,13 @@ function projectId(): string | undefined {
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
     const url = (notification.request.content.data as { url?: string } | undefined)?.url;
+    // A battle invite while the app is open rings the call screen right away
+    // (not on the next 30s poll) — with the push's sound, no banner on top.
+    const battleInvite = url?.match(/^\/live\/[^/?#]+\?battleInvite=([^&#]+)/)?.[1];
+    if (battleInvite) {
+      ringBattleInvite({ inviteId: battleInvite });
+      return { shouldShowBanner: false, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: true };
+    }
     const conversationId = url?.match(/^\/messages\/([^/?#]+)$/)?.[1];
     if (conversationId) {
       const open = conversationId === getOpenConversation();

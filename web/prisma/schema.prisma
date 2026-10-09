@@ -182,25 +182,26 @@ model User {
 
   eventPromoterRoles EventPromoter[]
 
-  liveSessions      LiveSession[]
-  liveGiftsSent     LiveGift[]
-  liveGiftsReceived LiveGift[]                @relation("LiveGiftsReceived")
-  battlesHosted     LiveBattle[]
-  battleEntries     LiveBattleCompetitor[]
-  battleVotes       LiveBattleVote[]
-  battleInvites     LiveBattleInvite[]
-  liveAccessGrants  LiveAccessGrant[]
-  liveRequestsSent  LiveRequest[]
-  liveReminders     LiveReminder[]
-  liveModeratorOf   LiveModerator[]
-  liveStageRequests LiveStageRequest[]
-  liveGuestAlerts   LiveGuestAlert[]
+  liveSessions             LiveSession[]
+  liveGiftsSent            LiveGift[]
+  liveGiftsReceived        LiveGift[]                @relation("LiveGiftsReceived")
+  battlesHosted            LiveBattle[]
+  battleEntries            LiveBattleCompetitor[]
+  battleVotes              LiveBattleVote[]
+  battleTurnVotes          LiveBattleTurnVote[]
+  battleInvites            LiveBattleInvite[]
+  liveAccessGrants         LiveAccessGrant[]
+  liveRequestsSent         LiveRequest[]
+  liveReminders            LiveReminder[]
+  liveModeratorOf          LiveModerator[]
+  liveStageRequests        LiveStageRequest[]
+  liveGuestAlerts          LiveGuestAlert[]
   conversationParticipants ConversationParticipant[]
   directMessagesSent       DirectMessage[]
-  blocksMade               UserBlock[]             @relation("BlocksMade")
-  blocksReceived           UserBlock[]             @relation("BlocksReceived")
-  coinLedgerEntries CoinLedgerEntry[]
-  xgEarnings        XgEarning[]
+  blocksMade               UserBlock[]               @relation("BlocksMade")
+  blocksReceived           UserBlock[]               @relation("BlocksReceived")
+  coinLedgerEntries        CoinLedgerEntry[]
+  xgEarnings               XgEarning[]
 }
 
 model PayoutAccount {
@@ -1025,25 +1026,25 @@ enum ReportStatus {
 // per row depending on targetType — COMMENT has no FK yet since Comment
 // doesn't exist until Phase 2 groups ship (the enum member stays for forward compat).
 model Report {
-  id         String           @id @default(cuid())
-  reporterId String
-  reporter   User             @relation("ReportsFiled", fields: [reporterId], references: [id])
-  targetType ReportTargetType
-  productId  String?
-  product    Product?         @relation("ReportsOnProduct", fields: [productId], references: [id])
-  eventId    String?
-  event      Event?           @relation("ReportsOnEvent", fields: [eventId], references: [id])
-  postId     String?
-  post       Post?            @relation("ReportsOnPost", fields: [postId], references: [id])
-  profileId  String?
-  profile    User?            @relation("ReportsOnProfile", fields: [profileId], references: [id])
+  id             String           @id @default(cuid())
+  reporterId     String
+  reporter       User             @relation("ReportsFiled", fields: [reporterId], references: [id])
+  targetType     ReportTargetType
+  productId      String?
+  product        Product?         @relation("ReportsOnProduct", fields: [productId], references: [id])
+  eventId        String?
+  event          Event?           @relation("ReportsOnEvent", fields: [eventId], references: [id])
+  postId         String?
+  post           Post?            @relation("ReportsOnPost", fields: [postId], references: [id])
+  profileId      String?
+  profile        User?            @relation("ReportsOnProfile", fields: [profileId], references: [id])
   conversationId String?
-  conversation   Conversation? @relation(fields: [conversationId], references: [id])
-  reason     ReportReason
-  details    String? // reporter's free-text context, optional
-  status     ReportStatus     @default(OPEN)
-  slaDueAt   DateTime? // set for time-critical reasons (inappropriate content, copyright) — PRD §14
-  createdAt  DateTime         @default(now())
+  conversation   Conversation?    @relation(fields: [conversationId], references: [id])
+  reason         ReportReason
+  details        String? // reporter's free-text context, optional
+  status         ReportStatus     @default(OPEN)
+  slaDueAt       DateTime? // set for time-critical reasons (inappropriate content, copyright) — PRD §14
+  createdAt      DateTime         @default(now())
 
   @@index([status])
 }
@@ -1889,29 +1890,30 @@ enum LiveBattleStatus {
 }
 
 model LiveBattle {
-  id              String           @id @default(cuid())
-  liveSessionId   String
-  liveSession     LiveSession      @relation(fields: [liveSessionId], references: [id])
-  hostId          String
-  host            User             @relation(fields: [hostId], references: [id])
-  title           String
-  status          LiveBattleStatus @default(READY)
-  rounds          Int
-  turnSeconds     Int
-  votingSeconds   Int
+  id            String           @id @default(cuid())
+  liveSessionId String
+  liveSession   LiveSession      @relation(fields: [liveSessionId], references: [id])
+  hostId        String
+  host          User             @relation(fields: [hostId], references: [id])
+  title         String
+  status        LiveBattleStatus @default(READY)
+  rounds        Int
+  turnSeconds   Int
+  votingSeconds Int
   // XG per place, best first — e.g. [500] for one winner, [300, 150, 50] for three.
-  prizePlaces     Int[]
-  prizeXg         Int
+  prizePlaces   Int[]
+  prizeXg       Int
   // Whose turn is on now (null between turns) and when it ends.
-  currentTurnId   String?
-  votingEndsAt    DateTime?
-  startedAt       DateTime?
-  finishedAt      DateTime?
-  createdAt       DateTime         @default(now())
+  currentTurnId String?
+  votingEndsAt  DateTime?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime         @default(now())
 
   competitors LiveBattleCompetitor[]
   turns       LiveBattleTurn[]
   votes       LiveBattleVote[]
+  turnVotes   LiveBattleTurnVote[]
   gifts       LiveGift[]
   invites     LiveBattleInvite[]
 
@@ -1920,22 +1922,25 @@ model LiveBattle {
 }
 
 model LiveBattleCompetitor {
-  id       String     @id @default(cuid())
-  battleId String
-  battle   LiveBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User       @relation(fields: [userId], references: [id])
+  id        String     @id @default(cuid())
+  battleId  String
+  battle    LiveBattle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User       @relation(fields: [userId], references: [id])
   // Turn order within each round.
-  position Int
+  position  Int
   // Filled in when the battle finishes.
-  giftsXg  Int        @default(0)
-  votes    Int        @default(0)
-  score    Float      @default(0)
-  place    Int?
-  prizeXg  Int        @default(0)
+  giftsXg   Int        @default(0)
+  votes     Int        @default(0)
+  // Votes from viewers during this competitor's own performances.
+  turnVotes Int        @default(0)
+  score     Float      @default(0)
+  place     Int?
+  prizeXg   Int        @default(0)
 
-  turns LiveBattleTurn[]
-  votesReceived LiveBattleVote[]
+  turns             LiveBattleTurn[]
+  votesReceived     LiveBattleVote[]
+  turnVotesReceived LiveBattleTurnVote[]
 
   @@unique([battleId, userId])
 }
@@ -1951,6 +1956,7 @@ model LiveBattleTurn {
   startedAt    DateTime             @default(now())
   endsAt       DateTime
   endedAt      DateTime?
+  votes        LiveBattleTurnVote[]
 
   @@index([battleId, round])
 }
@@ -1975,9 +1981,32 @@ model LiveBattleInvite {
   status      LiveBattleInviteStatus @default(PENDING)
   createdAt   DateTime               @default(now())
   respondedAt DateTime?
+  // Last time it rang (pushed). The host's screen asks for a re-ring every
+  // ~20s while it's pending, like a call that keeps ringing (explicit ask,
+  // 2026-10-09); this throttles that server-side.
+  lastRungAt  DateTime?
 
   @@unique([battleId, userId])
   @@index([userId, status, createdAt])
+}
+
+// A viewer backing whoever is performing, during their turn (explicit ask,
+// 2026-10-09: a vote button while someone performs, counted toward the
+// winner). One per viewer per turn; scored alongside gifts and the final
+// vote (lib/live/battle.ts finishBattle).
+model LiveBattleTurnVote {
+  turnId       String
+  turn         LiveBattleTurn       @relation(fields: [turnId], references: [id], onDelete: Cascade)
+  battleId     String
+  battle       LiveBattle           @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  competitorId String
+  competitor   LiveBattleCompetitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  voterId      String
+  voter        User                 @relation(fields: [voterId], references: [id])
+  createdAt    DateTime             @default(now())
+
+  @@id([turnId, voterId])
+  @@index([battleId])
 }
 
 model LiveBattleVote {

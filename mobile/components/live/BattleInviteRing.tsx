@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Modal, Text, TouchableOpacity, Vibration, View, StyleSheet, Animated, Easing } from "react-native";
 import { useAuth } from "../../lib/AuthContext";
 import { API_BASE_URL } from "../../lib/api";
@@ -40,11 +40,14 @@ export function BattleInviteRing() {
   const [invite, setInvite] = useState<Invite | null>(null);
   const [busy, setBusy] = useState(false);
   const [pulse] = useState(() => new Animated.Value(0));
+  // Already ringing this one — a re-ring push (every ~20s) needs no reload.
+  const ringingId = useRef<string | null>(null);
+  ringingId.current = invite?.id ?? null;
 
   useEffect(
     () =>
       onBattleInvite(async ({ inviteId, invite: given }) => {
-        if (handled.has(inviteId)) return;
+        if (handled.has(inviteId) || ringingId.current === inviteId) return;
         let next = given as Invite | undefined;
         if (!next && firebaseUser) {
           try {

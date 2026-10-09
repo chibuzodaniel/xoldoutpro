@@ -16,7 +16,7 @@ import { LiveChatInput } from "@/components/live/LiveChatInput";
 import { LiveShareButtons } from "@/components/live/LiveShareButtons";
 import { isStageEvent, PeopleSheet, StageTiles, useStageState } from "@/components/live/stage";
 import { CoinStatsSheet, SupportersSheet, useLiveSupport } from "@/components/live/SupportSheets";
-import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle } from "@/components/live/battle";
+import { BattleBar, BattleDetailsSheet, BattleSetupSheet, isBattleEvent, isBattleShown, useBattle, useKeepInvitesRinging } from "@/components/live/battle";
 import {
   FloatingReactions,
   LIVE_EMOJIS,
@@ -112,6 +112,7 @@ export default function LiveBroadcastPage() {
   // The room event handlers are registered once, inside the connect effect.
   // Live battles (explicit ask, 2026-10-08) — components/live/battle.tsx.
   const battleState = useBattle(params.id, room !== null);
+  useKeepInvitesRinging(params.id, battleState.battle);
   const { battle } = battleState;
   const [battleSheet, setBattleSheet] = useState<"setup" | "details" | null>(null);
   const [hostXg, setHostXg] = useState<number | null>(null);
