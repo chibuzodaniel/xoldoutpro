@@ -32,18 +32,42 @@ async function registerThisDevice(): Promise<PushResult> {
   }
 }
 
-/** Asks for notification permission (if needed) and registers this device. The Edit Profile toggle and onboarding call this. */
+// One registration per page load, shared by PushAutoEnroll and
+// PushStatusNotice. Dropped on failure so "Try again" really retries.
+let registration: Promise<PushResult> | null = null;
+
+function registerOnce(): Promise<PushResult> {
+  registration ??= registerThisDevice().then((result) => {
+    if (!result.ok) registration = null;
+    return result;
+  });
+  return registration;
+}
+
+/** Asks for notification permission (if needed) and registers this device. Onboarding, auto-enroll and the "Turn on" notice call this. */
 export async function enablePush(): Promise<PushResult> {
   if (pushPermission() === null) return { ok: false, error: "Push isn't supported in this browser." };
   const permission = await Notification.requestPermission();
   if (permission !== "granted") return { ok: false, error: "Notification permission was denied." };
-  return registerThisDevice();
+  return registerOnce();
 }
 
 /** Registers this device only if permission was already granted — never prompts. */
 export async function registerIfAlreadyPermitted(): Promise<PushResult | null> {
   if (pushPermission() !== "granted") return null;
-  return registerThisDevice();
+  return registerOnce();
+}
+
+/** iPhone/iPad (iPadOS reports itself as a Mac with touch). */
+export function isIos(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/** Opened from the Home Screen as an app, not in a browser tab — the only way iOS allows web push. */
+export function isInstalledApp(): boolean {
+  if (typeof window === "undefined") return false;
+  return window.matchMedia?.("(display-mode: standalone)").matches || (navigator as { standalone?: boolean }).standalone === true;
 }
 
 type ForegroundPush = { title?: string; body?: string; url?: string; icon?: string; tag?: string; badge?: string };

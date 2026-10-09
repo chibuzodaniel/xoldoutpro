@@ -302,7 +302,7 @@ export function BattleBar({
             <HostButton
               busy={busy || battle.competitors.length < 2}
               primary
-              label={battle.competitors.length < 2 ? "Waiting for 2 competitors…" : "Start battle"}
+              label={battle.competitors.length < 2 ? "Waiting for them to accept…" : "Start battle"}
               onPress={() => run({ action: "start" })}
             />
           )}
@@ -471,7 +471,9 @@ export function BattleSetupSheet({
   const inRoom = new Set(guests.map((g) => g.userId));
   const count = chosen.length + invited.length;
   const full = count >= 3;
-  const maxWinners = Math.min(3, Math.max(1, chosen.length));
+  // Just one chosen: the host battles them (web lib/live/battle.ts createBattle).
+  const hostCompetes = count === 1;
+  const maxWinners = Math.min(3, Math.max(1, count + (hostCompetes ? 1 : 0)));
   const places = withPrize ? prizes.slice(0, Math.min(winners, maxWinners)) : [];
   const total = places.reduce((a, b) => a + (b || 0), 0);
   const short = balanceXg !== null && total > balanceXg;
@@ -510,7 +512,8 @@ export function BattleSetupSheet({
           style={styles.input}
         />
 
-        <Text style={styles.label}>Competitors · pick or invite 2–3 ({count} chosen)</Text>
+        <Text style={styles.label}>Competitors · pick or invite 1–3 ({count} chosen)</Text>
+        {hostCompetes && <Text style={[styles.note, { color: colors.amber }]}>Just one? You battle them yourself, head to head — you go first.</Text>}
         {guests.length === 0 ? (
           <Text style={styles.note}>No one's watching yet — invite people below, or share your Live to bring them in.</Text>
         ) : (
@@ -623,15 +626,15 @@ export function BattleSetupSheet({
         ))}
         <Text style={[styles.note, short && { color: colors.redSoft }]}>
           {total > 0
-            ? `${total.toLocaleString("en-NG")} XG is held when you start and paid to the winners; you get back any place nobody fills.`
+            ? `${total.toLocaleString("en-NG")} XG is held when you start and paid to the winners; you get back any place nobody fills${hostCompetes ? ", or that you win yourself" : ""}.`
             : "No prize — competitors keep every gift they're sent, and the winner gets the bragging rights."}
           {balanceXg !== null ? ` You have ${balanceXg.toLocaleString("en-NG")} XG.` : ""}
         </Text>
 
         <TouchableOpacity
           onPress={create}
-          disabled={busy || count < 2 || short}
-          style={[styles.createButton, (busy || count < 2 || short) && { opacity: 0.5 }]}
+          disabled={busy || count < 1 || short}
+          style={[styles.createButton, (busy || count < 1 || short) && { opacity: 0.5 }]}
         >
           <Text style={styles.createButtonText}>{busy ? "Setting up…" : invited.length > 0 ? `Set up & ring ${invited.length}` : "Set up battle"}</Text>
         </TouchableOpacity>

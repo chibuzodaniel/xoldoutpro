@@ -92,11 +92,14 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
   const ids = [...new Set(setup.competitorIds)];
   const inviteIds = [...new Set(setup.inviteIds ?? [])].filter((id) => !ids.includes(id));
   const L = BATTLE_LIMITS;
-  const total = ids.length + inviteIds.length;
-  if (total < L.minCompetitors || total > L.maxCompetitors) {
-    throw new BattleError(`Pick or invite ${L.minCompetitors}–${L.maxCompetitors} competitors`, 400);
-  }
-  if (ids.includes(hostId) || inviteIds.includes(hostId)) throw new BattleError("The host runs the battle — pick other people to compete", 400);
+  const chosen = ids.length + inviteIds.length;
+  if (chosen < 1 || chosen > L.maxCompetitors) throw new BattleError(`Pick or invite 1–${L.maxCompetitors} people`, 400);
+  if (ids.includes(hostId) || inviteIds.includes(hostId)) throw new BattleError("Pick other people — with just one, you battle them yourself", 400);
+  // Just one person chosen (explicit ask, 2026-10-09): the host battles them
+  // head to head, taking the first turn. With 2–3 the host only runs it.
+  const hostCompetes = chosen === 1;
+  const lineup = hostCompetes ? [hostId, ...ids] : ids;
+  const total = chosen + (hostCompetes ? 1 : 0);
   if (inviteIds.length > 0) {
     const mutual = await mutualFollowerIds(hostId, inviteIds);
     if (mutual.size !== inviteIds.length) throw new BattleError("You can only invite people you follow who follow you back", 400);
@@ -125,7 +128,7 @@ export async function createBattle(liveSessionId: string, hostId: string, setup:
       votingSeconds: setup.votingSeconds,
       prizePlaces: places,
       prizeXg: places.reduce((a, b) => a + b, 0),
-      competitors: { create: ids.map((userId, position) => ({ userId, position })) },
+      competitors: { create: lineup.map((userId, position) => ({ userId, position })) },
       invites: { create: inviteIds.map((userId) => ({ userId })) },
     },
     include: { invites: { select: { id: true, userId: true } } },
@@ -147,7 +150,7 @@ export async function startBattle(liveSessionId: string, hostId: string) {
   const battle = await activeBattle(liveSessionId);
   if (!battle || battle.status !== "READY") throw new BattleError("No battle waiting to start", 409);
   if (battle.competitors.length < BATTLE_LIMITS.minCompetitors) {
-    throw new BattleError("Wait for at least 2 competitors — invites still ringing count once they accept", 409);
+    throw new BattleError("Wait for at least 2 competitors — anyone still being rung counts once they accept", 409);
   }
   // Anyone who hasn't answered by now misses this one.
   await db.liveBattleInvite.updateMany({ where: { battleId: battle.id, status: "PENDING" }, data: { status: "EXPIRED", respondedAt: new Date() } });
@@ -316,7 +319,9 @@ export async function finishBattle(battleId: string) {
 
     let awarded = 0;
     for (const [i, c] of scored.entries()) {
-      const prizeXg = battle.prizePlaces[i] ?? 0;
+      // A host competing in their own battle can't win their own prize as
+      // earnings — that place goes back to them as XG with the unwon ones.
+      const prizeXg = c.userId === battle.hostId ? 0 : (battle.prizePlaces[i] ?? 0);
       await tx.liveBattleCompetitor.update({
         where: { id: c.id },
         data: { giftsXg: c.giftsXg, votes: c.votes, score: c.score, place: i + 1, prizeXg },

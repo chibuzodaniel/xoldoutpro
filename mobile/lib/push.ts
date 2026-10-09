@@ -47,7 +47,29 @@ Notifications.setNotificationHandler({
   },
 });
 
-export async function enablePush(firebaseUser: FirebaseUser): Promise<{ ok: true } | { ok: false; error: string }> {
+type PushResult = { ok: true } | { ok: false; error: string };
+
+/** Running inside the Expo Go test app — it can't receive pushes (needs a real EAS build). */
+export function isExpoGo(): boolean {
+  return Constants.executionEnvironment === "storeClient";
+}
+
+// One registration per app run, shared by sign-in (AuthContext) and
+// PushStatusNotice. Dropped on failure so "Try again" really retries.
+let registration: Promise<PushResult> | null = null;
+
+/** Asks for permission if it hasn't been decided yet and registers this phone — once per app run. */
+export function ensurePushRegistered(firebaseUser: FirebaseUser): Promise<PushResult> {
+  registration ??= enablePush(firebaseUser)
+    .catch((): PushResult => ({ ok: false, error: "Could not register this device for push." }))
+    .then((result) => {
+      if (!result.ok) registration = null;
+      return result;
+    });
+  return registration;
+}
+
+export async function enablePush(firebaseUser: FirebaseUser): Promise<PushResult> {
   const id = projectId();
   if (!id) return { ok: false, error: "Push isn't configured for this build yet." };
 

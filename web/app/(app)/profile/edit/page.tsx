@@ -15,6 +15,7 @@ import { PlanPickerSheet } from "@/components/plans/PlanPickerSheet";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { PushStatusNotice } from "@/components/push/PushStatusNotice";
 
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
@@ -331,6 +332,9 @@ export default function EditProfilePage() {
           <span>Creator plan: {appUser.creatorPlan ? PLAN_LABEL[appUser.creatorPlan] : "Not chosen"}</span>
           <span className="text-ink-3 font-normal">Change ›</span>
         </button>
+
+        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Push Notifications</h2>
+        <PushStatusNotice showWhenOn className="mb-8" />
 
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-3">Country &amp; Currency</h2>
         <CountryPicker />

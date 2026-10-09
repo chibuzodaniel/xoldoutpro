@@ -8,7 +8,7 @@ import {
 } from "firebase/auth";
 import { firebaseAuth } from "./firebase";
 import { apiPost } from "./api";
-import { enablePush } from "./push";
+import { ensurePushRegistered } from "./push";
 import type { AppUser } from "./authTypes";
 
 type AuthState = {
@@ -39,13 +39,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAppUser(data.accountDeleted ? null : data.user);
     setNeedsOnboarding(Boolean(data.needsOnboarding));
 
-    // Notifications are on by default now — there's no in-app toggle, so
-    // this is the only place push ever gets (re-)registered. Fire-and-forget:
-    // a denied OS permission or an Expo Go build without push support should
-    // never block sign-in.
-    if (data.user && !data.user.pushEnabled) {
-      enablePush(user).catch(() => {});
-    }
+    // Notifications are on by default — no toggle, so every sign-in makes
+    // sure THIS phone is registered. (It used to run only when the account's
+    // pushEnabled was false, so a new phone on an account that already had
+    // push on — every new signup — never registered at all.) Fire-and-forget:
+    // a denied OS permission or Expo Go should never block sign-in;
+    // PushStatusNotice shows the person what to do instead.
+    if (data.user) void ensurePushRegistered(user);
   }, []);
 
   useEffect(() => {

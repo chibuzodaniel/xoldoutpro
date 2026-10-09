@@ -27,6 +27,7 @@ import type { SocialLink } from "../lib/authTypes";
 import { colors, fonts } from "../lib/theme";
 import { Pill } from "../components/creator/Pill";
 import { PlanPickerModal } from "../components/PlanPickerModal";
+import { PushStatusNotice } from "../components/PushStatusNotice";
 
 const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
 const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
@@ -177,6 +178,9 @@ export function EditProfileScreen() {
       keyboardShouldPersistTaps="handled"
       automaticallyAdjustKeyboardInsets
     >
+      <Text style={styles.sectionTitle}>Push notifications</Text>
+      <PushStatusNotice showWhenOn style={{ marginBottom: 20 }} />
+
       <Text style={styles.sectionTitle}>Photos</Text>
       <Text style={styles.label}>Cover photo</Text>
       <TouchableOpacity style={styles.coverPicker} onPress={() => pickPhoto("cover")}>

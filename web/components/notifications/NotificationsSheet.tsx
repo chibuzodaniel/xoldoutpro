@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { PushStatusNotice } from "@/components/push/PushStatusNotice";
 
 type NotificationKind =
   | "SALE"
@@ -272,6 +273,8 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
             </button>
           )}
         </div>
+
+        <PushStatusNotice className="mb-4" />
 
         {notifications === null ? (
           <p className="text-sm text-ink-3">Loading…</p>

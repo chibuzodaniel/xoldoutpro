@@ -7,6 +7,7 @@ import { API_BASE_URL, apiGet, apiPost } from "../lib/api";
 import { useAuth } from "../lib/AuthContext";
 import type { NotificationKind, NotificationRow } from "../lib/notificationTypes";
 import { colors, fonts } from "../lib/theme";
+import { PushStatusNotice } from "../components/PushStatusNotice";
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -180,6 +181,8 @@ export function NotificationsScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      <PushStatusNotice style={{ marginHorizontal: 16, marginBottom: 12 }} />
 
       {notifications === null ? (
         <View style={styles.centered}>

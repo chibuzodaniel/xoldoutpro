@@ -18,7 +18,7 @@ function formatNaira(kobo: number) {
 // as the full app/(app)/live/coins page body and as the bottom sheet stacked
 // over the viewer's "Send a gift" sheet (app/(app)/live/[id]/page.tsx).
 //
-// Pay with card (Bachs checkout) or, when there's money in the wallet,
+// Pay with bank (Bachs checkout) or, when there's money in the wallet,
 // straight from the wallet balance (explicit ask, 2026-10-08) — that
 // credits the XG instantly and fires "xoldout:xg-balance-changed" so any
 // balance on screen refreshes; `onBought` lets the caller react too.
@@ -83,7 +83,7 @@ export function AddBalance({ onBought }: { onBought?: (xgAmount: number) => void
                   onClick={() => setPayWith(m)}
                   className={`rounded-lg py-2 text-[13px] font-semibold ${payWith === m ? "bg-red text-white" : "text-ink-2"}`}
                 >
-                  {m === "card" ? "Pay with card" : `Wallet · ${formatNaira(walletKobo ?? 0)}`}
+                  {m === "card" ? "Pay with bank" : `Wallet · ${formatNaira(walletKobo ?? 0)}`}
                 </button>
               ))}
             </div>
