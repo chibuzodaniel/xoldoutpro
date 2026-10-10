@@ -15,6 +15,7 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../lib/AuthContext";
+import { ShareProfileButton } from "../components/ShareProfileButton";
 import { friendlyFirebaseError } from "../lib/friendlyFirebaseError";
 import { apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
@@ -77,6 +78,7 @@ function SignedInView() {
           {appUser.isVerified && <VerifiedBadge size={16} badgeType={primaryBadgeType(appUser.verificationBadges)} />}
         </View>
         <Text style={styles.handle}>@{appUser.handle}</Text>
+        <ShareProfileButton own handle={appUser.handle} displayName={appUser.displayName} style={{ marginBottom: 14 }} />
 
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
@@ -263,7 +265,7 @@ const styles = StyleSheet.create({
   settingsIcon: { color: colors.ink2, fontSize: 15 },
   nameRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   name: { color: colors.ink, fontSize: 20, fontFamily: fonts.serif },
-  handle: { color: colors.ink3, fontSize: 13, marginTop: 2, marginBottom: 14 },
+  handle: { color: colors.ink3, fontSize: 13, marginTop: 2, marginBottom: 8 },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 14 },
   statBox: { flex: 1, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, borderRadius: 12, paddingVertical: 12, alignItems: "center" },
   statValue: { color: colors.ink, fontSize: 20, fontFamily: fonts.serif },

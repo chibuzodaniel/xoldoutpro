@@ -21,6 +21,7 @@ import { Grid } from "../components/Grid";
 import { ProductCard } from "../components/ProductCard";
 import { EventCard } from "../components/EventCard";
 import { useOwnedProducts } from "../lib/useOwnedProducts";
+import { ShareProfileButton } from "../components/ShareProfileButton";
 
 const HORIZONTAL_PADDING = 16;
 
@@ -76,6 +77,7 @@ export function CreatorScreen() {
 
         <Text style={styles.name}>{user.displayName}</Text>
         <Text style={styles.handle}>@{user.handle}</Text>
+        <ShareProfileButton handle={user.handle} displayName={user.displayName} style={{ marginBottom: 10 }} />
         {appUser && appUser.id !== user.id && (
           <TouchableOpacity style={styles.messageButton} onPress={() => navigation.navigate("Conversation", { toUserId: user.id })}>
             <Text style={styles.messageButtonText}>Message</Text>

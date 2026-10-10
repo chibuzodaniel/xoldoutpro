@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { ShareButton } from "@/components/ui/ShareButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
@@ -173,7 +174,15 @@ export default function ProfilePage() {
             </Link>
           )}
         </h1>
-        <p className="text-sm text-ink-3 mb-4">@{appUser.handle}</p>
+        <p className="text-sm text-ink-3 mb-2">@{appUser.handle}</p>
+        <div className="mb-4">
+          <ShareButton
+            title={`${appUser.displayName} on XOLDOUT`}
+            text={`Follow me on XOLDOUT — @${appUser.handle}`}
+            path={`/u/${appUser.handle}`}
+            label="Share my profile"
+          />
+        </div>
 
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="rounded-xl border border-line bg-surface px-4 py-3 text-center">

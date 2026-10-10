@@ -7,6 +7,7 @@ import { ProductCard, type ProductCardData } from "@/components/product/ProductC
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
 import { EventCard } from "@/components/product/EventCard";
 import { ReportButton } from "@/components/trust/ReportButton";
+import { ShareButton } from "@/components/ui/ShareButton";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { buildOgMetadata } from "@/lib/og";
 import { NewVisitorGate } from "@/components/auth/NewVisitorGate";
@@ -123,6 +124,14 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           <ReportButton targetType="PROFILE" targetId={user.id} className="text-xs text-ink-3 shrink-0 pt-1" />
         </div>
         <p className="text-sm text-ink-3 mb-2">@{user.handle}</p>
+        <div className="mb-3">
+          <ShareButton
+            title={`${user.displayName} on XOLDOUT`}
+            text={`Check out ${user.displayName} (@${user.handle}) on XOLDOUT`}
+            path={`/u/${user.handle}`}
+            label="Share profile"
+          />
+        </div>
         {user.bio && <p className="text-sm text-ink-2 mb-3 max-w-md">{user.bio}</p>}
 
         <div className="grid grid-cols-2 gap-3 mb-3">
