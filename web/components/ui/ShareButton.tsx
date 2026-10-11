@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-function ShareIcon() {
+function ShareIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M12 3v12" strokeLinecap="round" />
       <path d="M7 8l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6" strokeLinecap="round" strokeLinejoin="round" />
@@ -26,12 +26,16 @@ export function ShareButton({
   path,
   label = "Share to Fans",
   className = "bg-red text-white",
+  variant = "pill",
 }: {
   title: string;
   text: string;
   path: string;
   label?: string;
   className?: string;
+  // "outline" matches the small bordered buttons on profile pages
+  // (Insights / Wallet) instead of the big red product-page pill.
+  variant?: "pill" | "outline";
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -59,9 +63,13 @@ export function ShareButton({
       type="button"
       onClick={handleShare}
       aria-label={label}
-      className={`shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold ${className}`}
+      className={
+        variant === "outline"
+          ? "shrink-0 flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-2"
+          : `shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold ${className}`
+      }
     >
-      <ShareIcon />
+      <ShareIcon className={variant === "outline" ? "h-3.5 w-3.5" : "h-4 w-4"} />
       {copied ? "Copied" : label}
     </button>
   );

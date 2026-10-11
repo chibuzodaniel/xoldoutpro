@@ -130,6 +130,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
             text={`Check out ${user.displayName} (@${user.handle}) on XOLDOUT`}
             path={`/u/${user.handle}`}
             label="Share profile"
+            variant="outline"
           />
         </div>
         {user.bio && <p className="text-sm text-ink-2 mb-3 max-w-md">{user.bio}</p>}

@@ -27,7 +27,8 @@ export function ShareProfileButton({
 }
 
 const styles = StyleSheet.create({
-  button: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 999, backgroundColor: colors.red, paddingHorizontal: 14, paddingVertical: 8 },
-  icon: { color: "#fff", fontSize: 14, fontWeight: "700" },
-  text: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  // Same look as the page's other small buttons (Insights / Wallet / Message).
+  button: { alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 5, borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
+  icon: { color: colors.ink2, fontSize: 12, fontWeight: "600" },
+  text: { color: colors.ink2, fontSize: 12, fontWeight: "600" },
 });

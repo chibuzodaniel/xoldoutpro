@@ -181,6 +181,7 @@ export default function ProfilePage() {
             text={`Follow me on XOLDOUT — @${appUser.handle}`}
             path={`/u/${appUser.handle}`}
             label="Share my profile"
+            variant="outline"
           />
         </div>
 
