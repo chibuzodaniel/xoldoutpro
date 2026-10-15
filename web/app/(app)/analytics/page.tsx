@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { BackHeader } from "@/components/ui/BackHeader";
-import { BuyersList, type BuyerSale, type BuyersSummary } from "@/components/sales/BuyersList";
+import { BuyersList, type BuyerBreakdown, type BuyerSale, type BuyersSummary } from "@/components/sales/BuyersList";
 
 type ProductStat = {
   id: string;
@@ -41,7 +41,7 @@ function formatDuration(hours: number) {
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
-  const [buyers, setBuyers] = useState<{ summary: BuyersSummary; sales: BuyerSale[] } | null>(null);
+  const [buyers, setBuyers] = useState<{ summary: BuyersSummary; sales: BuyerSale[]; buyers: BuyerBreakdown[] } | null>(null);
 
   useEffect(() => {
     apiFetch("/api/analytics")
@@ -122,7 +122,7 @@ export default function AnalyticsPage() {
       {buyers === null ? (
         <p className="text-sm text-ink-3">Loading…</p>
       ) : (
-        <BuyersList summary={buyers.summary} sales={buyers.sales} />
+        <BuyersList summary={buyers.summary} sales={buyers.sales} buyers={buyers.buyers} />
       )}
       </div>
     </div>

@@ -5,7 +5,7 @@ import { useCanUse } from "./access";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { formatNairaShort } from "./AmbassadorsPanel";
-import { BuyersList, type BuyerSale, type BuyersSummary } from "@/components/sales/BuyersList";
+import { BuyersList, type BuyerBreakdown, type BuyerSale, type BuyersSummary } from "@/components/sales/BuyersList";
 
 type UserRow = {
   id: string;
@@ -213,6 +213,7 @@ type UserDetailData = {
   products: ProductRow[];
   salesSummary: BuyersSummary;
   sales: BuyerSale[];
+  buyers: BuyerBreakdown[];
   purchases: PurchaseRow[];
   activity: ActivityRow[];
   payouts: PayoutRow[];
@@ -325,7 +326,7 @@ function UserDetail({ userId, onBack, onOpenUser }: { userId: string; onBack: ()
 
           <div className="rounded-lg border border-line-soft p-4 mb-4">
             <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Sales</p>
-            <BuyersList summary={data.salesSummary} sales={data.sales} onBuyerClick={onOpenUser} />
+            <BuyersList summary={data.salesSummary} sales={data.sales} buyers={data.buyers} onBuyerClick={onOpenUser} />
           </div>
 
           <div className="rounded-lg border border-line-soft p-4 mb-4">

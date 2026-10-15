@@ -10,10 +10,11 @@ import { getSellerSales } from "@/lib/commerce/sellerSales";
 export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
-    const { summary, sales } = await getSellerSales(user.id);
+    const { summary, sales, buyers } = await getSellerSales(user.id);
     return NextResponse.json({
       summary,
       sales: sales.map((s) => ({ ...s, amountKobo: undefined })),
+      buyers: buyers.map((b) => ({ ...b, spentKobo: undefined })),
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

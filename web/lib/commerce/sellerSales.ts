@@ -11,7 +11,7 @@ import { db } from "@/lib/db";
  * expired unclaimed gift decrements it (releaseConfirmedUnit), a takedown
  * refund doesn't — refundReason is what tells those apart.
  */
-export async function getSellerSales(sellerId: string, take = 200) {
+export async function getSellerSales(sellerId: string, take = 1000) {
   const soldWhere = { order: { status: { in: ["PAID", "REFUNDED"] as ("PAID" | "REFUNDED")[] } }, product: { creatorId: sellerId } };
   const [items, paidUnits, refundedUnits, refundedByProduct, buyers] = await Promise.all([
     db.orderItem.findMany({
@@ -75,14 +75,7 @@ export async function getSellerSales(sellerId: string, take = 200) {
     downloadsByKey.set(key, entry);
   }
 
-  return {
-    summary: {
-      paidUnits: paidUnits._sum.quantity ?? 0,
-      refundedUnits: refundedUnits._sum.quantity ?? 0,
-      uniqueBuyers: buyers.length,
-    },
-    refundedByProduct: new Map(refundedByProduct.map((r) => [r.productId, r._sum.quantity ?? 0])),
-    sales: items.map((i) => {
+  const sales = items.map((i) => {
       const isAudio = i.product.type === "RELEASE" || i.product.type === "BEAT";
       const key = `${listenerOf(i)}:${i.product.id}`;
       const dl = downloadsByKey.get(key);
@@ -107,8 +100,106 @@ export async function getSellerSales(sellerId: string, take = 200) {
         downloadedOfflineAt: isAudio ? (dl?.offlineAt ?? null) : null,
         downloadedFileAt: isAudio ? (dl?.fileAt ?? null) : null,
       };
-    }),
+    });
+
+  return {
+    summary: {
+      paidUnits: paidUnits._sum.quantity ?? 0,
+      refundedUnits: refundedUnits._sum.quantity ?? 0,
+      uniqueBuyers: buyers.length,
+    },
+    refundedByProduct: new Map(refundedByProduct.map((r) => [r.productId, r._sum.quantity ?? 0])),
+    sales,
+    buyers: groupByBuyer(sales),
   };
+}
+
+type Sale = {
+  productId: string;
+  productTitle: string;
+  productType: string;
+  quantity: number;
+  amountKobo: number;
+  status: string;
+  createdAt: Date;
+  buyer: { id: string; handle: string; displayName: string; avatarUrl: string | null };
+  isGift: boolean;
+  plays: number | null;
+  downloadedOfflineAt: Date | null;
+  downloadedFileAt: Date | null;
+};
+
+// One row per buyer (explicit ask, 2026-10-15: "a user breakdown to show
+// each user that bought", with a Message button on the seller's side).
+// Several orders of the same product collapse into one product line —
+// plays/downloads are per buyer+product already, so they're taken once,
+// never summed across orders. Gift lines keep the recipient's listening,
+// flagged so the seller can tell.
+function groupByBuyer(sales: Sale[]) {
+  const byBuyer = new Map<
+    string,
+    {
+      buyer: Sale["buyer"];
+      paidUnits: number;
+      refundedUnits: number;
+      spentKobo: number;
+      firstAt: Date;
+      lastAt: Date;
+      products: Map<
+        string,
+        {
+          productId: string;
+          title: string;
+          type: string;
+          units: number;
+          refunded: number;
+          gift: boolean;
+          plays: number | null;
+          downloadedOfflineAt: Date | null;
+          downloadedFileAt: Date | null;
+        }
+      >;
+    }
+  >();
+  for (const s of sales) {
+    const b = byBuyer.get(s.buyer.id) ?? {
+      buyer: s.buyer,
+      paidUnits: 0,
+      refundedUnits: 0,
+      spentKobo: 0,
+      firstAt: s.createdAt,
+      lastAt: s.createdAt,
+      products: new Map(),
+    };
+    const refunded = s.status === "REFUNDED";
+    if (refunded) b.refundedUnits += s.quantity;
+    else {
+      b.paidUnits += s.quantity;
+      b.spentKobo += s.amountKobo;
+    }
+    if (s.createdAt < b.firstAt) b.firstAt = s.createdAt;
+    if (s.createdAt > b.lastAt) b.lastAt = s.createdAt;
+
+    const p = b.products.get(s.productId) ?? {
+      productId: s.productId,
+      title: s.productTitle,
+      type: s.productType,
+      units: 0,
+      refunded: 0,
+      gift: false,
+      plays: s.plays,
+      downloadedOfflineAt: s.downloadedOfflineAt,
+      downloadedFileAt: s.downloadedFileAt,
+    };
+    if (refunded) p.refunded += s.quantity;
+    else p.units += s.quantity;
+    p.gift ||= s.isGift;
+    b.products.set(s.productId, p);
+    byBuyer.set(s.buyer.id, b);
+  }
+  return [...byBuyer.values()]
+    .map((b) => ({ ...b, products: [...b.products.values()] }))
+    .sort((a, b) => b.paidUnits - a.paidUnits || b.lastAt.getTime() - a.lastAt.getTime());
 }
 
 function refundReason(order: { status: string; gift: { status: string } | null }): string | null {

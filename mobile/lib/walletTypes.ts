@@ -75,9 +75,29 @@ export type BuyerSale = {
   downloadedFileAt: string | null;
 };
 
+export type BuyerBreakdown = {
+  buyer: { id: string; handle: string; displayName: string; avatarUrl: string | null };
+  paidUnits: number;
+  refundedUnits: number;
+  firstAt: string;
+  lastAt: string;
+  products: {
+    productId: string;
+    title: string;
+    type: string;
+    units: number;
+    refunded: number;
+    gift: boolean;
+    plays: number | null;
+    downloadedOfflineAt: string | null;
+    downloadedFileAt: string | null;
+  }[];
+};
+
 export type BuyersData = {
   summary: { paidUnits: number; refundedUnits: number; uniqueBuyers: number };
   sales: BuyerSale[];
+  buyers: BuyerBreakdown[];
 };
 
 export type MeStats = {

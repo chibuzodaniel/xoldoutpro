@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, Text, View, StyleSheet } from "react-native";
+import { ActivityIndicator, Image, ScrollView, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../lib/AuthContext";
@@ -23,6 +23,7 @@ export function AnalyticsScreen() {
   const { firebaseUser } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [buyers, setBuyers] = useState<BuyersData | null>(null);
+  const [buyersView, setBuyersView] = useState<"buyers" | "sales">("buyers");
 
   useEffect(() => {
     navigation.setOptions({ title: "Analytics" });
@@ -34,7 +35,7 @@ export function AnalyticsScreen() {
       apiGet<AnalyticsData>("/api/analytics", idToken).then(setData);
       apiGet<BuyersData>("/api/analytics/buyers", idToken)
         .then(setBuyers)
-        .catch(() => setBuyers({ summary: { paidUnits: 0, refundedUnits: 0, uniqueBuyers: 0 }, sales: [] }));
+        .catch(() => setBuyers({ summary: { paidUnits: 0, refundedUnits: 0, uniqueBuyers: 0 }, sales: [], buyers: [] }));
     });
   }, [firebaseUser]);
 
@@ -127,8 +128,60 @@ export function AnalyticsScreen() {
               <Text style={styles.buyerStatValue}>{buyers.summary.uniqueBuyers}</Text>
             </View>
           </View>
+          {buyers.sales.length > 0 && (
+            <View style={styles.toggleRow}>
+              {(["buyers", "sales"] as const).map((v) => (
+                <TouchableOpacity key={v} onPress={() => setBuyersView(v)} style={[styles.togglePill, buyersView === v && styles.togglePillActive]}>
+                  <Text style={[styles.toggleText, buyersView === v && styles.toggleTextActive]}>
+                    {v === "buyers" ? `By buyer (${buyers.buyers.length})` : `All sales (${buyers.sales.length})`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           {buyers.sales.length === 0 ? (
             <Text style={styles.emptyText}>No sales yet.</Text>
+          ) : buyersView === "buyers" ? (
+            buyers.buyers.map((b) => (
+              <View key={b.buyer.id} style={styles.row}>
+                <View style={styles.rowTop}>
+                  <TouchableOpacity style={styles.buyerHead} onPress={() => navigation.navigate("Creator", { handle: b.buyer.handle })}>
+                    {b.buyer.avatarUrl ? (
+                      <Image source={{ uri: b.buyer.avatarUrl }} style={styles.avatar} />
+                    ) : (
+                      <View style={styles.avatar} />
+                    )}
+                    <View style={styles.rowInfo}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {b.buyer.displayName} <Text style={styles.handle}>@{b.buyer.handle}</Text>
+                      </Text>
+                      <Text style={styles.rowMeta}>
+                        {b.paidUnits} bought
+                        {b.refundedUnits > 0 ? <Text style={{ color: colors.redSoft }}> · {b.refundedUnits} refunded</Text> : null} · last{" "}
+                        {shortDate(b.lastAt)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.messageButton} onPress={() => navigation.navigate("Conversation", { toUserId: b.buyer.id })}>
+                    <Text style={styles.messageButtonText}>Message</Text>
+                  </TouchableOpacity>
+                </View>
+                {b.products.map((p) => (
+                  <Text key={p.productId} style={[styles.rowMeta, { marginLeft: 42 }]}>
+                    <Text style={{ color: colors.ink2 }}>{p.title}</Text>
+                    {p.units > 1 ? ` ×${p.units}` : ""}
+                    {p.gift ? " · gift" : ""}
+                    {p.refunded > 0 ? <Text style={{ color: colors.redSoft }}> · {p.refunded} refunded</Text> : null}
+                    {p.plays !== null && p.units > 0
+                      ? ` · ${p.plays} play${p.plays === 1 ? "" : "s"}` +
+                        (p.downloadedOfflineAt ? " · Saved offline" : "") +
+                        (p.downloadedFileAt ? " · Downloaded file" : "") +
+                        (!p.downloadedOfflineAt && !p.downloadedFileAt ? " · Not downloaded" : "")
+                      : ""}
+                  </Text>
+                ))}
+              </View>
+            ))
           ) : (
             buyers.sales.map((s) => (
               <View key={s.id} style={styles.row}>
@@ -201,4 +254,14 @@ const styles = StyleSheet.create({
   buyerStatValue: { color: colors.ink, fontSize: 15, fontWeight: "600", marginTop: 2 },
   refundedTag: { color: colors.redSoft, fontSize: 10.5, letterSpacing: 0.5 },
   buyerLink: { color: colors.ink2, fontWeight: "600" },
+  toggleRow: { flexDirection: "row", gap: 6, marginBottom: 4 },
+  togglePill: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 5 },
+  togglePillActive: { borderColor: colors.ink },
+  toggleText: { color: colors.ink3, fontSize: 12, fontWeight: "600" },
+  toggleTextActive: { color: colors.ink },
+  buyerHead: { flex: 1, flexDirection: "row", alignItems: "center", gap: 10, minWidth: 0 },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  handle: { color: colors.ink3, fontWeight: "400" },
+  messageButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, marginLeft: 10 },
+  messageButtonText: { color: colors.ink2, fontSize: 12, fontWeight: "600" },
 });

@@ -156,6 +156,7 @@ export async function getUserModerationDetail(userId: string) {
     })),
     salesSummary: sellerSales.summary,
     sales: sellerSales.sales,
+    buyers: sellerSales.buyers,
     purchases: purchases.map((o) => ({
       orderId: o.id,
       productTitle: o.items[0]?.product.title ?? "(deleted product)",
