@@ -156,6 +156,12 @@ export function WalletScreen() {
           <Text style={styles.breakdownLabel}>Withdrawn</Text>
           <Text style={styles.breakdownValue}>{formatNaira(-data.totalWithdrawnKobo)}</Text>
         </View>
+        {data.refundsReceivedKobo > 0 && (
+          <View style={styles.breakdownRow}>
+            <Text style={styles.breakdownLabel}>Refunds to you</Text>
+            <Text style={[styles.breakdownValue, { color: colors.green }]}>+{formatNaira(data.refundsReceivedKobo)}</Text>
+          </View>
+        )}
         {data.totalRefundedKobo > 0 && (
           <View style={styles.breakdownRow}>
             <Text style={styles.breakdownLabel}>Refunds</Text>
@@ -207,6 +213,30 @@ export function WalletScreen() {
             <View key={type} style={styles.categoryRow}>
               <Text style={styles.categoryLabel}>{type.charAt(0) + type.slice(1).toLowerCase()}</Text>
               <Text style={styles.categoryValue}>{formatNaira(kobo)}</Text>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {data.refundHistory.length > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Refund history</Text>
+          {data.refundHistory.map((r) => (
+            <View key={r.id} style={styles.refundRow}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.refundTitle} numberOfLines={1}>
+                  {r.productTitle}
+                  {r.quantity > 1 ? ` ×${r.quantity}` : ""}
+                </Text>
+                <Text style={styles.refundMeta}>
+                  {r.direction === "IN" ? "Refunded to your wallet" : `Sale reversed${r.buyerHandle ? ` · bought by @${r.buyerHandle}` : ""}`} · {r.reason} ·{" "}
+                  {new Date(r.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                </Text>
+              </View>
+              <Text style={[styles.refundAmount, { color: r.direction === "IN" ? colors.green : colors.redSoft }]}>
+                {r.direction === "IN" ? "+" : "-"}
+                {formatNaira(Math.abs(r.amountKobo))}
+              </Text>
             </View>
           ))}
         </View>
@@ -284,6 +314,10 @@ const styles = StyleSheet.create({
   secondaryButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 14, alignItems: "center", marginBottom: 24 },
   secondaryButtonText: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   section: { marginBottom: 24 },
+  refundRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
+  refundTitle: { color: colors.ink, fontSize: 14 },
+  refundMeta: { color: colors.ink3, fontSize: 11, marginTop: 2 },
+  refundAmount: { fontSize: 15, fontFamily: fonts.serif },
   sectionTitle: { color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 10 },
   categoryRow: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: colors.lineSoft },
   categoryLabel: { color: colors.ink2, fontSize: 13 },

@@ -25,6 +25,19 @@ export type WalletData = {
   totalEarnedKobo: number;
   totalWithdrawnKobo: number;
   totalRefundedKobo: number;
+  refundsReceivedKobo: number;
+  // IN: refunded into this wallet as a buyer; OUT: a sale reversed out of it.
+  refundHistory: {
+    id: string;
+    direction: "IN" | "OUT";
+    amountKobo: number;
+    createdAt: string;
+    productTitle: string;
+    productType: string | null;
+    quantity: number;
+    buyerHandle: string | null;
+    reason: string;
+  }[];
   otherSpentKobo: number;
   earnedByCategory: Record<string, number>;
   payouts: Payout[];

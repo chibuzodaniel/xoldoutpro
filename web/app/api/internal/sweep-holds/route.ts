@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
 import { recordRefund } from "@/lib/commerce/ledger";
-import { refundCharge } from "@/lib/commerce/claimPayment";
+import { refundCharge, isRefundUnsupported, creditRefundToWallet } from "@/lib/commerce/claimPayment";
 import { createNotification } from "@/lib/notifications/create";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 import { sweepExpiredVerifications } from "@/lib/verification/applications";
@@ -165,18 +165,28 @@ async function refundExpiredGifts() {
     if (claim.count === 0) continue;
 
     if (payment && amountKobo > 0) {
+      const naira = `₦${(amountKobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`;
+      let toWallet = false;
       try {
         await refundCharge(payment.processor, payment.providerTransactionId!, amountKobo);
       } catch (err) {
-        await db.gift.update({ where: { id: gift.id }, data: { status: "EXPIRED" } });
-        console.error(`Expired gift ${gift.id} refund failed — will retry next sweep`, err);
-        continue;
+        if (!isRefundUnsupported(err)) {
+          await db.gift.update({ where: { id: gift.id }, data: { status: "EXPIRED" } });
+          console.error(`Expired gift ${gift.id} refund failed — will retry next sweep`, err);
+          continue;
+        }
+        // The processor will never reverse this charge — pay the buyer
+        // back into their xoldOut wallet instead (explicit choice).
+        await creditRefundToWallet({ userId: gift.giverId, orderId: gift.orderId, amountKobo });
+        toWallet = true;
       }
       await createNotification(gift.giverId, {
         kind: "REFUND",
         title: "Gift refunded",
-        body: `Your gift of ${gift.product.title} wasn't claimed in time · ₦${(amountKobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })} refunded to your original payment method.`,
-        url: "/library",
+        body: toWallet
+          ? `Your gift of ${gift.product.title} wasn't claimed in time · ${naira} refunded to your xoldOut wallet.`
+          : `Your gift of ${gift.product.title} wasn't claimed in time · ${naira} refunded to your original payment method.`,
+        url: toWallet ? "/wallet" : "/library",
       });
     }
     refunded += 1;

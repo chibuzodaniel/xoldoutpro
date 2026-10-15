@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
     const { availableKobo, pendingKobo } = await getWalletBalances(user.id);
 
-    const [earned, withdrawn, refunded, categoryBreakdown, payouts] = await Promise.all([
+    const [earned, withdrawn, refunded, categoryBreakdown, payouts, refundsReceived, refundEntries] = await Promise.all([
       // Every kind that credits/debits a user as part of a sale itself
       // (as opposed to a withdrawal) — widened alongside the ambassador
       // and ticket-promoter features so totalEarnedKobo never diverges
@@ -71,7 +71,57 @@ export async function GET(req: NextRequest) {
         take: 20,
         include: { payoutAccount: { select: { bankName: true, accountNumber: true, accountName: true } } },
       }),
+      // Refunds paid *to* this user as a buyer (REFUND_CREDIT — the
+      // processor wouldn't reverse their charge, so it came to the wallet).
+      db.walletLedgerEntry.aggregate({
+        where: { userId: user.id, kind: "REFUND_CREDIT" },
+        _sum: { amountKobo: true },
+      }),
+      // Refund history (explicit ask, 2026-10-15: "a history of refund and
+      // the product the refund is for") — both directions: money refunded
+      // into this wallet as a buyer, and sales reversed out of it as a seller.
+      db.walletLedgerEntry.findMany({
+        where: { userId: user.id, kind: { in: ["REFUND_CREDIT", "REFUND_DEBIT"] } },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        select: {
+          id: true,
+          kind: true,
+          amountKobo: true,
+          createdAt: true,
+          order: {
+            select: {
+              isGift: true,
+              buyer: { select: { handle: true } },
+              gift: { select: { status: true } },
+              items: { take: 1, select: { quantity: true, product: { select: { title: true, type: true } } } },
+            },
+          },
+        },
+      }),
     ]);
+
+    const refundHistory = refundEntries.map((e) => {
+      const item = e.order?.items[0];
+      const reason =
+        e.order?.gift && (e.order.gift.status === "EXPIRED" || e.order.gift.status === "REFUNDED")
+          ? "Gift wasn't claimed in time"
+          : e.kind === "REFUND_CREDIT"
+            ? "Sold out before your payment came through"
+            : "Refunded by xoldOut";
+      return {
+        id: e.id,
+        direction: e.kind === "REFUND_CREDIT" ? ("IN" as const) : ("OUT" as const),
+        amountKobo: e.amountKobo,
+        createdAt: e.createdAt,
+        productTitle: item?.product.title ?? "(removed product)",
+        productType: item?.product.type ?? null,
+        quantity: item?.quantity ?? 1,
+        // Seller side only — whose purchase was reversed.
+        buyerHandle: e.kind === "REFUND_DEBIT" ? (e.order?.buyer.handle ?? null) : null,
+        reason,
+      };
+    });
 
     // Group gross sales by product type (PRD "earned by category") — only
     // RELEASE exists today, but Product is polymorphic so this already
@@ -96,12 +146,15 @@ export async function GET(req: NextRequest) {
       totalWithdrawnKobo: Math.abs(withdrawn._sum.amountKobo ?? 0),
       // So the wallet adds up on screen (explicit ask, 2026-10-05, after a
       // creator saw "₦-492" with no explanation): earned − withdrawn −
-      // refunded − otherSpent = available + pending. otherSpent is whatever
+      // refunded + refundsReceived − otherSpent = available + pending. otherSpent is whatever
       // remains (billboards, creator-plan fees and the like), computed as the
       // remainder so the sum always balances exactly.
       totalRefundedKobo: Math.abs(refunded._sum.amountKobo ?? 0),
+      refundsReceivedKobo: refundsReceived._sum.amountKobo ?? 0,
+      refundHistory,
       otherSpentKobo:
-        (earned._sum.amountKobo ?? 0) -
+        (earned._sum.amountKobo ?? 0) +
+        (refundsReceived._sum.amountKobo ?? 0) -
         Math.abs(withdrawn._sum.amountKobo ?? 0) -
         Math.abs(refunded._sum.amountKobo ?? 0) -
         (availableKobo + pendingKobo),

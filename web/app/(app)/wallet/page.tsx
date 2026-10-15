@@ -12,6 +12,8 @@ type WalletData = {
   totalEarnedKobo: number;
   totalWithdrawnKobo: number;
   totalRefundedKobo: number;
+  refundsReceivedKobo: number;
+  refundHistory: RefundRow[];
   otherSpentKobo: number;
   earnedByCategory: Record<string, number>;
   payouts: Payout[];
@@ -21,6 +23,20 @@ type WalletData = {
   // independently now and this copy needs to stay accurate either way.
   commissionPercent: { RELEASE: number; BEAT: number; MERCH: number; EVENT: number };
   xgEarnings: { balanceXg: number; balanceKobo: number; nextPayoutAt: string | null; nextPayoutKobo: number };
+};
+
+// IN: a refund paid into this wallet as a buyer. OUT: one of this seller's
+// sales reversed out of it.
+type RefundRow = {
+  id: string;
+  direction: "IN" | "OUT";
+  amountKobo: number;
+  createdAt: string;
+  productTitle: string;
+  productType: string | null;
+  quantity: number;
+  buyerHandle: string | null;
+  reason: string;
 };
 
 type Payout = {
@@ -282,6 +298,12 @@ export default function WalletPage() {
           <span className="text-ink-3">Withdrawn</span>
           <span>{naira(-data.totalWithdrawnKobo)}</span>
         </div>
+        {data.refundsReceivedKobo > 0 && (
+          <div className="flex items-center justify-between py-2">
+            <span className="text-ink-3">Refunds to you</span>
+            <span className="text-green">+{naira(data.refundsReceivedKobo)}</span>
+          </div>
+        )}
         {data.totalRefundedKobo > 0 && (
           <div className="flex items-center justify-between py-2">
             <span className="text-ink-3">Refunds</span>
@@ -343,6 +365,32 @@ export default function WalletPage() {
               <div key={type} className="flex items-center justify-between py-2.5 text-sm">
                 <span className="capitalize">{type.toLowerCase()}</span>
                 <span className="font-serif">{naira(kobo)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {data.refundHistory.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-[12px] uppercase tracking-widest text-ink-3 mb-3">Refund history</h2>
+          <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+            {data.refundHistory.map((r) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-sm truncate">
+                    {r.productTitle}
+                    {r.quantity > 1 && <span className="text-ink-3"> ×{r.quantity}</span>}
+                  </p>
+                  <p className="text-[11px] text-ink-3">
+                    {r.direction === "IN" ? "Refunded to your wallet" : `Sale reversed${r.buyerHandle ? ` · bought by @${r.buyerHandle}` : ""}`} · {r.reason} ·{" "}
+                    {new Date(r.createdAt).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
+                </div>
+                <span className={`font-serif shrink-0 ${r.direction === "IN" ? "text-green" : "text-red-soft"}`}>
+                  {r.direction === "IN" ? "+" : "-"}
+                  {naira(Math.abs(r.amountKobo))}
+                </span>
               </div>
             ))}
           </div>

@@ -505,6 +505,11 @@ enum LedgerKind {
   // XG pack bought with wallet money instead of a Bachs checkout
   // (explicit ask, 2026-10-08) — a debit, like BILLBOARD_FEE.
   XG_PURCHASE
+  // A buyer's refund paid into their xoldOut wallet because the processor
+  // refused to reverse the charge ("Refunds are not supported for this
+  // charge" — explicit choice, 2026-10-15). Credits the *buyer*; the
+  // seller-side reversal is still the order's REFUND_DEBIT.
+  REFUND_CREDIT
 }
 
 // Three creator-selectable monetization plans (DECISIONS.md) — see

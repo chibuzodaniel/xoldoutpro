@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "LedgerKind" ADD VALUE 'REFUND_CREDIT';

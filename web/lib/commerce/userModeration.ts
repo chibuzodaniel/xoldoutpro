@@ -23,6 +23,7 @@ const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
   LIVE_REQUEST_CREDIT: "Live paid request",
   XG_EARNINGS_PAYOUT: "Live XG earnings",
   XG_PURCHASE: "XG bought with wallet",
+  REFUND_CREDIT: "Refund to wallet",
 };
 
 /**

@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { confirmStock, releaseReservation, reserveStock } from "@/lib/commerce/stock";
-import { claimPaymentForWebhook, refundCharge } from "@/lib/commerce/claimPayment";
+import { claimPaymentForWebhook, refundCharge, isRefundUnsupported, creditRefundToWallet } from "@/lib/commerce/claimPayment";
 import { recordSale, getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
@@ -49,20 +49,26 @@ type VerifiedResult = { id: number | string; status: "successful" | "failed" | s
 // (the payment row is already claimed).
 async function refundLateSoldOutPayment(payment: PaymentForConfirm, chargeId: string, productId: string) {
   const product = await db.product.findUnique({ where: { id: productId }, select: { title: true } });
+  let toWallet = false;
   try {
     await refundCharge(payment.processor, chargeId, payment.amountKobo);
   } catch (err) {
-    console.error(
-      `REFUND NEEDED: late payment ${payment.id} (charge ${chargeId}, order ${payment.orderId}, ${payment.amountKobo} kobo) — item sold out and the automatic refund failed.`,
-      err,
-    );
-    return;
+    if (!isRefundUnsupported(err)) {
+      console.error(
+        `REFUND NEEDED: late payment ${payment.id} (charge ${chargeId}, order ${payment.orderId}, ${payment.amountKobo} kobo) — item sold out and the automatic refund failed.`,
+        err,
+      );
+      return;
+    }
+    // Processor won't reverse this charge — wallet credit instead.
+    await creditRefundToWallet({ userId: payment.order.buyerId, orderId: payment.orderId, amountKobo: payment.amountKobo });
+    toWallet = true;
   }
   await createNotification(payment.order.buyerId, {
     kind: "REFUND",
     title: "Payment refunded",
-    body: `${product?.title ?? "Your item"} sold out before your payment came through · ${formatNaira(payment.amountKobo)} refunded to your original payment method.`,
-    url: "/library",
+    body: `${product?.title ?? "Your item"} sold out before your payment came through · ${formatNaira(payment.amountKobo)} refunded to your ${toWallet ? "xoldOut wallet" : "original payment method"}.`,
+    url: toWallet ? "/wallet" : "/library",
   });
 }
 

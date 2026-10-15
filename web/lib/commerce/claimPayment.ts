@@ -42,6 +42,28 @@ export async function claimPaymentForWebhook(paymentId: string, verified: Verifi
   return "late";
 }
 
+/**
+ * True when the processor permanently refuses to reverse this charge (seen
+ * from Bachs on real charges: "Refunds are not supported for this charge") —
+ * as opposed to a transient failure worth retrying. Callers fall back to
+ * creditRefundToWallet for these.
+ */
+export function isRefundUnsupported(err: unknown) {
+  return err instanceof Error && /not supported/i.test(err.message);
+}
+
+/**
+ * Pays a refund into the buyer's xoldOut wallet instead of back to their
+ * card/bank (explicit choice, 2026-10-15, for charges the processor won't
+ * refund). Immediately AVAILABLE — it's the buyer's own money coming back,
+ * not sale earnings with a settlement window.
+ */
+export async function creditRefundToWallet(args: { userId: string; orderId: string; amountKobo: number }) {
+  await db.walletLedgerEntry.create({
+    data: { userId: args.userId, orderId: args.orderId, amountKobo: args.amountKobo, kind: "REFUND_CREDIT", status: "AVAILABLE", availableAt: null },
+  });
+}
+
 /** Sends a full refund back through whichever processor took the charge. */
 export async function refundCharge(processor: string, chargeId: string, amountKobo: number) {
   if (processor === "monnify") return initiateMonnifyRefund(chargeId, amountKobo);
