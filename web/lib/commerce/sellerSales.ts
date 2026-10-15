@@ -204,7 +204,8 @@ function groupByBuyer(sales: Sale[]) {
 
 function refundReason(order: { status: string; gift: { status: string } | null }): string | null {
   if (order.status !== "REFUNDED") return null;
-  if (order.gift?.status === "EXPIRED") return "Gift never claimed — expired and refunded";
+  if (order.gift?.status === "EXPIRED") return "Gift never claimed — expired, refund to buyer processing";
+  if (order.gift?.status === "REFUNDED") return "Gift never claimed — expired and refunded to buyer";
   return "Refunded by moderator / takedown";
 }
 

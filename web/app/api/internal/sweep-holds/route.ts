@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
 import { recordRefund } from "@/lib/commerce/ledger";
+import { refundCharge } from "@/lib/commerce/claimPayment";
+import { createNotification } from "@/lib/notifications/create";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 import { sweepExpiredVerifications } from "@/lib/verification/applications";
 
@@ -97,6 +99,8 @@ export async function GET(req: NextRequest) {
     giftsExpired += 1;
   }
 
+  const giftsRefunded = await refundExpiredGifts();
+
   // Self-healing fallback for Bachs's payout.paid/payout.failed webhook
   // never reaching us, platform-wide — app/api/wallet/route.ts already does
   // this same reconcilePayout check, but only for the withdrawing creator's
@@ -120,5 +124,62 @@ export async function GET(req: NextRequest) {
   // cron slot isn't worth spending on something this infrequent.
   const verificationsExpired = await sweepExpiredVerifications();
 
-  return NextResponse.json({ swept, billboardsSwept, payoutsChecked: inFlightPayouts.length, giftsExpired, verificationsExpired });
+  return NextResponse.json({ swept, billboardsSwept, payoutsChecked: inFlightPayouts.length, giftsExpired, giftsRefunded, verificationsExpired });
+}
+
+const GIFT_REFUNDS_PER_RUN = 20;
+
+/**
+ * Sends an expired gift's money back to the buyer through the processor
+ * (fixed 2026-10-15). The expiry step above only ever reversed the seller's
+ * ledger and marked the order REFUNDED — no processor refund was ever
+ * called, so the buyer's money just sat in the platform's Bachs balance
+ * while their Library said "Expired, refunded".
+ *
+ * Gift status now splits the two steps: EXPIRED = expired and the seller
+ * side reversed, money not yet returned; REFUNDED = the processor refund
+ * went through. Every run retries what's still EXPIRED, which also picks up
+ * gifts that expired before this fix. The row is claimed (EXPIRED →
+ * REFUNDED) before the external call so two overlapping sweep runs can
+ * never refund the same gift twice, and put back to EXPIRED if the call
+ * fails so the next run retries it.
+ */
+async function refundExpiredGifts() {
+  const pending = await db.gift.findMany({
+    where: { status: "EXPIRED" },
+    orderBy: { expiresAt: "asc" },
+    take: GIFT_REFUNDS_PER_RUN,
+    include: { order: { include: { payment: true } }, product: { select: { title: true } } },
+  });
+
+  let refunded = 0;
+  for (const gift of pending) {
+    const payment = gift.order.payment;
+    const amountKobo = payment?.amountKobo ?? 0;
+    if (amountKobo > 0 && !payment?.providerTransactionId) {
+      console.error(`REFUND NEEDED: expired gift ${gift.id} (order ${gift.orderId}, ${amountKobo} kobo) has no processor transaction id — refund manually.`);
+      continue;
+    }
+
+    const claim = await db.gift.updateMany({ where: { id: gift.id, status: "EXPIRED" }, data: { status: "REFUNDED" } });
+    if (claim.count === 0) continue;
+
+    if (payment && amountKobo > 0) {
+      try {
+        await refundCharge(payment.processor, payment.providerTransactionId!, amountKobo);
+      } catch (err) {
+        await db.gift.update({ where: { id: gift.id }, data: { status: "EXPIRED" } });
+        console.error(`Expired gift ${gift.id} refund failed — will retry next sweep`, err);
+        continue;
+      }
+      await createNotification(gift.giverId, {
+        kind: "REFUND",
+        title: "Gift refunded",
+        body: `Your gift of ${gift.product.title} wasn't claimed in time · ₦${(amountKobo / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })} refunded to your original payment method.`,
+        url: "/library",
+      });
+    }
+    refunded += 1;
+  }
+  return refunded;
 }

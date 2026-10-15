@@ -15,7 +15,7 @@ function artUrl(product: GiftProduct) {
 const STATUS_LABEL: Record<SentGift["status"], string> = {
   PENDING: "Waiting to be claimed",
   CLAIMED: "Claimed",
-  EXPIRED: "Expired, refunded",
+  EXPIRED: "Expired, refund processing",
   REFUNDED: "Expired, refunded",
 };
 
