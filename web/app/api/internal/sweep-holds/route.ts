@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
   // a refund event too.
   const expiredGifts = await db.gift.findMany({
     where: { status: "PENDING", expiresAt: { lt: new Date() } },
-    include: { order: { include: { payment: true } }, product: { select: { creatorId: true } } },
+    include: { order: { include: { payment: true } }, product: { select: { creatorId: true, title: true } } },
   });
 
   let giftsExpired = 0;
@@ -96,6 +96,20 @@ export async function GET(req: NextRequest) {
       await recordRefund(db, { sellerId: gift.product.creatorId, orderId: gift.orderId, grossKobo: gift.order.payment.amountKobo });
       await db.order.update({ where: { id: gift.orderId }, data: { status: "REFUNDED" } });
     }
+    // The seller used to find out only by seeing their sold count drop
+    // (a creator asked why 17 became 15, 2026-10-15) — tell them, bell + push.
+    const debit = await db.walletLedgerEntry.findFirst({
+      where: { orderId: gift.orderId, userId: gift.product.creatorId, kind: "REFUND_DEBIT" },
+      select: { amountKobo: true },
+    });
+    await createNotification(gift.product.creatorId, {
+      kind: "REFUND",
+      title: "Sale reversed",
+      body: `A gift of ${gift.product.title} wasn't claimed in time, so the buyer was refunded${
+        debit ? ` · ${`₦${(Math.abs(debit.amountKobo) / 100).toLocaleString("en-NG", { maximumFractionDigits: 0 })}`} removed from your wallet` : ""
+      }.`,
+      url: "/wallet",
+    });
     giftsExpired += 1;
   }
 
