@@ -10,6 +10,7 @@ import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
 import { resolveGuestBuyer, sendGuestAccountSetupEmail } from "@/lib/commerce/guestCheckout";
+import { isGuestEmailVerified } from "@/lib/commerce/guestVerification";
 import { adminAuth } from "@/lib/firebase/admin";
 import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
 
@@ -30,6 +31,9 @@ const shippingSchema = z.object({
 const guestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().toLowerCase().email(),
+  // Proof the buyer entered the emailed code (POST /api/guest-checkout/
+  // verify-code) — checked against `email` before any account is touched.
+  verificationToken: z.string().optional(),
 });
 
 const bodySchema = z.object({
@@ -82,7 +86,10 @@ export async function POST(req: NextRequest) {
       if (!guest) {
         return NextResponse.json({ error: "Sign in, or provide your name and email to continue as a guest" }, { status: 401 });
       }
-      const { user, isNewAccount } = await resolveGuestBuyer(guest);
+      if (!(await isGuestEmailVerified(guest.email, guest.verificationToken))) {
+        return NextResponse.json({ error: "Confirm your email with the code we sent before checking out", code: "EMAIL_NOT_VERIFIED" }, { status: 403 });
+      }
+      const { user, isNewAccount } = await resolveGuestBuyer({ name: guest.name, email: guest.email });
       buyer = user;
       if (isNewAccount) {
         customToken = await adminAuth().createCustomToken(user.firebaseUid);

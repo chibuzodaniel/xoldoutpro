@@ -973,6 +973,27 @@ enum NotificationKind {
   LIVE
 }
 
+// Guest checkout email check (explicit ask, 2026-10-15): a buyer with no
+// account must prove they own the email before an order is created for it —
+// a typo used to send the purchase (and create/attach an account) to a
+// stranger's address. One row per code sent; `token` is set once the code is
+// entered correctly and is what POST /api/orders accepts as proof (see
+// lib/commerce/guestVerification.ts).
+model GuestEmailVerification {
+  id         String    @id @default(cuid())
+  email      String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  token      String?   @unique
+  ip         String?
+  createdAt  DateTime  @default(now())
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
 model Notification {
   id        String           @id @default(cuid())
   userId    String

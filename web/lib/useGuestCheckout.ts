@@ -4,7 +4,10 @@ import { useRef, useState } from "react";
 import { signInWithCustomToken } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
 
-export type GuestInfo = { name: string; email: string };
+// verificationToken: proof the buyer typed in the code emailed to `email`
+// (GuestInfoSheet's second step) — POST /api/orders rejects a guest order
+// without it.
+export type GuestInfo = { name: string; email: string; verificationToken: string };
 
 // Same shape as GatewayPickerCancelled (lib/useGatewayCheckout.ts) — thrown
 // when the sheet is dismissed without submitting, so callers can tell a

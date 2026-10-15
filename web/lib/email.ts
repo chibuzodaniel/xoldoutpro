@@ -218,6 +218,29 @@ export async function sendGuestAccountEmail(input: { to: string; buyerName: stri
   return sendEmail({ to: input.to, subject: "Your XOLDOUT Purchase Is Saved", html: shell(body) });
 }
 
+// Guest checkout email check (lib/commerce/guestVerification.ts) — the code
+// a buyer without an account types in before their order is created.
+export async function sendGuestVerificationCodeEmail(input: { to: string; buyerName: string; code: string; minutes: number }): Promise<boolean> {
+  const firstName = input.buyerName.trim().split(" ")[0] || "there";
+  const body = `
+    <tr><td style="padding:48px 40px 8px;text-align:center;">
+      ${iconCircle("X", C.red)}
+      <div style="color:${C.white};font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:20px;">Confirm your email</div>
+      <div style="color:${C.body};font-size:14px;line-height:22px;max-width:420px;margin:0 auto 24px;text-align:left;">
+        <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)},</p>
+        <p style="margin:0;">Enter this code on XOLDOUT to continue your purchase. It expires in ${input.minutes} minutes.</p>
+      </div>
+    </td></tr>
+    <tr><td style="padding:0 40px 32px;text-align:center;">
+      <div style="display:inline-block;color:${C.white};font-size:34px;font-weight:700;letter-spacing:10px;padding:14px 24px;border:1px solid #38383f;border-radius:12px;">${input.code}</div>
+    </td></tr>
+    <tr><td style="padding:0 40px 40px;text-align:center;color:${C.body};font-size:12px;line-height:18px;">
+      Didn't try to buy something on XOLDOUT? You can ignore this email.
+    </td></tr>
+  `;
+  return sendEmail({ to: input.to, subject: `${input.code} is your XOLDOUT code`, html: shell(body) });
+}
+
 // ─── 02/03 · Order confirmation (paid or free) ──────────────────────────
 type TicketInfo = {
   checkInCode: string;
