@@ -26,6 +26,7 @@ import { ActionSheet } from "../components/ActionSheet";
 import { ReportSheet } from "../components/ReportSheet";
 import { useToast } from "../components/ToastProvider";
 import { setOpenConversation } from "../lib/messageNotify";
+import { ImageViewer } from "../components/messages/ImageViewer";
 
 // Mirrors web's app/(app)/messages/[id]/page.tsx (direct messages, explicit
 // ask 2026-10-04) — rules live server-side in web's lib/messages. Opened
@@ -59,6 +60,7 @@ export function ConversationScreen() {
   const [disappearOpen, setDisappearOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [selected, setSelected] = useState<DmMessage | null>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
   const [muteOpen, setMuteOpen] = useState(false);
 
   // While this chat is on screen, its pushes and banners are suppressed.
@@ -301,6 +303,10 @@ export function ConversationScreen() {
                       activeOpacity={0.85}
                       onLongPress={() => m.fromMe && !m.deleted && setSelected(m)}
                       onPress={() => {
+                        if (m.kind === "IMAGE" && m.imageUrl && !m.deleted) {
+                          setViewImage(m.imageUrl);
+                          return;
+                        }
                         if (m.share && !m.deleted) {
                           if (m.share.type === "LIVE") navigation.navigate("LiveViewer", { id: m.share.id });
                           else if (m.share.type === "EVENT") navigation.navigate("Event", { id: m.share.id });
@@ -513,6 +519,7 @@ export function ConversationScreen() {
       />
 
       {t && <ReportSheet visible={reportOpen} onClose={() => setReportOpen(false)} targetType="CONVERSATION" targetId={t.id} />}
+      <ImageViewer uri={viewImage} onClose={() => setViewImage(null)} />
     </KeyboardAvoidingView>
   );
 }

@@ -11,6 +11,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { BottomSheet } from "@/components/live/BottomSheet";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { DmAvatar } from "@/components/messages/Avatar";
+import { ImageViewer } from "@/components/messages/ImageViewer";
 import { DISAPPEAR_CHOICES, type DmMessage, type DmThread } from "@/components/messages/types";
 
 // One direct-message conversation (explicit ask, 2026-10-04) — see
@@ -67,6 +68,8 @@ export default function ConversationPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [muteOpen, setMuteOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [viewImage, setViewImage] = useState<string | null>(null);
+  const closeImage = useCallback(() => setViewImage(null), []);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastCountRef = useRef(0);
@@ -297,10 +300,18 @@ export default function ConversationPage() {
                       ) : (
                         <>
                           {m.kind === "IMAGE" && m.imageUrl && (
-                            <a href={m.imageUrl} target="_blank" rel="noreferrer">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setViewImage(m.imageUrl);
+                              }}
+                              className="block w-full"
+                              aria-label="View photo"
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={m.imageUrl} alt="Photo" className="mb-1 max-h-72 w-full rounded-xl object-cover" />
-                            </a>
+                            </button>
                           )}
                           {m.kind === "SHARE" && <ShareCardView m={m} />}
                           {m.body && <p className="whitespace-pre-wrap break-words text-sm">{m.body}</p>}
@@ -554,6 +565,7 @@ export default function ConversationPage() {
         title="Report conversation"
         detailsPlaceholder="What happened? Moderators will be able to read this conversation."
       />
+      <ImageViewer src={viewImage} onClose={closeImage} />
     </div>
   );
 }
