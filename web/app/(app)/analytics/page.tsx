@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { BackHeader } from "@/components/ui/BackHeader";
+import { BuyersList, type BuyerSale, type BuyersSummary } from "@/components/sales/BuyersList";
 
 type ProductStat = {
   id: string;
@@ -40,11 +41,15 @@ function formatDuration(hours: number) {
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [buyers, setBuyers] = useState<{ summary: BuyersSummary; sales: BuyerSale[] } | null>(null);
 
   useEffect(() => {
     apiFetch("/api/analytics")
       .then((res) => (res.ok ? res.json() : null))
       .then(setData);
+    apiFetch("/api/analytics/buyers")
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setBuyers);
   }, []);
 
   if (data === null) return <LoadingSpinner full size="lg" />;
@@ -111,6 +116,13 @@ export default function AnalyticsPage() {
             </div>
           ))}
         </div>
+      )}
+
+      <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Buyers</h2>
+      {buyers === null ? (
+        <p className="text-sm text-ink-3">Loading…</p>
+      ) : (
+        <BuyersList summary={buyers.summary} sales={buyers.sales} />
       )}
       </div>
     </div>

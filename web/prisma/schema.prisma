@@ -266,6 +266,31 @@ model TrackPlay {
   @@index([userId, productId])
 }
 
+enum DownloadKind {
+  OFFLINE // saved into the app's encrypted offline store (web IndexedDB / mobile file system)
+  FILE // the real tagged master file (?download=1)
+}
+
+// Explicit ask, 2026-10-15: a seller (and moderators) can see, per buyer,
+// whether a song was downloaded. Offline saves live only on the buyer's
+// device, so the audio-url routes record them here when the client asks for
+// the file with ?offline=1 (or ?download=1 for a real file download). One
+// row per buyer/product/kind — count/lastAt track repeats. Removing an
+// offline copy is never reported back, so this means "has downloaded", not
+// "still has it".
+model ProductDownload {
+  id        String       @id @default(cuid())
+  userId    String
+  productId String
+  kind      DownloadKind
+  count     Int          @default(1)
+  firstAt   DateTime     @default(now())
+  lastAt    DateTime     @default(now())
+
+  @@unique([userId, productId, kind])
+  @@index([productId])
+}
+
 // ─── Fanbase: announcements (PRD §11 MVP) and groups (PRD §11 Phase 2) ─
 // A Post with groupId = null is a creator announcement reaching followers
 // (MVP). A Post with groupId set is a post inside that FanbaseGroup, subject

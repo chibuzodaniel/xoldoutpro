@@ -5,6 +5,7 @@ import { useCanUse } from "./access";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { formatNairaShort } from "./AmbassadorsPanel";
+import { BuyersList, type BuyerSale, type BuyersSummary } from "@/components/sales/BuyersList";
 
 type UserRow = {
   id: string;
@@ -55,7 +56,7 @@ export function UsersListPanel() {
   }, [q, includeDeleted, page]);
 
   if (selectedId) {
-    return <UserDetail userId={selectedId} onBack={() => setSelectedId(null)} />;
+    return <UserDetail key={selectedId} userId={selectedId} onBack={() => setSelectedId(null)} onOpenUser={setSelectedId} />;
   }
 
   return (
@@ -156,8 +157,10 @@ type ProductRow = {
   createdAt: string;
   sold: number;
   cap: number | null;
+  refunded: number;
   commissionPercent: number;
 };
+
 
 type PurchaseRow = {
   orderId: string;
@@ -208,6 +211,8 @@ type UserDetailData = {
     earnedByCategory: Record<string, number>;
   };
   products: ProductRow[];
+  salesSummary: BuyersSummary;
+  sales: BuyerSale[];
   purchases: PurchaseRow[];
   activity: ActivityRow[];
   payouts: PayoutRow[];
@@ -218,7 +223,7 @@ type UserDetailData = {
 // user has made, all activities on the platform"). View-only by explicit
 // choice — money corrections still only ever go through the dedicated
 // recompute tools, never an ad hoc edit here.
-function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) {
+function UserDetail({ userId, onBack, onOpenUser }: { userId: string; onBack: () => void; onOpenUser: (id: string) => void }) {
   const [data, setData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -309,12 +314,18 @@ function UserDetail({ userId, onBack }: { userId: string; onBack: () => void }) 
                     </p>
                     <p className="text-[11px] text-ink-3">
                       {TYPE_LABEL[p.type] ?? p.type} · {p.priceKobo === 0 ? "Free" : formatNairaShort(p.priceKobo)} · {p.sold} sold
-                      {p.cap != null ? ` / ${p.cap} cap` : ""} · {p.commissionPercent}% commission
+                      {p.cap != null ? ` / ${p.cap} cap` : ""}
+                      {p.refunded > 0 && <span className="text-red-soft"> · {p.refunded} refunded</span>} · {p.commissionPercent}% commission
                     </p>
                   </div>
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="rounded-lg border border-line-soft p-4 mb-4">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-ink-3 mb-3">Sales</p>
+            <BuyersList summary={data.salesSummary} sales={data.sales} onBuyerClick={onOpenUser} />
           </div>
 
           <div className="rounded-lg border border-line-soft p-4 mb-4">

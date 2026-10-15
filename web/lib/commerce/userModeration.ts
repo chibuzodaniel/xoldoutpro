@@ -2,6 +2,7 @@ import type { LedgerKind } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { getCreatorPlanSettings } from "@/lib/commerce/creatorPlans";
+import { getSellerSales } from "@/lib/commerce/sellerSales";
 
 // Human labels for the moderator-facing activity feed — same enum
 // AmbassadorsPanel/EventCommissionRecompute already surface individual
@@ -110,6 +111,10 @@ export async function getUserModerationDetail(userId: string) {
       getCreatorPlanSettings(),
     ]);
 
+  // The seller side of the same orders — who bought, refunds and why,
+  // plays/downloads per buyer. Shared with the seller's own Analytics.
+  const sellerSales = await getSellerSales(userId);
+
   const typeById = new Map(products.map((p) => [p.id, p.type]));
   const earnedByCategory: Record<string, number> = {};
   for (const row of categoryRows) {
@@ -146,8 +151,11 @@ export async function getUserModerationDetail(userId: string) {
       createdAt: p.createdAt,
       sold: p.stockPolicy?.sold ?? 0,
       cap: p.stockPolicy?.cap ?? null,
+      refunded: sellerSales.refundedByProduct.get(p.id) ?? 0,
       commissionPercent: commissionPercentFor(p.type),
     })),
+    salesSummary: sellerSales.summary,
+    sales: sellerSales.sales,
     purchases: purchases.map((o) => ({
       orderId: o.id,
       productTitle: o.items[0]?.product.title ?? "(deleted product)",

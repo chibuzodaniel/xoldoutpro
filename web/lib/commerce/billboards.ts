@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { alertModerators } from "@/lib/moderation/attention";
 import { initializePayment, initiateRefund } from "@/lib/bachs";
+import { claimPaymentForWebhook } from "@/lib/commerce/claimPayment";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -285,18 +286,28 @@ export async function finalizeBillboardPayment(
   verified: VerifiedResult,
   rawPayload: unknown,
 ): Promise<{ alreadyProcessed: boolean }> {
-  const claim = await db.payment.updateMany({
-    where: { id: payment.id, status: "INITIATED" },
-    data: {
-      status: verified.status === "successful" ? "SUCCESSFUL" : "FAILED",
-      webhookReceivedAt: new Date(),
-      rawPayload: rawPayload as never,
-      providerTransactionId: String(verified.id),
-    },
-  });
-  if (claim.count === 0) return { alreadyProcessed: true };
+  const claim = await claimPaymentForWebhook(payment.id, verified, rawPayload);
+  if (claim === "alreadyProcessed") return { alreadyProcessed: true };
 
   if (!payment.billboardId) return { alreadyProcessed: false };
+
+  // Late success after the sweep marked the billboard REMOVED (see
+  // claimPaymentForWebhook): the creator paid, so it goes back into the
+  // review queue like any other paid billboard — moderator approval still
+  // gates it going live.
+  if (claim === "late") {
+    if (verified.amountKobo !== payment.amountKobo) {
+      console.error(`Late billboard payment ${payment.id} amount mismatch (${verified.amountKobo} vs ${payment.amountKobo}) — reconcile manually.`);
+      return { alreadyProcessed: false };
+    }
+    const revived = await db.billboard.updateMany({
+      where: { id: payment.billboardId, status: "REMOVED" },
+      data: { status: "PENDING_REVIEW", paidKobo: verified.amountKobo },
+    });
+    if (revived.count === 0) console.error(`Late billboard payment ${payment.id}: billboard ${payment.billboardId} is no longer REMOVED — reconcile manually.`);
+    else alertModerators({ panel: "billboards", title: "Billboard awaiting review", body: "A paid billboard is waiting for approval." });
+    return { alreadyProcessed: false };
+  }
 
   if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
     await db.billboard.update({ where: { id: payment.billboardId }, data: { status: "REMOVED" } });

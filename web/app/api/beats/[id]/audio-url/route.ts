@@ -3,6 +3,7 @@ import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
 import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
+import { recordDownload } from "@/lib/commerce/downloads";
 
 export const runtime = "nodejs";
 // See that route's own comment: a ?download=1 request runs ffmpeg tagging
@@ -55,6 +56,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         if (!(await downloadsEnabled())) {
           return NextResponse.json({ error: "Downloads are currently disabled" }, { status: 403 });
         }
+        if (user) recordDownload(user.id, id, "FILE");
         return serveTaggedAudioDownload({
         link: req.nextUrl.searchParams.get("link") === "1",
           masterKey: product.beat.audioMasterUrl,

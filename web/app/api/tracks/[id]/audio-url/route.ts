@@ -3,6 +3,7 @@ import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
 import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
+import { recordDownload } from "@/lib/commerce/downloads";
 
 export const runtime = "nodejs";
 // A ?download=1 request proxies the master through ffmpeg (ID3 tagging) —
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       if (!(await downloadsEnabled())) {
         return NextResponse.json({ error: "Downloads are currently disabled" }, { status: 403 });
       }
+      if (user) recordDownload(user.id, track.release.productId, "FILE");
       return serveTaggedAudioDownload({
         link: req.nextUrl.searchParams.get("link") === "1",
         masterKey: track.audioMasterUrl,
@@ -76,7 +78,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // productId is only set when entitled, so Heavy Rotation (lib/library/
     // heavyRotation.ts) only ever counts real plays of things a fan owns,
     // never previews — creatorId is logged regardless, unchanged from before.
-    if (user) {
+    //
+    // ?offline=1 is the offline-save fetch (web/mobile lib/offline/
+    // downloads.ts), not a listen — recorded as a download for the seller's
+    // buyer list instead of inflating plays.
+    const forOffline = req.nextUrl.searchParams.get("offline") === "1";
+    if (user && entitled && forOffline) {
+      recordDownload(user.id, track.release.productId, "OFFLINE");
+    } else if (user) {
       db.trackPlay
         .create({ data: { userId: user.id, creatorId: track.release.product.creatorId, productId: entitled ? track.release.productId : undefined } })
         .catch((err) => console.error("trackPlay log failed", err));

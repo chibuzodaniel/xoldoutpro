@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useAuth } from "../lib/AuthContext";
 import { apiGet } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
-import type { AnalyticsData } from "../lib/walletTypes";
+import type { AnalyticsData, BuyersData } from "../lib/walletTypes";
 import { colors, fonts } from "../lib/theme";
 
 const TYPE_LABEL: Record<string, string> = { RELEASE: "Music", BEAT: "Beat", EVENT: "Event", MERCH: "Merch" };
@@ -22,6 +22,7 @@ export function AnalyticsScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { firebaseUser } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
+  const [buyers, setBuyers] = useState<BuyersData | null>(null);
 
   useEffect(() => {
     navigation.setOptions({ title: "Analytics" });
@@ -29,7 +30,12 @@ export function AnalyticsScreen() {
 
   useEffect(() => {
     if (!firebaseUser) return;
-    firebaseUser.getIdToken().then((idToken) => apiGet<AnalyticsData>("/api/analytics", idToken).then(setData));
+    firebaseUser.getIdToken().then((idToken) => {
+      apiGet<AnalyticsData>("/api/analytics", idToken).then(setData);
+      apiGet<BuyersData>("/api/analytics/buyers", idToken)
+        .then(setBuyers)
+        .catch(() => setBuyers({ summary: { paidUnits: 0, refundedUnits: 0, uniqueBuyers: 0 }, sales: [] }));
+    });
   }, [firebaseUser]);
 
   if (!data) {
@@ -99,9 +105,75 @@ export function AnalyticsScreen() {
           ))}
         </View>
       )}
+
+      <Text style={[styles.sectionTitle, { marginTop: 24 }]}>Buyers</Text>
+      {buyers === null ? (
+        <ActivityIndicator color={colors.ink} />
+      ) : (
+        <>
+          <View style={styles.buyerStats}>
+            <View style={styles.buyerStat}>
+              <Text style={styles.buyerStatLabel}>Units sold</Text>
+              <Text style={styles.buyerStatValue}>{buyers.summary.paidUnits}</Text>
+            </View>
+            <View style={styles.buyerStat}>
+              <Text style={styles.buyerStatLabel}>Refunded</Text>
+              <Text style={[styles.buyerStatValue, buyers.summary.refundedUnits > 0 && { color: colors.redSoft }]}>
+                {buyers.summary.refundedUnits}
+              </Text>
+            </View>
+            <View style={styles.buyerStat}>
+              <Text style={styles.buyerStatLabel}>Buyers</Text>
+              <Text style={styles.buyerStatValue}>{buyers.summary.uniqueBuyers}</Text>
+            </View>
+          </View>
+          {buyers.sales.length === 0 ? (
+            <Text style={styles.emptyText}>No sales yet.</Text>
+          ) : (
+            buyers.sales.map((s) => (
+              <View key={s.id} style={styles.row}>
+                <Text style={styles.rowTitle} numberOfLines={1}>
+                  {s.productTitle}
+                  {s.quantity > 1 ? ` ×${s.quantity}` : ""}
+                  {s.status === "REFUNDED" && <Text style={styles.refundedTag}>  REFUNDED</Text>}
+                  {s.isGift && <Text style={styles.rowType}>  GIFT</Text>}
+                </Text>
+                <Text style={styles.rowMeta}>
+                  Bought by{" "}
+                  <Text style={styles.buyerLink} onPress={() => navigation.navigate("Creator", { handle: s.buyer.handle })}>
+                    {s.buyer.displayName} @{s.buyer.handle}
+                  </Text>{" "}
+                  · {new Date(s.createdAt).toLocaleString("en-NG")}
+                </Text>
+                {s.plays !== null && s.status !== "REFUNDED" && (
+                  <Text style={styles.rowMeta}>
+                    {s.plays} play{s.plays === 1 ? "" : "s"}
+                    {s.downloadedOfflineAt ? ` · Saved offline ${shortDate(s.downloadedOfflineAt)}` : ""}
+                    {s.downloadedFileAt ? ` · Downloaded file ${shortDate(s.downloadedFileAt)}` : ""}
+                    {!s.downloadedOfflineAt && !s.downloadedFileAt ? " · Not downloaded" : ""}
+                  </Text>
+                )}
+                {s.isGift && s.giftStatus && (
+                  <Text style={styles.rowMeta}>
+                    Gift{" "}
+                    {s.giftStatus === "CLAIMED"
+                      ? `claimed${s.giftClaimedByHandle ? ` by @${s.giftClaimedByHandle}` : ""}`
+                      : s.giftStatus === "PENDING"
+                        ? `unclaimed, expires ${s.giftExpiresAt ? new Date(s.giftExpiresAt).toLocaleString("en-NG") : "—"}`
+                        : s.giftStatus.toLowerCase()}
+                  </Text>
+                )}
+                {s.refundReason && <Text style={[styles.rowMeta, { color: colors.redSoft }]}>{s.refundReason}</Text>}
+              </View>
+            ))
+          )}
+        </>
+      )}
     </ScrollView>
   );
 }
+
+const shortDate = (iso: string) => new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short" });
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
@@ -123,4 +195,10 @@ const styles = StyleSheet.create({
   rowType: { color: colors.ink3, fontSize: 10.5, letterSpacing: 0.5, textTransform: "uppercase", marginTop: 1 },
   rowSold: { color: colors.ink, fontSize: 18, fontFamily: fonts.serif, marginLeft: 12 },
   rowMeta: { color: colors.ink3, fontSize: 12, marginTop: 4 },
+  buyerStats: { flexDirection: "row", gap: 12, marginBottom: 8 },
+  buyerStat: { flex: 1 },
+  buyerStatLabel: { color: colors.ink3, fontSize: 11 },
+  buyerStatValue: { color: colors.ink, fontSize: 15, fontWeight: "600", marginTop: 2 },
+  refundedTag: { color: colors.redSoft, fontSize: 10.5, letterSpacing: 0.5 },
+  buyerLink: { color: colors.ink2, fontWeight: "600" },
 });

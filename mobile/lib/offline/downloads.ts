@@ -79,7 +79,8 @@ export async function downloadTrackForOffline(
   },
   idToken: string,
 ): Promise<void> {
-  const data = await apiGet<{ url: string; entitled: boolean }>(`/api/tracks/${track.trackId}/audio-url`, idToken);
+  // ?offline=1: logged as a download for the seller, not counted as a play.
+  const data = await apiGet<{ url: string; entitled: boolean }>(`/api/tracks/${track.trackId}/audio-url?offline=1`, idToken);
   if (!data.entitled) throw new Error("You need to own this release before downloading it");
 
   if (!downloadsDir().exists) downloadsDir().create({ intermediates: true });

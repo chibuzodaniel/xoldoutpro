@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
-import { confirmStock, releaseReservation } from "@/lib/commerce/stock";
+import { confirmStock, releaseReservation, reserveStock } from "@/lib/commerce/stock";
+import { claimPaymentForWebhook, refundCharge } from "@/lib/commerce/claimPayment";
 import { recordSale, getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
@@ -40,6 +41,31 @@ type PaymentForConfirm = {
 
 type VerifiedResult = { id: number | string; status: "successful" | "failed" | string; amountKobo: number };
 
+// A late payment (see claimPaymentForWebhook) for something that sold out
+// after the buyer's hold expired. Nothing was ever recorded against the
+// order — no entitlement, no ledger entry — so the processor refund is the
+// only thing to undo; the order just stays FAILED. A failed refund call is
+// logged loudly rather than thrown, since retrying the webhook can't help
+// (the payment row is already claimed).
+async function refundLateSoldOutPayment(payment: PaymentForConfirm, chargeId: string, productId: string) {
+  const product = await db.product.findUnique({ where: { id: productId }, select: { title: true } });
+  try {
+    await refundCharge(payment.processor, chargeId, payment.amountKobo);
+  } catch (err) {
+    console.error(
+      `REFUND NEEDED: late payment ${payment.id} (charge ${chargeId}, order ${payment.orderId}, ${payment.amountKobo} kobo) — item sold out and the automatic refund failed.`,
+      err,
+    );
+    return;
+  }
+  await createNotification(payment.order.buyerId, {
+    kind: "REFUND",
+    title: "Payment refunded",
+    body: `${product?.title ?? "Your item"} sold out before your payment came through · ${formatNaira(payment.amountKobo)} refunded to your original payment method.`,
+    url: "/library",
+  });
+}
+
 /**
  * Shared by every processor's webhook (Flutterwave, Monnify, ...) once each
  * has done its own authoritative server-to-server verification — see
@@ -57,22 +83,30 @@ export async function finalizePayment(
   verified: VerifiedResult,
   rawPayload: unknown,
 ): Promise<{ alreadyProcessed: boolean; success?: boolean }> {
-  // Idempotency: only the delivery that wins this conditional update
-  // proceeds. Every retry/duplicate after that sees count 0 and no-ops.
-  const claim = await db.payment.updateMany({
-    where: { id: payment.id, status: "INITIATED" },
-    data: {
-      status: verified.status === "successful" ? "SUCCESSFUL" : "FAILED",
-      webhookReceivedAt: new Date(),
-      rawPayload: rawPayload as never,
-      providerTransactionId: String(verified.id),
-    },
-  });
-  if (claim.count === 0) return { alreadyProcessed: true };
+  const claim = await claimPaymentForWebhook(payment.id, verified, rawPayload);
+  if (claim === "alreadyProcessed") return { alreadyProcessed: true };
 
   const productId = payment.order.items[0]?.productId;
   const quantity = payment.order.items[0]?.quantity ?? 1;
   if (!productId) throw new Error("Order has no items");
+
+  // The sweep already released this order's stock hold, so a late success
+  // has to win a unit again before it can be treated as a normal sale. If
+  // the item sold out in the meantime the buyer gets their money back
+  // instead — never a sale past cap.
+  if (claim === "late") {
+    if (verified.amountKobo !== payment.amountKobo) {
+      console.error(
+        `Late payment ${payment.id} paid ${verified.amountKobo} kobo against ${payment.amountKobo} expected — order ${payment.orderId} left FAILED, reconcile manually.`,
+      );
+      return { alreadyProcessed: false, success: false };
+    }
+    const reserved = await reserveStock(productId, quantity);
+    if (!reserved.ok) {
+      await refundLateSoldOutPayment(payment, String(verified.id), productId);
+      return { alreadyProcessed: false, success: false };
+    }
+  }
 
   if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
     await releaseReservation(productId, quantity);

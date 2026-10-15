@@ -23,7 +23,8 @@ export async function downloadTrackForOffline(track: {
   artworkUrl: string | null;
   durationSec: number;
 }): Promise<void> {
-  const res = await apiFetch(`/api/tracks/${track.trackId}/audio-url`);
+  // ?offline=1: logged as a download for the seller, not counted as a play.
+  const res = await apiFetch(`/api/tracks/${track.trackId}/audio-url?offline=1`);
   if (!res.ok) throw new Error("Could not fetch track");
   const { url, entitled } = await res.json();
   if (!entitled) throw new Error("You need to own this release before downloading it");

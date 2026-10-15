@@ -56,6 +56,30 @@ export type AnalyticsData = {
   topProducts: ProductStat[];
 };
 
+// GET /api/analytics/buyers — mirrors web's components/sales/BuyersList.tsx.
+export type BuyerSale = {
+  id: string;
+  productTitle: string;
+  productType: string;
+  quantity: number;
+  status: string;
+  createdAt: string;
+  buyer: { id: string; handle: string; displayName: string };
+  isGift: boolean;
+  giftStatus: string | null;
+  giftExpiresAt: string | null;
+  giftClaimedByHandle: string | null;
+  refundReason: string | null;
+  plays: number | null;
+  downloadedOfflineAt: string | null;
+  downloadedFileAt: string | null;
+};
+
+export type BuyersData = {
+  summary: { paidUnits: number; refundedUnits: number; uniqueBuyers: number };
+  sales: BuyerSale[];
+};
+
 export type MeStats = {
   fans: number;
   sales: number;

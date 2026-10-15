@@ -2,9 +2,7 @@ import type { CreatorPlan, ProductType } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordRefund, getCommissionRates } from "@/lib/commerce/ledger";
 import { getBuyerPaysFeePercentFor } from "@/lib/commerce/creatorPlans";
-import { initiateRefund as initiateFlutterwaveRefund } from "@/lib/flutterwave";
-import { initiateRefund as initiateMonnifyRefund } from "@/lib/monnify";
-import { initiateRefund as initiateBachsRefund } from "@/lib/bachs";
+import { refundCharge } from "@/lib/commerce/claimPayment";
 import { createNotification } from "@/lib/notifications/create";
 
 function formatNaira(kobo: number) {
@@ -90,13 +88,7 @@ export async function takedownProduct(productId: string): Promise<{ refundFailur
         continue;
       }
       try {
-        if (payment.processor === "monnify") {
-          await initiateMonnifyRefund(payment.providerTransactionId, payment.amountKobo);
-        } else if (payment.processor === "bachs") {
-          await initiateBachsRefund(payment.providerTransactionId, payment.amountKobo);
-        } else {
-          await initiateFlutterwaveRefund(payment.providerTransactionId, payment.amountKobo);
-        }
+        await refundCharge(payment.processor, payment.providerTransactionId, payment.amountKobo);
       } catch (err) {
         refundFailures.push({ orderId, reason: err instanceof Error ? err.message : "Refund call failed" });
         continue;
