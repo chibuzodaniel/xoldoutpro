@@ -65,11 +65,11 @@ export async function GET(req: NextRequest) {
 
     const [totalUsers, deletedUsers, newUsers24h, newUsers7d, newUsers30d, totalModerators, totalCreators, signupDates] =
       await Promise.all([
-        db.user.count(),
+        db.user.count({ where: { pendingGuestAt: null } }),
         db.user.count({ where: { deletedAt: { not: null } } }),
-        db.user.count({ where: { createdAt: { gte: since24h } } }),
-        db.user.count({ where: { createdAt: { gte: since7d } } }),
-        db.user.count({ where: { createdAt: { gte: since30d } } }),
+        db.user.count({ where: { createdAt: { gte: since24h }, pendingGuestAt: null } }),
+        db.user.count({ where: { createdAt: { gte: since7d }, pendingGuestAt: null } }),
+        db.user.count({ where: { createdAt: { gte: since30d }, pendingGuestAt: null } }),
         db.user.count({ where: { isModerator: true } }),
         // "Creator" here means "has published at least one listing" — the
         // same bar /api/analytics implicitly uses, not a role flag (there
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
         // (tens to low-thousands of users) a single unbounded fetch of just
         // the timestamps is simpler than four separate date_trunc queries,
         // one per granularity, and just as cheap.
-        db.user.findMany({ select: { createdAt: true } }),
+        db.user.findMany({ where: { pendingGuestAt: null }, select: { createdAt: true } }),
       ]);
 
     const dates = signupDates.map((u) => u.createdAt);

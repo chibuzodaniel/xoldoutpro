@@ -63,7 +63,7 @@ export async function getWeeklyTopCreators(limit: number): Promise<WeeklyTopCrea
   if (remaining <= 0) return sellers;
 
   const padding = await db.user.findMany({
-    where: { id: { notIn: topCreatorIds } },
+    where: { id: { notIn: topCreatorIds }, pendingGuestAt: null },
     orderBy: { followers: { _count: "desc" } },
     take: remaining,
     select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },

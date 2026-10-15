@@ -60,6 +60,38 @@ export function useGuestCheckout() {
  * signed up: AuthProvider's onAuthStateChanged listener picks it up and
  * calls /api/auth/sync itself, same as any other sign-in.
  */
+// A paid guest checkout by a brand-new email has no account to sign into
+// yet (it only becomes real once payment succeeds — User.pendingGuestAt), so
+// POST /api/orders hands back guestOrderToken instead. It's kept in
+// localStorage (the processor's page may come back in another tab) until
+// /checkout/callback uses it to fetch the order and, once PAID, sign in.
+const GUEST_ORDER_KEY = (orderId: string) => `xoldout-guest-order:${orderId}`;
+
+export function rememberGuestOrder(orderId: string, token: string | null | undefined) {
+  if (!token) return;
+  try {
+    localStorage.setItem(GUEST_ORDER_KEY(orderId), token);
+  } catch {
+    // storage blocked — the buyer can still sign in from the setup email
+  }
+}
+
+export function guestOrderToken(orderId: string): string | null {
+  try {
+    return localStorage.getItem(GUEST_ORDER_KEY(orderId));
+  } catch {
+    return null;
+  }
+}
+
+export function forgetGuestOrder(orderId: string) {
+  try {
+    localStorage.removeItem(GUEST_ORDER_KEY(orderId));
+  } catch {
+    // ignore
+  }
+}
+
 export async function completeGuestSignIn(customToken: string) {
   if (!firebaseAuth) return;
   await signInWithCustomToken(firebaseAuth, customToken);

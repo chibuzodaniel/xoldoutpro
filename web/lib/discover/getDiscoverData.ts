@@ -58,6 +58,7 @@ export async function getDiscoverData() {
         take: 6,
       }),
       db.user.findMany({
+        where: { pendingGuestAt: null },
         orderBy: { followers: { _count: "desc" } },
         take: 10,
         select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },

@@ -113,7 +113,7 @@ export async function GET(req: NextRequest) {
   if (kinds.length === 0) return NextResponse.json({ sent: 0, kinds: [] });
 
   const subscribers = await db.user.findMany({
-    where: { emailDigestSubscribed: true },
+    where: { emailDigestSubscribed: true, pendingGuestAt: null },
     select: { id: true, email: true, displayName: true, unsubscribeToken: true },
   });
 

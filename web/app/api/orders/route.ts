@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalUser } from "@/lib/auth/session";
@@ -9,7 +10,7 @@ import { initializePayment as initializeBachsPayment } from "@/lib/bachs";
 import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
-import { resolveGuestBuyer, sendGuestAccountSetupEmail } from "@/lib/commerce/guestCheckout";
+import { resolveGuestBuyer, activatePendingGuest } from "@/lib/commerce/guestCheckout";
 import { isGuestEmailVerified } from "@/lib/commerce/guestVerification";
 import { adminAuth } from "@/lib/firebase/admin";
 import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
@@ -69,17 +70,17 @@ export async function POST(req: NextRequest) {
   try {
     const { productId, shipping, isGift = false, guest, quantity, gateway, promoCode } = bodySchema.parse(await req.json());
 
-    // No Firebase session at all → guest checkout: resolve (or silently
-    // create) a real, passwordless account for the email given at checkout,
-    // rather than a bespoke "no account" order shape — see
-    // lib/commerce/guestCheckout.ts for why. A brand-new account gets a
-    // Firebase custom token back in the response so the client can sign the
-    // browser straight into it (components/checkout/GuestInfoSheet.tsx),
-    // landing on the exact same authenticated Library/download pipeline
-    // every other buyer uses.
+    // No Firebase session at all → guest checkout: resolve the account for
+    // the (code-confirmed) email, rather than a bespoke "no account" order
+    // shape — see lib/commerce/guestCheckout.ts for why. A brand-new email
+    // only gets a hidden pending placeholder here; it becomes a real account
+    // once payment succeeds. A free order "pays" right away, so it's
+    // activated and signed in below; a paid one hands back guestOrderToken,
+    // which the checkout return page uses to sign in once the order is PAID.
     const optionalUser = await getOptionalUser(req);
     let buyer;
     let customToken: string | null = null;
+    let guestAccessToken: string | null = null;
     if (optionalUser) {
       buyer = optionalUser;
     } else {
@@ -89,12 +90,9 @@ export async function POST(req: NextRequest) {
       if (!(await isGuestEmailVerified(guest.email, guest.verificationToken))) {
         return NextResponse.json({ error: "Confirm your email with the code we sent before checking out", code: "EMAIL_NOT_VERIFIED" }, { status: 403 });
       }
-      const { user, isNewAccount } = await resolveGuestBuyer({ name: guest.name, email: guest.email });
+      const { user, isPendingGuest } = await resolveGuestBuyer({ name: guest.name, email: guest.email });
       buyer = user;
-      if (isNewAccount) {
-        customToken = await adminAuth().createCustomToken(user.firebaseUid);
-        void sendGuestAccountSetupEmail(user);
-      }
+      if (isPendingGuest) guestAccessToken = randomBytes(32).toString("hex");
     }
 
     // Sellable types are added here as each one's purchase flow ships
@@ -247,6 +245,18 @@ export async function POST(req: NextRequest) {
           }).catch((err) => console.error("order confirmation email failed", err));
         }
 
+        // A free order is "paid" the moment it exists — turn a pending guest
+        // into a real account now and sign this browser in. Best-effort: the
+        // order itself already stands, so a failure here is logged, not thrown.
+        if (guestAccessToken) {
+          try {
+            const activated = await activatePendingGuest(buyer.id);
+            if (activated) customToken = await adminAuth().createCustomToken(activated.firebaseUid);
+          } catch (err) {
+            console.error("guest activation after free order failed", buyer.id, err);
+          }
+        }
+
         return NextResponse.json({ free: true, orderId: order.id, customToken }, { status: 201 });
       } catch (err) {
         await releaseReservation(productId, quantity);
@@ -259,6 +269,7 @@ export async function POST(req: NextRequest) {
         data: {
           buyerId: buyer.id,
           status: "PENDING",
+          guestAccessToken,
           isGift,
           promoterId,
           commissionOverrideKobo,
@@ -297,7 +308,7 @@ export async function POST(req: NextRequest) {
                 title: product.title,
               });
 
-      return NextResponse.json({ orderId: order.id, checkoutUrl, customToken }, { status: 201 });
+      return NextResponse.json({ orderId: order.id, checkoutUrl, guestOrderToken: guestAccessToken }, { status: 201 });
     } catch (err) {
       await releaseReservation(productId, quantity);
       console.error(err);

@@ -37,6 +37,28 @@ export async function POST(req: NextRequest) {
       ? await db.user.findUnique({ where: { ambassadorCode: referralCode } })
       : null;
 
+    // An abandoned guest checkout leaves a hidden pending placeholder holding
+    // this email (User.pendingGuestAt) — signing up for real takes it over
+    // rather than colliding on the unique email. It goes through onboarding
+    // to pick a real handle like any other new account.
+    const pendingGuest = await db.user.findFirst({ where: { email: decoded.email, pendingGuestAt: { not: null } } });
+    if (pendingGuest) {
+      const handle = await generateUniqueHandle(decoded.email.split("@")[0]);
+      const adopted = await db.user.update({
+        where: { id: pendingGuest.id },
+        data: {
+          firebaseUid: decoded.uid,
+          handle,
+          pendingGuestAt: null,
+          displayName: (decoded.name as string | undefined) ?? pendingGuest.displayName,
+          avatarUrl: (decoded.picture as string | undefined) ?? null,
+          referredByAmbassadorId: referredByAmbassador?.isAmbassador ? referredByAmbassador.id : null,
+        },
+      });
+      void sendWelcomeEmail({ to: adopted.email, profileUrl: `${SITE_URL}/onboarding` }).catch((err) => console.error("welcome email failed", err));
+      return NextResponse.json({ user: adopted, needsOnboarding: true });
+    }
+
     const handle = await generateUniqueHandle(decoded.email.split("@")[0]);
     const user = await db.user.create({
       data: {

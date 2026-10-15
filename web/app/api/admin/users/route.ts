@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
     const includeDeleted = req.nextUrl.searchParams.get("includeDeleted") === "1";
 
     const where = {
+      // Pending guest placeholders (no account yet — User.pendingGuestAt) aren't users.
+      pendingGuestAt: null,
       ...(includeDeleted ? {} : { deletedAt: null }),
       ...(q
         ? {

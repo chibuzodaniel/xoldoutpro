@@ -6,6 +6,7 @@ import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificationEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications/create";
+import { activatePendingGuest } from "@/lib/commerce/guestCheckout";
 
 const SITE_URL = "https://www.xoldout.app";
 
@@ -190,6 +191,14 @@ export async function finalizePayment(
       commissionOverrideKobo: payment.order.commissionOverrideKobo,
     });
   });
+
+  // A guest who checked out with a brand-new email only had a pending
+  // placeholder until now — paying is what makes it a real account (Firebase
+  // login + "set a password" email). Best-effort: the sale above already
+  // stands, and the checkout return page retries this if it failed.
+  await activatePendingGuest(payment.order.buyerId).catch((err) =>
+    console.error("guest activation after payment failed", payment.order.buyerId, err),
+  );
 
   const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId } });
 

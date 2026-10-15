@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayCheckout";
-import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, type GuestInfo } from "@/lib/useGuestCheckout";
+import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, rememberGuestOrder, type GuestInfo } from "@/lib/useGuestCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -93,6 +93,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.customToken) await completeGuestSignIn(data.customToken);
+      rememberGuestOrder(data.orderId, data.guestOrderToken);
       if (data.free) {
         await load();
       } else {

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { apiFetch } from "@/lib/api";
+import { guestOrderToken, forgetGuestOrder, completeGuestSignIn } from "@/lib/useGuestCheckout";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -158,9 +159,17 @@ function CheckoutCallbackInner() {
     }, CONFIRMATION_TIMEOUT_MS);
 
     async function poll() {
-      const res = await apiFetch(`/api/orders/${orderId}`);
+      // A brand-new guest has no session until their payment lands — the
+      // token saved at checkout (lib/useGuestCheckout.ts) proves this is
+      // their browser, and the PAID response carries a sign-in token.
+      const guestToken = guestOrderToken(orderId!);
+      const res = await apiFetch(`/api/orders/${orderId}`, guestToken ? { headers: { "x-guest-order-token": guestToken } } : undefined);
       if (!res.ok || cancelled) return;
-      const { order, payment, entitlements } = await res.json();
+      const { order, payment, entitlements, customToken } = await res.json();
+      if (customToken) {
+        await completeGuestSignIn(customToken).catch((err) => console.error("guest sign-in failed", err));
+        forgetGuestOrder(orderId!);
+      }
       const item = order.items[0];
       setProductId(item?.product?.id ?? null);
       setProductType(item?.product?.type ?? null);

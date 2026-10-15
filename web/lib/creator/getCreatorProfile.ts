@@ -6,8 +6,8 @@ import { discoverCardInclude } from "@/lib/discover/getDiscoverData";
 // and other account-internal columns User.findMany elsewhere never needs to
 // hide because it never leaves the server).
 export async function getCreatorProfile(handle: string) {
-  const user = await db.user.findUnique({
-    where: { handle },
+  const user = await db.user.findFirst({
+    where: { handle, pendingGuestAt: null },
     select: {
       id: true,
       handle: true,

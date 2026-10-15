@@ -96,6 +96,14 @@ model User {
   // disables the Firebase Auth account; requireUser() rejects any request
   // once this is set, even for a still-unexpired ID token.
   deletedAt                   DateTime?
+  // Set on a guest checkout's placeholder row (explicit ask, 2026-10-15:
+  // the guest's account should only exist once they've actually paid). An
+  // Order needs a buyer row, so a brand-new guest email gets one at
+  // checkout — but with a placeholder firebaseUid/handle, no Firebase login,
+  // no email, and hidden from every listing. lib/commerce/guestCheckout.ts's
+  // activatePendingGuest turns it into a real account when payment succeeds
+  // (and clears this); an abandoned checkout leaves it invisible.
+  pendingGuestAt              DateTime?
   // Set the first time this user publishes a beat and checks the
   // ownership/producer-agreement box (POST /api/beats) — never re-asked
   // after that, unlike Beat.ownershipConfirmedAt below, which is per-beat.
@@ -856,6 +864,11 @@ model Order {
   status    OrderStatus @default(PENDING)
   isGift    Boolean     @default(false) // routes the entitlement to a Gift instead of the buyer at confirm time
   createdAt DateTime    @default(now())
+  // Guest checkout by a brand-new email only (see User.pendingGuestAt): the
+  // browser that started checkout holds this and shows it to GET
+  // /api/orders/[id] from the return page — once the order is PAID that
+  // returns a sign-in token for the freshly activated account.
+  guestAccessToken String? @unique
 
   // Ticket promoter split (EVENT only) — set at checkout time from a
   // `?promo=<code>` link (EventTierPicker), resolved against EventPromoter.

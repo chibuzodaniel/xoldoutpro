@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
       take: 20,
     }),
     db.user.findMany({
-      where: { OR: [{ displayName: { contains: q, mode: "insensitive" } }, { handle: { contains: q, mode: "insensitive" } }] },
+      where: { pendingGuestAt: null, OR: [{ displayName: { contains: q, mode: "insensitive" } }, { handle: { contains: q, mode: "insensitive" } }] },
       select: { id: true, handle: true, displayName: true, avatarUrl: true },
       take: 10,
     }),
