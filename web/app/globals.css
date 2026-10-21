@@ -79,6 +79,25 @@ select {
   animation: waveform-bar 1s ease-in-out infinite;
 }
 
+/* The vinyl player's record (ExpandedPlayer). Always "running" in CSS terms;
+   the component pauses it with animation-play-state so a paused record stays
+   at its current angle instead of snapping back. */
+@keyframes vinyl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-vinyl-spin {
+  animation: vinyl-spin 9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-vinyl-spin {
+    animation: none;
+  }
+}
+
 /* A full 360° rotation with a breathe-in/breathe-out scale pulse layered on
    top, one breath per rotation, rather than a flat linear spin. */
 @keyframes spin-breathe {

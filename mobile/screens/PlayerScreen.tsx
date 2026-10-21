@@ -1,17 +1,28 @@
-import { useRef, useState } from "react";
-import { Image, PanResponder, Share, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { useState } from "react";
+import { Platform, ScrollView, Share, Text, TouchableOpacity, View, StyleSheet, useWindowDimensions } from "react-native";
 import { Svg, Path, Rect } from "react-native-svg";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { usePlayer, usePlayerProgress } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
 import { colors, fonts } from "../lib/theme";
+import { VinylDisc } from "../components/player/VinylDisc";
+import { WaveformScrubber } from "../components/player/WaveformScrubber";
 
-function formatTime(sec: number) {
-  if (!Number.isFinite(sec) || sec < 0) return "0:00";
-  const m = Math.floor(sec / 60);
-  const s = Math.floor(sec % 60);
-  return `${m}:${String(s).padStart(2, "0")}`;
+/** 00:40 — the vinyl player's clock style. */
+function formatClock(sec: number) {
+  const safe = Number.isFinite(sec) ? Math.max(0, sec) : 0;
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(Math.floor(safe % 60)).padStart(2, "0")}`;
+}
+
+function ShareIcon({ color }: { color: string }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8}>
+      <Path d="M12 3v12" strokeLinecap="round" />
+      <Path d="M7 8l5-5 5 5" strokeLinecap="round" strokeLinejoin="round" />
+      <Path d="M5 13v6a2 2 0 002 2h10a2 2 0 002-2v-6" strokeLinecap="round" strokeLinejoin="round" />
+    </Svg>
+  );
 }
 
 function PreviousIcon({ color }: { color: string }) {
@@ -90,55 +101,6 @@ function QueueIcon({ color }: { color: string }) {
   );
 }
 
-const BAR_WIDTH = 320;
-
-function SeekBar({ positionSec, durationSec, onSeek }: { positionSec: number; durationSec: number; onSeek: (sec: number) => void }) {
-  const [dragSec, setDragSec] = useState<number | null>(null);
-  const barWidthRef = useRef(BAR_WIDTH);
-
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => durationSec > 0,
-      onMoveShouldSetPanResponder: () => durationSec > 0,
-      onPanResponderGrant: (e) => {
-        const ratio = Math.min(Math.max(e.nativeEvent.locationX / barWidthRef.current, 0), 1);
-        setDragSec(ratio * durationSec);
-      },
-      onPanResponderMove: (e) => {
-        const ratio = Math.min(Math.max(e.nativeEvent.locationX / barWidthRef.current, 0), 1);
-        setDragSec(ratio * durationSec);
-      },
-      onPanResponderRelease: (e) => {
-        const ratio = Math.min(Math.max(e.nativeEvent.locationX / barWidthRef.current, 0), 1);
-        onSeek(ratio * durationSec);
-        setDragSec(null);
-      },
-    }),
-  ).current;
-
-  const shownSec = dragSec ?? positionSec;
-  const progress = durationSec > 0 ? Math.min(shownSec / durationSec, 1) : 0;
-
-  return (
-    <View>
-      <View
-        style={styles.seekTrack}
-        onLayout={(e) => {
-          barWidthRef.current = e.nativeEvent.layout.width;
-        }}
-        {...panResponder.panHandlers}
-      >
-        <View style={[styles.seekFill, { width: `${progress * 100}%` }]} />
-        <View style={[styles.seekThumb, { left: `${progress * 100}%` }]} />
-      </View>
-      <View style={styles.timeRow}>
-        <Text style={styles.timeText}>{formatTime(shownSec)}</Text>
-        <Text style={styles.timeText}>-{formatTime(Math.max(durationSec - shownSec, 0))}</Text>
-      </View>
-    </View>
-  );
-}
-
 export function PlayerScreen() {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const {
@@ -155,8 +117,11 @@ export function PlayerScreen() {
     cycleRepeat,
     toggleShuffle,
     play,
+    waveformSource,
   } = usePlayer();
   const { positionSec, durationSec } = usePlayerProgress();
+  const { width } = useWindowDimensions();
+  const discSize = Math.min(width - 64, 320);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showQueue, setShowQueue] = useState(false);
 
@@ -173,6 +138,8 @@ export function PlayerScreen() {
     }
   }
 
+  const progress = durationSec > 0 ? positionSec / durationSec : 0;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -180,34 +147,30 @@ export function PlayerScreen() {
           <Text style={styles.minimize}>‹</Text>
         </TouchableOpacity>
         <Text style={styles.headerLabel}>Playing from XOLDOUT</Text>
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare} hitSlop={12}>
-          <Text style={styles.shareIcon}>↗</Text>
-          <Text style={styles.shareText}>Share</Text>
-        </TouchableOpacity>
+        <View style={{ width: 28 }} />
       </View>
 
-      <View style={styles.artworkWrap}>
-        {current.artworkUrl ? (
-          <Image source={{ uri: current.artworkUrl }} style={styles.artwork} />
-        ) : (
-          <View style={[styles.artwork, styles.artworkPlaceholder]} />
-        )}
-      </View>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+        <Text style={styles.title} numberOfLines={2}>
+          {current.title}
+        </Text>
+        <Text style={styles.artist}>{current.artistName}</Text>
 
-      <Text style={styles.title} numberOfLines={2}>
-        {current.title}
-      </Text>
-      <Text style={styles.artist}>{current.artistName}</Text>
-
-      <SeekBar positionSec={positionSec} durationSec={durationSec} onSeek={seek} />
-
-      <View style={styles.controlsRow}>
-        <View style={styles.sideControl}>
-          <TouchableOpacity onPress={toggleShuffle} disabled={queue.length < 2} hitSlop={10}>
-            <ShuffleIcon color={shuffled ? colors.redSoft : queue.length < 2 ? colors.line : colors.ink2} />
-          </TouchableOpacity>
+        {/* Vinyl redesign (explicit ask, 2026-10-21) — the record spins while playing. */}
+        <View style={styles.discWrap}>
+          <VinylDisc artworkUrl={current.artworkUrl} spinning={isPlaying} size={discSize} />
         </View>
-        <View style={styles.centerControls}>
+
+        <WaveformScrubber trackId={current.trackId} source={waveformSource} progress={progress} onSeekFraction={(f) => seek(f * durationSec)} />
+        <Text style={styles.clock}>
+          {formatClock(positionSec)} / {formatClock(durationSec)}
+        </Text>
+
+        {/* Share · Previous · Play · Next · Repeat — the reference's one-row layout. */}
+        <View style={styles.controlsRow}>
+          <TouchableOpacity onPress={handleShare} hitSlop={10}>
+            <ShareIcon color={colors.ink2} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={previous} hitSlop={10}>
             <PreviousIcon color={colors.ink2} />
           </TouchableOpacity>
@@ -217,73 +180,67 @@ export function PlayerScreen() {
           <TouchableOpacity onPress={next} disabled={!hasNext} hitSlop={10}>
             <NextIcon color={hasNext ? colors.ink2 : colors.line} />
           </TouchableOpacity>
-        </View>
-        <View style={[styles.sideControl, styles.sideControlEnd]}>
           <TouchableOpacity onPress={cycleRepeat} hitSlop={10}>
             <RepeatIcon color={repeatMode !== "off" ? colors.redSoft : colors.ink2} mode={repeatMode === "one" ? "one" : "other"} />
           </TouchableOpacity>
         </View>
-      </View>
 
-      <View style={styles.bottomRow}>
-        <TouchableOpacity
-          onPress={() => setShowLyrics((v) => !v)}
-          disabled={!current.lyricsText}
-          hitSlop={10}
-        >
-          <LyricsIcon color={!current.lyricsText ? colors.line : showLyrics ? colors.redSoft : colors.ink2} />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => setShowQueue((v) => !v)} disabled={queue.length < 2} hitSlop={10}>
-          <QueueIcon color={queue.length < 2 ? colors.line : showQueue ? colors.redSoft : colors.ink2} />
-        </TouchableOpacity>
-      </View>
-
-      {showLyrics && current.lyricsText && (
-        <View style={styles.lyricsWrap}>
-          <Text style={styles.lyricsText}>{current.lyricsText}</Text>
+        <View style={styles.bottomRow}>
+          <TouchableOpacity onPress={toggleShuffle} disabled={queue.length < 2} hitSlop={10}>
+            <ShuffleIcon color={shuffled ? colors.redSoft : queue.length < 2 ? colors.line : colors.ink3} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowLyrics((v) => !v)} disabled={!current.lyricsText} hitSlop={10}>
+            <LyricsIcon color={!current.lyricsText ? colors.line : showLyrics ? colors.redSoft : colors.ink3} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowQueue((v) => !v)} disabled={queue.length < 2} hitSlop={10}>
+            <QueueIcon color={queue.length < 2 ? colors.line : showQueue ? colors.redSoft : colors.ink3} />
+          </TouchableOpacity>
         </View>
-      )}
 
-      {showQueue && queue.length > 1 && (
-        <View style={styles.queueWrap}>
-          {queue.map((t, i) => (
-            <TouchableOpacity key={t.trackId} style={styles.queueRow} onPress={() => play(t, queue)}>
-              <Text style={[styles.queueTitle, i === queueIndex && styles.queueTitleActive]} numberOfLines={1}>
-                {i + 1}. {t.title}
-              </Text>
-              {i === queueIndex && <Text style={styles.nowPlaying}>Now Playing</Text>}
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
+        {showLyrics && current.lyricsText && (
+          <View style={styles.lyricsWrap}>
+            <Text style={styles.lyricsText}>{current.lyricsText}</Text>
+          </View>
+        )}
+
+        {showQueue && queue.length > 1 && (
+          <View style={styles.queueWrap}>
+            {queue.map((t, i) => (
+              <TouchableOpacity key={t.trackId} style={styles.queueRow} onPress={() => play(t, queue)}>
+                <Text style={[styles.queueTitle, i === queueIndex && styles.queueTitleActive]} numberOfLines={1}>
+                  {i + 1}. {t.title}
+                </Text>
+                {i === queueIndex && <Text style={styles.nowPlaying}>Now Playing</Text>}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, paddingHorizontal: 24, paddingTop: 12 },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 24 },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 16 },
   minimize: { color: colors.ink2, fontSize: 30, width: 28 },
   headerLabel: { flex: 1, textAlign: "center", color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
-  shareButton: { flexDirection: "row", alignItems: "center", gap: 4 },
-  shareIcon: { color: colors.redSoft, fontSize: 18 },
-  shareText: { color: colors.redSoft, fontSize: 12, fontWeight: "600" },
-  artworkWrap: { alignItems: "center", marginBottom: 24 },
-  artwork: { width: 300, height: 300, borderRadius: 16, backgroundColor: colors.surface2 },
-  artworkPlaceholder: {},
-  title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 2 },
-  artist: { color: colors.ink3, fontSize: 14, marginBottom: 24 },
-  seekTrack: { height: 4, borderRadius: 2, backgroundColor: colors.lineSoft, justifyContent: "center" },
-  seekFill: { height: 4, borderRadius: 2, backgroundColor: colors.red, position: "absolute", left: 0, top: 0 },
-  seekThumb: { position: "absolute", width: 12, height: 12, borderRadius: 6, backgroundColor: colors.ink, marginLeft: -6, top: -4 },
-  timeRow: { flexDirection: "row", justifyContent: "space-between", marginTop: 6, marginBottom: 28 },
-  timeText: { color: colors.ink3, fontSize: 11 },
-  controlsRow: { flexDirection: "row", alignItems: "center", marginBottom: 32 },
-  sideControl: { flex: 1 },
-  sideControlEnd: { alignItems: "flex-end" },
-  centerControls: { flexDirection: "row", alignItems: "center", gap: 28 },
+  scroll: { paddingBottom: 40 },
+  title: { color: colors.ink, fontSize: 18, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase", textAlign: "center" },
+  artist: { color: colors.ink3, fontSize: 13, textAlign: "center", marginTop: 2, marginBottom: 24 },
+  discWrap: { alignItems: "center", marginBottom: 28 },
+  clock: {
+    color: colors.ink2,
+    fontSize: 13,
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 26,
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace", default: undefined }),
+    fontVariant: ["tabular-nums"],
+  },
+  controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
   playButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" },
-  bottomRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 4, marginBottom: 20 },
+  bottomRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 20 },
   lyricsWrap: { marginTop: 4 },
   lyricsText: { color: colors.ink2, fontFamily: fonts.serif, fontSize: 15, lineHeight: 24, textAlign: "center" },
   queueWrap: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.lineSoft },

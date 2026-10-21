@@ -24,7 +24,19 @@ export type PlayableTrack = {
 
 type RepeatMode = "off" | "all" | "one";
 
-type AudioUrlData = { url: string; entitled: boolean; previewStartSec: number | null; previewEndSec: number | null };
+type AudioUrlData = {
+  url: string;
+  entitled: boolean;
+  previewStartSec: number | null;
+  previewEndSec: number | null;
+  // The track's real waveform for the vinyl player's scrubber (lib/audio/waveformLink.ts).
+  peaksUrl?: string;
+  peaksStartFrac?: number;
+  peaksEndFrac?: number;
+};
+
+/** Where to load the current track's waveform from — null while offline or before it's known. */
+export type WaveformSource = { trackId: string; url: string; startFrac?: number; endFrac?: number };
 
 function audioUrlCacheKey(track: PlayableTrack) {
   return `${track.kind ?? "track"}:${track.trackId}`;
@@ -41,6 +53,7 @@ type PlayerState = {
   entitled: boolean;
   previewStartSec: number | null;
   previewEndSec: number | null;
+  waveformSource: WaveformSource | null;
   loading: boolean;
   queue: PlayableTrack[];
   queueIndex: number;
@@ -99,6 +112,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [entitled, setEntitled] = useState(true);
   const [previewStartSec, setPreviewStartSec] = useState<number | null>(null);
   const [previewEndSec, setPreviewEndSec] = useState<number | null>(null);
+  const [waveformSource, setWaveformSource] = useState<WaveformSource | null>(null);
   const [loading, setLoading] = useState(false);
   const [queue, setQueue] = useState<PlayableTrack[]>([]);
   const [queueIndex, setQueueIndex] = useState(0);
@@ -160,6 +174,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       entitled: raw.entitled,
       previewStartSec: raw.previewStartSec,
       previewEndSec: raw.previewEndSec,
+      peaksUrl: raw.peaksUrl,
+      peaksStartFrac: raw.peaksStartFrac,
+      peaksEndFrac: raw.peaksEndFrac,
     };
     // 270s: comfortably under the server's 300s presign, so a cache hit is
     // never handed a URL that's about to expire mid-request.
@@ -175,6 +192,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setQueue(q);
     setQueueIndex(idx === -1 ? 0 : idx);
     setCurrent(track);
+    setWaveformSource(null);
     setLoading(true);
     try {
       if (objectUrlRef.current) {
@@ -215,6 +233,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       setEntitled(data.entitled);
       setPreviewStartSec(data.previewStartSec);
       setPreviewEndSec(data.previewEndSec);
+      setWaveformSource(
+        data.peaksUrl ? { trackId: track.trackId, url: data.peaksUrl, startFrac: data.peaksStartFrac, endFrac: data.peaksEndFrac } : null,
+      );
 
       audio.src = data.url;
       audio.currentTime = data.entitled ? 0 : data.previewStartSec ?? 0;
@@ -649,6 +670,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         entitled,
         previewStartSec,
         previewEndSec,
+        waveformSource,
         loading,
         queue,
         queueIndex,

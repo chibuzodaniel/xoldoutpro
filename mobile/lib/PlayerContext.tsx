@@ -7,6 +7,9 @@ import { getOfflinePlaybackUri, isDownloaded, localArtworkUri } from "./offline/
 
 type RepeatMode = "off" | "all" | "one";
 
+/** Where to load the current track's waveform (web's lib/audio/waveformLink.ts) — null offline. */
+export type WaveformSource = { trackId: string; url: string; startFrac?: number; endFrac?: number };
+
 type PlayerState = {
   current: PlayableTrack | null;
   queue: PlayableTrack[];
@@ -14,6 +17,7 @@ type PlayerState = {
   isPlaying: boolean;
   loading: boolean;
   error: string | null;
+  waveformSource: WaveformSource | null;
   repeatMode: RepeatMode;
   shuffled: boolean;
   play: (track: PlayableTrack, queue?: PlayableTrack[]) => void;
@@ -58,7 +62,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // web) — a track played again shortly after (pause/resume, replaying,
   // revisiting a product page) starts immediately instead of showing
   // "loading" for a network round-trip whose answer hasn't changed.
-  const urlCacheRef = useRef<Map<string, { url: string; expiresAt: number }>>(new Map());
+  const urlCacheRef = useRef<Map<string, { url: string; expiresAt: number; waveform: WaveformSource | null }>>(new Map());
+  const [waveformSource, setWaveformSource] = useState<WaveformSource | null>(null);
 
   const player = useAudioPlayer(url);
   const status = useAudioPlayerStatus(player);
@@ -132,10 +137,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (cached && cached.expiresAt > Date.now()) return cached.url;
       const path = track.kind === "beat" ? `/api/beats/${track.trackId}/audio-url` : `/api/tracks/${track.trackId}/audio-url`;
       const idToken = firebaseUser ? await firebaseUser.getIdToken() : undefined;
-      const data = await apiGet<{ url: string }>(path, idToken);
+      const data = await apiGet<{ url: string; peaksUrl?: string; peaksStartFrac?: number; peaksEndFrac?: number }>(path, idToken);
+      const waveform = data.peaksUrl
+        ? { trackId: track.trackId, url: data.peaksUrl, startFrac: data.peaksStartFrac, endFrac: data.peaksEndFrac }
+        : null;
       // 270s: comfortably under the server's 300s presign, so a cache hit
       // is never handed a URL that's about to expire mid-request.
-      urlCacheRef.current.set(key, { url: data.url, expiresAt: Date.now() + 270_000 });
+      urlCacheRef.current.set(key, { url: data.url, expiresAt: Date.now() + 270_000, waveform });
       return data.url;
     },
     [firebaseUser, cacheKeyFor],
@@ -144,6 +152,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const loadAndPlay = useCallback(
     async (track: PlayableTrack) => {
       setError(null);
+      setWaveformSource(null);
       try {
         // Beats have no offline cache format (DECISIONS.md, matching web) —
         // only a release's individual tracks can be downloaded.
@@ -160,11 +169,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         const cached = urlCacheRef.current.get(key);
         if (cached && cached.expiresAt > Date.now()) {
           setUrl(cached.url);
+          setWaveformSource(cached.waveform);
           return;
         }
         setLoading(true);
         const url = await fetchAudioUrl(track);
         setUrl(url);
+        setWaveformSource(urlCacheRef.current.get(key)?.waveform ?? null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Playback failed");
       } finally {
@@ -316,6 +327,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       queueIndex,
       isPlaying: status.playing,
       loading,
+      waveformSource,
       error: error ?? status.error,
       repeatMode,
       shuffled,
@@ -328,7 +340,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       cycleRepeat,
       toggleShuffle,
     }),
-    [current, queue, queueIndex, status.playing, loading, error, status.error, repeatMode, shuffled, play, togglePlay, playNext, seek, next, previous, cycleRepeat, toggleShuffle],
+    [current, queue, queueIndex, status.playing, loading, waveformSource, error, status.error, repeatMode, shuffled, play, togglePlay, playNext, seek, next, previous, cycleRepeat, toggleShuffle],
   );
 
   const progress = useMemo<PlayerProgress>(

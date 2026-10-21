@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
 import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
 import { recordDownload } from "@/lib/commerce/downloads";
+import { waveformFor } from "@/lib/audio/waveformLink";
 
 export const runtime = "nodejs";
 // See that route's own comment: a ?download=1 request runs ffmpeg tagging
@@ -66,7 +67,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         });
       }
       const url = await presignDownload(product.beat.audioMasterUrl, 300);
-      return NextResponse.json({ url, entitled: true, previewStartSec: null, previewEndSec: null });
+      return NextResponse.json({
+        url,
+        entitled: true,
+        previewStartSec: null,
+        previewEndSec: null,
+        ...(await waveformFor(product.beat.waveformPeaksUrl, true, 0, 0, product.beat.durationSec)),
+      });
     }
 
     // Rows published before previewAudioUrl existed fall back to the old
@@ -78,6 +85,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       url,
       entitled: false,
+      ...(await waveformFor(product.beat.waveformPeaksUrl, false, product.beat.previewStartSec, product.beat.previewEndSec, product.beat.durationSec)),
       previewStartSec: usingRealPreviewClip ? 0 : product.beat.previewStartSec,
       previewEndSec: usingRealPreviewClip
         ? product.beat.previewEndSec - product.beat.previewStartSec

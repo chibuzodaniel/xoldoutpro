@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { usePlayer } from "./PlayerProvider";
-import { FallbackImg } from "@/components/ui/FallbackImg";
+import { VinylDisc } from "./VinylDisc";
+import { WaveformScrubber } from "./WaveformScrubber";
 
 function formatTime(sec: number) {
   if (!Number.isFinite(sec)) return "0:00";
@@ -11,11 +12,11 @@ function formatTime(sec: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-// Static pattern, not audio-reactive — same decorative role the bars play in
-// the reference design. Only actually moves (via the waveform-bar keyframe
-// in globals.css) while isPlaying is true, so it's not claiming to be real
-// visualization, just an animated "something is playing" cue.
-const WAVEFORM_HEIGHTS = [35, 60, 90, 50, 75, 100, 65, 40, 80, 55, 95, 45, 70, 100, 60, 35, 85, 50, 75, 40];
+/** 00:40 — the vinyl player's clock style. */
+function formatClock(sec: number) {
+  const safe = Number.isFinite(sec) ? Math.max(0, sec) : 0;
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(Math.floor(safe % 60)).padStart(2, "0")}`;
+}
 
 function ShareIcon() {
   return (
@@ -134,6 +135,7 @@ export function ExpandedPlayer() {
     entitled,
     previewStartSec,
     previewEndSec,
+    waveformSource,
     queue,
     queueIndex,
     remoteSupported,
@@ -160,7 +162,9 @@ export function ExpandedPlayer() {
   // back to the first track (matches next()'s own repeat-all handling).
   const hasNext = queueIndex < queue.length - 1 || (repeatMode === "all" && queue.length > 0);
   const trackLengthSec = entitled ? durationSec : seekMax - seekMin;
-  const remainingSec = Math.max((entitled ? durationSec : seekMax) - positionSec, 0);
+  const span = Math.max(seekMax - seekMin, 0.001);
+  const progress = (Math.min(Math.max(positionSec, seekMin), seekMax) - seekMin) / span;
+  const elapsedSec = Math.max(0, Math.min(positionSec, seekMax) - seekMin);
 
   async function handleShare() {
     const text = `${current!.title} — ${current!.artistName} on XOLDOUT`;
@@ -191,95 +195,76 @@ export function ExpandedPlayer() {
           ‹
         </button>
         <span className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Playing from XOLDOUT</span>
-        <button onClick={handleShare} className="w-8 flex justify-end text-ink-2" aria-label="Share">
-          {shareLabel === "copied" ? <span className="text-[11px] text-ink-3">Copied</span> : <ShareIcon />}
-        </button>
+        <span className="w-8" aria-hidden />
       </div>
 
       <div className="flex-1 flex flex-col px-6 pb-8 overflow-y-auto">
-        <div className="relative aspect-square w-full max-w-sm mx-auto rounded-2xl bg-surface-2 overflow-hidden mb-6">
-          <FallbackImg src={current.artworkUrl} alt={current.title} className="h-full w-full object-cover" fallback={null} />
-          <div className="absolute inset-x-0 bottom-4 flex items-end justify-center gap-[3px] h-5">
-            {WAVEFORM_HEIGHTS.map((h, i) => (
-              <span
-                key={i}
-                className={`w-[3px] rounded-full bg-white/80 origin-bottom ${isPlaying ? "animate-waveform-bar" : ""}`}
-                style={{ height: `${h}%`, animationDelay: `${i * 0.07}s` }}
-              />
-            ))}
-          </div>
+        <div className="max-w-sm mx-auto w-full text-center mb-6">
+          <h1 className="text-lg font-bold uppercase tracking-wide line-clamp-2">{current.title}</h1>
+          <p className="text-sm text-ink-3">
+            {current.artistName} · {formatTime(trackLengthSec)}
+          </p>
+        </div>
+
+        {/* Vinyl redesign (explicit ask, 2026-10-21) — the record spins while playing. */}
+        <div className="mb-8">
+          <VinylDisc artworkUrl={current.artworkUrl} title={current.title} spinning={isPlaying} />
         </div>
 
         <div className="max-w-sm mx-auto w-full">
-          <h1 className="font-serif text-2xl mb-1">{current.title}</h1>
-          <p className="text-sm text-ink-3 mb-5">
-            {current.artistName} · {formatTime(trackLengthSec)}
-          </p>
-
           {!entitled && previewStartSec !== null && previewEndSec !== null && (
-            <p className="text-[12px] text-red-soft mb-3">
+            <p className="text-[12px] text-red-soft mb-3 text-center">
               Preview only — {formatTime(previewStartSec)} to {formatTime(previewEndSec)}. Buy to hear the rest.
             </p>
           )}
 
-          <input
-            type="range"
-            min={seekMin}
-            max={seekMax}
-            step={0.1}
-            value={Math.min(Math.max(positionSec, seekMin), seekMax)}
-            onChange={(e) => seek(Number(e.target.value))}
-            className="w-full h-1 accent-red mb-1"
+          <WaveformScrubber
+            trackId={current.trackId}
+            source={waveformSource}
+            progress={progress}
+            onSeekFraction={(f) => seek(seekMin + f * span)}
           />
-          <div className="flex justify-between text-[11px] text-ink-3 mb-6">
-            <span>{formatTime(positionSec)}</span>
-            <span>-{formatTime(remainingSec)}</span>
-          </div>
+          <p className="text-center font-mono text-[13px] text-ink-2 mt-2 mb-7 tabular-nums">
+            {formatClock(elapsedSec)} / {formatClock(trackLengthSec)}
+          </p>
 
-          {/* Previous/Play/Next form the true centered triad (equal flex-1
-              spacers on each side); Repeat sits apart at the trailing edge,
-              matching the standard player layout — a plain 4-up justify-between
-              row visually off-centers Play since its circle is much larger
-              than the other icons. */}
-          <div className="flex items-center mb-8 px-1">
-            <div className="flex-1">
-              <button
-                onClick={toggleShuffle}
-                disabled={queue.length < 2}
-                className={`disabled:opacity-30 ${shuffled ? "text-red-soft" : "text-ink-2"}`}
-                aria-label={shuffled ? "Shuffle: on" : "Shuffle: off"}
-                aria-pressed={shuffled}
-              >
-                <ShuffleIcon />
-              </button>
-            </div>
-            <div className="flex items-center gap-8">
-              <button onClick={previous} className="text-ink-2" aria-label="Previous">
-                <PreviousIcon />
-              </button>
-              <button
-                onClick={togglePlay}
-                className="h-16 w-16 rounded-full bg-ink text-bg flex items-center justify-center"
-                aria-label={isPlaying ? "Pause" : "Play"}
-              >
-                {isPlaying ? <PauseIcon /> : <PlayIcon />}
-              </button>
-              <button onClick={next} disabled={!hasNext} className="text-ink-2 disabled:opacity-30" aria-label="Next">
-                <NextIcon />
-              </button>
-            </div>
-            <div className="flex-1 flex justify-end">
-              <button
-                onClick={cycleRepeat}
-                className={repeatMode !== "off" ? "text-red-soft" : "text-ink-2"}
-                aria-label={`Repeat: ${repeatMode}`}
-              >
-                <RepeatIcon mode={repeatMode === "one" ? "one" : "other"} />
-              </button>
-            </div>
+          {/* Share · Previous · Play · Next · Repeat — the reference's one-row layout. */}
+          <div className="flex items-center justify-between mb-8 px-1">
+            <button onClick={handleShare} className="text-ink-2 w-8 flex justify-start" aria-label="Share">
+              {shareLabel === "copied" ? <span className="text-[11px] text-ink-3">Copied</span> : <ShareIcon />}
+            </button>
+            <button onClick={previous} className="text-ink-2" aria-label="Previous">
+              <PreviousIcon />
+            </button>
+            <button
+              onClick={togglePlay}
+              className="h-16 w-16 rounded-full bg-ink text-bg flex items-center justify-center"
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              {isPlaying ? <PauseIcon /> : <PlayIcon />}
+            </button>
+            <button onClick={next} disabled={!hasNext} className="text-ink-2 disabled:opacity-30" aria-label="Next">
+              <NextIcon />
+            </button>
+            <button
+              onClick={cycleRepeat}
+              className={`w-8 flex justify-end ${repeatMode !== "off" ? "text-red-soft" : "text-ink-2"}`}
+              aria-label={`Repeat: ${repeatMode}`}
+            >
+              <RepeatIcon mode={repeatMode === "one" ? "one" : "other"} />
+            </button>
           </div>
 
           <div className="flex items-center justify-between px-1">
+            <button
+              onClick={toggleShuffle}
+              disabled={queue.length < 2}
+              className={`disabled:opacity-30 ${shuffled ? "text-red-soft" : "text-ink-3"}`}
+              aria-label={shuffled ? "Shuffle: on" : "Shuffle: off"}
+              aria-pressed={shuffled}
+            >
+              <ShuffleIcon />
+            </button>
             <button
               onClick={() => setShowLyrics((v) => !v)}
               disabled={!current.lyricsText}

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { presignDownload } from "@/lib/storage/r2";
 import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
 import { recordDownload } from "@/lib/commerce/downloads";
+import { waveformFor } from "@/lib/audio/waveformLink";
 
 export const runtime = "nodejs";
 // A ?download=1 request proxies the master through ffmpeg (ID3 tagging) —
@@ -102,6 +103,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({
       url,
       entitled,
+      ...(await waveformFor(track.waveformPeaksUrl, entitled, track.previewStartSec, track.previewEndSec, track.durationSec)),
       previewStartSec: entitled ? null : usingRealPreviewClip ? 0 : track.previewStartSec,
       previewEndSec: entitled ? null : usingRealPreviewClip ? track.previewEndSec - track.previewStartSec : track.previewEndSec,
     });
