@@ -81,3 +81,15 @@ export async function objectExists(key: string): Promise<boolean> {
     throw err;
   }
 }
+
+/** An object's size in bytes, or null if it doesn't exist — used to enforce upload limits after a direct-to-R2 PUT. */
+export async function objectSize(key: string): Promise<number | null> {
+  try {
+    const res = await client().send(new HeadObjectCommand({ Bucket: bucket(), Key: key }));
+    return res.ContentLength ?? null;
+  } catch (err) {
+    const status = (err as { $metadata?: { httpStatusCode?: number } }).$metadata?.httpStatusCode;
+    if (status === 404 || (err as { name?: string }).name === "NotFound") return null;
+    throw err;
+  }
+}

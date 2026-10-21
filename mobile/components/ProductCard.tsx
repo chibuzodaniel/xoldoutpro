@@ -12,6 +12,8 @@ export function ProductCard({ product, width, owned }: { product: ProductCardDat
   const sold = product.stockPolicy?.sold ?? 0;
   const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
   const imageUrl = imageUrlFor(product, "256");
+  // E+ (explicit ask, 2026-10-21): buying this comes with extra content. Music only for now.
+  const hasExtras = product.type === "RELEASE" && (product.addOnCount ?? 0) > 0;
 
   return (
     <View style={{ width }}>
@@ -32,8 +34,14 @@ export function ProductCard({ product, width, owned }: { product: ProductCardDat
           </View>
         )}
 
+        {hasExtras && (
+          <View style={styles.ePlus}>
+            <Text style={styles.ePlusText}>E+</Text>
+          </View>
+        )}
+
         {owned && !isSoldOut && (
-          <View style={styles.ownedBadge}>
+          <View style={[styles.ownedBadge, hasExtras && { bottom: 28 }]}>
             <Text style={styles.ownedBadgeText}>Owned</Text>
           </View>
         )}
@@ -87,6 +95,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
+  ePlus: { position: "absolute", right: 6, bottom: 6, borderRadius: 5, backgroundColor: colors.red, paddingHorizontal: 6, paddingVertical: 2 },
+  ePlusText: { color: "#fff", fontSize: 10, fontWeight: "800" },
   ownedBadgeText: { color: colors.redSoft, fontSize: 9, fontWeight: "700", textTransform: "uppercase" },
   soldOutText: {
     color: colors.ink,

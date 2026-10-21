@@ -24,6 +24,7 @@ import { SquareImagePicker } from "../components/creator/SquareImagePicker";
 import { PriceField } from "../components/creator/PriceField";
 import { CapField } from "../components/creator/CapField";
 import { AudioPickerBox } from "../components/creator/AudioPickerBox";
+import { AddOnsEditor, addOnDraftsError, addOnDraftsPayload, type AddOnDraft } from "../components/addons/AddOnsEditor";
 
 function newTrack(): TrackDraft {
   return {
@@ -52,6 +53,7 @@ export function PublishMusicScreen() {
   const [capValue, setCapValue] = useState("");
   const [artworkLadder, setArtworkLadder] = useState<Record<string, string> | null>(null);
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
+  const [addOns, setAddOns] = useState<AddOnDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -79,10 +81,14 @@ export function PublishMusicScreen() {
       return Alert.alert("Invalid quantity", "Enter a valid limited quantity.");
     }
 
+    const addOnError = addOnDraftsError(addOns);
+    if (addOnError) return Alert.alert("Extras not ready", addOnError);
+
     setSubmitting(true);
     try {
       const idToken = await firebaseUser.getIdToken();
       const payload = {
+        addOns: addOnDraftsPayload(addOns),
         title,
         releaseType,
         description,
@@ -219,6 +225,15 @@ export function PublishMusicScreen() {
         ))}
       </View>
 
+      <View style={styles.tracksSection}>
+        <Text style={styles.sectionLabel}>Extras (optional)</Text>
+        <Text style={styles.extrasIntro}>
+          Give buyers more than the audio — a music video, visualizer, exclusive artwork, wallpapers, lyrics or a booklet. Everyone who buys this release
+          gets them, and it shows an <Text style={styles.ePlus}>E+</Text> badge.
+        </Text>
+        <AddOnsEditor drafts={addOns} onChange={setAddOns} />
+      </View>
+
       <TouchableOpacity style={styles.submitButton} onPress={handleSubmit} disabled={submitting}>
         {submitting ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.submitText}>Publish</Text>}
       </TouchableOpacity>
@@ -251,6 +266,8 @@ const styles = StyleSheet.create({
     color: colors.ink,
     fontSize: 13,
   },
+  extrasIntro: { color: colors.ink3, fontSize: 12, lineHeight: 17 },
+  ePlus: { color: colors.redSoft, fontWeight: "700" },
   submitButton: { backgroundColor: colors.red, borderRadius: 10, paddingVertical: 14, alignItems: "center" },
   submitText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
 });

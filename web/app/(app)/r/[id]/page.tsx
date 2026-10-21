@@ -10,6 +10,7 @@ import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
+import { ReleaseExtras } from "@/components/addons/ReleaseExtras";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -93,6 +94,8 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           priceKobo={product.priceKobo}
           isSoldOut={isSoldOut}
         />
+
+        <ReleaseExtras productId={product.id} releaseTitle={product.title} />
       </div>
     </div>
   );

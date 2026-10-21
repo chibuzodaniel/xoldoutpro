@@ -15,6 +15,7 @@ import {
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { API_BASE_URL, apiGet } from "../lib/api";
+import { ReleaseExtras } from "../components/addons/ReleaseExtras";
 import type { RootStackParamList } from "../lib/navigation";
 import type { ProductDetail } from "../lib/productDetailTypes";
 import { formatNaira } from "../lib/format";
@@ -288,6 +289,8 @@ export function ProductScreen() {
         {releaseAccess?.entitled && (
           <Text style={styles.ownedNote}>You own this. Playable offline once downloaded to your Library.</Text>
         )}
+
+        {product.type === "RELEASE" && <ReleaseExtras productId={product.id} />}
 
         {product.beat && (() => {
           const beatEntitled = beatAccess?.entitled || beatAccess?.isOwner;

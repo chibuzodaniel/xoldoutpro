@@ -9,6 +9,7 @@ import { useGatewayCheckout, GatewayPickerCancelled } from "@/lib/useGatewayChec
 import { useGuestCheckout, GuestInfoCancelled, completeGuestSignIn, rememberGuestOrder, type GuestInfo } from "@/lib/useGuestCheckout";
 import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
+import { OWNERSHIP_CHANGED_EVENT } from "@/components/addons/ReleaseExtras";
 import { useToast } from "@/components/ui/ToastProvider";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
@@ -96,6 +97,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       rememberGuestOrder(data.orderId, data.guestOrderToken);
       if (data.free) {
         await load();
+        window.dispatchEvent(new Event(OWNERSHIP_CHANGED_EVENT));
       } else {
         router.push(data.checkoutUrl);
       }

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generatePreviewClip } from "@/lib/audio/generatePreviewClip";
+import { addOnInputSchema, prepareAddOns, createAddOns, AddOnError } from "@/lib/commerce/addOns";
+import { MAX_ADD_ONS_PER_PRODUCT } from "@/lib/commerce/addOnRules";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
 
 export const maxDuration = 120; // trimming a real preview clip per track (ffmpeg), mirrors the ingest route's own limit
@@ -32,6 +34,8 @@ const createSchema = z
     cap: z.number().int().positive().nullable(),
     artworkLadder: z.record(z.string(), z.string()),
     tracks: z.array(trackSchema).min(1).max(30), // should-know default: 30 tracks/release
+    // Creative Add-ons (optional) — see lib/commerce/addOns.ts.
+    addOns: z.array(addOnInputSchema).max(MAX_ADD_ONS_PER_PRODUCT).default([]),
   })
   .refine((r) => r.releaseType !== "SINGLE" || r.tracks.length === 1, {
     message: "A single must have exactly one track",
@@ -47,6 +51,8 @@ export async function POST(req: NextRequest) {
     // transaction below — this is R2 + ffmpeg I/O that shouldn't hold a
     // database connection open. Runs per-track in parallel since each is
     // independent (fetch that track's own streaming rendition, trim it).
+    const addOnRows = await prepareAddOns(user.id, body.addOns);
+
     const previewAudioKeys = await Promise.all(
       body.tracks.map((t) => generatePreviewClip(user.id, t.audioStreamKey, t.previewStartSec, t.previewEndSec)),
     );
@@ -86,6 +92,7 @@ export async function POST(req: NextRequest) {
         },
         include: { release: { include: { tracks: true } }, stockPolicy: true },
       });
+      await createAddOns(tx, created.id, addOnRows);
       return created;
     });
     await recordProductsPublished(user.id, 1);
@@ -93,6 +100,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ product }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof AddOnError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof UploadCapError) return NextResponse.json({ error: err.message, reason: err.reason }, { status: 403 });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
     console.error(err);

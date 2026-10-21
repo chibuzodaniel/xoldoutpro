@@ -14,6 +14,8 @@ export type ProductCardData = {
   beat: { coverImageLadder: ImageLadder } | null;
   merchItem: { imageLadder: ImageLadder } | null;
   stockPolicy: StockPolicy;
+  // Creative Add-ons on this item (web's Product.addOnCount) — drives the E+ badge.
+  addOnCount?: number;
 };
 
 export type WeeklyTopCreator = {

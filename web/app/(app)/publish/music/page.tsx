@@ -10,6 +10,7 @@ import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
+import { AddOnsEditor, addOnDraftsError, addOnDraftsPayload, type AddOnDraft } from "@/components/addons/AddOnsEditor";
 
 function newTrack(): TrackDraft {
   return {
@@ -45,6 +46,7 @@ export default function UploadMusicPage() {
   const [artworkCropFile, setArtworkCropFile] = useState<File | null>(null);
 
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
+  const [addOns, setAddOns] = useState<AddOnDraft[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -109,9 +111,13 @@ export default function UploadMusicPage() {
       return toast.error("Enter a valid limited quantity");
     }
 
+    const addOnError = addOnDraftsError(addOns);
+    if (addOnError) return toast.error(addOnError);
+
     setSubmitting(true);
     try {
       const payload = {
+        addOns: addOnDraftsPayload(addOns),
         title,
         releaseType,
         description,
@@ -325,6 +331,15 @@ export default function UploadMusicPage() {
               }
             />
           ))}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Extras (optional)</label>
+          <p className="text-xs text-ink-3 -mt-1">
+            Give buyers more than the audio — a music video, visualizer, exclusive artwork, wallpapers, lyrics or a booklet. Everyone who buys this
+            release gets them, and it shows an <span className="font-semibold text-red-soft">E+</span> badge.
+          </p>
+          <AddOnsEditor drafts={addOns} onChange={setAddOns} />
         </div>
 
         <button

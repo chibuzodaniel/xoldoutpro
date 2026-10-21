@@ -620,6 +620,10 @@ model Product {
   createdAt   DateTime      @default(now())
   publishedAt DateTime?
   deletedAt   DateTime?
+  // How many Creative Add-ons (ProductAddOn) this item has — kept in step
+  // by every add-on write so every browsing surface can show the E+ badge
+  // from the product row alone, without a join or count per card.
+  addOnCount  Int           @default(0)
 
   release              Release?
   beat                 Beat?
@@ -632,9 +636,49 @@ model Product {
   gifts                Gift[]
   pinnedInLiveSessions LiveSession[]
   billboards           Billboard[]
+  addOns               ProductAddOn[]
 
   @@index([creatorId])
   @@index([status, type])
+}
+
+// ─── Creative Add-ons (V1.2) ─────────────────────────────────────────────
+// Bonus content an artist attaches to a release (explicit ask, 2026-10-21):
+// music video, visualizer, exclusive artwork, wallpapers, lyrics, booklet,
+// behind-the-scenes. Not a product of its own — buying the release is what
+// unlocks it (lib/commerce/addOns.ts). Music only for now.
+enum AddOnKind {
+  MUSIC_VIDEO
+  VISUALIZER
+  ARTWORK
+  WALLPAPER
+  LYRICS
+  BOOKLET
+  BEHIND_THE_SCENES
+  OTHER
+}
+
+// Exactly one of youtubeId / fileKey is set. YouTube is the preferred way to
+// attach a video (no storage, plays instantly) but is watch-only and not
+// truly exclusive; an uploaded file (≤100 MB, in R2 under addons/<creator>/)
+// is only ever served to buyers through short-lived signed links, and is
+// what "Download" / "Download All" bundle.
+model ProductAddOn {
+  id          String    @id @default(cuid())
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  kind        AddOnKind
+  title       String
+  description String?
+  youtubeId   String?
+  fileKey     String?
+  fileName    String?
+  contentType String?
+  sizeBytes   Int?
+  order       Int       @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@index([productId, order])
 }
 
 enum ReleaseType {

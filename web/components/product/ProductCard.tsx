@@ -20,6 +20,8 @@ export type ProductCardData = {
   beat: { coverImageLadder: unknown } | null;
   merchItem: { imageLadder: unknown } | null;
   stockPolicy: { cap: number | null; sold: number; soldOutAt: Date | null } | null;
+  // Creative Add-ons on this item (Product.addOnCount) — drives the E+ badge.
+  addOnCount?: number;
 };
 
 function ladderUrl(ladder: unknown, size: "64" | "256" | "1024") {
@@ -59,6 +61,9 @@ export function ProductCard({ product }: { product: ProductCardData }) {
   const sold = product.stockPolicy?.sold ?? 0;
   const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
   const imageUrl = imageUrlFor(product, "256");
+  // E+ (explicit ask, 2026-10-21): this purchase comes with extra content.
+  // Sits where the old play button was; music only for now.
+  const hasExtras = product.type === "RELEASE" && (product.addOnCount ?? 0) > 0;
 
   return (
     <Link href={hrefFor(product)} className="block w-full group">
@@ -72,14 +77,6 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           {categoryLabelFor(product)}
         </span>
 
-        {!isSoldOut && product.type !== "MERCH" && (
-          <span className="absolute right-1.5 bottom-1.5 h-6 w-6 rounded-full bg-black/55 backdrop-blur-sm flex items-center justify-center">
-            <svg viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
-              <path d="M8 5v14l11-7z" />
-            </svg>
-          </span>
-        )}
-
         {isSoldOut && (
           <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
             <span className="rounded-full border border-white/40 px-3 py-1 text-[11px] uppercase tracking-widest text-white font-semibold">
@@ -88,12 +85,17 @@ export function ProductCard({ product }: { product: ProductCardData }) {
           </div>
         )}
 
-        {owned && !isSoldOut && (
+        {hasExtras && (
           <span
-            className={`absolute right-1.5 rounded-full bg-black/55 backdrop-blur-sm px-1.5 py-[2px] text-[9px] font-semibold uppercase tracking-wide text-red-soft ${
-              product.type === "MERCH" ? "bottom-1.5" : "bottom-9"
-            }`}
+            title="Comes with extra content"
+            className="absolute right-1.5 bottom-1.5 rounded-md bg-red px-1.5 py-[2px] text-[10px] font-bold leading-none text-white shadow-sm"
           >
+            E+
+          </span>
+        )}
+
+        {owned && !isSoldOut && (
+          <span className={`absolute right-1.5 ${hasExtras ? "bottom-7" : "bottom-1.5"} rounded-full bg-black/55 backdrop-blur-sm px-1.5 py-[2px] text-[9px] font-semibold uppercase tracking-wide text-red-soft`}>
             Owned
           </span>
         )}

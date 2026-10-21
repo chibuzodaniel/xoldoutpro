@@ -52,6 +52,15 @@
           "cameraPermission": "XOLDOUT uses your camera to scan ticket QR codes and to broadcast Xoldout Live.",
           "microphonePermission": "XOLDOUT uses your microphone to broadcast Xoldout Live."
         }
+      ],
+      "expo-sharing",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow XOLDOUT to save extras you bought to your photos.",
+          "savePhotosPermission": "Allow XOLDOUT to save extras you bought to your photos.",
+          "isAccessMediaLocationEnabled": false
+        }
       ]
     ],
     "extra": {
