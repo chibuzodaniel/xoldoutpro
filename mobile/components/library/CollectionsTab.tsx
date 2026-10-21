@@ -4,7 +4,7 @@ import { useNavigation, type NavigationProp } from "@react-navigation/native";
 import { apiGet, apiPost } from "../../lib/api";
 import { useAuth } from "../../lib/AuthContext";
 import { usePlayer } from "../../lib/PlayerContext";
-import { listDownloads, type DownloadMeta } from "../../lib/offline/downloads";
+import { listDownloads, backfillOfflineArtwork, type DownloadMeta } from "../../lib/offline/downloads";
 import type { Collection, CollectionDetailItem } from "../../lib/collectionTypes";
 import type { HeavyRotationProduct } from "../../lib/heavyRotationTypes";
 import type { ProductDetail } from "../../lib/productDetailTypes";
@@ -101,6 +101,11 @@ export function CollectionsTab() {
       .catch(() => setCollections([]));
 
     listDownloads().then(setDownloads);
+    backfillOfflineArtwork()
+      .then((changed) => {
+        if (changed) listDownloads().then(setDownloads);
+      })
+      .catch(() => {});
 
     firebaseUser
       .getIdToken()

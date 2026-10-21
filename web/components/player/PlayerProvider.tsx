@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { getOfflinePlaybackUrl, listDownloads } from "@/lib/offline/downloads";
+import { getOfflinePlaybackUrl, listDownloads, localArtworkUrl } from "@/lib/offline/downloads";
 
 export type PlayableTrack = {
   trackId: string;
@@ -194,6 +194,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       if (myToken !== playTokenRef.current) return; // superseded by a newer play() while awaiting the offline lookup
 
       if (offlineUrl) {
+        // Show the cover saved with the download, so artwork still appears
+        // (player + lock screen) with no connection.
+        const localArt = await localArtworkUrl(track.trackId);
+        if (localArt && myToken === playTokenRef.current) setCurrent((cur) => (cur?.trackId === track.trackId ? { ...cur, artworkUrl: localArt } : cur));
         objectUrlRef.current = offlineUrl;
         setEntitled(true);
         setPreviewStartSec(null);

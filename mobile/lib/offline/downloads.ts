@@ -102,13 +102,62 @@ export async function downloadTrackForOffline(
   outFile.create();
   outFile.write(ciphertext);
 
+  await saveArtwork(track.trackId, track.artworkUrl);
+
   const index = await getIndex();
   index[track.trackId] = { ...track, sizeBytes: outFile.size, downloadedAt: Date.now() };
   await setIndex(index);
 }
 
+// The cover is saved next to the audio (explicit ask, 2026-10-21) so a
+// downloaded song still shows its artwork in the player, lock screen and
+// Downloaded list with no connection — the remote artworkUrl alone left
+// them blank offline. Not encrypted: it's the same public artwork the store
+// page shows. Located by file name at read time, never by a stored absolute
+// path, since iOS can move the app's documents folder between updates.
+function artworkFileFor(trackId: string): File {
+  return new File(downloadsDir(), `${trackId}-art.jpg`);
+}
+
+async function saveArtwork(trackId: string, artworkUrl: string | null) {
+  if (!artworkUrl) return;
+  try {
+    const file = artworkFileFor(trackId);
+    if (file.exists) file.delete();
+    await File.downloadFileAsync(artworkUrl, file);
+  } catch (err) {
+    // Artwork is a nice-to-have — never fail the song download over it.
+    console.warn("offline artwork save failed", trackId, err);
+  }
+}
+
+/** The saved cover for a downloaded track, if there is one. */
+export async function localArtworkUri(trackId: string): Promise<string | null> {
+  try {
+    const file = artworkFileFor(trackId);
+    return file.exists ? file.uri : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Downloaded tracks, with artworkUrl pointing at the saved cover when there is one. */
 export async function listDownloads(): Promise<DownloadMeta[]> {
-  return Object.values(await getIndex());
+  return Object.values(await getIndex()).map((d) => {
+    const art = artworkFileFor(d.trackId);
+    return art.exists ? { ...d, artworkUrl: art.uri } : d;
+  });
+}
+
+/**
+ * Songs downloaded before covers were saved alongside them get theirs now,
+ * the next time the device is online (the remote artworkUrl is still in the
+ * index). Called when the Downloaded list or Library collections open.
+ */
+export async function backfillOfflineArtwork(): Promise<boolean> {
+  const missing = Object.values(await getIndex()).filter((d) => d.artworkUrl && !artworkFileFor(d.trackId).exists);
+  for (const d of missing) await saveArtwork(d.trackId, d.artworkUrl);
+  return missing.length > 0;
 }
 
 export async function isDownloaded(trackId: string): Promise<boolean> {
@@ -119,6 +168,8 @@ export async function isDownloaded(trackId: string): Promise<boolean> {
 export async function removeDownload(trackId: string): Promise<void> {
   const file = encryptedFileFor(trackId);
   if (file.exists) file.delete();
+  const art = artworkFileFor(trackId);
+  if (art.exists) art.delete();
   // getOfflinePlaybackUri now leaves its decrypted temp file in place
   // (reused across plays instead of re-decrypting every time) — has to be
   // cleaned up here too, or the plaintext audio would outlive the download

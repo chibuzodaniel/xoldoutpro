@@ -13,7 +13,56 @@ export type DownloadMeta = {
   downloadedAt: number;
 };
 
-type StoredDownload = DownloadMeta & { iv: Uint8Array; ciphertext: ArrayBuffer };
+// artwork: the cover image itself, saved with the audio (explicit ask,
+// 2026-10-21) so a downloaded song still shows its artwork in the player
+// and Downloaded list with no connection. Missing on rows downloaded before
+// this — backfillOfflineArtwork fills those in when online.
+type StoredDownload = DownloadMeta & { iv: Uint8Array; ciphertext: ArrayBuffer; artwork?: Blob };
+
+// One object URL per saved cover for the life of the page, rather than a new
+// one (never revoked) every time a list renders.
+const artworkObjectUrls = new Map<string, string>();
+
+function artworkFor(row: StoredDownload): string | null {
+  if (!row.artwork) return row.artworkUrl;
+  let url = artworkObjectUrls.get(row.trackId);
+  if (!url) {
+    url = URL.createObjectURL(row.artwork);
+    artworkObjectUrls.set(row.trackId, url);
+  }
+  return url;
+}
+
+async function fetchArtwork(artworkUrl: string | null): Promise<Blob | undefined> {
+  if (!artworkUrl) return undefined;
+  try {
+    const res = await fetch(artworkUrl);
+    return res.ok ? await res.blob() : undefined;
+  } catch {
+    // Artwork is a nice-to-have — never fail the song download over it.
+    return undefined;
+  }
+}
+
+/** The saved cover for a downloaded track (a blob: URL), if there is one. */
+export async function localArtworkUrl(trackId: string): Promise<string | null> {
+  const row = await idbGet<StoredDownload>(STORE_DOWNLOADS, trackId);
+  return row?.artwork ? artworkFor(row) : null;
+}
+
+/** Saves covers for songs downloaded before covers were kept. Returns whether any were added. */
+export async function backfillOfflineArtwork(): Promise<boolean> {
+  const rows = await idbGetAll<StoredDownload>(STORE_DOWNLOADS);
+  let changed = false;
+  for (const row of rows) {
+    if (row.artwork || !row.artworkUrl) continue;
+    const artwork = await fetchArtwork(row.artworkUrl);
+    if (!artwork) continue;
+    await idbPut(STORE_DOWNLOADS, { ...row, artwork });
+    changed = true;
+  }
+  return changed;
+}
 
 export async function downloadTrackForOffline(track: {
   trackId: string;
@@ -33,12 +82,13 @@ export async function downloadTrackForOffline(track: {
   if (!audioRes.ok) throw new Error("Could not download audio");
   const bytes = await audioRes.arrayBuffer();
 
-  const { iv, ciphertext } = await encryptForOffline(bytes);
+  const [{ iv, ciphertext }, artwork] = await Promise.all([encryptForOffline(bytes), fetchArtwork(track.artworkUrl)]);
 
   const record: StoredDownload = {
     ...track,
     iv,
     ciphertext,
+    artwork,
     sizeBytes: ciphertext.byteLength,
     downloadedAt: Date.now(),
   };
@@ -52,7 +102,7 @@ export async function listDownloads(): Promise<DownloadMeta[]> {
     productId: r.productId,
     title: r.title,
     artistName: r.artistName,
-    artworkUrl: r.artworkUrl,
+    artworkUrl: artworkFor(r),
     durationSec: r.durationSec,
     sizeBytes: r.sizeBytes,
     downloadedAt: r.downloadedAt,
@@ -66,6 +116,11 @@ export async function isDownloaded(trackId: string): Promise<boolean> {
 
 export async function removeDownload(trackId: string): Promise<void> {
   await idbDelete(STORE_DOWNLOADS, trackId);
+  const art = artworkObjectUrls.get(trackId);
+  if (art) {
+    URL.revokeObjectURL(art);
+    artworkObjectUrls.delete(trackId);
+  }
 }
 
 /** Decrypts a downloaded track into a playable blob: URL. Caller must revoke it when done. */

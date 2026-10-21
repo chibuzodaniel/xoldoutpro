@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { listDownloads, type DownloadMeta } from "@/lib/offline/downloads";
+import { listDownloads, backfillOfflineArtwork, type DownloadMeta } from "@/lib/offline/downloads";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 
 // Automatic collection, not a real Collection row and not server data at
@@ -16,7 +16,14 @@ export default function DownloadedPage() {
   const [downloads, setDownloads] = useState<DownloadMeta[] | null>(null);
 
   useEffect(() => {
-    listDownloads().then((list) => setDownloads(list.sort((a, b) => b.downloadedAt - a.downloadedAt)));
+    const load = () => listDownloads().then((list) => setDownloads(list.sort((a, b) => b.downloadedAt - a.downloadedAt)));
+    load();
+    // Older downloads saved without a cover get one now (when online).
+    backfillOfflineArtwork()
+      .then((changed) => {
+        if (changed) load();
+      })
+      .catch(() => {});
   }, []);
 
   if (downloads === null) return null;

@@ -3,7 +3,7 @@ import { useAudioPlayer, useAudioPlayerStatus, setAudioModeAsync } from "expo-au
 import { apiGet } from "./api";
 import { useAuth } from "./AuthContext";
 import type { PlayableTrack } from "./playerTypes";
-import { getOfflinePlaybackUri, isDownloaded } from "./offline/downloads";
+import { getOfflinePlaybackUri, isDownloaded, localArtworkUri } from "./offline/downloads";
 
 type RepeatMode = "off" | "all" | "one";
 
@@ -62,7 +62,26 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const player = useAudioPlayer(url);
   const status = useAudioPlayerStatus(player);
-  const current = queue[queueIndex] ?? null;
+  const queued = queue[queueIndex] ?? null;
+
+  // A downloaded track's cover is saved next to the audio (offline/
+  // downloads.ts) — use that copy so the player and lock screen still show
+  // artwork with no connection (explicit ask, 2026-10-21).
+  const [localArt, setLocalArt] = useState<{ trackId: string; uri: string } | null>(null);
+  useEffect(() => {
+    if (!queued || queued.kind === "beat") return;
+    let cancelled = false;
+    localArtworkUri(queued.trackId).then((uri) => {
+      if (!cancelled && uri) setLocalArt({ trackId: queued.trackId, uri });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [queued]);
+  const current = useMemo(
+    () => (queued && localArt?.trackId === queued.trackId ? { ...queued, artworkUrl: localArt.uri } : queued),
+    [queued, localArt],
+  );
 
   // Always-fresh snapshot of playback status for callbacks below, so those
   // callbacks can stay referentially stable (not recreated every ~500ms

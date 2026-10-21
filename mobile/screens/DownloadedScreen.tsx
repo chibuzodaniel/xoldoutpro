@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Image, ScrollView, Text, TouchableOpacity, View, StyleSheet, useWindowDimensions } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { listDownloads, type DownloadMeta } from "../lib/offline/downloads";
+import { listDownloads, backfillOfflineArtwork, type DownloadMeta } from "../lib/offline/downloads";
 import { usePlayer } from "../lib/PlayerContext";
 import type { RootStackParamList } from "../lib/navigation";
 import type { PlayableTrack } from "../lib/playerTypes";
@@ -49,7 +49,14 @@ export function DownloadedScreen() {
   }
 
   useEffect(() => {
-    listDownloads().then((list) => setDownloads([...list].sort((a, b) => b.downloadedAt - a.downloadedAt)));
+    const load = () => listDownloads().then((list) => setDownloads([...list].sort((a, b) => b.downloadedAt - a.downloadedAt)));
+    load();
+    // Older downloads saved without a cover get one now (when online).
+    backfillOfflineArtwork()
+      .then((changed) => {
+        if (changed) load();
+      })
+      .catch(() => {});
   }, []);
 
   const isPlayingThis = player.isPlaying && (downloads ?? []).some((d) => d.trackId === player.current?.trackId);
