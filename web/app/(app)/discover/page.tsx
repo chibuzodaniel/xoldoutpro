@@ -13,6 +13,8 @@ import { getActiveBillboards } from "@/lib/commerce/billboards";
 import { BillboardRail } from "@/components/discover/BillboardRail";
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
 import { Price } from "@/components/currency/CurrencyProvider";
+import { MusicTab } from "@/components/music/MusicTab";
+import { getMusicTab, parseMusicTabQuery } from "@/lib/music/getMusicTab";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -37,9 +39,26 @@ const SECTION_TITLE: Record<(typeof VALID_TYPES)[number], string> = {
   MERCH: "Merchandise",
 };
 
-export default async function DiscoverPage({ searchParams }: { searchParams: Promise<{ type?: string }> }) {
-  const { type } = await searchParams;
+export default async function DiscoverPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string; genre?: string; mood?: string; sort?: string; q?: string }>;
+}) {
+  const { type, genre, mood, sort, q } = await searchParams;
   const activeType = (VALID_TYPES as readonly string[]).includes(type ?? "") ? (type as CategoryType) : null;
+
+  // The Music tab's own layout (V1.2): search, genre/mood chips, sort tiles.
+  if (activeType === "RELEASE") {
+    const query = parseMusicTabQuery({ genre, mood, sort, q });
+    const products = await getMusicTab(query);
+    return (
+      <div className="pb-8">
+        <AppHeader />
+        <CategoryTabs active={activeType} />
+        <MusicTab query={query} products={products} />
+      </div>
+    );
+  }
 
   if (activeType === "EVENT") {
     const events = await db.event.findMany({

@@ -20,7 +20,7 @@ export type ProductDetail = {
   description: string | null;
   priceKobo: number;
   creator: ProductCreator & { avatarUrl: string | null };
-  release: { releaseType: string; artworkLadder: ImageLadder; tracks: Track[] } | null;
+  release: { releaseType: string; artworkLadder: ImageLadder; genres?: string[]; moods?: string[]; tracks: Track[] } | null;
   beat: {
     coverImageLadder: ImageLadder;
     previewAudioUrl: string | null;

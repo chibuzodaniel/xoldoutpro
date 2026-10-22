@@ -24,6 +24,7 @@ import { SquareImagePicker } from "../components/creator/SquareImagePicker";
 import { PriceField } from "../components/creator/PriceField";
 import { CapField } from "../components/creator/CapField";
 import { AudioPickerBox } from "../components/creator/AudioPickerBox";
+import { TagPicker } from "../components/music/TagPicker";
 import { AddOnsEditor, addOnDraftsError, addOnDraftsPayload, type AddOnDraft } from "../components/addons/AddOnsEditor";
 
 function newTrack(): TrackDraft {
@@ -54,6 +55,8 @@ export function PublishMusicScreen() {
   const [artworkLadder, setArtworkLadder] = useState<Record<string, string> | null>(null);
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
   const [addOns, setAddOns] = useState<AddOnDraft[]>([]);
+  const [genres, setGenres] = useState<string[]>([]);
+  const [moods, setMoods] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -71,6 +74,7 @@ export function PublishMusicScreen() {
     if (!firebaseUser) return;
     if (!title.trim()) return Alert.alert("Missing title", "Give this release a title.");
     if (!artworkLadder) return Alert.alert("Missing artwork", "Add artwork before publishing.");
+    if (genres.length === 0) return Alert.alert("Pick a genre", "Choose at least one genre so fans can find this in the Music tab.");
     if (tracks.some((t) => t.status !== "ready")) return Alert.alert("Tracks not ready", "Every track needs to finish uploading first.");
     if (releaseType === "SINGLE" && tracks.length !== 1) return Alert.alert("Invalid tracks", "A single needs exactly one track.");
 
@@ -89,6 +93,8 @@ export function PublishMusicScreen() {
       const idToken = await firebaseUser.getIdToken();
       const payload = {
         addOns: addOnDraftsPayload(addOns),
+        genres,
+        moods,
         title,
         releaseType,
         description,
@@ -153,6 +159,8 @@ export function PublishMusicScreen() {
         numberOfLines={3}
         style={styles.textArea}
       />
+
+      <TagPicker genres={genres} moods={moods} onGenres={setGenres} onMoods={setMoods} />
 
       <PriceField allowFree isFree={isFree} onFreeChange={setIsFree} priceNaira={priceNaira} onPriceChange={setPriceNaira} />
 

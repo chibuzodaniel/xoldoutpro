@@ -34,7 +34,8 @@ export type RootStackParamList = {
   Withdraw: undefined;
   Analytics: undefined;
   Player: undefined;
-  DiscoverCategory: { type: "RELEASE" | "BEAT" | "EVENT" | "MERCH" };
+  // genre/mood: open the Music tab pre-filtered (from a release's tag chips).
+  DiscoverCategory: { type: "RELEASE" | "BEAT" | "EVENT" | "MERCH"; genre?: string; mood?: string };
   TopCreators: undefined;
   Downloaded: undefined;
   HeavyRotation: undefined;

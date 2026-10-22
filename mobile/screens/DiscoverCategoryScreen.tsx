@@ -11,6 +11,7 @@ import { Grid } from "../components/Grid";
 import { ProductCard } from "../components/ProductCard";
 import { EventCard } from "../components/EventCard";
 import { useOwnedProducts } from "../lib/useOwnedProducts";
+import { MusicTab } from "../components/music/MusicTab";
 
 const SECTION_TITLE: Record<"RELEASE" | "BEAT" | "EVENT" | "MERCH", string> = {
   RELEASE: "Music",
@@ -35,6 +36,8 @@ export function DiscoverCategoryScreen() {
   const [data, setData] = useState<CategoryResponse["category"] | null>(null);
 
   useEffect(() => {
+    // The Music tab fetches its own (filtered) results — components/music/MusicTab.tsx.
+    if (type === "RELEASE") return;
     setData(null);
     apiGet<CategoryResponse>(`/api/discover?type=${type}`).then((res) => setData(res.category));
   }, [type]);
@@ -57,6 +60,9 @@ export function DiscoverCategoryScreen() {
   return (
     <View style={styles.container}>
       <CategoryTabs active={type} onSelect={handleSelect} onGoLivePress={() => navigation.navigate("LiveNow")} />
+      {type === "RELEASE" ? (
+        <MusicTab initialGenre={route.params.genre} initialMood={route.params.mood} />
+      ) : (
       <ScrollView contentContainerStyle={styles.content}>
         {!items ? (
           <ActivityIndicator style={styles.spinner} color={colors.ink} />
@@ -78,6 +84,7 @@ export function DiscoverCategoryScreen() {
           </Grid>
         )}
       </ScrollView>
+      )}
     </View>
   );
 }

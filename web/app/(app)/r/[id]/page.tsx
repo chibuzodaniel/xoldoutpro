@@ -11,6 +11,7 @@ import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
 import { ReleaseExtras } from "@/components/addons/ReleaseExtras";
+import { ReleaseTags } from "@/components/music/ReleaseTags";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -84,6 +85,13 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
             <span className="text-sm text-ink-3">{sold} sold</span>
           )}
         </div>
+
+        <ReleaseTags
+          productId={product.id}
+          creatorId={product.creatorId}
+          initialGenres={product.release.genres}
+          initialMoods={product.release.moods}
+        />
 
         {product.description && <p className="text-sm text-ink-2 mb-5">{product.description}</p>}
 

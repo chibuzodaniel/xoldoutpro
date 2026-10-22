@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { generatePreviewClip } from "@/lib/audio/generatePreviewClip";
 import { addOnInputSchema, prepareAddOns, createAddOns, AddOnError } from "@/lib/commerce/addOns";
 import { MAX_ADD_ONS_PER_PRODUCT } from "@/lib/commerce/addOnRules";
+import { GENRE_SLUGS, MOOD_SLUGS, MIN_GENRES, MAX_GENRES, MAX_MOODS } from "@/lib/music/tags";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
 
 export const maxDuration = 120; // trimming a real preview clip per track (ffmpeg), mirrors the ingest route's own limit
@@ -36,6 +37,9 @@ const createSchema = z
     tracks: z.array(trackSchema).min(1).max(30), // should-know default: 30 tracks/release
     // Creative Add-ons (optional) — see lib/commerce/addOns.ts.
     addOns: z.array(addOnInputSchema).max(MAX_ADD_ONS_PER_PRODUCT).default([]),
+    // Music tab discovery — lib/music/tags.ts.
+    genres: z.array(z.enum(GENRE_SLUGS)).min(MIN_GENRES, "Pick at least one genre").max(MAX_GENRES),
+    moods: z.array(z.enum(MOOD_SLUGS)).max(MAX_MOODS).default([]),
   })
   .refine((r) => r.releaseType !== "SINGLE" || r.tracks.length === 1, {
     message: "A single must have exactly one track",
@@ -71,6 +75,8 @@ export async function POST(req: NextRequest) {
             create: {
               releaseType: body.releaseType,
               artworkLadder: body.artworkLadder,
+              genres: [...new Set(body.genres)],
+              moods: [...new Set(body.moods)],
               tracks: {
                 create: body.tracks.map((t, i) => ({
                   order: t.order,
@@ -102,7 +108,7 @@ export async function POST(req: NextRequest) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof AddOnError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof UploadCapError) return NextResponse.json({ error: err.message, reason: err.reason }, { status: 403 });
-    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
+    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues[0]?.message ?? "Invalid release" }, { status: 400 });
     console.error(err);
     return NextResponse.json({ error: "Could not create release" }, { status: 500 });
   }

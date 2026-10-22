@@ -16,6 +16,7 @@ import { useNavigation, useRoute, type RouteProp } from "@react-navigation/nativ
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { API_BASE_URL, apiGet } from "../lib/api";
 import { ReleaseExtras } from "../components/addons/ReleaseExtras";
+import { ReleaseTags } from "../components/music/ReleaseTags";
 import type { RootStackParamList } from "../lib/navigation";
 import type { ProductDetail } from "../lib/productDetailTypes";
 import { formatNaira } from "../lib/format";
@@ -237,6 +238,15 @@ export function ProductScreen() {
 
         {product.merchItem && product.merchItem.shippingFeeKobo > 0 && (
           <Text style={styles.shippingNote}>+ {formatNaira(product.merchItem.shippingFeeKobo)} shipping</Text>
+        )}
+
+        {product.type === "RELEASE" && product.release && (
+          <ReleaseTags
+            productId={product.id}
+            creatorId={product.creatorId}
+            initialGenres={product.release.genres ?? []}
+            initialMoods={product.release.moods ?? []}
+          />
         )}
 
         {product.description && <Text style={styles.description}>{product.description}</Text>}

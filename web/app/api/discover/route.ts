@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getDiscoverData, discoverCardInclude } from "@/lib/discover/getDiscoverData";
+import { getMusicTab, parseMusicTabQuery } from "@/lib/music/getMusicTab";
 
 const VALID_TYPES = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
 type CategoryType = (typeof VALID_TYPES)[number];
@@ -33,6 +34,13 @@ export async function GET(req: NextRequest) {
         })),
       },
     });
+  }
+
+  // Music tab (V1.2) — same filters/sorts as the web page; see lib/music/getMusicTab.ts.
+  if (activeType === "RELEASE") {
+    const sp = req.nextUrl.searchParams;
+    const query = parseMusicTabQuery({ genre: sp.get("genre"), mood: sp.get("mood"), sort: sp.get("sort"), q: sp.get("q") });
+    return NextResponse.json({ category: { type: "RELEASE", products: await getMusicTab(query), query } });
   }
 
   if (activeType) {

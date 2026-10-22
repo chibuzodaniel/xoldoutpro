@@ -25,6 +25,8 @@ export async function getProductDetail(id: string) {
         select: {
           releaseType: true,
           artworkLadder: true,
+          genres: true,
+          moods: true,
           tracks: { orderBy: { order: "asc" }, select: trackSelect },
         },
       },

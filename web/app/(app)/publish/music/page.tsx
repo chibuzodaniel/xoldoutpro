@@ -10,6 +10,7 @@ import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
+import { TagPicker } from "@/components/music/TagPicker";
 import { AddOnsEditor, addOnDraftsError, addOnDraftsPayload, type AddOnDraft } from "@/components/addons/AddOnsEditor";
 
 function newTrack(): TrackDraft {
@@ -47,6 +48,8 @@ export default function UploadMusicPage() {
 
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
   const [addOns, setAddOns] = useState<AddOnDraft[]>([]);
+  const [genres, setGenres] = useState<string[]>([]);
+  const [moods, setMoods] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -101,6 +104,7 @@ export default function UploadMusicPage() {
     e.preventDefault();
 
     if (!artworkLadder) return toast.error("Add artwork before publishing");
+    if (genres.length === 0) return toast.error("Pick at least one genre so fans can find this in the Music tab");
     if (tracks.some((t) => t.status !== "ready")) return toast.error("Every track needs to finish uploading first");
     if (releaseType === "SINGLE" && tracks.length !== 1) return toast.error("A single needs exactly one track");
 
@@ -118,6 +122,8 @@ export default function UploadMusicPage() {
     try {
       const payload = {
         addOns: addOnDraftsPayload(addOns),
+        genres,
+        moods,
         title,
         releaseType,
         description,
@@ -250,6 +256,8 @@ export default function UploadMusicPage() {
             className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red resize-none"
           />
         </div>
+
+        <TagPicker genres={genres} moods={moods} onGenres={setGenres} onMoods={setMoods} />
 
         <div className="flex flex-col gap-2">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Price</label>
