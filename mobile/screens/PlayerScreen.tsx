@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Platform, ScrollView, Share, Text, TouchableOpacity, View, StyleSheet, useWindowDimensions } from "react-native";
+import { KeyboardAvoidingView, Platform, ScrollView, Share, Text, TouchableOpacity, View, StyleSheet, useWindowDimensions } from "react-native";
 import { Svg, Path, Rect } from "react-native-svg";
 import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -8,6 +8,7 @@ import type { RootStackParamList } from "../lib/navigation";
 import { colors, fonts } from "../lib/theme";
 import { VinylDisc } from "../components/player/VinylDisc";
 import { WaveformScrubber } from "../components/player/WaveformScrubber";
+import { SongComments } from "../components/player/SongComments";
 
 /** 00:40 — the vinyl player's clock style. */
 function formatClock(sec: number) {
@@ -122,11 +123,13 @@ export function PlayerScreen() {
   const { positionSec, durationSec } = usePlayerProgress();
   const { width } = useWindowDimensions();
   const discSize = Math.min(width - 64, 320);
-  const [showLyrics, setShowLyrics] = useState(false);
+  const [tab, setTab] = useState<"comments" | "lyrics">("comments");
   const [showQueue, setShowQueue] = useState(false);
 
   if (!current) return null;
 
+  // A song without lyrics never strands the player on an empty Lyrics tab.
+  const activeTab = tab === "lyrics" && !current.lyricsText ? "comments" : tab;
   const hasNext = queueIndex < queue.length - 1 || (repeatMode === "all" && queue.length > 0);
 
   async function handleShare() {
@@ -141,7 +144,7 @@ export function PlayerScreen() {
   const progress = durationSec > 0 ? positionSec / durationSec : 0;
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.goBack()} hitSlop={12}>
           <Text style={styles.minimize}>‹</Text>
@@ -150,7 +153,7 @@ export function PlayerScreen() {
         <View style={{ width: 28 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <Text style={styles.title} numberOfLines={2}>
           {current.title}
         </Text>
@@ -189,19 +192,10 @@ export function PlayerScreen() {
           <TouchableOpacity onPress={toggleShuffle} disabled={queue.length < 2} hitSlop={10}>
             <ShuffleIcon color={shuffled ? colors.redSoft : queue.length < 2 ? colors.line : colors.ink3} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowLyrics((v) => !v)} disabled={!current.lyricsText} hitSlop={10}>
-            <LyricsIcon color={!current.lyricsText ? colors.line : showLyrics ? colors.redSoft : colors.ink3} />
-          </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowQueue((v) => !v)} disabled={queue.length < 2} hitSlop={10}>
             <QueueIcon color={queue.length < 2 ? colors.line : showQueue ? colors.redSoft : colors.ink3} />
           </TouchableOpacity>
         </View>
-
-        {showLyrics && current.lyricsText && (
-          <View style={styles.lyricsWrap}>
-            <Text style={styles.lyricsText}>{current.lyricsText}</Text>
-          </View>
-        )}
 
         {showQueue && queue.length > 1 && (
           <View style={styles.queueWrap}>
@@ -215,8 +209,32 @@ export function PlayerScreen() {
             ))}
           </View>
         )}
+
+        {/* Comments | Lyrics (explicit ask, 2026-11-04) — the active tab gets the red outline. */}
+        <View style={styles.tabsRow}>
+          <TouchableOpacity onPress={() => setTab("comments")} style={[styles.tab, activeTab === "comments" && styles.tabActive]}>
+            <LyricsIcon color={activeTab === "comments" ? colors.redSoft : colors.ink2} />
+            <Text style={[styles.tabText, activeTab === "comments" && styles.tabTextActive]}>Comments</Text>
+          </TouchableOpacity>
+          <View style={styles.tabDivider} />
+          <TouchableOpacity
+            onPress={() => setTab("lyrics")}
+            disabled={!current.lyricsText}
+            style={[styles.tab, activeTab === "lyrics" && styles.tabActive, !current.lyricsText && { opacity: 0.3 }]}
+          >
+            <Text style={[styles.tabText, activeTab === "lyrics" && styles.tabTextActive]}>Lyrics</Text>
+          </TouchableOpacity>
+        </View>
+
+        <SongComments kind={current.kind ?? "track"} trackId={current.trackId} listVisible={activeTab === "comments"} onPosted={() => setTab("comments")} />
+
+        {activeTab === "lyrics" && current.lyricsText && (
+          <View style={styles.lyricsWrap}>
+            <Text style={styles.lyricsText}>{current.lyricsText}</Text>
+          </View>
+        )}
       </ScrollView>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -226,8 +244,9 @@ const styles = StyleSheet.create({
   minimize: { color: colors.ink2, fontSize: 30, width: 28 },
   headerLabel: { flex: 1, textAlign: "center", color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 1.5, textTransform: "uppercase" },
   scroll: { paddingBottom: 40 },
-  title: { color: colors.ink, fontSize: 18, fontWeight: "700", letterSpacing: 0.5, textTransform: "uppercase", textAlign: "center" },
-  artist: { color: colors.ink3, fontSize: 13, textAlign: "center", marginTop: 2, marginBottom: 24 },
+  title: { color: colors.ink, fontSize: 24, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase", textAlign: "center" },
+  // Artist name stands on its own, big and white (explicit ask, 2026-11-04).
+  artist: { color: colors.ink, fontSize: 22, fontWeight: "500", textAlign: "center", marginTop: 4, marginBottom: 24 },
   discWrap: { alignItems: "center", marginBottom: 28 },
   clock: {
     color: colors.ink2,
@@ -241,7 +260,13 @@ const styles = StyleSheet.create({
   controlsRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 28 },
   playButton: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.ink, alignItems: "center", justifyContent: "center" },
   bottomRow: { flexDirection: "row", justifyContent: "space-around", marginBottom: 20 },
-  lyricsWrap: { marginTop: 4 },
+  lyricsWrap: { marginTop: 20 },
+  tabsRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 18 },
+  tab: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderColor: "transparent", borderRadius: 999, paddingHorizontal: 18, paddingVertical: 6 },
+  tabActive: { borderColor: colors.redSoft },
+  tabText: { color: colors.ink2, fontSize: 14 },
+  tabTextActive: { color: colors.redSoft },
+  tabDivider: { width: 1, height: 26, backgroundColor: colors.line, marginHorizontal: 18 },
   lyricsText: { color: colors.ink2, fontFamily: fonts.serif, fontSize: 15, lineHeight: 24, textAlign: "center" },
   queueWrap: { borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.lineSoft },
   queueRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.lineSoft },

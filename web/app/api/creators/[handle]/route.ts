@@ -11,6 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ handle:
     fansCount: data.fansCount,
     totalSold: data.totalSold,
     catalog: data.catalog,
+    featuredOn: data.featuredOn,
     events: data.events.map((ev) => ({
       id: ev.id,
       title: ev.title,

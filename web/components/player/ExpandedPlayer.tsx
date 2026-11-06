@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePlayer } from "./PlayerProvider";
 import { VinylDisc } from "./VinylDisc";
 import { WaveformScrubber } from "./WaveformScrubber";
+import { SongComments } from "./SongComments";
 
 function formatTime(sec: number) {
   if (!Number.isFinite(sec)) return "0:00";
@@ -150,12 +151,14 @@ export function ExpandedPlayer() {
     requestRemotePlayback,
   } = usePlayer();
 
-  const [showLyrics, setShowLyrics] = useState(false);
+  const [tab, setTab] = useState<"comments" | "lyrics">("comments");
   const [showQueue, setShowQueue] = useState(false);
   const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
 
   if (!expanded || !current) return null;
 
+  // A song without lyrics never strands the player on an empty Lyrics tab.
+  const activeTab = tab === "lyrics" && !current.lyricsText ? "comments" : tab;
   const seekMin = !entitled && previewStartSec !== null ? previewStartSec : 0;
   const seekMax = !entitled && previewEndSec !== null ? previewEndSec : durationSec || 100;
   // At the last track, Next is still usable when repeat-all will wrap it
@@ -200,10 +203,10 @@ export function ExpandedPlayer() {
 
       <div className="flex-1 flex flex-col px-6 pb-8 overflow-y-auto">
         <div className="max-w-sm mx-auto w-full text-center mb-6">
-          <h1 className="text-lg font-bold uppercase tracking-wide line-clamp-2">{current.title}</h1>
-          <p className="text-sm text-ink-3">
-            {current.artistName} · {formatTime(trackLengthSec)}
-          </p>
+          {/* Artist name stands on its own, big and white (explicit ask,
+              2026-11-04) — the track length already shows under the waveform. */}
+          <h1 className="text-2xl font-extrabold uppercase tracking-wide line-clamp-2">{current.title}</h1>
+          <p className="mt-1 text-[22px] font-medium text-ink truncate">{current.artistName}</p>
         </div>
 
         {/* Vinyl redesign (explicit ask, 2026-10-21) — the record spins while playing. */}
@@ -265,14 +268,6 @@ export function ExpandedPlayer() {
             >
               <ShuffleIcon />
             </button>
-            <button
-              onClick={() => setShowLyrics((v) => !v)}
-              disabled={!current.lyricsText}
-              className={`disabled:opacity-30 ${showLyrics ? "text-red-soft" : "text-ink-2"}`}
-              aria-label="Lyrics"
-            >
-              <CommentIcon />
-            </button>
             {remoteSupported && (
               <button onClick={requestRemotePlayback} className="text-ink-2" aria-label="Play on another device">
                 <CastIcon />
@@ -287,12 +282,6 @@ export function ExpandedPlayer() {
               <QueueIcon />
             </button>
           </div>
-
-          {showLyrics && current.lyricsText && (
-            <div className="text-center font-serif text-ink-2 leading-relaxed whitespace-pre-line mt-6">
-              {current.lyricsText}
-            </div>
-          )}
 
           {showQueue && queue.length > 1 && (
             <div className="mt-6 flex flex-col divide-y divide-line-soft border-y border-line-soft">
@@ -309,6 +298,45 @@ export function ExpandedPlayer() {
                   {i === queueIndex && <span className="text-[11px] uppercase tracking-widest">Now Playing</span>}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Comments | Lyrics (explicit ask, 2026-11-04) — the active tab
+              gets the red outline, as in the reference. */}
+          <div className="mt-8 flex items-center justify-center">
+            <button
+              onClick={() => setTab("comments")}
+              className={`flex items-center gap-2 rounded-full px-5 py-1.5 text-sm border ${
+                activeTab === "comments" ? "border-red-soft text-red-soft" : "border-transparent text-ink-2"
+              }`}
+            >
+              <CommentIcon />
+              Comments
+            </button>
+            <span className="mx-5 h-7 w-px bg-line" aria-hidden />
+            <button
+              onClick={() => setTab("lyrics")}
+              disabled={!current.lyricsText}
+              className={`rounded-full px-5 py-1.5 text-sm border disabled:opacity-30 ${
+                activeTab === "lyrics" ? "border-red-soft text-red-soft" : "border-transparent text-ink-2"
+              }`}
+            >
+              Lyrics
+            </button>
+          </div>
+
+          <div className="mt-5">
+            <SongComments
+              kind={current.kind ?? "track"}
+              trackId={current.trackId}
+              listVisible={activeTab === "comments"}
+              onPosted={() => setTab("comments")}
+            />
+          </div>
+
+          {activeTab === "lyrics" && current.lyricsText && (
+            <div className="text-center font-serif text-ink-2 leading-relaxed whitespace-pre-line mt-6">
+              {current.lyricsText}
             </div>
           )}
         </div>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ProductCard } from "@/components/product/ProductCard";
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
-import { GENRES, MOODS, genreLabel, moodLabel } from "@/lib/music/tags";
+import { GENRES, genreLabel } from "@/lib/music/tags";
 import type { getMusicTab, parseMusicTabQuery, MusicSort } from "@/lib/music/getMusicTab";
 
 type Query = ReturnType<typeof parseMusicTabQuery>;
@@ -16,7 +16,6 @@ function hrefFor(current: Query, next: Partial<Query>) {
   const merged = { ...current, ...next };
   const params = new URLSearchParams({ type: "RELEASE" });
   if (merged.genre) params.set("genre", merged.genre);
-  if (merged.mood) params.set("mood", merged.mood);
   if (merged.sort && merged.sort !== "new") params.set("sort", merged.sort);
   if (merged.q) params.set("q", merged.q);
   return `/discover?${params.toString()}`;
@@ -28,12 +27,12 @@ const chip = (active: boolean) =>
   }`;
 
 // The Music tab (V1.2, explicit ask 2026-10-21, after the mockup): search,
-// genre and mood chips, New Releases / Top Selling / Free Songs tiles, and
+// genre chips (moods removed 2026-11-04), New Releases / Top Selling / Free Songs tiles, and
 // the results grid. Everything is a plain link/form (URL params), so it
 // works as a server-rendered page with no client fetching.
 export function MusicTab({ query, products }: { query: Query; products: Awaited<ReturnType<typeof getMusicTab>> }) {
   const activeTile = SORT_TILES.find((t) => t.sort === query.sort) ?? SORT_TILES[0];
-  const filterBits = [query.genre && genreLabel(query.genre), query.mood && moodLabel(query.mood), query.q && `“${query.q}”`].filter(Boolean);
+  const filterBits = [query.genre && genreLabel(query.genre), query.q && `“${query.q}”`].filter(Boolean);
 
   return (
     <div className="px-4">
@@ -45,7 +44,6 @@ export function MusicTab({ query, products }: { query: Query; products: Awaited<
         <form action="/discover" method="get" className="relative w-full sm:max-w-xs">
           <input type="hidden" name="type" value="RELEASE" />
           {query.genre && <input type="hidden" name="genre" value={query.genre} />}
-          {query.mood && <input type="hidden" name="mood" value={query.mood} />}
           {query.sort !== "new" && <input type="hidden" name="sort" value={query.sort} />}
           <svg viewBox="0 0 24 24" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
             <circle cx="11" cy="11" r="7" />
@@ -62,25 +60,13 @@ export function MusicTab({ query, products }: { query: Query; products: Awaited<
       </div>
 
       <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Genres</p>
-      <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-1 mb-4 [scrollbar-width:none]">
+      <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-1 mb-5 [scrollbar-width:none]">
         <Link href={hrefFor(query, { genre: null })} className={chip(!query.genre)}>
           All
         </Link>
         {GENRES.map((g) => (
           <Link key={g.slug} href={hrefFor(query, { genre: query.genre === g.slug ? null : g.slug })} className={chip(query.genre === g.slug)}>
             {g.label}
-          </Link>
-        ))}
-      </div>
-
-      <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Mood</p>
-      <div className="-mx-4 px-4 flex gap-2 overflow-x-auto pb-1 mb-5 [scrollbar-width:none]">
-        {MOODS.map((m) => (
-          <Link key={m.slug} href={hrefFor(query, { mood: query.mood === m.slug ? null : m.slug })} className={chip(query.mood === m.slug)}>
-            <span className="mr-1" aria-hidden>
-              {m.icon}
-            </span>
-            {m.label}
           </Link>
         ))}
       </div>

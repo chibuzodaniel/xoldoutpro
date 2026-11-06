@@ -16,6 +16,7 @@ export type RootStackParamList = {
   Group: { id: string; name: string };
   GroupMembers: { id: string; isCreator: boolean };
   FanbaseRequests: undefined;
+  Collaborations: undefined;
   Messages: undefined;
   // Direct messages: an existing conversation by id, or a new one with someone.
   Conversation: { id?: string; toUserId?: string };
@@ -34,8 +35,8 @@ export type RootStackParamList = {
   Withdraw: undefined;
   Analytics: undefined;
   Player: undefined;
-  // genre/mood: open the Music tab pre-filtered (from a release's tag chips).
-  DiscoverCategory: { type: "RELEASE" | "BEAT" | "EVENT" | "MERCH"; genre?: string; mood?: string };
+  // genre: open the Music tab pre-filtered (from a release's tag chips).
+  DiscoverCategory: { type: "RELEASE" | "BEAT" | "EVENT" | "MERCH"; genre?: string };
   TopCreators: undefined;
   Downloaded: undefined;
   HeavyRotation: undefined;

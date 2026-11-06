@@ -20,7 +20,8 @@ type NotificationKind =
   | "FANBASE"
   | "REMINDER"
   | "VERIFICATION"
-  | "LIVE";
+  | "LIVE"
+  | "COLLABORATION";
 type NotificationRow = {
   id: string;
   kind: NotificationKind;
@@ -84,6 +85,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   REMINDER: "Reminder",
   VERIFICATION: "Verification",
   LIVE: "Live",
+  COLLABORATION: "Collaboration",
 };
 
 const KIND_COLOR: Record<NotificationKind, string> = {
@@ -101,6 +103,7 @@ const KIND_COLOR: Record<NotificationKind, string> = {
   REMINDER: "bg-amber/15 text-amber",
   VERIFICATION: "bg-green/15 text-green",
   LIVE: "bg-red/15 text-red-soft",
+  COLLABORATION: "bg-blue/15 text-blue",
 };
 
 function KindIcon({ kind }: { kind: NotificationKind }) {

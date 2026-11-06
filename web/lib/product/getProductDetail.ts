@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { acceptedCreditsSelect } from "@/lib/music/collaborators";
 
 // Deliberately excludes audioMasterUrl/audioStreamUrl on both Track and
 // Beat — those are only ever safe to hand to an entitled listener, and this
@@ -26,7 +27,6 @@ export async function getProductDetail(id: string) {
           releaseType: true,
           artworkLadder: true,
           genres: true,
-          moods: true,
           tracks: { orderBy: { order: "asc" }, select: trackSelect },
         },
       },
@@ -45,6 +45,8 @@ export async function getProductDetail(id: string) {
       },
       merchItem: { select: { imageLadder: true, galleryImageUrls: true, shippingFeeKobo: true } },
       stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
+      // Featured artists — accepted tags only (pending stay private).
+      collaborators: acceptedCreditsSelect,
     },
   });
 

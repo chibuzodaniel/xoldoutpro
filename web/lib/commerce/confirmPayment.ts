@@ -1,12 +1,13 @@
 import { db } from "@/lib/db";
 import { confirmStock, releaseReservation, reserveStock } from "@/lib/commerce/stock";
 import { claimPaymentForWebhook, refundCharge, isRefundUnsupported, creditRefundToWallet } from "@/lib/commerce/claimPayment";
-import { recordSale, getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
+import { recordSale, recordTip, getWalletBalances, getCommissionRates, getTipCommissionRate } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificationEmail } from "@/lib/email";
 import { createNotification } from "@/lib/notifications/create";
 import { activatePendingGuest } from "@/lib/commerce/guestCheckout";
+import { getRoyaltySplits } from "@/lib/music/collaborators";
 
 const SITE_URL = "https://www.xoldout.app";
 
@@ -35,6 +36,8 @@ type PaymentForConfirm = {
     isGift: boolean;
     promoterId: string | null;
     commissionOverrideKobo: number | null;
+    tipKobo: number;
+    isTipOnly: boolean;
     items: { productId: string; quantity: number }[];
     buyer: { referredByAmbassadorId: string | null };
   };
@@ -97,6 +100,10 @@ export async function finalizePayment(
   const quantity = payment.order.items[0]?.quantity ?? 1;
   if (!productId) throw new Error("Order has no items");
 
+  // "Tip artist" button: nothing is bought, so there's no stock to win back
+  // or release and no entitlement — just the tip itself.
+  if (payment.order.isTipOnly) return finalizeTipOnly(payment, verified, productId);
+
   // The sweep already released this order's stock hold, so a late success
   // has to win a unit again before it can be treated as a normal sale. If
   // the item sold out in the meantime the buyer gets their money back
@@ -141,6 +148,7 @@ export async function finalizePayment(
   // Gifts stay quantity 1 (enforced at order-creation time in /api/orders) —
   // a gift is a single item for a single claimant, never a group buy.
   const checkInCodes: string[] = [];
+  let royaltySplits: { artistId: string; sharePercent: number }[] = [];
   await db.$transaction(async (tx) => {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
     if (payment.order.isGift) {
@@ -179,16 +187,29 @@ export async function finalizePayment(
       if (promoterRow) promoter = { userId: promoterRow.userId, sharePercent: promoterRow.sharePercent };
     }
 
+    // Featured artists with an accepted royalty split share this sale
+    // (ReleaseCollaborator) — read in this same transaction.
+    if (product.type === "RELEASE") royaltySplits = await getRoyaltySplits(tx, productId);
+
+    // A tip added at checkout rides the same payment but is not part of the
+    // sale — the sale is recorded on the rest, the tip on its own (recordTip).
     await recordSale(tx, {
       sellerId: product.creatorId,
       buyerId: payment.order.buyerId,
       orderId: payment.orderId,
-      grossKobo: payment.amountKobo,
+      grossKobo: payment.amountKobo - payment.order.tipKobo,
       productType: product.type,
       promoter,
       buyerReferredByAmbassadorId: payment.order.buyer.referredByAmbassadorId,
       sellerReferredByAmbassadorId: product.creator.referredByAmbassadorId,
       commissionOverrideKobo: payment.order.commissionOverrideKobo,
+      royaltySplits,
+    });
+    await recordTip(tx, {
+      sellerId: product.creatorId,
+      orderId: payment.orderId,
+      tipKobo: payment.order.tipKobo,
+      sellerPlan: product.creator.creatorPlan,
     });
   });
 
@@ -224,10 +245,12 @@ export async function finalizePayment(
   }
 
   if (product.creatorId !== payment.order.buyerId) {
+    const tipKobo = payment.order.tipKobo;
+    const saleKobo = payment.amountKobo - tipKobo;
     await createNotification(product.creatorId, {
       kind: "SALE",
       title: "You made a sale",
-      body: `${product.title} · ${formatNaira(payment.amountKobo)}`,
+      body: `${product.title} · ${formatNaira(saleKobo)}${tipKobo > 0 ? ` + ${formatNaira(tipKobo)} tip` : ""}`,
       url: "/wallet",
     });
 
@@ -241,9 +264,25 @@ export async function finalizePayment(
       commissionKobo = payment.order.commissionOverrideKobo;
     } else {
       const rates = await getCommissionRates();
-      commissionKobo = Math.round(payment.amountKobo * rates[product.type]);
+      commissionKobo = Math.round(saleKobo * rates[product.type]);
     }
-    const netKobo = payment.amountKobo - commissionKobo;
+    const tipRate = tipKobo > 0 && product.creator.creatorPlan !== "LIMITED" ? await getTipCommissionRate() : 0;
+    const royaltyKobo = royaltySplits.reduce((sum, s) => sum + Math.round((saleKobo - commissionKobo) * (s.sharePercent / 100)), 0);
+    const netKobo = saleKobo - commissionKobo - royaltyKobo + tipKobo - Math.round(tipKobo * tipRate);
+
+    // Tell each featured artist what this sale earned them.
+    await Promise.all(
+      royaltySplits.map((s) => {
+        const shareKobo = Math.round((saleKobo - commissionKobo) * (s.sharePercent / 100));
+        if (shareKobo <= 0) return null;
+        return createNotification(s.artistId, {
+          kind: "SALE",
+          title: "Royalty earned",
+          body: `${product.title} sold · your ${s.sharePercent}% share: ${formatNaira(shareKobo)}`,
+          url: "/profile/collaborations",
+        });
+      }),
+    );
     void sendSaleNotificationEmail({
       to: product.creator.email,
       productTitle: product.title,
@@ -254,5 +293,57 @@ export async function finalizePayment(
     }).catch((err) => console.error("sale notification email failed", err));
   }
 
+  return { alreadyProcessed: false, success: true };
+}
+
+// The "Tip artist" button's payment (Order.isTipOnly). A late success (after
+// the hold sweep timed the checkout out) is still fine to accept — a tip
+// holds no stock, so there's nothing to win back first.
+async function finalizeTipOnly(
+  payment: PaymentForConfirm,
+  verified: VerifiedResult,
+  productId: string,
+): Promise<{ alreadyProcessed: boolean; success: boolean }> {
+  if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
+    if (verified.status === "successful") {
+      console.error(`Tip payment ${payment.id} paid ${verified.amountKobo} kobo against ${payment.amountKobo} expected — reconcile manually.`);
+    }
+    await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
+    return { alreadyProcessed: false, success: false };
+  }
+
+  const product = await db.product.findUniqueOrThrow({
+    where: { id: productId },
+    select: { title: true, creatorId: true, creator: { select: { creatorPlan: true } } },
+  });
+  await db.$transaction(async (tx) => {
+    await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
+    await recordTip(tx, {
+      sellerId: product.creatorId,
+      orderId: payment.orderId,
+      tipKobo: payment.amountKobo,
+      sellerPlan: product.creator.creatorPlan,
+    });
+  });
+
+  await activatePendingGuest(payment.order.buyerId).catch((err) =>
+    console.error("guest activation after tip failed", payment.order.buyerId, err),
+  );
+
+  const buyer = await db.user.findUnique({ where: { id: payment.order.buyerId }, select: { handle: true } });
+  await Promise.all([
+    createNotification(payment.order.buyerId, {
+      kind: "ORDER_PAID",
+      title: "Tip sent",
+      body: `${formatNaira(payment.amountKobo)} tip for ${product.title}. Thank you for supporting the artist.`,
+      url: `/r/${productId}`,
+    }),
+    createNotification(product.creatorId, {
+      kind: "SALE",
+      title: "You got a tip",
+      body: `@${buyer?.handle ?? "a fan"} tipped ${formatNaira(payment.amountKobo)} on ${product.title}`,
+      url: "/wallet",
+    }),
+  ]);
   return { alreadyProcessed: false, success: true };
 }

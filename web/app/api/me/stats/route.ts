@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
 
-    const [fans, musicReleases, beats, merch, events, salesAgg, pendingFanbaseRequests] = await Promise.all([
+    const [fans, musicReleases, beats, merch, events, salesAgg, pendingFanbaseRequests, pendingCollaborations] = await Promise.all([
       db.follow.count({ where: { followedId: user.id } }),
       db.product.count({ where: { creatorId: user.id, type: "RELEASE", status: { not: "DELETED" } } }),
       db.product.count({ where: { creatorId: user.id, type: "BEAT", status: { not: "DELETED" } } }),
@@ -22,6 +22,8 @@ export async function GET(req: NextRequest) {
           group: { OR: [{ creatorId: user.id }, { memberships: { some: { userId: user.id, role: "ADMIN" } } }] },
         },
       }),
+      // Featured-artist requests waiting on this user (index: artistId, status).
+      db.releaseCollaborator.count({ where: { artistId: user.id, status: "PENDING" } }),
     ]);
 
     return NextResponse.json({
@@ -29,6 +31,7 @@ export async function GET(req: NextRequest) {
       sales: salesAgg._sum.sold ?? 0,
       catalog: { music: musicReleases, beats, events, merch },
       pendingFanbaseRequests,
+      pendingCollaborations,
     });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

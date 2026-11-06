@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
   // Music tab (V1.2) — same filters/sorts as the web page; see lib/music/getMusicTab.ts.
   if (activeType === "RELEASE") {
     const sp = req.nextUrl.searchParams;
-    const query = parseMusicTabQuery({ genre: sp.get("genre"), mood: sp.get("mood"), sort: sp.get("sort"), q: sp.get("q") });
+    const query = parseMusicTabQuery({ genre: sp.get("genre"), sort: sp.get("sort"), q: sp.get("q") });
     return NextResponse.json({ category: { type: "RELEASE", products: await getMusicTab(query), query } });
   }
 
@@ -53,10 +53,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ category: { type: activeType, products } });
   }
 
-  const { hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators } =
+  const { heroes, hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators } =
     await getDiscoverData();
 
   return NextResponse.json({
+    heroes,
     hero,
     heroWeeklySold,
     newReleasesBelowHero,

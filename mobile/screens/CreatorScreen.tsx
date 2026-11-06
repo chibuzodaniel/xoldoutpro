@@ -34,7 +34,7 @@ export function CreatorScreen() {
 
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const ownedIds = useOwnedProducts(profile?.catalog.map((p) => p.id) ?? []);
+  const ownedIds = useOwnedProducts([...(profile?.catalog ?? []), ...(profile?.featuredOn ?? [])].map((p) => p.id));
 
   useEffect(() => {
     apiGet<CreatorProfile>(`/api/creators/${handle}`)
@@ -111,6 +111,19 @@ export function CreatorScreen() {
             <Text style={styles.sectionTitle}>Catalog</Text>
             <Grid>
               {profile.catalog.map((p) => (
+                <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
+                  <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
+                </TouchableOpacity>
+              ))}
+            </Grid>
+          </View>
+        )}
+
+        {(profile.featuredOn?.length ?? 0) > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Featured on</Text>
+            <Grid>
+              {profile.featuredOn!.map((p) => (
                 <TouchableOpacity key={p.id} onPress={() => navigation.navigate("Product", { id: p.id })}>
                   <ProductCard product={p} width={threeColWidth} owned={ownedIds.has(p.id)} />
                 </TouchableOpacity>

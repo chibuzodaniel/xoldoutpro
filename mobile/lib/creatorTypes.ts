@@ -15,6 +15,8 @@ export type CreatorProfile = {
   fansCount: number;
   totalSold: number;
   catalog: ProductCardData[];
+  // Releases this artist is officially featured on (accepted tags only).
+  featuredOn?: ProductCardData[];
   events: EventData[];
 };
 

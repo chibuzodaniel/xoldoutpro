@@ -99,11 +99,13 @@ export function ProductScreen() {
   const [releaseAccess, setReleaseAccess] = useState<ReleaseAccess | null>(null);
   const [beatAccess, setBeatAccess] = useState<BeatAccess | null>(null);
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     apiGet<{ product: ProductDetail }>(`/api/products/${id}`)
       .then((data) => setProduct(data.product))
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"));
-  }, [id]);
+  }, [id, reloadKey]);
 
   // Mirrors web's PurchaseAndPlayer/BeatPurchaseAndPlayer: the public
   // product payload above never carries full durations or lyricsText (a
@@ -188,6 +190,20 @@ export function ProductScreen() {
                 <Text style={styles.creatorName}>{product.creator.displayName}</Text>
               </View>
             </TouchableOpacity>
+            {/* Featured artists — accepted tags only (pending stay private). */}
+            {(product.collaborators?.length ?? 0) > 0 && (
+              <Text style={styles.featLine}>
+                feat.{" "}
+                {product.collaborators!.map((c, i) => (
+                  <Text key={c.artist.id}>
+                    {i > 0 && (i === product.collaborators!.length - 1 ? " & " : ", ")}
+                    <Text style={styles.featName} onPress={() => navigation.navigate("Creator", { handle: c.artist.handle })}>
+                      {c.artist.displayName}
+                    </Text>
+                  </Text>
+                ))}
+              </Text>
+            )}
             <PublishedByYou creatorId={product.creatorId} />
           </View>
           <View style={styles.headerActions}>
@@ -228,7 +244,10 @@ export function ProductScreen() {
         )}
 
         <View style={styles.priceRow}>
-          <Text style={styles.price}>{formatNaira(product.priceKobo)}</Text>
+          <Text style={styles.price}>
+            {product.payWhatYouWant ? `${formatNaira(product.priceKobo)}+` : formatNaira(product.priceKobo)}
+            {product.payWhatYouWant && <Text style={styles.statDim}> · pay what you want</Text>}
+          </Text>
           {remaining !== null ? (
             <Text style={styles.stat}>{isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}</Text>
           ) : (
@@ -245,7 +264,11 @@ export function ProductScreen() {
             productId={product.id}
             creatorId={product.creatorId}
             initialGenres={product.release.genres ?? []}
-            initialMoods={product.release.moods ?? []}
+            title={product.title}
+            description={product.description}
+            priceKobo={product.priceKobo}
+            publishedAt={product.publishedAt ?? null}
+            onSaved={() => setReloadKey((k) => k + 1)}
           />
         )}
 
@@ -337,6 +360,17 @@ export function ProductScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Fan tips: checkout lives on the web, like buying. ?tip=1 opens the
+            release page's tip panel straight away. */}
+        {product.type === "RELEASE" && !releaseAccess?.isOwner && (
+          <TouchableOpacity
+            style={styles.webButton}
+            onPress={() => Linking.openURL(`${API_BASE_URL}${webPathFor(product)}?tip=1`)}
+          >
+            <Text style={styles.webButtonText}>Tip {product.creator.displayName} on xoldout.app</Text>
+          </TouchableOpacity>
+        )}
+
         {product.type === "BEAT" && (
           <TouchableOpacity onPress={() => Linking.openURL(`${API_BASE_URL}/legal/terms#beat-licenses`)}>
             <Text style={styles.licenseLink}>View license terms</Text>
@@ -375,6 +409,8 @@ const styles = StyleSheet.create({
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
   creatorRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   creatorName: { color: colors.ink2, fontSize: 14 },
+  featLine: { color: colors.ink3, fontSize: 13, marginTop: 4 },
+  featName: { color: colors.ink2, fontWeight: "600" },
   chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 },
   chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
   chipText: { color: colors.ink2, fontSize: 12 },

@@ -9,6 +9,10 @@ import { getSellerSales } from "@/lib/commerce/sellerSales";
 // kinds of, just named for a mixed timeline instead of a single-kind list.
 const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
   SALE_CREDIT: "Sale",
+  TIP_CREDIT: "Fan tip",
+  TIP_COMMISSION_FEE: "Platform commission on tip",
+  ROYALTY_SPLIT_FEE: "Featured artist royalty share",
+  ROYALTY_SPLIT_CREDIT: "Royalty from a feature",
   COMMISSION_FEE: "Platform commission",
   REFUND_DEBIT: "Refund",
   PAYOUT_DEBIT: "Payout",
@@ -64,7 +68,10 @@ export async function getUserModerationDetail(userId: string) {
     await Promise.all([
       getWalletBalances(userId),
       db.walletLedgerEntry.aggregate({
-        where: { userId, kind: { in: ["SALE_CREDIT", "COMMISSION_FEE", "AMBASSADOR_COMMISSION", "PROMOTER_CREDIT", "PROMOTER_FEE"] } },
+        where: {
+          userId,
+          kind: { in: ["SALE_CREDIT", "COMMISSION_FEE", "AMBASSADOR_COMMISSION", "PROMOTER_CREDIT", "PROMOTER_FEE", "TIP_CREDIT", "TIP_COMMISSION_FEE", "ROYALTY_SPLIT_FEE", "ROYALTY_SPLIT_CREDIT"] },
+        },
         _sum: { amountKobo: true },
       }),
       db.walletLedgerEntry.aggregate({

@@ -40,6 +40,7 @@ const KIND_LABEL: Record<NotificationKind, string> = {
   REMINDER: "Reminder",
   VERIFICATION: "Verification",
   LIVE: "Live",
+  COLLABORATION: "Collaboration",
 };
 
 const KIND_COLOR: Record<NotificationKind, string> = {
@@ -57,6 +58,7 @@ const KIND_COLOR: Record<NotificationKind, string> = {
   REMINDER: colors.amber,
   VERIFICATION: colors.green,
   LIVE: colors.redSoft,
+  COLLABORATION: colors.blue,
 };
 
 // Mirrors web's NotificationsSheet (explicit ask, 2026-10-04): notifications
@@ -119,6 +121,7 @@ export function NotificationsScreen() {
     const conversationId = url.match(/^\/messages\/([^/?#]+)$/)?.[1];
     if (conversationId) navigation.navigate("Conversation", { id: conversationId });
     else if (url === "/groups/requests") navigation.navigate("FanbaseRequests");
+    else if (url === "/profile/collaborations") navigation.navigate("Collaborations");
     else if (liveId) navigation.navigate("LiveViewer", { id: liveId });
     else Linking.openURL(`${API_BASE_URL}${url}`);
   }

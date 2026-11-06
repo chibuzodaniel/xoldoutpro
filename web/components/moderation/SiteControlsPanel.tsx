@@ -5,18 +5,25 @@ import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 import { PANEL_KEYS, PANEL_LABEL } from "./panelKeys";
 
-type CommissionKey = "commissionReleasePercent" | "commissionBeatPercent" | "commissionMerchPercent" | "commissionEventPercent";
+type CommissionKey =
+  | "commissionReleasePercent"
+  | "commissionBeatPercent"
+  | "commissionMerchPercent"
+  | "commissionEventPercent"
+  | "commissionTipPercent";
 const COMMISSION_KEYS: CommissionKey[] = [
   "commissionReleasePercent",
   "commissionBeatPercent",
   "commissionMerchPercent",
   "commissionEventPercent",
+  "commissionTipPercent",
 ];
 const COMMISSION_LABEL: Record<CommissionKey, string> = {
   commissionReleasePercent: "Music",
   commissionBeatPercent: "Beats",
   commissionMerchPercent: "Merchandise",
   commissionEventPercent: "Events (tickets)",
+  commissionTipPercent: "Fan tips",
 };
 
 // Creator plans (DECISIONS.md) — Buyer Pays Fee's service-charge rates
@@ -85,6 +92,7 @@ export function SiteControlsPanel({
     commissionBeatPercent: "",
     commissionMerchPercent: "",
     commissionEventPercent: "",
+    commissionTipPercent: "",
   });
   const [creatorPlanLoaded, setCreatorPlanLoaded] = useState(false);
   const [creatorPlanInputs, setCreatorPlanInputs] = useState<Record<CreatorPlanKey, string>>({
@@ -115,6 +123,7 @@ export function SiteControlsPanel({
         commissionBeatPercent: String(data.commissionBeatPercent),
         commissionMerchPercent: String(data.commissionMerchPercent),
         commissionEventPercent: String(data.commissionEventPercent),
+        commissionTipPercent: String(data.commissionTipPercent),
       });
       setCommissionLoaded(true);
       setCreatorPlanInputs({

@@ -8,7 +8,7 @@ import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvide
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { downloadTrackForOffline, isDownloaded, removeDownload } from "@/lib/offline/downloads";
 import { CollectionsTab } from "@/components/library/CollectionsTab";
-import { GiftsTab } from "@/components/library/GiftsTab";
+import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { FallbackImg } from "@/components/ui/FallbackImg";
@@ -69,7 +69,7 @@ const FULFILLMENT_LABEL: Record<"TO_SHIP" | "SHIPPED" | "DELIVERED", string> = {
 const TABS = [
   { key: "purchased", label: "Purchased" },
   { key: "collections", label: "Collections" },
-  { key: "gifts", label: "Gifts" },
+  { key: "events", label: "Events" },
 ] as const;
 type LibraryTab = (typeof TABS)[number]["key"];
 
@@ -102,6 +102,26 @@ function LibraryPageInner() {
   const [collectingId, setCollectingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionsFor, setActionsFor] = useState<LibraryEntitlement | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [seeAll, setSeeAll] = useState<Record<string, boolean>>({});
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const toggleSeeAll = (key: string) => setSeeAll((cur) => ({ ...cur, [key]: !cur[key] }));
+
+  // The bell's red dot — one fetch when the page opens and again when
+  // notifications change (same event AppHeader listens to); no polling.
+  useEffect(() => {
+    const refresh = () =>
+      apiFetch("/api/notifications")
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => data && setUnreadCount(data.unreadCount))
+        .catch(() => {});
+    refresh();
+    window.addEventListener("xoldout:notifications-changed", refresh);
+    return () => window.removeEventListener("xoldout:notifications-changed", refresh);
+  }, []);
 
   const refreshDownloadState = useCallback(async (tracks: LibraryTrack[]) => {
     const entries = await Promise.all(tracks.map(async (t) => [t.id, await isDownloaded(t.id)] as const));
@@ -398,20 +418,249 @@ function LibraryPageInner() {
     }
   }
 
+  const q = query.trim().toLowerCase();
+  const visible =
+    entitlements?.filter(
+      (e) => !q || [e.product.title, e.product.creator.displayName, e.product.ticketTier?.event.title].some((s) => s?.toLowerCase().includes(q)),
+    ) ?? null;
+  const musicItems = visible?.filter((e) => e.product.release || e.product.beat) ?? [];
+  const merchItems = visible?.filter((e) => e.product.merchItem) ?? [];
+  const ticketItems = visible?.filter((e) => e.product.ticketTier) ?? [];
+  const expandedEntitlement = musicItems.find((e) => e.id === expandedId && e.product.release) ?? null;
+
+  function renderMusicTile(e: LibraryEntitlement, className: string) {
+    const tileArt = e.product.release ? artworkUrl(e.product.release, "1024") : beatCoverUrl(e.product.beat, "1024");
+    const isPlaying = e.product.release
+      ? player.isPlaying && e.product.release.tracks.some((t) => t.id === player.current?.trackId)
+      : player.isPlaying && player.current?.trackId === e.product.id && player.current?.kind === "beat";
+    return (
+      <div key={e.id} className={className} {...longPressTriggerProps(e.id, () => setActionsFor(e))}>
+        <button type="button" onClick={guardedClick(e.id, () => handlePlayTap(e))} className="block w-full text-left">
+          <div className={`relative aspect-square rounded-xl bg-surface-2 overflow-hidden mb-2 border ${expandedId === e.id ? "border-red" : "border-line-soft"}`}>
+            <FallbackImg src={tileArt} alt={e.product.title} className="h-full w-full object-cover" fallback={null} />
+            {e.pinnedAt && (
+              <span className="absolute top-2 left-2 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center" aria-label="Pinned">
+                <svg viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
+                  <path d="M16 3l5 5-4 2-3 6-2-2-5 5-1-1 5-5-2-2 6-3 2-4z" />
+                </svg>
+              </span>
+            )}
+            {isPlaying && (
+              <span className="absolute bottom-2 right-2 h-6 w-6 rounded-full bg-red flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
+                  <rect x="6" y="5" width="4" height="14" />
+                  <rect x="14" y="5" width="4" height="14" />
+                </svg>
+              </span>
+            )}
+            {downloadsAllowed && (
+              <button
+                type="button"
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  if (downloadingProductId) return;
+                  handleTileDownload(e);
+                }}
+                disabled={downloadingProductId === e.product.id}
+                aria-label={`Download ${e.product.title} as a file`}
+                className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center disabled:opacity-70"
+              >
+                {downloadingProductId === e.product.id ? (
+                  <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-white">
+                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.3" />
+                    <path d="M21 12a9 9 0 00-9-9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
+                    <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M5 20h14" strokeLinecap="round" />
+                  </svg>
+                )}
+              </button>
+            )}
+          </div>
+        </button>
+        {/* Title/creator opens a release's tracklist (pick a track, download);
+            a beat has nothing to browse, so it just plays. */}
+        <button
+          type="button"
+          onClick={guardedClick(e.id, () => (e.product.release ? handleExpandTap(e.id) : handlePlayTap(e)))}
+          className="block w-full text-left"
+        >
+          <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
+          <p className="text-xs text-ink-3 line-clamp-1">{e.product.creator.displayName}</p>
+        </button>
+      </div>
+    );
+  }
+
+  function renderTracklist(e: LibraryEntitlement) {
+    if (!e.product.release) return null;
+    return (
+      <div className="mt-4 rounded-xl border border-line-soft bg-surface p-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-ink-3 line-clamp-1">{e.product.title}</p>
+          <button type="button" onClick={() => setCollectingId(e.id)} className="text-[11px] text-ink-3 uppercase tracking-widest shrink-0">
+            + Collection
+          </button>
+        </div>
+        <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
+          {e.product.release.tracks.map((track) => {
+            const isThisTrack = player.current?.trackId === track.id;
+            const trackIsPlaying = isThisTrack && player.isPlaying;
+            const loadingAudio = isThisTrack && player.loading;
+            return (
+              <div key={track.id} className="flex items-center gap-3 py-2.5">
+                <button
+                  onClick={() => {
+                    player.play({
+                      trackId: track.id,
+                      title: track.title,
+                      artistName: e.product.creator.displayName,
+                      artworkUrl: artworkUrl(e.product.release, "1024"),
+                      lyricsText: track.lyricsText,
+                      productId: e.product.id,
+                    });
+                    player.setExpanded(true);
+                  }}
+                  disabled={loadingAudio}
+                  className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-60"
+                >
+                  <span className="h-8 w-8 rounded-full bg-red flex items-center justify-center shrink-0" aria-hidden>
+                    {trackIsPlaying ? (
+                      <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
+                        <rect x="6" y="5" width="4" height="14" />
+                        <rect x="14" y="5" width="4" height="14" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white translate-x-[1px]">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block text-sm truncate">{track.title}</span>
+                    <span className="block text-xs text-ink-3 truncate">{track.description || `Tap to play · ${e.product.creator.displayName}`}</span>
+                  </span>
+                </button>
+                <div className="flex items-center gap-3 shrink-0">
+                  {downloaded[track.id] ? (
+                    <button onClick={() => handleRemoveDownload(track.id)} className="text-[11px] text-ink-3 uppercase tracking-widest">
+                      Downloaded · Remove
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleDownload(e, track)}
+                      disabled={busyTrackId === track.id}
+                      className="text-[11px] text-red-soft uppercase tracking-widest disabled:opacity-50"
+                    >
+                      {busyTrackId === track.id ? "…" : "Offline"}
+                    </button>
+                  )}
+                  {downloadsAllowed && (
+                    <button
+                      onClick={() => handleDownloadFile(track)}
+                      disabled={busyTrackId === track.id}
+                      aria-label={`Download ${track.title} as a file`}
+                      className="text-[11px] text-ink-2 uppercase tracking-widest disabled:opacity-50"
+                    >
+                      {busyTrackId === track.id ? "…" : "Save file"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // A shelf: one swipeable row of tiles, or every tile in a grid after "See all".
+  function shelf(key: string, items: LibraryEntitlement[], render: (e: LibraryEntitlement, className: string) => React.ReactNode) {
+    return seeAll[key] ? (
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-3 gap-y-5">{items.map((e) => render(e, "min-w-0"))}</div>
+    ) : (
+      <div className="-mx-4 px-4 flex gap-3 overflow-x-auto snap-x pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((e) => render(e, "w-[42%] sm:w-[23%] shrink-0 snap-start"))}
+      </div>
+    );
+  }
+
+  function renderMerchTile(e: LibraryEntitlement, className: string) {
+    const status = e.order.merchFulfillment?.status ?? "TO_SHIP";
+    return (
+      <div key={e.id} className={className}>
+        <div className="relative aspect-square rounded-xl bg-surface-2 overflow-hidden mb-2 border border-line-soft">
+          <FallbackImg src={merchImageUrl(e.product.merchItem, "1024")} alt={e.product.title} className="h-full w-full object-cover" fallback={null} />
+          <button
+            type="button"
+            onClick={() => setCollectingId(e.id)}
+            aria-label="Add to collection"
+            className="absolute top-2 right-2 h-6 w-6 rounded-full bg-black/60 text-white text-sm leading-none flex items-center justify-center"
+          >
+            +
+          </button>
+        </div>
+        <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
+        <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">{FULFILLMENT_LABEL[status]}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="font-serif text-2xl">Library</h1>
+      {/* Library redesign (explicit ask, 2026-11-04): big serif title with a
+          one-line description, search + notifications on the right, and
+          Purchased / Collections / Events tabs. The old Gifts tab is gone —
+          a claimed gift already shows up here as a normal purchase. */}
+      <div className="flex items-start justify-between gap-3 mb-5">
+        <div className="min-w-0">
+          <h1 className="font-serif text-[40px] leading-none">Library</h1>
+          <p className="text-sm text-ink-3 mt-2">Your saved music, purchases and event tickets.</p>
+        </div>
+        <div className="flex items-center gap-4 pt-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSearchOpen((v) => !v)}
+            aria-label="Search your library"
+            aria-pressed={searchOpen}
+            className={searchOpen ? "text-red-soft" : "text-ink-2"}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-4.3-4.3" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button type="button" onClick={() => setNotificationsOpen(true)} aria-label="Notifications" className="relative text-ink-2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
+              <path d="M18 8a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M10 20a2 2 0 004 0" strokeLinecap="round" />
+            </svg>
+            {unreadCount > 0 && <span className="absolute -top-0.5 right-0 h-2.5 w-2.5 rounded-full bg-red ring-2 ring-bg" aria-label={`${unreadCount} unread`} />}
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-5 border-b border-line-soft mb-5">
+      {searchOpen && (
+        <input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search your songs, merch and tickets…"
+          aria-label="Search your library"
+          className="w-full mb-4 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-sm outline-none focus:border-red"
+        />
+      )}
+
+      <div className="flex items-center gap-10 border-b border-line-soft mb-6">
         {TABS.map((t) => (
           <button
             key={t.key}
             type="button"
             onClick={() => setTab(t.key)}
-            className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
-              tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
+            className={`relative pb-3 text-[15px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors duration-200 ${
+              tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2"
             }`}
           >
             {t.label}
@@ -420,216 +669,42 @@ function LibraryPageInner() {
       </div>
 
       {tab === "collections" && <CollectionsTab />}
-      {tab === "gifts" && <GiftsTab />}
 
-      {tab === "purchased" && (
+      {tab !== "collections" && visible === null && <LoadingSpinner full size="md" />}
+
+      {tab === "purchased" && visible !== null && (
         <>
-          {entitlements === null ? (
-            <LoadingSpinner full size="md" />
-          ) : entitlements.length === 0 ? (
-            <p className="text-sm text-ink-3">Everything you buy shows up here, playable offline. Nothing yet.</p>
+          {musicItems.length === 0 && merchItems.length === 0 ? (
+            <p className="text-sm text-ink-3">{q ? "Nothing matches your search." : "Everything you buy shows up here, playable offline. Nothing yet."}</p>
           ) : (
-            <div className="flex flex-col gap-8">
-              {(() => {
-                const musicItems = entitlements.filter((e) => e.product.release || e.product.beat);
-                if (musicItems.length === 0) return null;
-                return (
-                  <div>
-                    <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">Music & Beats</h2>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-5">
-                      {musicItems.flatMap((e) => {
-                        const tileArt = e.product.release
-                          ? artworkUrl(e.product.release, "1024")
-                          : beatCoverUrl(e.product.beat, "1024");
-                        const isPlaying = e.product.release
-                          ? player.isPlaying && e.product.release.tracks.some((t) => t.id === player.current?.trackId)
-                          : player.isPlaying && player.current?.trackId === e.product.id && player.current?.kind === "beat";
+            <div className="flex flex-col gap-9">
+              {musicItems.length > 0 && (
+                <section>
+                  <ShelfHeader icon="music" title="Music" count={musicItems.length} open={!!seeAll.music} onToggle={() => toggleSeeAll("music")} />
+                  {shelf("music", musicItems, renderMusicTile)}
+                  {expandedEntitlement && renderTracklist(expandedEntitlement)}
+                </section>
+              )}
+              {merchItems.length > 0 && (
+                <section>
+                  <ShelfHeader icon="merch" title="Merch" count={merchItems.length} open={!!seeAll.merch} onToggle={() => toggleSeeAll("merch")} />
+                  {shelf("merch", merchItems, renderMerchTile)}
+                </section>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
-                        const tile = (
-                          <div key={e.id} {...longPressTriggerProps(e.id, () => setActionsFor(e))}>
-                            <button
-                              type="button"
-                              onClick={guardedClick(e.id, () => handlePlayTap(e))}
-                              className="block w-full text-left"
-                            >
-                              <div className="relative aspect-square rounded-lg bg-surface-2 overflow-hidden mb-2">
-                                <FallbackImg src={tileArt} alt={e.product.title} className="h-full w-full object-cover" fallback={null} />
-                                {e.pinnedAt && (
-                                  <span className="absolute top-2 left-2 h-5 w-5 rounded-full bg-black/60 flex items-center justify-center" aria-label="Pinned">
-                                    <svg viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
-                                      <path d="M16 3l5 5-4 2-3 6-2-2-5 5-1-1 5-5-2-2 6-3 2-4z" />
-                                    </svg>
-                                  </span>
-                                )}
-                                {isPlaying && (
-                                  <span className="absolute bottom-2 right-2 h-6 w-6 rounded-full bg-red flex items-center justify-center">
-                                    <svg viewBox="0 0 24 24" className="h-2.5 w-2.5 fill-white">
-                                      <rect x="6" y="5" width="4" height="14" />
-                                      <rect x="14" y="5" width="4" height="14" />
-                                    </svg>
-                                  </span>
-                                )}
-                                {downloadsAllowed && (
-                                <button
-                                  type="button"
-                                  onClick={(ev) => {
-                                    ev.stopPropagation();
-                                    if (downloadingProductId) return;
-                                    handleTileDownload(e);
-                                  }}
-                                  disabled={downloadingProductId === e.product.id}
-                                  aria-label={`Download ${e.product.title} as a file`}
-                                  className="absolute bottom-2 left-2 h-6 w-6 rounded-full bg-red flex items-center justify-center disabled:opacity-70"
-                                >
-                                  {downloadingProductId === e.product.id ? (
-                                    <svg viewBox="0 0 24 24" className="h-3 w-3 animate-spin text-white">
-                                      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeOpacity="0.3" />
-                                      <path d="M21 12a9 9 0 00-9-9" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-                                    </svg>
-                                  ) : (
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-3 w-3 text-white">
-                                      <path d="M12 3v13m0 0l-4-4m4 4l4-4" strokeLinecap="round" strokeLinejoin="round" />
-                                      <path d="M5 20h14" strokeLinecap="round" />
-                                    </svg>
-                                  )}
-                                </button>
-                                )}
-                              </div>
-                            </button>
-                            {/* Title/creator is its own tap target — for a
-                                release it opens the tracklist (pick a track,
-                                download), for a beat there's nothing to
-                                browse so it just plays too, same as the
-                                artwork. Kept separate from handlePlayTap so
-                                viewing the tracklist never restarts playback. */}
-                            <button
-                              type="button"
-                              onClick={guardedClick(e.id, () => (e.product.release ? handleExpandTap(e.id) : handlePlayTap(e)))}
-                              className="block w-full text-left"
-                            >
-                              <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
-                              <p className="text-xs text-ink-3 line-clamp-1">{e.product.creator.displayName}</p>
-                            </button>
-                          </div>
-                        );
-
-                        if (expandedId !== e.id) return [tile];
-
-                        return [
-                          tile,
-                          <div key={`${e.id}-detail`} className="col-span-2 rounded-lg border border-line-soft bg-surface p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs text-ink-3 line-clamp-1">{e.product.title}</p>
-                              <button
-                                type="button"
-                                onClick={() => setCollectingId(e.id)}
-                                className="text-[11px] text-ink-3 uppercase tracking-widest shrink-0"
-                              >
-                                + Collection
-                              </button>
-                            </div>
-                            {e.product.release ? (
-                              <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
-                                {e.product.release.tracks.map((track) => {
-                                  const isThisTrack = player.current?.trackId === track.id;
-                                  const trackIsPlaying = isThisTrack && player.isPlaying;
-                                  const loadingAudio = isThisTrack && player.loading;
-                                  return (
-                                    <div key={track.id} className="flex items-center gap-3 py-2.5">
-                                      <button
-                                        onClick={() => {
-                                          player.play({
-                                            trackId: track.id,
-                                            title: track.title,
-                                            artistName: e.product.creator.displayName,
-                                            artworkUrl: artworkUrl(e.product.release, "1024"),
-                                            lyricsText: track.lyricsText,
-                                            productId: e.product.id,
-                                          });
-                                          player.setExpanded(true);
-                                        }}
-                                        disabled={loadingAudio}
-                                        className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:opacity-60"
-                                      >
-                                        <span className="h-8 w-8 rounded-full bg-red flex items-center justify-center shrink-0" aria-hidden>
-                                          {trackIsPlaying ? (
-                                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white">
-                                              <rect x="6" y="5" width="4" height="14" />
-                                              <rect x="14" y="5" width="4" height="14" />
-                                            </svg>
-                                          ) : (
-                                            <svg viewBox="0 0 24 24" className="h-3 w-3 fill-white translate-x-[1px]">
-                                              <path d="M8 5v14l11-7z" />
-                                            </svg>
-                                          )}
-                                        </span>
-                                        <span className="min-w-0">
-                                          <span className="block text-sm truncate">{track.title}</span>
-                                          <span className="block text-xs text-ink-3 truncate">
-                                            {track.description || `Tap to play · ${e.product.creator.displayName}`}
-                                          </span>
-                                        </span>
-                                      </button>
-                                      <div className="flex items-center gap-3 shrink-0">
-                                        {downloaded[track.id] ? (
-                                          <button onClick={() => handleRemoveDownload(track.id)} className="text-[11px] text-ink-3 uppercase tracking-widest">
-                                            Downloaded · Remove
-                                          </button>
-                                        ) : (
-                                          <button
-                                            onClick={() => handleDownload(e, track)}
-                                            disabled={busyTrackId === track.id}
-                                            className="text-[11px] text-red-soft uppercase tracking-widest disabled:opacity-50"
-                                          >
-                                            {busyTrackId === track.id ? "…" : "Offline"}
-                                          </button>
-                                        )}
-                                        {downloadsAllowed && (
-                                        <button
-                                          onClick={() => handleDownloadFile(track)}
-                                          disabled={busyTrackId === track.id}
-                                          aria-label={`Download ${track.title} as a file`}
-                                          className="text-[11px] text-ink-2 uppercase tracking-widest disabled:opacity-50"
-                                        >
-                                          {busyTrackId === track.id ? "…" : "Save file"}
-                                        </button>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : null}
-                          </div>,
-                        ];
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {(
-                [
-                  { key: "tickets", label: "Tickets", items: entitlements.filter((e) => e.product.ticketTier) },
-                  { key: "merch", label: "Merch", items: entitlements.filter((e) => e.product.merchItem) },
-                ] as const
-              ).map(({ key, label, items }) => {
-                if (items.length === 0) return null;
-                return (
-                  <div key={key}>
-                    <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">{label}</h2>
-                    <div className="flex flex-col gap-6">
-                      {items.map((e) =>
-                        e.product.merchItem ? (
-                          <MerchLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
-                        ) : e.product.ticketTier ? (
-                          <EventLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
-                        ) : null,
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+      {tab === "events" && visible !== null && (
+        <>
+          {ticketItems.length === 0 ? (
+            <p className="text-sm text-ink-3">{q ? "Nothing matches your search." : "Tickets you buy show up here with their door QR code. Nothing yet."}</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {ticketItems.map((e) => (
+                <EventLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
+              ))}
             </div>
           )}
         </>
@@ -654,6 +729,41 @@ function LibraryPageInner() {
           onDownloadAll={() => handleDownloadAllForRelease(actionsFor)}
           onRemoveAll={() => handleRemoveAllForRelease(actionsFor)}
         />
+      )}
+
+      <NotificationsSheet
+        open={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        onRead={() => window.dispatchEvent(new Event("xoldout:notifications-changed"))}
+      />
+    </div>
+  );
+}
+
+function ShelfHeader({ icon, title, count, open, onToggle }: { icon: "music" | "merch"; title: string; count: number; open: boolean; onToggle: () => void }) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <h2 className="flex items-center gap-2.5 text-[17px] font-semibold">
+        {icon === "music" ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 text-red-soft" aria-hidden>
+            <path d="M9 18V5l11-2v13" strokeLinejoin="round" />
+            <circle cx="6" cy="18" r="3" />
+            <circle cx="17" cy="16" r="3" />
+          </svg>
+        ) : (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 text-red-soft" aria-hidden>
+            <path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3a4 4 0 01-8 0z" strokeLinejoin="round" />
+          </svg>
+        )}
+        {title}
+      </h2>
+      {count > 2 && (
+        <button type="button" onClick={onToggle} className="flex items-center gap-1 text-[13px] text-ink-2">
+          {open ? "Show less" : "See all"}
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden>
+            <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
       )}
     </div>
   );
@@ -752,33 +862,6 @@ function TileActionsSheet({
 // tap in handleTileTap above). No offline caching yet, unlike Release
 // tracks: this Download button hands over the real master file directly,
 // so there's no separate offline-cache format to build for it.
-// No play/download for merch — just what a fan bought and its shipping status.
-function MerchLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntitlement; onCollect: () => void }) {
-  const status = entitlement.order.merchFulfillment?.status ?? "TO_SHIP";
-  return (
-    <div className="flex items-center gap-3">
-      <div className="h-11 w-11 rounded bg-surface-2 overflow-hidden shrink-0">
-        <FallbackImg
-          src={merchImageUrl(entitlement.product.merchItem, "64")}
-          alt={entitlement.product.title}
-          className="h-full w-full object-cover"
-          fallback={null}
-        />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold line-clamp-1">{entitlement.product.title}</p>
-        <p className="text-xs text-ink-3">{entitlement.product.creator.displayName}</p>
-      </div>
-      <span className="text-[11px] uppercase tracking-widest text-red-soft font-semibold shrink-0">
-        {FULFILLMENT_LABEL[status]}
-      </span>
-      <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
-        +
-      </button>
-    </div>
-  );
-}
-
 function formatEventDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
 }

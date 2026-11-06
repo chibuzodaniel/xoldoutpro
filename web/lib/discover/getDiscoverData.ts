@@ -13,11 +13,13 @@ export const discoverCardInclude = {
 // by the web page and the /api/discover route so web and mobile render the
 // exact same picks (hero, weekly ranking, etc.) without duplicating the
 // underlying queries.
+const HERO_SLIDES = 3;
+
 export async function getDiscoverData() {
   const oneWeekAgo = new Date();
   oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-  const [newReleases, weeklyTopSellers, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators] =
+  const [newReleases, weeklyTopSellers, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators, allTimeTopSellers] =
     await Promise.all([
       db.product.findMany({
         where: { type: "RELEASE", status: "PUBLISHED" },
@@ -34,7 +36,7 @@ export async function getDiscoverData() {
         where: { createdAt: { gte: oneWeekAgo }, revokedAt: null, product: { type: "RELEASE", status: "PUBLISHED" } },
         _count: { productId: true },
         orderBy: { _count: { productId: "desc" } },
-        take: 1,
+        take: HERO_SLIDES,
       }),
       // Fetches 10 so a "View all" list can show more than the 3 a compact
       // rail displays.
@@ -63,23 +65,48 @@ export async function getDiscoverData() {
         take: 10,
         select: { id: true, handle: true, displayName: true, avatarUrl: true, _count: { select: { followers: true } } },
       }),
+      // All-time best sellers (paid, non-refunded order lines) — tops the
+      // hero billboard up to 3 slides when fewer than 3 releases sold this week.
+      db.orderItem.groupBy({
+        by: ["productId"],
+        where: { priceKobo: { gt: 0 }, order: { status: "PAID" }, product: { type: "RELEASE", status: "PUBLISHED" } },
+        _sum: { quantity: true },
+        orderBy: { _sum: { quantity: "desc" } },
+        take: HERO_SLIDES * 2,
+      }),
     ]);
 
-  const weeklyTopSellerId = weeklyTopSellers[0]?.productId;
-  const hero =
-    (weeklyTopSellerId ? newReleases.find((p) => p.id === weeklyTopSellerId) : null) ??
-    (weeklyTopSellerId
-      ? await db.product.findUnique({ where: { id: weeklyTopSellerId }, include: discoverCardInclude })
-      : null) ??
-    newReleases[0] ??
-    null;
-  // Only true when `hero` actually won on weekly sales (as opposed to the
-  // newest-release fallback used when nothing's sold yet) — stockPolicy's
-  // "sold" count is lifetime, so it can't be reused for this.
-  const heroWeeklySold = hero?.id === weeklyTopSellerId ? (weeklyTopSellers[0]?._count.productId ?? 0) : 0;
-  const newReleasesBelowHero = newReleases.filter((p) => p.id !== hero?.id);
+  // Hero billboard (explicit ask, 2026-11-04): the top 3 sellers, auto-
+  // swiping. This week's best sellers come first; if fewer than 3 sold this
+  // week, all-time best sellers fill the rest (weeklySold 0, totalSold set).
+  // With no sales at all it falls back to the newest release alone ("New
+  // Release" badge). stockPolicy's "sold" is lifetime and releases have no
+  // StockPolicy, so neither number can come from it.
+  type Pick = { productId: string; weeklySold: number; totalSold: number };
+  const picks: Pick[] = weeklyTopSellers.map((w) => ({ productId: w.productId, weeklySold: w._count.productId, totalSold: 0 }));
+  for (const t of allTimeTopSellers) {
+    if (picks.length >= HERO_SLIDES) break;
+    if (!picks.some((p) => p.productId === t.productId)) picks.push({ productId: t.productId, weeklySold: 0, totalSold: t._sum.quantity ?? 0 });
+  }
+  const missingIds = picks.map((p) => p.productId).filter((id) => !newReleases.some((p) => p.id === id));
+  const extra = missingIds.length ? await db.product.findMany({ where: { id: { in: missingIds } }, include: discoverCardInclude }) : [];
+  const pool = [...newReleases, ...extra];
+  type HeroProduct = (typeof pool)[number];
+  const heroes: { product: HeroProduct; weeklySold: number; totalSold: number }[] = [];
+  for (const p of picks) {
+    const product = pool.find((x) => x.id === p.productId);
+    if (product) heroes.push({ product, weeklySold: p.weeklySold, totalSold: p.totalSold });
+  }
+  if (heroes.length === 0 && newReleases[0]) heroes.push({ product: newReleases[0], weeklySold: 0, totalSold: 0 });
+
+  // `hero`/`heroWeeklySold` stay for app builds from before the carousel.
+  const hero = heroes[0]?.product ?? null;
+  const heroWeeklySold = heroes[0]?.weeklySold ?? 0;
+  const heroIds = new Set(heroes.map((h) => h.product.id));
+  const newReleasesBelowHero = newReleases.filter((p) => !heroIds.has(p.id));
 
   return {
+    heroes,
     hero,
     heroWeeklySold,
     newReleasesBelowHero,

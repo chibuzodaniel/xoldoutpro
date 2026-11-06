@@ -9,6 +9,16 @@
 // this app's own.
 export const MINIMUM_WITHDRAWAL_KOBO = 100_000; // ₦1,000
 
+// "Let fans pay anything" (explicit ask, 2026-11-06: "not lesser than
+// 500naira"): the lowest price a fan may choose for a pay-what-you-want
+// release. Stored on the Product as its priceKobo floor at publish time.
+export const PAY_WHAT_YOU_WANT_MIN_KOBO = 50_000; // ₦500
+
+// Fan tips: smallest tip (keeps processor fees from eating the whole thing)
+// and a sanity ceiling against typos.
+export const MIN_TIP_KOBO = 10_000; // ₦100
+export const MAX_TIP_KOBO = 100_000_000; // ₦1,000,000
+
 // DECISIONS.md: 12% commission (was 15% at launch, updated 2026-08-31) on
 // music, beats, and merch; ticket sales are 5% (updated 2026-09-02) — event
 // tickets carry a lower take since the creator still bears the real-world

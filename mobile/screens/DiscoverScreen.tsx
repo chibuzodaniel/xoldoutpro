@@ -18,7 +18,7 @@ import { colors, fonts } from "../lib/theme";
 import { Avatar } from "../components/Avatar";
 import { EventCard } from "../components/EventCard";
 import { Grid } from "../components/Grid";
-import { HeroCard } from "../components/HeroCard";
+import { HeroCarousel } from "../components/HeroCarousel";
 import { ProductCard } from "../components/ProductCard";
 import { useOwnedProducts } from "../lib/useOwnedProducts";
 import { BillboardRail } from "../components/BillboardRail";
@@ -46,7 +46,7 @@ export function DiscoverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const ownedIds = useOwnedProducts(
     data
-      ? [data.hero?.id, ...data.newReleasesBelowHero.map((p) => p.id), ...data.recommended.map((p) => p.id), ...data.topBeats.map((p) => p.id), ...data.merchItems.map((p) => p.id)].filter(
+      ? [...(data.heroes ?? []).map((h) => h.product.id), data.hero?.id, ...data.newReleasesBelowHero.map((p) => p.id), ...data.recommended.map((p) => p.id), ...data.topBeats.map((p) => p.id), ...data.merchItems.map((p) => p.id)].filter(
           (id): id is string => Boolean(id),
         )
       : [],
@@ -107,6 +107,9 @@ export function DiscoverScreen() {
   const newReleasesCapped = d.newReleasesBelowHero.slice(0, 4);
   const topCreatorsCapped = d.weeklyTopCreators.slice(0, TOP_CREATORS_RAIL_COUNT);
 
+  // Older servers send only `hero`; treat it as a one-slide billboard.
+  const heroSlides = d.heroes ?? (d.hero ? [{ product: d.hero, weeklySold: d.heroWeeklySold }] : []);
+
   return (
     <View style={styles.root}>
       <CategoryTabs active={null} onSelect={handleCategorySelect} onGoLivePress={handleGoLivePress} />
@@ -115,11 +118,7 @@ export function DiscoverScreen() {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl tintColor={colors.ink} refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {d.hero && (
-          <TouchableOpacity onPress={() => navigation.navigate("Product", { id: d.hero!.id })} activeOpacity={0.9}>
-            <HeroCard hero={d.hero} heroWeeklySold={d.heroWeeklySold} />
-          </TouchableOpacity>
-        )}
+        {heroSlides.length > 0 && <HeroCarousel slides={heroSlides} onOpen={(id) => navigation.navigate("Product", { id })} />}
 
         {(newReleasesCapped.length > 0 || billboards.length > 0) && (
           <View style={styles.section}>

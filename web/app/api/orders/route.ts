@@ -14,6 +14,24 @@ import { resolveGuestBuyer, activatePendingGuest } from "@/lib/commerce/guestChe
 import { isGuestEmailVerified } from "@/lib/commerce/guestVerification";
 import { adminAuth } from "@/lib/firebase/admin";
 import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
+import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO, MAX_TIP_KOBO } from "@/lib/commerce/constants";
+
+// One spot for every processor's checkout-page call — the purchase and
+// tip-only paths below both end here.
+async function startProcessorCheckout(args: {
+  gateway: "flutterwave" | "monnify" | "bachs";
+  txRef: string;
+  amountKobo: number;
+  customerEmail: string;
+  customerName: string;
+  redirectUrl: string;
+  title: string;
+}) {
+  const { gateway, ...rest } = args;
+  if (gateway === "monnify") return initializeMonnifyPayment(rest);
+  if (gateway === "bachs") return initializeBachsPayment(rest);
+  return initializeFlutterwavePayment(rest);
+}
 
 const shippingSchema = z.object({
   recipientName: z.string().min(1).max(120),
@@ -58,6 +76,14 @@ const bodySchema = z.object({
   // against EventPromoter below; a stale/invalid/self-referral code is
   // silently ignored rather than blocking checkout.
   promoCode: z.string().optional(),
+  // "Let fans pay anything" releases (Product.payWhatYouWant): the price the
+  // fan chose, in kobo. Must be at least the product's priceKobo floor
+  // (never below PAY_WHAT_YOU_WANT_MIN_KOBO). Ignored for fixed-price items.
+  payAmountKobo: z.number().int().positive().optional(),
+  // Fan tip (explicit ask, 2026-11-06): extra on top of the purchase, or, with
+  // tipOnly, the whole payment (the "Tip artist" button — nothing is bought).
+  tipKobo: z.number().int().min(0).max(MAX_TIP_KOBO).default(0),
+  tipOnly: z.boolean().default(false),
 });
 
 // RELEASE/BEAT stay single-copy — a digital single never had a reason to be
@@ -68,7 +94,15 @@ const MULTI_UNIT_TYPES = new Set(["EVENT", "MERCH"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { productId, shipping, isGift = false, guest, quantity, gateway, promoCode } = bodySchema.parse(await req.json());
+    const { productId, shipping, isGift = false, guest, quantity, gateway, promoCode, payAmountKobo, tipKobo, tipOnly } = bodySchema.parse(
+      await req.json(),
+    );
+    if (tipKobo > 0 && tipKobo < MIN_TIP_KOBO) {
+      return NextResponse.json({ error: `The smallest tip is ₦${MIN_TIP_KOBO / 100}` }, { status: 400 });
+    }
+    if (tipOnly && tipKobo === 0) {
+      return NextResponse.json({ error: "Enter a tip amount" }, { status: 400 });
+    }
 
     // No Firebase session at all → guest checkout: resolve the account for
     // the (code-confirmed) email, rather than a bespoke "no account" order
@@ -120,7 +154,58 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "This ticket isn't on sale right now" }, { status: 409 });
     }
     if (product.creatorId === buyer.id) {
-      return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
+      return NextResponse.json({ error: tipOnly ? "You can't tip yourself" : "You can't buy your own listing" }, { status: 400 });
+    }
+
+    // "Tip artist" button: no purchase, so none of the stock/ownership/gift
+    // rules below apply. The one OrderItem has quantity 0 — reserve/confirm/
+    // release are no-ops for it and sales counts (sum of quantity) skip it.
+    if (tipOnly) {
+      if (product.type !== "RELEASE") {
+        return NextResponse.json({ error: "Tips are only available on music" }, { status: 400 });
+      }
+      try {
+        const order = await db.order.create({
+          data: {
+            buyerId: buyer.id,
+            status: "PENDING",
+            guestAccessToken,
+            isTipOnly: true,
+            tipKobo,
+            items: { create: { productId, priceKobo: 0, quantity: 0 } },
+          },
+        });
+        await db.payment.create({
+          data: { orderId: order.id, processor: gateway, processorRef: order.id, amountKobo: tipKobo, status: "INITIATED" },
+        });
+        const checkoutUrl = await startProcessorCheckout({
+          gateway,
+          txRef: order.id,
+          amountKobo: tipKobo,
+          customerEmail: buyer.email,
+          customerName: buyer.displayName,
+          redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+          title: `Tip · ${product.title}`,
+        });
+        return NextResponse.json({ orderId: order.id, checkoutUrl, guestOrderToken: guestAccessToken }, { status: 201 });
+      } catch (err) {
+        console.error(err);
+        return NextResponse.json({ error: "Could not start checkout" }, { status: 502 });
+      }
+    }
+
+    // Pay-what-you-want: the fan's chosen price replaces priceKobo as the
+    // per-unit price, never below the release's own floor (₦500 minimum).
+    let unitPriceKobo = product.priceKobo;
+    if (product.payWhatYouWant) {
+      const floorKobo = Math.max(product.priceKobo, PAY_WHAT_YOU_WANT_MIN_KOBO);
+      unitPriceKobo = payAmountKobo ?? floorKobo;
+      if (unitPriceKobo < floorKobo) {
+        return NextResponse.json({ error: `The lowest you can pay for this is ₦${(floorKobo / 100).toLocaleString("en-NG")}` }, { status: 400 });
+      }
+      if (unitPriceKobo > MAX_TIP_KOBO) {
+        return NextResponse.json({ error: "That amount is too high" }, { status: 400 });
+      }
     }
     // Buying songs/beats/tickets as gifts is switched off (explicit ask,
     // 2026-10-08): unclaimed gifts expired and were refunded, which made
@@ -171,14 +256,18 @@ export async function POST(req: NextRequest) {
     // Snapshotted onto MerchOrderFulfillment so a later fee edit never
     // changes what a past buyer paid (same pattern as OrderItem.priceKobo).
     const shippingFeeKobo = product.type === "MERCH" ? (product.merchItem?.shippingFeeKobo ?? 0) : 0;
-    const baseKobo = product.priceKobo * quantity + shippingFeeKobo;
+    const baseKobo = unitPriceKobo * quantity + shippingFeeKobo;
     // Creator plans (DECISIONS.md): a BUYER_PAYS_FEE seller's service charge
     // is added on top here, shown to the buyer as such (checkout UI) —
     // commissionOverrideKobo is snapshotted onto the Order below so
     // lib/commerce/confirmPayment.ts's finalizePayment charges the seller
     // (via recordSale) exactly what was actually collected, regardless of
     // any plan change between now and webhook confirmation.
-    const { amountKobo, commissionOverrideKobo } = await computeCreatorPlanCheckout(product.creator.creatorPlan, baseKobo, product.type);
+    const planCheckout = await computeCreatorPlanCheckout(product.creator.creatorPlan, baseKobo, product.type);
+    const { commissionOverrideKobo } = planCheckout;
+    // A tip is added after the plan math: no service charge on a tip, and
+    // recordTip takes its own cut separately (lib/commerce/ledger.ts).
+    const amountKobo = planCheckout.amountKobo + tipKobo;
 
     // Repeat/multi-unit purchases are the whole point for EVENT/MERCH — this
     // guard now only protects RELEASE/BEAT, which never had a reason to be
@@ -273,7 +362,8 @@ export async function POST(req: NextRequest) {
           isGift,
           promoterId,
           commissionOverrideKobo,
-          items: { create: { productId, priceKobo: product.priceKobo, quantity } },
+          tipKobo,
+          items: { create: { productId, priceKobo: unitPriceKobo, quantity } },
           merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
         },
       });
@@ -281,32 +371,15 @@ export async function POST(req: NextRequest) {
         data: { orderId: order.id, processor: gateway, processorRef: order.id, amountKobo, status: "INITIATED" },
       });
 
-      const checkoutUrl =
-        gateway === "monnify"
-          ? await initializeMonnifyPayment({
-              txRef: order.id,
-              amountKobo,
-              customerEmail: buyer.email,
-              customerName: buyer.displayName,
-              redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
-              title: product.title,
-            })
-          : gateway === "bachs"
-            ? await initializeBachsPayment({
-                txRef: order.id,
-                amountKobo,
-                customerEmail: buyer.email,
-                customerName: buyer.displayName,
-                redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
-                title: product.title,
-              })
-            : await initializeFlutterwavePayment({
-                txRef: order.id,
-                amountKobo,
-                customerEmail: buyer.email,
-                redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
-                title: product.title,
-              });
+      const checkoutUrl = await startProcessorCheckout({
+        gateway,
+        txRef: order.id,
+        amountKobo,
+        customerEmail: buyer.email,
+        customerName: buyer.displayName,
+        redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+        title: product.title,
+      });
 
       return NextResponse.json({ orderId: order.id, checkoutUrl, guestOrderToken: guestAccessToken }, { status: 201 });
     } catch (err) {

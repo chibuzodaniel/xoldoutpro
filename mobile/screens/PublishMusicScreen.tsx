@@ -26,6 +26,12 @@ import { CapField } from "../components/creator/CapField";
 import { AudioPickerBox } from "../components/creator/AudioPickerBox";
 import { TagPicker } from "../components/music/TagPicker";
 import { AddOnsEditor, addOnDraftsError, addOnDraftsPayload, type AddOnDraft } from "../components/addons/AddOnsEditor";
+import {
+  FeaturedArtistsEditor,
+  featuredDraftsError,
+  featuredDraftsPayload,
+  type FeaturedArtistDraft,
+} from "../components/music/FeaturedArtistsEditor";
 
 function newTrack(): TrackDraft {
   return {
@@ -42,21 +48,23 @@ function newTrack(): TrackDraft {
 
 export function PublishMusicScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const { firebaseUser } = useAuth();
+  const { firebaseUser, appUser } = useAuth();
   useRequireCreatorPlan();
 
   const [releaseType, setReleaseType] = useState<ReleaseType>("SINGLE");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isFree, setIsFree] = useState(false);
+  // "Let fans pay anything" — fans pick the price, from ₦500 (PAY_WHAT_YOU_WANT_MIN_KOBO).
+  const [payAnything, setPayAnything] = useState(false);
   const [priceNaira, setPriceNaira] = useState("");
   const [hasCap, setHasCap] = useState(false);
   const [capValue, setCapValue] = useState("");
   const [artworkLadder, setArtworkLadder] = useState<Record<string, string> | null>(null);
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
   const [addOns, setAddOns] = useState<AddOnDraft[]>([]);
+  const [featured, setFeatured] = useState<FeaturedArtistDraft[]>([]);
   const [genres, setGenres] = useState<string[]>([]);
-  const [moods, setMoods] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -78,8 +86,10 @@ export function PublishMusicScreen() {
     if (tracks.some((t) => t.status !== "ready")) return Alert.alert("Tracks not ready", "Every track needs to finish uploading first.");
     if (releaseType === "SINGLE" && tracks.length !== 1) return Alert.alert("Invalid tracks", "A single needs exactly one track.");
 
-    const priceKobo = isFree ? 0 : Math.round(parseFloat(priceNaira || "0") * 100);
-    if (!isFree && (!priceNaira || priceKobo <= 0)) return Alert.alert("Missing price", "Set a price, or mark this release free.");
+    const priceKobo = isFree ? 0 : payAnything ? 50_000 : Math.round(parseFloat(priceNaira || "0") * 100);
+    if (!isFree && !payAnything && (!priceNaira || priceKobo <= 0)) {
+      return Alert.alert("Missing price", "Set a price, mark this release free, or let fans pay anything.");
+    }
     const cap = hasCap ? parseInt(capValue, 10) : null;
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
       return Alert.alert("Invalid quantity", "Enter a valid limited quantity.");
@@ -87,6 +97,8 @@ export function PublishMusicScreen() {
 
     const addOnError = addOnDraftsError(addOns);
     if (addOnError) return Alert.alert("Extras not ready", addOnError);
+    const featuredError = featuredDraftsError(featured);
+    if (featuredError) return Alert.alert("Featured artists", featuredError);
 
     setSubmitting(true);
     try {
@@ -94,11 +106,12 @@ export function PublishMusicScreen() {
       const payload = {
         addOns: addOnDraftsPayload(addOns),
         genres,
-        moods,
+        collaborators: featuredDraftsPayload(featured),
         title,
         releaseType,
         description,
         priceKobo,
+        payWhatYouWant: payAnything,
         cap,
         artworkLadder,
         tracks: tracks.map((t, order) => {
@@ -118,7 +131,11 @@ export function PublishMusicScreen() {
         }),
       };
       await apiPost("/api/releases", idToken, payload);
-      Alert.alert("Published", "Your release is live.", [{ text: "OK", onPress: () => navigation.navigate("Tabs") }]);
+      Alert.alert(
+        "Published",
+        featured.length > 0 ? "Your release is live. Featured artists have been sent a request to accept." : "Your release is live.",
+        [{ text: "OK", onPress: () => navigation.navigate("Tabs") }],
+      );
     } catch (e) {
       Alert.alert("Could not publish", e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -160,9 +177,18 @@ export function PublishMusicScreen() {
         style={styles.textArea}
       />
 
-      <TagPicker genres={genres} moods={moods} onGenres={setGenres} onMoods={setMoods} />
+      <TagPicker genres={genres} onGenres={setGenres} />
 
-      <PriceField allowFree isFree={isFree} onFreeChange={setIsFree} priceNaira={priceNaira} onPriceChange={setPriceNaira} />
+      <PriceField
+        allowFree
+        isFree={isFree}
+        onFreeChange={setIsFree}
+        allowPayAnything
+        payAnything={payAnything}
+        onPayAnythingChange={setPayAnything}
+        priceNaira={priceNaira}
+        onPriceChange={setPriceNaira}
+      />
 
       <CapField
         hasCap={hasCap}
@@ -231,6 +257,14 @@ export function PublishMusicScreen() {
             />
           </View>
         ))}
+      </View>
+
+      <View style={styles.tracksSection}>
+        <Text style={styles.sectionLabel}>Featured artists (optional)</Text>
+        <Text style={styles.extrasIntro}>
+          Tag other XOLDOUT artists on this release. Each one gets a request and the feature becomes official once they accept.
+        </Text>
+        <FeaturedArtistsEditor drafts={featured} onChange={setFeatured} selfId={appUser?.id} />
       </View>
 
       <View style={styles.tracksSection}>

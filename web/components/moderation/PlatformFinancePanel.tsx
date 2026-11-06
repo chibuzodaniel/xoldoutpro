@@ -17,7 +17,7 @@ type PlatformFinancials = {
   payoutsByStatus: Record<string, { count: number; amountKobo: number }>;
 };
 
-const PRODUCT_TYPE_LABEL: Record<string, string> = { RELEASE: "Music", BEAT: "Beats", EVENT: "Events", MERCH: "Merch" };
+const PRODUCT_TYPE_LABEL: Record<string, string> = { RELEASE: "Music", BEAT: "Beats", EVENT: "Events", MERCH: "Merch", TIP: "Fan tips" };
 const PAYOUT_STATUS_LABEL: Record<string, string> = {
   PENDING: "Pending",
   PROCESSING: "Processing",

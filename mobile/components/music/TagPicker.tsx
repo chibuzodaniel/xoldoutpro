@@ -1,5 +1,5 @@
 import { Text, View, StyleSheet } from "react-native";
-import { GENRES, MOODS, MAX_GENRES, MAX_MOODS } from "../../lib/musicTags";
+import { GENRES, MAX_GENRES } from "../../lib/musicTags";
 import { colors } from "../../lib/theme";
 import { Pill } from "../creator/Pill";
 
@@ -8,19 +8,9 @@ function toggle(list: string[], slug: string, max: number) {
   return list.length >= max ? list : [...list, slug];
 }
 
-// Mirrors web's components/music/TagPicker.tsx — genre + mood chips for a
-// release (Music tab, V1.2), used by the upload and the tag editor.
-export function TagPicker({
-  genres,
-  moods,
-  onGenres,
-  onMoods,
-}: {
-  genres: string[];
-  moods: string[];
-  onGenres: (next: string[]) => void;
-  onMoods: (next: string[]) => void;
-}) {
+// Mirrors web's components/music/TagPicker.tsx — genre chips for a release
+// (Music tab, V1.2), used by the upload and the tag editor. Moods removed 2026-11-04.
+export function TagPicker({ genres, onGenres }: { genres: string[]; onGenres: (next: string[]) => void }) {
   return (
     <View style={styles.wrap}>
       <View style={styles.head}>
@@ -30,15 +20,6 @@ export function TagPicker({
       <View style={styles.chips}>
         {GENRES.map((g) => (
           <Pill key={g.slug} label={g.label} active={genres.includes(g.slug)} onPress={() => onGenres(toggle(genres, g.slug, MAX_GENRES))} />
-        ))}
-      </View>
-      <View style={[styles.head, { marginTop: 8 }]}>
-        <Text style={styles.label}>Mood</Text>
-        <Text style={styles.hint}>Optional · up to {MAX_MOODS}</Text>
-      </View>
-      <View style={styles.chips}>
-        {MOODS.map((m) => (
-          <Pill key={m.slug} label={`${m.icon} ${m.label}`} active={moods.includes(m.slug)} onPress={() => onMoods(toggle(moods, m.slug, MAX_MOODS))} />
         ))}
       </View>
     </View>

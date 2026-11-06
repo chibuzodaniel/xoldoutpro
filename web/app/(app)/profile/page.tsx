@@ -24,6 +24,7 @@ type Stats = {
   sales: number;
   catalog: { music: number; beats: number; events: number; merch: number };
   pendingFanbaseRequests: number;
+  pendingCollaborations?: number;
 };
 
 const CATALOG_ROWS = [
@@ -267,13 +268,15 @@ export default function ProfilePage() {
 
         <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Requests</h2>
         <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft mb-6">
-          <div className="flex items-center justify-between py-3">
+          <Link href="/profile/collaborations" className="flex items-center justify-between py-3">
             <div>
-              <p className="text-sm font-semibold">Collaboration requests</p>
-              <p className="text-xs text-ink-3">Nothing pending</p>
+              <p className="text-sm font-semibold">Collaborations</p>
+              <p className={`text-xs ${stats?.pendingCollaborations ? "text-red-soft font-semibold" : "text-ink-3"}`}>
+                {stats?.pendingCollaborations ? `${stats.pendingCollaborations} pending` : "Featured artists and royalty splits"}
+              </p>
             </div>
             <span className="text-ink-3">›</span>
-          </div>
+          </Link>
           <Link href="/groups/requests" className="flex items-center gap-3 py-3">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-4 w-4 text-ink-3 shrink-0">
               <rect x="5" y="10" width="14" height="10" rx="2" />

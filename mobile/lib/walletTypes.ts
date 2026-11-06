@@ -118,4 +118,5 @@ export type MeStats = {
   sales: number;
   catalog: { music: number; beats: number; events: number; merch: number };
   pendingFanbaseRequests: number;
+  pendingCollaborations?: number;
 };

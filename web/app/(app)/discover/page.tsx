@@ -11,8 +11,8 @@ import { buildDiscoverMetadata } from "@/lib/og";
 import { getDiscoverData } from "@/lib/discover/getDiscoverData";
 import { getActiveBillboards } from "@/lib/commerce/billboards";
 import { BillboardRail } from "@/components/discover/BillboardRail";
+import { HeroCarousel } from "@/components/discover/HeroCarousel";
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
-import { Price } from "@/components/currency/CurrencyProvider";
 import { MusicTab } from "@/components/music/MusicTab";
 import { getMusicTab, parseMusicTabQuery } from "@/lib/music/getMusicTab";
 
@@ -42,14 +42,14 @@ const SECTION_TITLE: Record<(typeof VALID_TYPES)[number], string> = {
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; genre?: string; mood?: string; sort?: string; q?: string }>;
+  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string }>;
 }) {
-  const { type, genre, mood, sort, q } = await searchParams;
+  const { type, genre, sort, q } = await searchParams;
   const activeType = (VALID_TYPES as readonly string[]).includes(type ?? "") ? (type as CategoryType) : null;
 
-  // The Music tab's own layout (V1.2): search, genre/mood chips, sort tiles.
+  // The Music tab's own layout (V1.2): search, genre chips, sort tiles.
   if (activeType === "RELEASE") {
-    const query = parseMusicTabQuery({ genre, mood, sort, q });
+    const query = parseMusicTabQuery({ genre, sort, q });
     const products = await getMusicTab(query);
     return (
       <div className="pb-8">
@@ -127,64 +127,19 @@ export default async function DiscoverPage({
   }
 
   const [
-    { hero, heroWeeklySold, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators },
+    { heroes, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators },
     billboards,
   ] = await Promise.all([getDiscoverData(), getActiveBillboards()]);
-  const allProductIds = [hero?.id, ...newReleasesBelowHero.map((p) => p.id), ...recommended.map((p) => p.id), ...topBeats.map((p) => p.id), ...merchItems.map((p) => p.id)].filter(
+  const allProductIds = [...heroes.map((h) => h.product.id), ...newReleasesBelowHero.map((p) => p.id), ...recommended.map((p) => p.id), ...topBeats.map((p) => p.id), ...merchItems.map((p) => p.id)].filter(
     (id): id is string => Boolean(id),
   );
-  const heroArt = hero ? ((hero.release?.artworkLadder as Record<string, string> | undefined)?.["1024"]) : null;
-  const heroSoldOut = Boolean(hero?.stockPolicy?.soldOutAt);
-  const heroCap = hero?.stockPolicy?.cap ?? null;
-  const heroSold = hero?.stockPolicy?.sold ?? 0;
-  const heroRemaining = heroCap !== null ? Math.max(heroCap - heroSold, 0) : null;
-
   return (
     <OwnedBadgesProvider productIds={allProductIds}>
       <div className="pb-8">
         <AppHeader />
         <CategoryTabs active={null} />
 
-      {hero && (
-        <Link href={`/r/${hero.id}`} className="block relative mx-4 mb-6 rounded-xl overflow-hidden aspect-[4/5]">
-          <div className="absolute inset-0 bg-surface-2">
-            <FallbackImg src={heroArt} alt={hero.title} className="h-full w-full object-cover" fallback={null} />
-          </div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/10 to-black/40" />
-
-          <span className="absolute left-3 top-3 rounded-full bg-black/50 backdrop-blur-sm px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-white">
-            {(hero.release?.releaseType ?? "single").toLowerCase()}
-          </span>
-          <span className="absolute left-3 top-10 rounded-full bg-red px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">
-            {heroWeeklySold > 0 ? "Top Seller This Week" : "New Release"}
-          </span>
-
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="h-14 w-14 rounded-full bg-black/45 backdrop-blur-sm border border-white/25 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="h-5 w-5 fill-white translate-x-[1px]">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </span>
-          </div>
-
-          <div className="absolute left-4 right-4 bottom-4">
-            <p className="text-[12px] text-white/90 uppercase tracking-wide mb-1">{hero.creator.displayName}</p>
-            <h2 className="font-serif text-2xl text-white leading-tight mb-2">{hero.title}</h2>
-            <div className="flex items-center justify-between">
-              {heroRemaining !== null ? (
-                <span className="text-xs font-semibold text-red-soft">
-                  {heroSoldOut ? "Sold out" : `${heroRemaining} of ${heroCap} left`}
-                </span>
-              ) : heroWeeklySold > 0 ? (
-                <span className="text-xs font-semibold text-red-soft">{heroWeeklySold} sold this week</span>
-              ) : (
-                <span className="text-xs text-white/90">{heroSold} sold</span>
-              )}
-              <span className="font-serif text-lg text-white"><Price kobo={hero.priceKobo} freeLabel="Free" /></span>
-            </div>
-          </div>
-        </Link>
-      )}
+      {heroes.length > 0 && <HeroCarousel slides={heroes} />}
 
       {(newReleasesBelowHero.length > 0 || billboards.length > 0) && (
         <section className="px-4 mb-7">

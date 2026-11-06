@@ -45,6 +45,8 @@ export type EventData = {
 };
 
 export type DiscoverData = {
+  // Top 3 sellers of the week for the hero billboard (absent from servers older than 2026-11-04).
+  heroes?: { product: ProductCardData; weeklySold: number; totalSold?: number }[];
   hero: ProductCardData | null;
   heroWeeklySold: number;
   newReleasesBelowHero: ProductCardData[];

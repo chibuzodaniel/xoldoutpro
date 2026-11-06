@@ -18,6 +18,7 @@ function serialize(
     commissionBeatPercent: number;
     commissionMerchPercent: number;
     commissionEventPercent: number;
+    commissionTipPercent: number;
     buyerPaysFeePercent: number;
     buyerPaysFeeEventPercent: number;
     buyerPaysFeeUploadCap: number;
@@ -40,6 +41,8 @@ function serialize(
     commissionBeatPercent: row?.commissionBeatPercent ?? 12,
     commissionMerchPercent: row?.commissionMerchPercent ?? 12,
     commissionEventPercent: row?.commissionEventPercent ?? 5,
+    // Fan tips (explicit ask, 2026-11-06) — same 12% as sales by default.
+    commissionTipPercent: row?.commissionTipPercent ?? 12,
     buyerPaysFeePercent: row?.buyerPaysFeePercent ?? 12,
     buyerPaysFeeEventPercent: row?.buyerPaysFeeEventPercent ?? 12,
     buyerPaysFeeUploadCap: row?.buyerPaysFeeUploadCap ?? 50,
@@ -74,6 +77,7 @@ const patchSchema = z.object({
   commissionBeatPercent: z.number().int().min(0).max(90).optional(),
   commissionMerchPercent: z.number().int().min(0).max(90).optional(),
   commissionEventPercent: z.number().int().min(0).max(90).optional(),
+  commissionTipPercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeePercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeeEventPercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeeUploadCap: z.number().int().positive().optional(),
@@ -107,6 +111,7 @@ export async function PATCH(req: NextRequest) {
         commissionBeatPercent: patch.commissionBeatPercent ?? 12,
         commissionMerchPercent: patch.commissionMerchPercent ?? 12,
         commissionEventPercent: patch.commissionEventPercent ?? 5,
+        commissionTipPercent: patch.commissionTipPercent ?? 12,
         buyerPaysFeePercent: patch.buyerPaysFeePercent ?? 12,
         buyerPaysFeeEventPercent: patch.buyerPaysFeeEventPercent ?? 12,
         buyerPaysFeeUploadCap: patch.buyerPaysFeeUploadCap ?? 50,

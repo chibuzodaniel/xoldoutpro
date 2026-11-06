@@ -4,6 +4,8 @@ import { Pill } from "./Pill";
 
 // Shared naira price input. When `allowFree` is set (music/beat), a "Free"
 // pill toggles priceNaira off entirely — merch always has a real price.
+// `allowPayAnything` (music only) adds "Let fans pay anything": fans pick
+// the price at checkout, from ₦500 up, so there's no price to type either.
 export function PriceField({
   label = "Price",
   allowFree,
@@ -12,11 +14,17 @@ export function PriceField({
   priceNaira,
   onPriceChange,
   hint,
+  allowPayAnything,
+  payAnything,
+  onPayAnythingChange,
 }: {
   label?: string;
   allowFree?: boolean;
   isFree?: boolean;
   onFreeChange?: (v: boolean) => void;
+  allowPayAnything?: boolean;
+  payAnything?: boolean;
+  onPayAnythingChange?: (v: boolean) => void;
   priceNaira: string;
   onPriceChange: (v: string) => void;
   hint?: string;
@@ -25,8 +33,30 @@ export function PriceField({
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.row}>
-        {allowFree && <Pill label="Free" active={!!isFree} onPress={() => onFreeChange?.(!isFree)} />}
-        {!(allowFree && isFree) && (
+        {allowFree && (
+          <Pill
+            label="Free"
+            active={!!isFree}
+            onPress={() => {
+              onFreeChange?.(!isFree);
+              if (!isFree) onPayAnythingChange?.(false);
+            }}
+          />
+        )}
+        {allowPayAnything && (
+          <Pill
+            label="Let fans pay anything"
+            active={!!payAnything}
+            onPress={() => {
+              onPayAnythingChange?.(!payAnything);
+              if (!payAnything) onFreeChange?.(false);
+            }}
+          />
+        )}
+      </View>
+      {allowPayAnything && payAnything && <Text style={styles.hint}>Fans choose how much to pay, from ₦500 up.</Text>}
+      <View style={styles.row}>
+        {!(allowFree && isFree) && !(allowPayAnything && payAnything) && (
           <View style={styles.priceRow}>
             <Text style={styles.naira}>₦</Text>
             <TextInput

@@ -16,7 +16,8 @@ export type NotificationKind =
   | "FANBASE"
   | "REMINDER"
   | "VERIFICATION"
-  | "LIVE";
+  | "LIVE"
+  | "COLLABORATION";
 
 type NotifyArgs = { kind: NotificationKind; title: string; body: string; url?: string; icon?: string; tag?: string };
 

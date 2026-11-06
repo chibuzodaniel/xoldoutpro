@@ -170,9 +170,15 @@ model User {
   comments  Comment[]
   pollVotes PollVote[]
 
+  songComments     SongComment[]
+  songCommentVotes SongCommentVote[]
+
   collections Collection[]
 
   giftsSent    Gift[] @relation("GiftsSent")
+
+  featuredOn          ReleaseCollaborator[] @relation("CollabArtist")
+  collabsInvitedByMe  ReleaseCollaborator[] @relation("CollabInviter")
   giftsClaimed Gift[] @relation("GiftsClaimed")
 
   groupsCreated FanbaseGroup[]
@@ -518,6 +524,21 @@ enum LedgerKind {
   // charge" — explicit choice, 2026-10-15). Credits the *buyer*; the
   // seller-side reversal is still the order's REFUND_DEBIT.
   REFUND_CREDIT
+  // Fan tips (explicit ask, 2026-11-06): TIP_CREDIT is the tip paid to the
+  // artist, TIP_COMMISSION_FEE the platform's cut of it
+  // (PlatformSettings.commissionTipPercent). Kept apart from SALE_CREDIT/
+  // COMMISSION_FEE so a tip never counts as a sale. Written by
+  // lib/commerce/ledger.ts's recordTip, reversed by recordRefund.
+  TIP_CREDIT
+  TIP_COMMISSION_FEE
+  // Featured-artist royalty split (explicit ask, 2026-11-06): on each sale
+  // of a release with an ACCEPTED ROYALTY_SPLIT collaborator, the main
+  // artist's net (after platform commission) is split — ROYALTY_SPLIT_FEE
+  // debits the main artist, ROYALTY_SPLIT_CREDIT credits the featured
+  // artist. Same pairing as PROMOTER_FEE/PROMOTER_CREDIT; reversed by
+  // recordRefund.
+  ROYALTY_SPLIT_FEE
+  ROYALTY_SPLIT_CREDIT
 }
 
 // Three creator-selectable monetization plans (DECISIONS.md) — see
@@ -616,6 +637,11 @@ model Product {
   title       String
   description String
   priceKobo   Int // 0 = free; free is first-class, not a discount
+  // "Let fans pay anything" (RELEASE only, explicit ask 2026-11-06): the fan
+  // picks the price at checkout and priceKobo is the minimum they may pay
+  // (PAY_WHAT_YOU_WANT_MIN_KOBO, ₦500). OrderItem.priceKobo snapshots what
+  // was actually paid.
+  payWhatYouWant Boolean @default(false)
   status      ProductStatus @default(DRAFT)
   createdAt   DateTime      @default(now())
   publishedAt DateTime?
@@ -637,9 +663,54 @@ model Product {
   pinnedInLiveSessions LiveSession[]
   billboards           Billboard[]
   addOns               ProductAddOn[]
+  collaborators        ReleaseCollaborator[]
 
   @@index([creatorId])
   @@index([status, type])
+}
+
+// ─── Featured artists & revenue sharing (explicit ask, 2026-11-06) ────────
+// The main artist (Product.creatorId) tags other XOLDOUT artists on a release
+// at upload. Each tag picks an arrangement:
+//   ROYALTY_SPLIT — sharePercent of the main artist's net on every sale
+//     (after platform commission) goes to the featured artist automatically,
+//     via ROYALTY_SPLIT_FEE/ROYALTY_SPLIT_CREDIT ledger rows (recordSale).
+//   CREDIT_ONLY — credited on the release and their profile; sharePercent 0,
+//     the main artist keeps 100%.
+// Nothing is official until the featured artist ACCEPTS: a PENDING tag shows
+// only to the two parties, never publicly, and earns nothing. Splits apply to
+// sales made after acceptance (never retroactive). The main artist's own
+// share is 100 minus every ROYALTY_SPLIT tag's share, so the split always
+// totals 100%. A tag is fixed once sent; the main artist can only withdraw
+// one that's still PENDING.
+enum CollabArrangement {
+  ROYALTY_SPLIT
+  CREDIT_ONLY
+}
+
+enum CollabStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+model ReleaseCollaborator {
+  id           String            @id @default(cuid())
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id])
+  artistId     String
+  artist       User              @relation("CollabArtist", fields: [artistId], references: [id])
+  invitedById  String
+  invitedBy    User              @relation("CollabInviter", fields: [invitedById], references: [id])
+  arrangement  CollabArrangement
+  sharePercent Int               @default(0)
+  status       CollabStatus      @default(PENDING)
+  createdAt    DateTime          @default(now())
+  respondedAt  DateTime?
+
+  @@unique([productId, artistId])
+  @@index([artistId, status])
+  @@index([productId, status])
 }
 
 // ─── Creative Add-ons (V1.2) ─────────────────────────────────────────────
@@ -721,6 +792,50 @@ model Track {
   lyricsText       String?
 
   @@index([releaseId, order])
+}
+
+// ─── Song comments (explicit ask, 2026-11-04) ────────────────────────────
+// YouTube-style comments under the player: top-level comments on one song
+// plus one level of replies (a reply to a reply attaches to the same
+// top-level comment, @-mentioning who it answers, as YouTube does).
+// Keyed by the player's own ids: trackKind "track" → Track.id, "beat" →
+// Beat.productId. productId is the owning Product (Release or Beat), kept so
+// the creator check and notification link need no join. likeCount and
+// replyCount are kept in step by every write so listing never counts rows.
+model SongComment {
+  id         String        @id @default(cuid())
+  trackKind  String
+  trackId    String
+  productId  String
+  authorId   String
+  author     User          @relation(fields: [authorId], references: [id])
+  parentId   String?
+  parent     SongComment?  @relation("SongCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    SongComment[] @relation("SongCommentReplies")
+  body       String
+  likeCount  Int           @default(0)
+  replyCount Int           @default(0)
+  createdAt  DateTime      @default(now())
+
+  votes SongCommentVote[]
+
+  @@index([trackKind, trackId, parentId, createdAt])
+  @@index([trackKind, trackId, parentId, likeCount])
+  @@index([parentId, createdAt])
+}
+
+// value 1 = like, -1 = dislike. Like YouTube, only likes are ever shown as
+// a number; a dislike is private to the person who cast it.
+model SongCommentVote {
+  commentId String
+  comment   SongComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  value     Int
+  createdAt DateTime    @default(now())
+
+  @@id([commentId, userId])
+  @@index([userId])
 }
 
 // A beat purchase grants a single flat license (buyout-style — full
@@ -941,6 +1056,14 @@ model Order {
   // commission); the buyer's added service charge = BUYER_PAYS_FEE.
   commissionOverrideKobo Int?
 
+  // Fan tips (explicit ask, 2026-11-06). tipKobo is the tip part of
+  // Payment.amountKobo: added on top of a purchase at checkout, or the whole
+  // amount when isTipOnly (the "Tip artist" button: no purchase; its one
+  // OrderItem has quantity 0 so stock code and sales counts ignore it).
+  // A tip never gets a service charge added; recordTip takes its own cut.
+  tipKobo   Int     @default(0)
+  isTipOnly Boolean @default(false)
+
   items            OrderItem[]
   payment          Payment?
   entitlements     Entitlement[]
@@ -1036,6 +1159,8 @@ enum NotificationKind {
   VERIFICATION
   // Someone you follow (or asked to be reminded about) just went live.
   LIVE
+  // A featured-artist request (or its answer) — ReleaseCollaborator.
+  COLLABORATION
 }
 
 // Guest checkout email check (explicit ask, 2026-10-15): a buyer with no
@@ -1444,6 +1569,10 @@ model PlatformSettings {
   commissionBeatPercent       Int       @default(12)
   commissionMerchPercent      Int       @default(12)
   commissionEventPercent      Int       @default(5)
+  // Platform cut of fan tips (explicit ask, 2026-11-06: "same commission as
+  // sales but editable in admin"). Applies to UNLIMITED and BUYER_PAYS_FEE
+  // sellers; LIMITED sellers keep 100% of tips, as they do of sales.
+  commissionTipPercent        Int       @default(12)
   // ─── Creator plans: BUYER_PAYS_FEE ─────────────────────────────────────
   // Service-charge rate added on top of the price at checkout and paid by
   // the buyer — lib/commerce/creatorPlans.ts, app/api/orders/route.ts.

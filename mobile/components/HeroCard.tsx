@@ -1,6 +1,5 @@
 import { Image, Text, View, StyleSheet, useWindowDimensions } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Svg, Path } from "react-native-svg";
 import type { ProductCardData } from "../lib/discoverTypes";
 import { formatNaira } from "../lib/format";
 import { colors, fonts } from "../lib/theme";
@@ -8,9 +7,23 @@ import { colors, fonts } from "../lib/theme";
 // Mirrors web's discover page hero banner: the weekly top-selling release
 // (or the newest one, if nothing's sold yet this week). The gradient
 // matches web's `bg-gradient-to-t from-black/95 via-black/10 to-black/40`.
-export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; heroWeeklySold: number }) {
+// No play button (explicit ask, 2026-11-04) — the card itself opens the release.
+// `rank` labels the slide when it sits in HeroCarousel's top-3 billboard.
+export function HeroCard({
+  hero,
+  heroWeeklySold,
+  totalSold = 0,
+  rank,
+  width: widthProp,
+}: {
+  hero: ProductCardData;
+  heroWeeklySold: number;
+  totalSold?: number;
+  rank?: number;
+  width?: number;
+}) {
   const { width } = useWindowDimensions();
-  const cardWidth = width - 32;
+  const cardWidth = widthProp ?? width - 32;
   const cardHeight = (cardWidth * 5) / 4;
 
   const art = hero.release?.artworkLadder?.["1024"];
@@ -37,15 +50,11 @@ export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; hero
         <Text style={styles.typeBadgeText}>{(hero.release?.releaseType ?? "single").toLowerCase()}</Text>
       </View>
       <View style={styles.sellBadge}>
-        <Text style={styles.sellBadgeText}>{heroWeeklySold > 0 ? "Top Seller This Week" : "New Release"}</Text>
-      </View>
-
-      <View style={[StyleSheet.absoluteFill, styles.playButtonWrap]} pointerEvents="none">
-        <View style={styles.playButton}>
-          <Svg width={20} height={20} viewBox="0 0 24 24">
-            <Path d="M8 5v14l11-7z" fill="#fff" />
-          </Svg>
-        </View>
+        <Text style={styles.sellBadgeText}>{heroWeeklySold > 0
+            ? `${rank ? `#${rank} ` : ""}Top Seller This Week`
+            : totalSold > 0
+              ? `${rank ? `#${rank} ` : ""}Top Seller`
+              : "New Release"}</Text>
       </View>
 
       <View style={styles.footer}>
@@ -60,6 +69,8 @@ export function HeroCard({ hero, heroWeeklySold }: { hero: ProductCardData; hero
             <Text style={styles.stat}>{isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}</Text>
           ) : heroWeeklySold > 0 ? (
             <Text style={styles.stat}>{heroWeeklySold} sold this week</Text>
+          ) : totalSold > 0 ? (
+            <Text style={styles.stat}>{totalSold} sold</Text>
           ) : (
             <Text style={styles.statDim}>{sold} sold</Text>
           )}
@@ -84,17 +95,6 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   typeBadgeText: { color: colors.ink, fontSize: 10, fontWeight: "600", textTransform: "uppercase" },
-  playButtonWrap: { alignItems: "center", justifyContent: "center" },
-  playButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.25)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
   sellBadge: {
     position: "absolute",
     left: 12,
@@ -105,7 +105,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
   },
   sellBadgeText: { color: colors.ink, fontSize: 10, fontWeight: "700", textTransform: "uppercase" },
-  footer: { position: "absolute", left: 16, right: 16, bottom: 16 },
+  footer: { position: "absolute", left: 16, right: 16, bottom: 28 },
   creator: { color: "rgba(255,255,255,0.9)", fontSize: 12, letterSpacing: 1, marginBottom: 4 },
   title: { color: colors.ink, fontSize: 22, fontFamily: fonts.serif, marginBottom: 8 },
   row: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },

@@ -5,7 +5,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { apiGet } from "../../lib/api";
 import type { RootStackParamList } from "../../lib/navigation";
 import type { ProductCardData } from "../../lib/discoverTypes";
-import { GENRES, MOODS, genreLabel, moodLabel } from "../../lib/musicTags";
+import { GENRES, genreLabel } from "../../lib/musicTags";
 import { useOwnedProducts } from "../../lib/useOwnedProducts";
 import { colors, fonts } from "../../lib/theme";
 import { Grid } from "../Grid";
@@ -22,15 +22,14 @@ const SORT_TILES: { sort: Sort; title: string; blurb: string; badge: string; ico
 const PADDING = 16;
 
 // Mirrors web's components/music/MusicTab.tsx (V1.2, explicit ask
-// 2026-10-21): search, genre and mood chips, New Releases / Top Selling /
+// 2026-10-21): search, genre chips (moods removed 2026-11-04), New Releases / Top Selling /
 // Free Songs tiles, and the results grid — same /api/discover?type=RELEASE
 // filters as the website. Fetched once per filter change, never polled.
-export function MusicTab({ initialGenre, initialMood }: { initialGenre?: string; initialMood?: string }) {
+export function MusicTab({ initialGenre }: { initialGenre?: string }) {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { width } = useWindowDimensions();
   const tileWidth = (width - PADDING * 2 - 24) / 3;
   const [genre, setGenre] = useState<string | null>(initialGenre ?? null);
-  const [mood, setMood] = useState<string | null>(initialMood ?? null);
   const [sort, setSort] = useState<Sort>("new");
   const [qInput, setQInput] = useState("");
   const [q, setQ] = useState("");
@@ -39,15 +38,13 @@ export function MusicTab({ initialGenre, initialMood }: { initialGenre?: string;
 
   useEffect(() => {
     setGenre(initialGenre ?? null);
-    setMood(initialMood ?? null);
-  }, [initialGenre, initialMood]);
+  }, [initialGenre]);
 
   useEffect(() => {
     let cancelled = false;
     setProducts(null);
     const params = new URLSearchParams({ type: "RELEASE" });
     if (genre) params.set("genre", genre);
-    if (mood) params.set("mood", mood);
     if (sort !== "new") params.set("sort", sort);
     if (q) params.set("q", q);
     apiGet<{ category: { products: ProductCardData[] } }>(`/api/discover?${params.toString()}`)
@@ -56,10 +53,10 @@ export function MusicTab({ initialGenre, initialMood }: { initialGenre?: string;
     return () => {
       cancelled = true;
     };
-  }, [genre, mood, sort, q]);
+  }, [genre, sort, q]);
 
   const activeTile = SORT_TILES.find((t) => t.sort === sort)!;
-  const filterBits = [genre && genreLabel(genre), mood && moodLabel(mood), q && `“${q}”`].filter(Boolean);
+  const filterBits = [genre && genreLabel(genre), q && `“${q}”`].filter(Boolean);
 
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
@@ -81,13 +78,6 @@ export function MusicTab({ initialGenre, initialMood }: { initialGenre?: string;
         <Chip label="All" active={!genre} onPress={() => setGenre(null)} />
         {GENRES.map((g) => (
           <Chip key={g.slug} label={g.label} active={genre === g.slug} onPress={() => setGenre(genre === g.slug ? null : g.slug)} />
-        ))}
-      </ScrollView>
-
-      <Text style={styles.label}>Mood</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow} style={styles.chipScroll}>
-        {MOODS.map((m) => (
-          <Chip key={m.slug} label={`${m.icon} ${m.label}`} active={mood === m.slug} onPress={() => setMood(mood === m.slug ? null : m.slug)} />
         ))}
       </ScrollView>
 
@@ -134,7 +124,6 @@ export function MusicTab({ initialGenre, initialMood }: { initialGenre?: string;
             <TouchableOpacity
               onPress={() => {
                 setGenre(null);
-                setMood(null);
                 setQ("");
                 setQInput("");
               }}

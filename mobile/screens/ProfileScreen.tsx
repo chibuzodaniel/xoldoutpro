@@ -115,6 +115,10 @@ function SignedInView() {
 
         <Text style={styles.sectionTitle}>Requests</Text>
         <View style={styles.catalogList}>
+          <TouchableOpacity style={styles.catalogRow} onPress={() => navigation.navigate("Collaborations")}>
+            <Text style={styles.catalogLabel}>Collaborations</Text>
+            <Text style={styles.catalogCount}>{stats?.pendingCollaborations ? `${stats.pendingCollaborations} pending` : "None"}</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.catalogRow} onPress={() => navigation.navigate("FanbaseRequests")}>
             <Text style={styles.catalogLabel}>Private Fanbase join requests</Text>
             <Text style={styles.catalogCount}>{stats && stats.pendingFanbaseRequests > 0 ? `${stats.pendingFanbaseRequests} pending` : "None"}</Text>

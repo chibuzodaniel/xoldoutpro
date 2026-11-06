@@ -12,7 +12,12 @@ import { db } from "@/lib/db";
  * refund doesn't — refundReason is what tells those apart.
  */
 export async function getSellerSales(sellerId: string, take = 1000) {
-  const soldWhere = { order: { status: { in: ["PAID", "REFUNDED"] as ("PAID" | "REFUNDED")[] } }, product: { creatorId: sellerId } };
+  // quantity > 0 leaves out tip-only orders (Order.isTipOnly) — a tip is not a sale.
+  const soldWhere = {
+    quantity: { gt: 0 },
+    order: { status: { in: ["PAID", "REFUNDED"] as ("PAID" | "REFUNDED")[] } },
+    product: { creatorId: sellerId },
+  };
   const [items, paidUnits, refundedUnits, refundedByProduct, buyers] = await Promise.all([
     db.orderItem.findMany({
       where: soldWhere,
@@ -39,7 +44,7 @@ export async function getSellerSales(sellerId: string, take = 1000) {
     db.orderItem.aggregate({ where: { ...soldWhere, order: { status: "REFUNDED" } }, _sum: { quantity: true } }),
     db.orderItem.groupBy({ by: ["productId"], where: { ...soldWhere, order: { status: "REFUNDED" } }, _sum: { quantity: true } }),
     db.order.findMany({
-      where: { status: "PAID", items: { some: { product: { creatorId: sellerId } } } },
+      where: { status: "PAID", isTipOnly: false, items: { some: { product: { creatorId: sellerId } } } },
       distinct: ["buyerId"],
       select: { buyerId: true },
     }),

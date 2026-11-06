@@ -19,8 +19,13 @@ export type ProductDetail = {
   title: string;
   description: string | null;
   priceKobo: number;
+  // "Let fans pay anything": priceKobo is the ₦500+ minimum, the fan picks the price on the web checkout.
+  payWhatYouWant?: boolean;
+  // Featured artists, accepted tags only.
+  collaborators?: { artist: { id: string; handle: string; displayName: string } }[];
+  publishedAt?: string | null;
   creator: ProductCreator & { avatarUrl: string | null };
-  release: { releaseType: string; artworkLadder: ImageLadder; genres?: string[]; moods?: string[]; tracks: Track[] } | null;
+  release: { releaseType: string; artworkLadder: ImageLadder; genres?: string[]; tracks: Track[] } | null;
   beat: {
     coverImageLadder: ImageLadder;
     previewAudioUrl: string | null;

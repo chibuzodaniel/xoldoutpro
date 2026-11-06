@@ -25,6 +25,7 @@ import { NotificationsScreen } from "./screens/NotificationsScreen";
 import { GroupScreen } from "./screens/GroupScreen";
 import { GroupMembersScreen } from "./screens/GroupMembersScreen";
 import { FanbaseRequestsScreen } from "./screens/FanbaseRequestsScreen";
+import { CollaborationsScreen } from "./screens/CollaborationsScreen";
 import { MessagesScreen } from "./screens/MessagesScreen";
 import { ConversationScreen } from "./screens/ConversationScreen";
 import { PublishScreen } from "./screens/PublishScreen";
@@ -121,6 +122,7 @@ export default function App() {
             <Stack.Screen name="Group" component={GroupScreen} options={{ title: "" }} />
             <Stack.Screen name="GroupMembers" component={GroupMembersScreen} options={{ headerShown: false }} />
             <Stack.Screen name="FanbaseRequests" component={FanbaseRequestsScreen} options={{ title: "" }} />
+            <Stack.Screen name="Collaborations" component={CollaborationsScreen} options={{ title: "" }} />
             <Stack.Screen name="Messages" component={MessagesScreen} options={{ title: "" }} />
             <Stack.Screen name="Conversation" component={ConversationScreen} options={{ title: "" }} />
             <Stack.Screen

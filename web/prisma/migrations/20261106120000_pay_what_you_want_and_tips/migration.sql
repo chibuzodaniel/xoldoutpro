@@ -1,0 +1,13 @@
+-- AlterEnum
+ALTER TYPE "LedgerKind" ADD VALUE 'TIP_CREDIT';
+ALTER TYPE "LedgerKind" ADD VALUE 'TIP_COMMISSION_FEE';
+
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN "payWhatYouWant" BOOLEAN NOT NULL DEFAULT false;
+
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN "tipKobo" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "isTipOnly" BOOLEAN NOT NULL DEFAULT false;
+
+-- AlterTable
+ALTER TABLE "PlatformSettings" ADD COLUMN "commissionTipPercent" INTEGER NOT NULL DEFAULT 12;

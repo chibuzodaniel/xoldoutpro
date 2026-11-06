@@ -5,8 +5,16 @@ import { db } from "@/lib/db";
 import { generatePreviewClip } from "@/lib/audio/generatePreviewClip";
 import { addOnInputSchema, prepareAddOns, createAddOns, AddOnError } from "@/lib/commerce/addOns";
 import { MAX_ADD_ONS_PER_PRODUCT } from "@/lib/commerce/addOnRules";
-import { GENRE_SLUGS, MOOD_SLUGS, MIN_GENRES, MAX_GENRES, MAX_MOODS } from "@/lib/music/tags";
+import { GENRE_SLUGS, MIN_GENRES, MAX_GENRES } from "@/lib/music/tags";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
+import { PAY_WHAT_YOU_WANT_MIN_KOBO } from "@/lib/commerce/constants";
+import {
+  collaboratorInputSchema,
+  validateCollaborators,
+  createCollaborators,
+  notifyCollaborationRequests,
+  CollaboratorError,
+} from "@/lib/music/collaborators";
 
 export const maxDuration = 120; // trimming a real preview clip per track (ffmpeg), mirrors the ingest route's own limit
 
@@ -32,6 +40,11 @@ const createSchema = z
     releaseType: z.enum(["SINGLE", "EP", "ALBUM"]),
     description: z.string().max(2000),
     priceKobo: z.number().int().min(0), // 0 = free, first-class per PRD §7.1
+    // "Let fans pay anything" — the fan names the price at checkout, never
+    // below ₦500. priceKobo is then stored as that ₦500 floor.
+    payWhatYouWant: z.boolean().default(false),
+    // Featured artists (lib/music/collaborators.ts) — each starts PENDING.
+    collaborators: z.array(collaboratorInputSchema).default([]),
     cap: z.number().int().positive().nullable(),
     artworkLadder: z.record(z.string(), z.string()),
     tracks: z.array(trackSchema).min(1).max(30), // should-know default: 30 tracks/release
@@ -39,7 +52,6 @@ const createSchema = z
     addOns: z.array(addOnInputSchema).max(MAX_ADD_ONS_PER_PRODUCT).default([]),
     // Music tab discovery — lib/music/tags.ts.
     genres: z.array(z.enum(GENRE_SLUGS)).min(MIN_GENRES, "Pick at least one genre").max(MAX_GENRES),
-    moods: z.array(z.enum(MOOD_SLUGS)).max(MAX_MOODS).default([]),
   })
   .refine((r) => r.releaseType !== "SINGLE" || r.tracks.length === 1, {
     message: "A single must have exactly one track",
@@ -56,6 +68,7 @@ export async function POST(req: NextRequest) {
     // database connection open. Runs per-track in parallel since each is
     // independent (fetch that track's own streaming rendition, trim it).
     const addOnRows = await prepareAddOns(user.id, body.addOns);
+    await validateCollaborators(user.id, body.collaborators);
 
     const previewAudioKeys = await Promise.all(
       body.tracks.map((t) => generatePreviewClip(user.id, t.audioStreamKey, t.previewStartSec, t.previewEndSec)),
@@ -68,7 +81,8 @@ export async function POST(req: NextRequest) {
           type: "RELEASE",
           title: body.title,
           description: body.description,
-          priceKobo: body.priceKobo,
+          priceKobo: body.payWhatYouWant ? PAY_WHAT_YOU_WANT_MIN_KOBO : body.priceKobo,
+          payWhatYouWant: body.payWhatYouWant,
           status: "PUBLISHED",
           publishedAt: new Date(),
           release: {
@@ -76,7 +90,6 @@ export async function POST(req: NextRequest) {
               releaseType: body.releaseType,
               artworkLadder: body.artworkLadder,
               genres: [...new Set(body.genres)],
-              moods: [...new Set(body.moods)],
               tracks: {
                 create: body.tracks.map((t, i) => ({
                   order: t.order,
@@ -99,14 +112,24 @@ export async function POST(req: NextRequest) {
         include: { release: { include: { tracks: true } }, stockPolicy: true },
       });
       await createAddOns(tx, created.id, addOnRows);
+      await createCollaborators(tx, { productId: created.id, mainArtistId: user.id, inputs: body.collaborators });
       return created;
     });
     await recordProductsPublished(user.id, 1);
+    if (body.collaborators.length > 0) {
+      await notifyCollaborationRequests({
+        productId: product.id,
+        title: body.title,
+        mainArtistName: user.displayName,
+        inputs: body.collaborators,
+      }).catch((err) => console.error("collaboration request notify failed", product.id, err));
+    }
 
     return NextResponse.json({ product }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof AddOnError) return NextResponse.json({ error: err.message }, { status: 400 });
+    if (err instanceof CollaboratorError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof UploadCapError) return NextResponse.json({ error: err.message, reason: err.reason }, { status: 403 });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues[0]?.message ?? "Invalid release" }, { status: 400 });
     console.error(err);

@@ -23,7 +23,7 @@ export async function getCreatorProfile(handle: string) {
   });
   if (!user) return null;
 
-  const [catalog, events, fansCount, salesAgg] = await Promise.all([
+  const [catalog, events, fansCount, salesAgg, featuredOn] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: discoverCardInclude,
@@ -39,7 +39,14 @@ export async function getCreatorProfile(handle: string) {
     }),
     db.follow.count({ where: { followedId: user.id } }),
     db.stockPolicy.aggregate({ where: { product: { creatorId: user.id } }, _sum: { sold: true } }),
+    // Releases this artist is officially featured on (accepted tags only).
+    db.product.findMany({
+      where: { type: "RELEASE", status: "PUBLISHED", collaborators: { some: { artistId: user.id, status: "ACCEPTED" } } },
+      include: discoverCardInclude,
+      orderBy: { publishedAt: "desc" },
+      take: 30,
+    }),
   ]);
 
-  return { user, catalog, events, fansCount, totalSold: salesAgg._sum.sold ?? 0 };
+  return { user, catalog, events, fansCount, totalSold: salesAgg._sum.sold ?? 0, featuredOn };
 }

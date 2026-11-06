@@ -61,7 +61,7 @@ export function DiscoverCategoryScreen() {
     <View style={styles.container}>
       <CategoryTabs active={type} onSelect={handleSelect} onGoLivePress={() => navigation.navigate("LiveNow")} />
       {type === "RELEASE" ? (
-        <MusicTab initialGenre={route.params.genre} initialMood={route.params.mood} />
+        <MusicTab initialGenre={route.params.genre} />
       ) : (
       <ScrollView contentContainerStyle={styles.content}>
         {!items ? (

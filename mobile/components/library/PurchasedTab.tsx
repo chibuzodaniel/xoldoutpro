@@ -24,7 +24,10 @@ import { FULFILLMENT_LABEL, artworkUrl, beatCoverUrl, merchImageUrl, buildPlayab
 
 const HORIZONTAL_PADDING = 16;
 
-export function PurchasedTab() {
+// Library redesign (explicit ask, 2026-11-04): one instance serves both the
+// Purchased tab (Music + Merch shelves) and the Events tab (tickets), so the
+// library is fetched once. `query` comes from the header's search.
+export function PurchasedTab({ view = "purchased", query = "" }: { view?: "purchased" | "events"; query?: string } = {}) {
   const { firebaseUser } = useAuth();
   const player = usePlayer();
   const { width } = useWindowDimensions();
@@ -37,6 +40,7 @@ export function PurchasedTab() {
   const [collectingFor, setCollectingFor] = useState<LibraryEntitlement | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null);
+  const [seeAll, setSeeAll] = useState<Record<string, boolean>>({});
 
   async function refreshDownloadState(tracks: LibraryTrack[]) {
     const entries = await Promise.all(tracks.map(async (t) => [t.id, await isDownloaded(t.id)] as const));
@@ -187,10 +191,74 @@ export function PurchasedTab() {
     );
   }
 
-  const musicItems = entitlements.filter((e) => e.product.release || e.product.beat);
-  const ticketItems = entitlements.filter((e) => e.product.ticketTier);
-  const merchItems = entitlements.filter((e) => e.product.merchItem);
-  const cardWidth = (width - HORIZONTAL_PADDING * 2 - 16) / 2;
+  function renderTracklist(e: LibraryEntitlement) {
+    const art = artworkUrl(e.product.release);
+    return (
+                        <View style={styles.trackList}>
+                          <View style={styles.trackListHeader}>
+                            <Text style={styles.trackListTitle} numberOfLines={1}>
+                              {e.product.title}
+                            </Text>
+                            <TouchableOpacity onPress={() => setCollectingFor(e)}>
+                              <Text style={styles.collectLink}>+ Collection</Text>
+                            </TouchableOpacity>
+                          </View>
+                          {e.product.release!.tracks.map((t: LibraryTrack) => {
+                            const isThisTrack = player.current?.trackId === t.id;
+                            return (
+                              <View key={t.id} style={styles.trackRow}>
+                                <TouchableOpacity
+                                  style={styles.trackTapArea}
+                                  onPress={() =>
+                                    player.play(
+                                      {
+                                        trackId: t.id,
+                                        title: t.title,
+                                        artistName: e.product.creator.displayName,
+                                        artworkUrl: art,
+                                        productId: e.product.id,
+                                        lyricsText: t.lyricsText,
+                                        kind: "track",
+                                      },
+                                      buildPlayable(e),
+                                    )
+                                  }
+                                  disabled={busyTrackId === t.id}
+                                >
+                                  <Text style={styles.trackPlayIcon}>{isThisTrack && player.isPlaying ? "⏸" : "▶"}</Text>
+                                  <Text style={styles.trackTitle} numberOfLines={1}>
+                                    {t.title}
+                                  </Text>
+                                </TouchableOpacity>
+                                {downloaded[t.id] ? (
+                                  <TouchableOpacity onPress={() => handleRemoveDownload(t.id)}>
+                                    <Text style={styles.trackOfflineLink}>Remove</Text>
+                                  </TouchableOpacity>
+                                ) : (
+                                  <TouchableOpacity onPress={() => handleDownload(e, t)} disabled={busyTrackId === t.id}>
+                                    <Text style={styles.trackOfflineLinkActive}>{busyTrackId === t.id ? "…" : "Offline"}</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            );
+                          })}
+                        </View>
+    );
+  }
+
+
+  const q = query.trim().toLowerCase();
+  const visible = entitlements.filter(
+    (e) => !q || [e.product.title, e.product.creator.displayName, e.product.ticketTier?.event.title].some((v) => v?.toLowerCase().includes(q)),
+  );
+  const musicItems = visible.filter((e) => e.product.release || e.product.beat);
+  const ticketItems = visible.filter((e) => e.product.ticketTier);
+  const merchItems = visible.filter((e) => e.product.merchItem);
+  // A shelf is one swipeable row (tiles ~42% wide) until "See all" turns it into a 2-up grid.
+  const cardWidth = seeAll.music ? (width - HORIZONTAL_PADDING * 2 - 16) / 2 : (width - HORIZONTAL_PADDING * 2) * 0.42;
+  const expanded = musicItems.find((e) => e.id === expandedId && e.product.release) ?? null;
+  const isEmpty = view === "events" ? ticketItems.length === 0 : musicItems.length === 0 && merchItems.length === 0;
+  const toggleSeeAll = (key: string) => setSeeAll((cur) => ({ ...cur, [key]: !cur[key] }));
 
   return (
     <ScrollView
@@ -200,19 +268,35 @@ export function PurchasedTab() {
     >
       {player.error && <Text style={styles.playerErrorText}>{player.error}</Text>}
 
-      {entitlements.length === 0 ? (
-        <Text style={styles.emptyText}>Everything you buy shows up here. Nothing yet.</Text>
+      {isEmpty ? (
+        <Text style={styles.emptyText}>
+          {q
+            ? "Nothing matches your search."
+            : view === "events"
+              ? "Tickets you buy show up here with their door QR code. Nothing yet."
+              : "Everything you buy shows up here. Nothing yet."}
+        </Text>
       ) : (
         <>
-          {musicItems.length > 0 && (
+          {view === "purchased" && musicItems.length > 0 && (
             <View style={styles.section}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionLabel}>MUSIC & BEATS</Text>
-                <TouchableOpacity style={styles.playAllButton} onPress={() => handlePlayAll(musicItems)}>
-                  <Text style={styles.playAllIcon}>▶</Text>
-                </TouchableOpacity>
+                <View style={styles.shelfTitleRow}>
+                  <Text style={styles.shelfIcon}>♫</Text>
+                  <Text style={styles.shelfTitle}>Music</Text>
+                </View>
+                <View style={styles.shelfActions}>
+                  <TouchableOpacity style={styles.playAllButton} onPress={() => handlePlayAll(musicItems)} accessibilityLabel="Play all">
+                    <Text style={styles.playAllIcon}>▶</Text>
+                  </TouchableOpacity>
+                  {musicItems.length > 2 && (
+                    <TouchableOpacity onPress={() => toggleSeeAll("music")} hitSlop={8}>
+                      <Text style={styles.seeAll}>{seeAll.music ? "Show less" : "See all ›"}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
-              <View style={styles.grid}>
+              <Shelf open={!!seeAll.music}>
                 {musicItems.map((e) => {
                   const art = e.product.release ? artworkUrl(e.product.release) : beatCoverUrl(e.product.beat);
                   const isThisPlaying = player.isPlaying && player.current?.productId === e.product.id;
@@ -260,67 +344,20 @@ export function PurchasedTab() {
                         </Text>
                       </TouchableOpacity>
 
-                      {expandedId === e.id && e.product.release && (
-                        <View style={styles.trackList}>
-                          <View style={styles.trackListHeader}>
-                            <Text style={styles.trackListTitle} numberOfLines={1}>
-                              {e.product.title}
-                            </Text>
-                            <TouchableOpacity onPress={() => setCollectingFor(e)}>
-                              <Text style={styles.collectLink}>+ Collection</Text>
-                            </TouchableOpacity>
-                          </View>
-                          {e.product.release.tracks.map((t: LibraryTrack) => {
-                            const isThisTrack = player.current?.trackId === t.id;
-                            return (
-                              <View key={t.id} style={styles.trackRow}>
-                                <TouchableOpacity
-                                  style={styles.trackTapArea}
-                                  onPress={() =>
-                                    player.play(
-                                      {
-                                        trackId: t.id,
-                                        title: t.title,
-                                        artistName: e.product.creator.displayName,
-                                        artworkUrl: art,
-                                        productId: e.product.id,
-                                        lyricsText: t.lyricsText,
-                                        kind: "track",
-                                      },
-                                      buildPlayable(e),
-                                    )
-                                  }
-                                  disabled={busyTrackId === t.id}
-                                >
-                                  <Text style={styles.trackPlayIcon}>{isThisTrack && player.isPlaying ? "⏸" : "▶"}</Text>
-                                  <Text style={styles.trackTitle} numberOfLines={1}>
-                                    {t.title}
-                                  </Text>
-                                </TouchableOpacity>
-                                {downloaded[t.id] ? (
-                                  <TouchableOpacity onPress={() => handleRemoveDownload(t.id)}>
-                                    <Text style={styles.trackOfflineLink}>Remove</Text>
-                                  </TouchableOpacity>
-                                ) : (
-                                  <TouchableOpacity onPress={() => handleDownload(e, t)} disabled={busyTrackId === t.id}>
-                                    <Text style={styles.trackOfflineLinkActive}>{busyTrackId === t.id ? "…" : "Offline"}</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            );
-                          })}
-                        </View>
-                      )}
                     </View>
                   );
                 })}
-              </View>
+              </Shelf>
+              {expanded && renderTracklist(expanded)}
             </View>
           )}
 
-          {ticketItems.length > 0 && (
+          {view === "events" && ticketItems.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>TICKETS</Text>
+              <View style={[styles.shelfTitleRow, { marginBottom: 12 }]}>
+                <Text style={styles.shelfIcon}>🎟</Text>
+                <Text style={styles.shelfTitle}>Tickets</Text>
+              </View>
               <View style={{ gap: 12 }}>
                 {ticketItems.map((e) => {
                   const tier = e.product.ticketTier!;
@@ -348,9 +385,12 @@ export function PurchasedTab() {
             </View>
           )}
 
-          {merchItems.length > 0 && (
+          {view === "purchased" && merchItems.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionLabel}>MERCH</Text>
+              <View style={[styles.shelfTitleRow, { marginBottom: 12 }]}>
+                <Text style={styles.shelfIcon}>◈</Text>
+                <Text style={styles.shelfTitle}>Merch</Text>
+              </View>
               <View style={{ gap: 12 }}>
                 {merchItems.map((e) => {
                   const status = e.order.merchFulfillment?.status ?? "TO_SHIP";
@@ -426,7 +466,22 @@ export function PurchasedTab() {
   );
 }
 
+function Shelf({ open, children }: { open: boolean; children: React.ReactNode }) {
+  if (open) return <View style={styles.grid}>{children}</View>;
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.row} style={{ marginHorizontal: -HORIZONTAL_PADDING }}>
+      {children}
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
+  row: { flexDirection: "row", gap: 12, paddingHorizontal: HORIZONTAL_PADDING },
+  shelfTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  shelfIcon: { color: colors.redSoft, fontSize: 17 },
+  shelfTitle: { color: colors.ink, fontSize: 17, fontWeight: "600" },
+  shelfActions: { flexDirection: "row", alignItems: "center", gap: 14 },
+  seeAll: { color: colors.ink2, fontSize: 13 },
   container: { flex: 1 },
   content: { paddingHorizontal: HORIZONTAL_PADDING, paddingTop: 16, paddingBottom: 100 },
   centered: { flex: 1, alignItems: "center", justifyContent: "center", gap: 12, paddingTop: 60 },

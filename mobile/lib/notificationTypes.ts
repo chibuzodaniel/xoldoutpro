@@ -12,7 +12,8 @@ export type NotificationKind =
   | "FANBASE"
   | "REMINDER"
   | "VERIFICATION"
-  | "LIVE";
+  | "LIVE"
+  | "COLLABORATION";
 
 export type NotificationRow = {
   id: string;

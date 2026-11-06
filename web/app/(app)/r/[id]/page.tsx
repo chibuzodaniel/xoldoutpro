@@ -12,6 +12,7 @@ import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
 import { ReleaseExtras } from "@/components/addons/ReleaseExtras";
 import { ReleaseTags } from "@/components/music/ReleaseTags";
+import { acceptedCreditsSelect } from "@/lib/music/collaborators";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -41,6 +42,9 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
       creator: { select: { handle: true, displayName: true, avatarUrl: true } },
       release: { include: { tracks: { orderBy: { order: "asc" } } } },
       stockPolicy: true,
+      // Featured artists — accepted tags only; pending ones stay private to
+      // the two parties (/profile/collaborations).
+      collaborators: acceptedCreditsSelect,
     },
   });
 
@@ -63,9 +67,22 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
         <div className="flex items-start justify-between gap-3">
           <div>
             <h1 className="font-serif text-2xl">{product.title}</h1>
-            <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
-              {product.creator.displayName}
-            </Link>
+            <p className="text-sm text-ink-3">
+              <Link href={`/u/${product.creator.handle}`}>{product.creator.displayName}</Link>
+              {product.collaborators.length > 0 && (
+                <>
+                  {" "}feat.{" "}
+                  {product.collaborators.map((c, i) => (
+                    <span key={c.artist.id}>
+                      {i > 0 && (i === product.collaborators.length - 1 ? " & " : ", ")}
+                      <Link href={`/u/${c.artist.handle}`} className="text-ink-2">
+                        {c.artist.displayName}
+                      </Link>
+                    </span>
+                  ))}
+                </>
+              )}
+            </p>
             <PublishedByYou creatorId={product.creatorId} />
           </div>
           <div className="flex items-center gap-3 shrink-0 pt-1">
@@ -76,7 +93,15 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
         </div>
 
         <div className="flex items-center justify-between mt-3 mb-4">
-          <span className="font-serif text-lg"><Price kobo={product.priceKobo} freeLabel="Free" /></span>
+          <span className="font-serif text-lg">
+            {product.payWhatYouWant ? (
+              <>
+                <Price kobo={product.priceKobo} />+ <span className="font-sans text-xs text-ink-3">· pay what you want</span>
+              </>
+            ) : (
+              <Price kobo={product.priceKobo} freeLabel="Free" />
+            )}
+          </span>
           {remaining !== null ? (
             <span className="text-sm font-semibold text-red-soft">
               {isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}
@@ -90,7 +115,11 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           productId={product.id}
           creatorId={product.creatorId}
           initialGenres={product.release.genres}
-          initialMoods={product.release.moods}
+          title={product.title}
+          description={product.description}
+          priceKobo={product.priceKobo}
+          artworkUrl={artwork ?? null}
+          publishedAt={product.publishedAt ? product.publishedAt.toISOString() : null}
         />
 
         {product.description && <p className="text-sm text-ink-2 mb-5">{product.description}</p>}
@@ -100,6 +129,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           artistName={product.creator.displayName}
           artworkUrl={artwork ?? null}
           priceKobo={product.priceKobo}
+          payWhatYouWant={product.payWhatYouWant}
           isSoldOut={isSoldOut}
         />
 

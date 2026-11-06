@@ -11,6 +11,7 @@ import { ShareButton } from "@/components/ui/ShareButton";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { buildOgMetadata } from "@/lib/og";
 import { NewVisitorGate } from "@/components/auth/NewVisitorGate";
+import { discoverCardInclude } from "@/lib/discover/getDiscoverData";
 
 const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = [
   { types: ["RELEASE", "BEAT"], label: "Music & Beats" },
@@ -71,7 +72,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   const user = await db.user.findUnique({ where: { handle } });
   if (!user) notFound();
 
-  const [catalog, events, fansCount, salesAgg] = await Promise.all([
+  const [catalog, events, fansCount, salesAgg, featuredOn] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: {
@@ -93,6 +94,13 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
     }),
     db.follow.count({ where: { followedId: user.id } }),
     db.stockPolicy.aggregate({ where: { product: { creatorId: user.id } }, _sum: { sold: true } }),
+    // Releases this artist is officially featured on (accepted tags only).
+    db.product.findMany({
+      where: { type: "RELEASE", status: "PUBLISHED", collaborators: { some: { artistId: user.id, status: "ACCEPTED" } } },
+      include: discoverCardInclude,
+      orderBy: { publishedAt: "desc" },
+      take: 30,
+    }),
   ]);
 
   const socialLinks = (user.socialLinks as { platform: string; url: string }[] | null) ?? [];
@@ -173,7 +181,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           </div>
         )}
 
-        {(catalog.length > 0 || events.length > 0) && (
+        {(catalog.length > 0 || events.length > 0 || featuredOn.length > 0) && (
           <div className="mt-2 flex flex-col gap-6">
             {events.length > 0 && (
               <div>
@@ -195,7 +203,17 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                 </div>
               </div>
             )}
-            <OwnedBadgesProvider productIds={catalog.map((p) => p.id)}>
+            <OwnedBadgesProvider productIds={[...catalog, ...featuredOn].map((p) => p.id)}>
+              {featuredOn.length > 0 && (
+                <div>
+                  <h2 className="text-[13px] font-bold uppercase tracking-widest text-ink-3 mb-3">Featured on</h2>
+                  <div className="grid grid-cols-3 gap-3">
+                    {featuredOn.map((p) => (
+                      <ProductCard key={p.id} product={p} />
+                    ))}
+                  </div>
+                </div>
+              )}
               {CATALOG_SECTIONS.map(({ types, label }) => {
                 const items = catalog.filter((p) => types.includes(p.type));
                 if (items.length === 0) return null;

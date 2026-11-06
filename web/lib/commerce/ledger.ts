@@ -95,6 +95,11 @@ export async function recordSale(
     // includes that same service charge). Absent/undefined for UNLIMITED —
     // today's live-rate behavior, unchanged.
     commissionOverrideKobo?: number | null;
+    // Featured-artist royalty splits (RELEASE only — ReleaseCollaborator,
+    // ACCEPTED ROYALTY_SPLIT tags): each gets sharePercent of the seller's
+    // net after commission, carved out of the SELLER's proceeds like a
+    // promoter split, never the platform's.
+    royaltySplits?: { artistId: string; sharePercent: number }[];
   },
 ) {
   // Settlement hold deactivated for launch (see SETTLEMENT_WINDOW_DAYS's own
@@ -120,6 +125,15 @@ export async function recordSale(
       { userId: args.promoter.userId, orderId: args.orderId, amountKobo: promoterKobo, kind: "PROMOTER_CREDIT", status, availableAt },
     );
   }
+  const netAfterCommissionKobo = args.grossKobo - commissionKobo;
+  for (const split of args.royaltySplits ?? []) {
+    const shareKobo = Math.round(netAfterCommissionKobo * (split.sharePercent / 100));
+    if (shareKobo <= 0 || split.artistId === args.sellerId) continue;
+    entries.push(
+      { userId: args.sellerId, orderId: args.orderId, amountKobo: -shareKobo, kind: "ROYALTY_SPLIT_FEE", status, availableAt },
+      { userId: split.artistId, orderId: args.orderId, amountKobo: shareKobo, kind: "ROYALTY_SPLIT_CREDIT", status, availableAt },
+    );
+  }
   await tx.walletLedgerEntry.createMany({ data: entries });
 
   if (args.buyerReferredByAmbassadorId) {
@@ -140,6 +154,35 @@ export async function recordSale(
       commissionKobo,
     });
   }
+}
+
+/** Live, moderator-editable platform cut of a fan tip (SiteControlsPanel). */
+export async function getTipCommissionRate(client: Prisma.TransactionClient | typeof db = db): Promise<number> {
+  const row = await client.platformSettings.findUnique({ where: { id: "singleton" }, select: { commissionTipPercent: true } });
+  return (row?.commissionTipPercent ?? Math.round(COMMISSION_RATE * 100)) / 100;
+}
+
+/**
+ * Records a fan tip (explicit ask, 2026-11-06) — TIP_CREDIT to the artist and
+ * the platform's cut as TIP_COMMISSION_FEE, never SALE_CREDIT/COMMISSION_FEE,
+ * so tips stay out of every sales count and the ambassador/promoter splits.
+ * A LIMITED-plan seller keeps 100% (their plan has no commission on sales
+ * either); everyone else pays commissionTipPercent. Same settlement as a sale.
+ */
+export async function recordTip(
+  tx: Prisma.TransactionClient,
+  args: { sellerId: string; orderId: string; tipKobo: number; sellerPlan: string | null },
+) {
+  if (args.tipKobo <= 0) return;
+  const rate = args.sellerPlan === "LIMITED" ? 0 : await getTipCommissionRate(tx);
+  const commissionKobo = Math.round(args.tipKobo * rate);
+  const base = { userId: args.sellerId, orderId: args.orderId, status: "AVAILABLE" as const, availableAt: null };
+  await tx.walletLedgerEntry.createMany({
+    data: [
+      { ...base, amountKobo: args.tipKobo, kind: "TIP_CREDIT" },
+      { ...base, amountKobo: -commissionKobo, kind: "TIP_COMMISSION_FEE" },
+    ],
+  });
 }
 
 /**
@@ -309,17 +352,22 @@ export async function recordRefund(
   tx: Prisma.TransactionClient,
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
-  const [commissionEntries, promoterFeeEntry, ambassadorEntries] = await Promise.all([
-    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "COMMISSION_FEE" } }),
+  const [commissionEntries, promoterFeeEntry, ambassadorEntries, royaltyCreditEntries] = await Promise.all([
+    // TIP_COMMISSION_FEE too: grossKobo is the whole payment, tip included,
+    // so the platform's cut of the tip is kept the same way as a sale's.
+    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: { in: ["COMMISSION_FEE", "TIP_COMMISSION_FEE"] } } }),
     tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "PROMOTER_FEE" } }),
     // Up to two — a sale can credit an ambassador on the buyer's side, the
     // seller's side, or both (recordSale above), each its own row.
     tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "AMBASSADOR_COMMISSION" } }),
+    // Featured artists' royalty shares on this order — each gives theirs back.
+    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "ROYALTY_SPLIT_CREDIT" } }),
   ]);
   if (commissionEntries.length === 0) throw new Error(`No COMMISSION_FEE entry found for order ${args.orderId}`);
   const commissionKobo = -commissionEntries.reduce((sum, e) => sum + e.amountKobo, 0);
   const promoterKobo = promoterFeeEntry ? -promoterFeeEntry.amountKobo : 0;
-  const netKobo = args.grossKobo - commissionKobo - promoterKobo;
+  const royaltyKobo = royaltyCreditEntries.reduce((sum, e) => sum + e.amountKobo, 0);
+  const netKobo = args.grossKobo - commissionKobo - promoterKobo - royaltyKobo;
 
   const entries: Prisma.WalletLedgerEntryCreateManyInput[] = [
     { userId: args.sellerId, orderId: args.orderId, amountKobo: -netKobo, kind: "REFUND_DEBIT", status: "AVAILABLE", availableAt: null },
@@ -333,6 +381,17 @@ export async function recordRefund(
       userId: promoterCreditEntry.userId,
       orderId: args.orderId,
       amountKobo: -promoterKobo,
+      kind: "REFUND_DEBIT",
+      status: "AVAILABLE",
+      availableAt: null,
+    });
+  }
+
+  for (const royaltyEntry of royaltyCreditEntries) {
+    entries.push({
+      userId: royaltyEntry.userId,
+      orderId: args.orderId,
+      amountKobo: -royaltyEntry.amountKobo,
       kind: "REFUND_DEBIT",
       status: "AVAILABLE",
       availableAt: null,
@@ -475,8 +534,8 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
     liveCreditTotal,
     xgEarnedKobo,
   ] = await Promise.all([
-      client.walletLedgerEntry.aggregate({ where: { kind: "COMMISSION_FEE" }, _sum: { amountKobo: true } }),
-      client.walletLedgerEntry.aggregate({ where: { kind: "SALE_CREDIT" }, _sum: { amountKobo: true } }),
+      client.walletLedgerEntry.aggregate({ where: { kind: { in: ["COMMISSION_FEE", "TIP_COMMISSION_FEE"] } }, _sum: { amountKobo: true } }),
+      client.walletLedgerEntry.aggregate({ where: { kind: { in: ["SALE_CREDIT", "TIP_CREDIT"] } }, _sum: { amountKobo: true } }),
       client.walletLedgerEntry.aggregate({ _sum: { amountKobo: true } }),
       client.payout.aggregate({ where: { status: "PAID" }, _sum: { amountKobo: true } }),
       netOfClawbacks(client, "AMBASSADOR_COMMISSION"),
@@ -497,8 +556,9 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
       // commission component, by construction, with no way for the two to
       // drift apart again.
       client.walletLedgerEntry.findMany({
-        where: { kind: "COMMISSION_FEE" },
+        where: { kind: { in: ["COMMISSION_FEE", "TIP_COMMISSION_FEE"] } },
         select: {
+          kind: true,
           amountKobo: true,
           order: { select: { items: { take: 1, select: { product: { select: { type: true } } } } } },
         },
@@ -524,7 +584,7 @@ export async function getPlatformFinancials(client: Prisma.TransactionClient | t
 
   const revenueByType: Record<string, number> = {};
   for (const row of commissionRows) {
-    const type = row.order?.items[0]?.product.type;
+    const type = row.kind === "TIP_COMMISSION_FEE" ? "TIP" : row.order?.items[0]?.product.type;
     if (!type) continue;
     revenueByType[type] = (revenueByType[type] ?? 0) - row.amountKobo;
   }

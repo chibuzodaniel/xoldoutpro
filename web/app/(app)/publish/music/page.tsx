@@ -12,6 +12,14 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
 import { TagPicker } from "@/components/music/TagPicker";
 import { AddOnsEditor, addOnDraftsError, addOnDraftsPayload, type AddOnDraft } from "@/components/addons/AddOnsEditor";
+import { PAY_WHAT_YOU_WANT_MIN_KOBO } from "@/lib/commerce/constants";
+import { useAuth } from "@/components/auth/AuthProvider";
+import {
+  FeaturedArtistsEditor,
+  featuredDraftsError,
+  featuredDraftsPayload,
+  type FeaturedArtistDraft,
+} from "@/components/music/FeaturedArtistsEditor";
 
 function newTrack(): TrackDraft {
   return {
@@ -36,7 +44,9 @@ export default function UploadMusicPage() {
   const [releaseType, setReleaseType] = useState<ReleaseType>("SINGLE");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [isFree, setIsFree] = useState(false);
+  // Pricing mode: a set price, free, or "let fans pay anything" (min ₦500).
+  const [pricing, setPricing] = useState<"PRICE" | "FREE" | "PAY_ANY">("PRICE");
+  const isFree = pricing === "FREE";
   const [priceNaira, setPriceNaira] = useState("");
   const [hasCap, setHasCap] = useState(false);
   const [capValue, setCapValue] = useState("");
@@ -49,7 +59,8 @@ export default function UploadMusicPage() {
   const [tracks, setTracks] = useState<TrackDraft[]>([newTrack()]);
   const [addOns, setAddOns] = useState<AddOnDraft[]>([]);
   const [genres, setGenres] = useState<string[]>([]);
-  const [moods, setMoods] = useState<string[]>([]);
+  const [featured, setFeatured] = useState<FeaturedArtistDraft[]>([]);
+  const { appUser } = useAuth();
   const [submitting, setSubmitting] = useState(false);
 
   function updateTrack(localId: string, patch: Partial<TrackDraft>) {
@@ -108,8 +119,8 @@ export default function UploadMusicPage() {
     if (tracks.some((t) => t.status !== "ready")) return toast.error("Every track needs to finish uploading first");
     if (releaseType === "SINGLE" && tracks.length !== 1) return toast.error("A single needs exactly one track");
 
-    const priceKobo = isFree ? 0 : Math.round(parseFloat(priceNaira || "0") * 100);
-    if (!isFree && (!priceNaira || priceKobo <= 0)) return toast.error("Set a price, or mark this release free");
+    const priceKobo = isFree ? 0 : pricing === "PAY_ANY" ? PAY_WHAT_YOU_WANT_MIN_KOBO : Math.round(parseFloat(priceNaira || "0") * 100);
+    if (pricing === "PRICE" && (!priceNaira || priceKobo <= 0)) return toast.error("Set a price, or mark this release free");
     const cap = hasCap ? parseInt(capValue, 10) : null;
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
       return toast.error("Enter a valid limited quantity");
@@ -117,17 +128,20 @@ export default function UploadMusicPage() {
 
     const addOnError = addOnDraftsError(addOns);
     if (addOnError) return toast.error(addOnError);
+    const featuredError = featuredDraftsError(featured);
+    if (featuredError) return toast.error(featuredError);
 
     setSubmitting(true);
     try {
       const payload = {
         addOns: addOnDraftsPayload(addOns),
         genres,
-        moods,
+        collaborators: featuredDraftsPayload(featured),
         title,
         releaseType,
         description,
         priceKobo,
+        payWhatYouWant: pricing === "PAY_ANY",
         cap,
         artworkLadder,
         tracks: tracks.map((t, order) => {
@@ -152,7 +166,7 @@ export default function UploadMusicPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not publish release");
       }
-      toast.success("Release published.");
+      toast.success(featured.length > 0 ? "Release published. Featured artists have been sent a request to accept." : "Release published.");
       router.push("/profile/catalog");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -257,21 +271,37 @@ export default function UploadMusicPage() {
           />
         </div>
 
-        <TagPicker genres={genres} moods={moods} onGenres={setGenres} onMoods={setMoods} />
+        <TagPicker genres={genres} onGenres={setGenres} />
 
         <div className="flex flex-col gap-2">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Price</label>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["PRICE", "Set a price"],
+                ["FREE", "Free"],
+                ["PAY_ANY", "Let fans pay anything"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setPricing(mode)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
+                  pricing === mode ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {pricing === "PAY_ANY" && (
+            <p className="text-[10.5px] text-ink-3">
+              Fans choose how much to pay, from ₦{(PAY_WHAT_YOU_WANT_MIN_KOBO / 100).toLocaleString("en-NG")} up.
+            </p>
+          )}
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsFree((v) => !v)}
-              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-                isFree ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
-              }`}
-            >
-              Free
-            </button>
-            {!isFree && (
+            {pricing === "PRICE" && (
               <div className="flex items-center gap-1">
                 <span className="text-sm text-ink-3">₦</span>
                 <input
@@ -339,6 +369,14 @@ export default function UploadMusicPage() {
               }
             />
           ))}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Featured artists (optional)</label>
+          <p className="text-xs text-ink-3 -mt-1">
+            Tag other XOLDOUT artists on this release. Each one gets a request and the feature becomes official once they accept.
+          </p>
+          <FeaturedArtistsEditor drafts={featured} onChange={setFeatured} selfId={appUser?.id} />
         </div>
 
         <div className="flex flex-col gap-2">

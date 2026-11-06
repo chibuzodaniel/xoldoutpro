@@ -13,6 +13,8 @@ import { OWNERSHIP_CHANGED_EVENT } from "@/components/addons/ReleaseExtras";
 import { useToast } from "@/components/ui/ToastProvider";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
+import { TipAmountPicker, nairaTextToKobo } from "@/components/product/TipAmountPicker";
+import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO } from "@/lib/commerce/constants";
 
 type AccessTrack = {
   id: string;
@@ -31,6 +33,8 @@ type Props = {
   artworkUrl: string | null;
   priceKobo: number;
   isSoldOut: boolean;
+  // "Let fans pay anything": priceKobo is then the minimum, the fan picks the price.
+  payWhatYouWant?: boolean;
 };
 
 function formatNaira(kobo: number) {
@@ -48,7 +52,7 @@ function formatTime(sec: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo, isSoldOut }: Props) {
+export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo, isSoldOut, payWhatYouWant = false }: Props) {
   const router = useRouter();
   const player = usePlayer();
   const toast = useToast();
@@ -65,6 +69,15 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   // BUYER_PAYS_FEE — shown as an added "service charge" before checkout,
   // app/api/orders/route.ts charges the exact same rate on top of priceKobo.
   const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
+  const floorKobo = payWhatYouWant ? Math.max(priceKobo, PAY_WHAT_YOU_WANT_MIN_KOBO) : priceKobo;
+  const [payNaira, setPayNaira] = useState(String(floorKobo / 100));
+  // "Add a tip" at checkout, plus the separate "Tip artist" panel for fans
+  // who already own the release (or when it is sold out).
+  const [checkoutTipOpen, setCheckoutTipOpen] = useState(false);
+  const [checkoutTipNaira, setCheckoutTipNaira] = useState("");
+  const [tipPanelOpen, setTipPanelOpen] = useState(false);
+  const [tipNaira, setTipNaira] = useState("");
+  const [tipBusy, setTipBusy] = useState(false);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -80,17 +93,40 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   }
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time fetch on mount, not derived render state
+    // The mobile app's "Tip … on xoldout.app" link lands here with ?tip=1.
+    // Read after mount (not in useState) so server and client HTML match.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL on mount
+    if (new URLSearchParams(window.location.search).get("tip") === "1") setTipPanelOpen(true);
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
 
+  const unitKobo = payWhatYouWant ? nairaTextToKobo(payNaira) : priceKobo;
+  const checkoutTipKobo = checkoutTipOpen ? nairaTextToKobo(checkoutTipNaira) : 0;
+
   async function handleBuy() {
+    if (payWhatYouWant && unitKobo < floorKobo) {
+      toast.error(`The lowest you can pay is ${nairaAmount(floorKobo)}`);
+      return;
+    }
+    if (checkoutTipKobo > 0 && checkoutTipKobo < MIN_TIP_KOBO) {
+      toast.error(`The smallest tip is ${nairaAmount(MIN_TIP_KOBO)}`);
+      return;
+    }
     setBusy(true);
     try {
       const guest: GuestInfo | undefined = firebaseUser ? undefined : await pickGuestInfo();
-      const gateway = priceKobo > 0 ? await pickGateway() : undefined;
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, guest, gateway }) });
+      const gateway = unitKobo + checkoutTipKobo > 0 ? await pickGateway() : undefined;
+      const res = await apiFetch("/api/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          productId,
+          guest,
+          gateway,
+          payAmountKobo: payWhatYouWant ? unitKobo : undefined,
+          tipKobo: checkoutTipKobo,
+        }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.customToken) await completeGuestSignIn(data.customToken);
@@ -106,6 +142,32 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleTip() {
+    const tipKobo = nairaTextToKobo(tipNaira);
+    if (tipKobo < MIN_TIP_KOBO) {
+      toast.error(`The smallest tip is ${nairaAmount(MIN_TIP_KOBO)}`);
+      return;
+    }
+    setTipBusy(true);
+    try {
+      const guest: GuestInfo | undefined = firebaseUser ? undefined : await pickGuestInfo();
+      const gateway = await pickGateway();
+      const res = await apiFetch("/api/orders", {
+        method: "POST",
+        body: JSON.stringify({ productId, guest, gateway, tipOnly: true, tipKobo }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not start checkout");
+      rememberGuestOrder(data.orderId, data.guestOrderToken);
+      router.push(data.checkoutUrl);
+    } catch (err) {
+      if (err instanceof GatewayPickerCancelled || err instanceof GuestInfoCancelled) return;
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setTipBusy(false);
     }
   }
 
@@ -145,18 +207,73 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     player.setExpanded(true);
   }
 
-  const serviceChargeKobo = serviceChargePercent != null ? Math.round((priceKobo * serviceChargePercent) / 100) : 0;
+  const serviceChargeKobo = serviceChargePercent != null ? Math.round((unitKobo * serviceChargePercent) / 100) : 0;
+  const purchaseKobo = unitKobo + serviceChargeKobo;
+  const totalKobo = purchaseKobo + checkoutTipKobo;
+  const canBuy = !entitled && !isOwner && !isSoldOut;
+  const tipPanelKobo = nairaTextToKobo(tipNaira);
 
   return (
     <div>
-      {!entitled && !isOwner && priceKobo > 0 && serviceChargePercent != null && (
+      {canBuy && payWhatYouWant && (
+        <div className="mb-3">
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Name your price</label>
+          <div className="mt-1 flex items-center gap-1">
+            <span className="text-sm text-ink-3">₦</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={floorKobo / 100}
+              step="1"
+              aria-label="Price in naira"
+              value={payNaira}
+              onChange={(e) => setPayNaira(e.target.value)}
+              className="w-32 rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
+            />
+          </div>
+          <p className="text-[11px] text-ink-3 mt-1">
+            Minimum {nairaAmount(floorKobo)}. Pay more to support {artistName}.
+          </p>
+        </div>
+      )}
+      {canBuy && (
+        <div className="mb-3">
+          {checkoutTipOpen ? (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] uppercase tracking-widest text-ink-3">Add a tip for {artistName}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutTipOpen(false);
+                    setCheckoutTipNaira("");
+                  }}
+                  className="text-xs text-ink-3"
+                >
+                  No tip
+                </button>
+              </div>
+              <TipAmountPicker valueNaira={checkoutTipNaira} onChange={setCheckoutTipNaira} />
+            </div>
+          ) : (
+            <button type="button" onClick={() => setCheckoutTipOpen(true)} className="text-xs font-semibold text-red-soft">
+              + Add a tip
+            </button>
+          )}
+        </div>
+      )}
+      {canBuy && unitKobo > 0 && serviceChargePercent != null && (
         <p className="text-xs text-ink-3 mb-1.5">
-          {nairaAmount(priceKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(priceKobo + serviceChargeKobo)} total
+          {nairaAmount(unitKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(purchaseKobo)}
+          {checkoutTipKobo > 0 ? "" : " total"}
         </p>
       )}
-      {!entitled && !isOwner && !isSoldOut && (
-        <ChargeNote kobo={serviceChargePercent != null ? priceKobo + serviceChargeKobo : priceKobo} className="mb-2" />
+      {canBuy && checkoutTipKobo > 0 && (
+        <p className="text-xs text-ink-3 mb-1.5">
+          {nairaAmount(purchaseKobo)} + {nairaAmount(checkoutTipKobo)} tip = {nairaAmount(totalKobo)} total
+        </p>
       )}
+      {canBuy && <ChargeNote kobo={totalKobo} className="mb-2" />}
       <div className="flex gap-2 mb-4">
         {!entitled && !isOwner && (
           <button
@@ -168,12 +285,40 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
               ? "Sold out"
               : busy
                 ? "Starting checkout…"
-                : serviceChargePercent != null && priceKobo > 0
-                  ? `Buy · ${nairaAmount(priceKobo + serviceChargeKobo)}`
-                  : formatNaira(priceKobo)}
+                : totalKobo > 0
+                  ? `Buy · ${nairaAmount(totalKobo)}`
+                  : formatNaira(0)}
+          </button>
+        )}
+        {!isOwner && (entitled || isSoldOut) && !tipPanelOpen && (
+          <button
+            onClick={() => setTipPanelOpen(true)}
+            className="flex-1 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink hover:border-line-strong"
+          >
+            Tip {artistName}
           </button>
         )}
       </div>
+
+      {tipPanelOpen && (
+        <div className="mb-4 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold">Tip {artistName}</span>
+            <button type="button" onClick={() => setTipPanelOpen(false)} className="text-xs text-ink-3">
+              Cancel
+            </button>
+          </div>
+          <TipAmountPicker valueNaira={tipNaira} onChange={setTipNaira} />
+          <ChargeNote kobo={tipPanelKobo} />
+          <button
+            onClick={handleTip}
+            disabled={tipBusy || tipPanelKobo === 0}
+            className="rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {tipBusy ? "Starting checkout…" : tipPanelKobo > 0 ? `Send ${nairaAmount(tipPanelKobo)} tip` : "Send tip"}
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
         {(tracks ?? []).map((track) => {
