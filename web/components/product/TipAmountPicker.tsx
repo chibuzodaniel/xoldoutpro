@@ -49,9 +49,10 @@ export function TipAmountPicker({
           />
         </div>
       </div>
-      {/* Explicit ask, 2026-11-07: a tip is a gift and is never refunded. */}
+      {/* Wording per explicit ask, 2026-11-07. Tips are never refunded
+          (lib/commerce/ledger.ts's refundableKobo). */}
       <p className="text-[10.5px] text-ink-3">
-        Tips are a gift to the artist and can&apos;t be refunded.
+        Tips are a way to show love and support to your favorite artist. Every tip is a gift, so make it count! ❤️🎶
       </p>
     </div>
   );
