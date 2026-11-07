@@ -110,6 +110,7 @@ export async function getUserModerationDetail(userId: string) {
         select: {
           id: true,
           status: true,
+          isTipOnly: true,
           createdAt: true,
           items: { take: 1, select: { product: { select: { title: true, type: true } } } },
           payment: { select: { amountKobo: true } },
@@ -167,7 +168,9 @@ export async function getUserModerationDetail(userId: string) {
     buyers: sellerSales.buyers,
     purchases: purchases.map((o) => ({
       orderId: o.id,
-      productTitle: o.items[0]?.product.title ?? "(deleted product)",
+      productTitle: o.isTipOnly
+        ? `Tip${o.items[0] ? ` · ${o.items[0].product.title}` : ""}`
+        : (o.items[0]?.product.title ?? "(deleted product)"),
       productType: o.items[0]?.product.type ?? null,
       amountKobo: o.payment?.amountKobo ?? 0,
       status: o.status,

@@ -39,7 +39,8 @@ function formatNaira(kobo: number) {
 function breakdownText(priceTotalKobo: number, shippingFeeKobo: number, serviceChargePercent: number | null, serviceChargeKobo: number) {
   const parts = [formatNairaPlain(priceTotalKobo)];
   if (shippingFeeKobo > 0) parts.push(`${formatNairaPlain(shippingFeeKobo)} shipping`);
-  if (serviceChargePercent != null) parts.push(`${formatNairaPlain(serviceChargeKobo)} service charge (${serviceChargePercent}%)`);
+  // The percentage itself isn't shown (explicit ask, 2026-11-07) — just the amount.
+  if (serviceChargePercent != null) parts.push(`${formatNairaPlain(serviceChargeKobo)} service charge`);
   return `${parts.join(" + ")} = ${formatNairaPlain(priceTotalKobo + shippingFeeKobo + serviceChargeKobo)} total`;
 }
 

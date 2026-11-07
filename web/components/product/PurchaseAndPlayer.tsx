@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
 import { TipAmountPicker, nairaTextToKobo } from "@/components/product/TipAmountPicker";
+import { TipButton } from "@/components/product/TipButton";
 import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO } from "@/lib/commerce/constants";
 
 type AccessTrack = {
@@ -29,6 +30,8 @@ type AccessTrack = {
 
 type Props = {
   productId: string;
+  // The release's main artist — who a standalone tip from this page pays.
+  creatorId: string;
   artistName: string;
   artworkUrl: string | null;
   priceKobo: number;
@@ -52,7 +55,7 @@ function formatTime(sec: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo, isSoldOut, payWhatYouWant = false }: Props) {
+export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl, priceKobo, isSoldOut, payWhatYouWant = false }: Props) {
   const router = useRouter();
   const player = usePlayer();
   const toast = useToast();
@@ -71,13 +74,10 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
   const floorKobo = payWhatYouWant ? Math.max(priceKobo, PAY_WHAT_YOU_WANT_MIN_KOBO) : priceKobo;
   const [payNaira, setPayNaira] = useState(String(floorKobo / 100));
-  // "Add a tip" at checkout, plus the separate "Tip artist" panel for fans
-  // who already own the release (or when it is sold out).
+  // "Add a tip" at checkout. Tipping with no purchase at all is the
+  // separate Tip button (TipButton), always shown to fans.
   const [checkoutTipOpen, setCheckoutTipOpen] = useState(false);
   const [checkoutTipNaira, setCheckoutTipNaira] = useState("");
-  const [tipPanelOpen, setTipPanelOpen] = useState(false);
-  const [tipNaira, setTipNaira] = useState("");
-  const [tipBusy, setTipBusy] = useState(false);
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -93,10 +93,7 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   }
 
   useEffect(() => {
-    // The mobile app's "Tip … on xoldout.app" link lands here with ?tip=1.
-    // Read after mount (not in useState) so server and client HTML match.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time read of the URL on mount
-    if (new URLSearchParams(window.location.search).get("tip") === "1") setTipPanelOpen(true);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time fetch on mount, not derived render state
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
@@ -145,32 +142,6 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
     }
   }
 
-  async function handleTip() {
-    const tipKobo = nairaTextToKobo(tipNaira);
-    if (tipKobo < MIN_TIP_KOBO) {
-      toast.error(`The smallest tip is ${nairaAmount(MIN_TIP_KOBO)}`);
-      return;
-    }
-    setTipBusy(true);
-    try {
-      const guest: GuestInfo | undefined = firebaseUser ? undefined : await pickGuestInfo();
-      const gateway = await pickGateway();
-      const res = await apiFetch("/api/orders", {
-        method: "POST",
-        body: JSON.stringify({ productId, guest, gateway, tipOnly: true, tipKobo }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not start checkout");
-      rememberGuestOrder(data.orderId, data.guestOrderToken);
-      router.push(data.checkoutUrl);
-    } catch (err) {
-      if (err instanceof GatewayPickerCancelled || err instanceof GuestInfoCancelled) return;
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setTipBusy(false);
-    }
-  }
-
   async function handleDownload(e: MouseEvent, trackId: string) {
     e.stopPropagation();
     // The tagging round trip on the server genuinely takes a few seconds
@@ -211,7 +182,6 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
   const purchaseKobo = unitKobo + serviceChargeKobo;
   const totalKobo = purchaseKobo + checkoutTipKobo;
   const canBuy = !entitled && !isOwner && !isSoldOut;
-  const tipPanelKobo = nairaTextToKobo(tipNaira);
 
   return (
     <div>
@@ -262,12 +232,8 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
           )}
         </div>
       )}
-      {canBuy && unitKobo > 0 && serviceChargePercent != null && (
-        <p className="text-xs text-ink-3 mb-1.5">
-          {nairaAmount(unitKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(purchaseKobo)}
-          {checkoutTipKobo > 0 ? "" : " total"}
-        </p>
-      )}
+      {/* The "₦X + ₦Y service charge (N%) = ₦Z" breakdown was removed
+          (explicit ask, 2026-11-07); the Buy button still shows the total. */}
       {canBuy && checkoutTipKobo > 0 && (
         <p className="text-xs text-ink-3 mb-1.5">
           {nairaAmount(purchaseKobo)} + {nairaAmount(checkoutTipKobo)} tip = {nairaAmount(totalKobo)} total
@@ -290,35 +256,17 @@ export function PurchaseAndPlayer({ productId, artistName, artworkUrl, priceKobo
                   : formatNaira(0)}
           </button>
         )}
-        {!isOwner && (entitled || isSoldOut) && !tipPanelOpen && (
-          <button
-            onClick={() => setTipPanelOpen(true)}
-            className="flex-1 rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink hover:border-line-strong"
-          >
-            Tip {artistName}
-          </button>
+        {/* Standalone tip: any fan, no purchase needed (explicit ask, 2026-11-07). */}
+        {!isOwner && (
+          <TipButton
+            productId={productId}
+            creatorId={creatorId}
+            artistName={artistName}
+            label={entitled || isSoldOut ? `Tip ${artistName}` : "Tip"}
+            className={`${entitled || isSoldOut ? "flex-1" : "shrink-0"} rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink hover:border-line-strong`}
+          />
         )}
       </div>
-
-      {tipPanelOpen && (
-        <div className="mb-4 rounded-xl border border-line bg-surface p-4 flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold">Tip {artistName}</span>
-            <button type="button" onClick={() => setTipPanelOpen(false)} className="text-xs text-ink-3">
-              Cancel
-            </button>
-          </div>
-          <TipAmountPicker valueNaira={tipNaira} onChange={setTipNaira} />
-          <ChargeNote kobo={tipPanelKobo} />
-          <button
-            onClick={handleTip}
-            disabled={tipBusy || tipPanelKobo === 0}
-            className="rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {tipBusy ? "Starting checkout…" : tipPanelKobo > 0 ? `Send ${nairaAmount(tipPanelKobo)} tip` : "Send tip"}
-          </button>
-        </div>
-      )}
 
       <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
         {(tracks ?? []).map((track) => {

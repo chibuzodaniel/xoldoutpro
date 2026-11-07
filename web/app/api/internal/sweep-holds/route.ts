@@ -46,12 +46,14 @@ export async function GET(req: NextRequest) {
     if (!payment.orderId || !payment.order) continue;
     const productId = payment.order.items[0]?.productId;
     const quantity = payment.order.items[0]?.quantity ?? 1;
-    if (!productId) continue;
+    // A tip-only order holds no stock (a profile tip has no item at all) —
+    // it just times out like any abandoned checkout.
+    if (!productId && !payment.order.isTipOnly) continue;
 
     const claim = await db.payment.updateMany({ where: { id: payment.id, status: "INITIATED" }, data: { status: "FAILED" } });
     if (claim.count === 0) continue; // a webhook won the race in the meantime
 
-    await releaseReservation(productId, quantity);
+    if (productId && !payment.order.isTipOnly) await releaseReservation(productId, quantity);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
     swept += 1;
   }

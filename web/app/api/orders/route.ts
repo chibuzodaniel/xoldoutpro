@@ -56,7 +56,10 @@ const guestSchema = z.object({
 });
 
 const bodySchema = z.object({
-  productId: z.string().min(1),
+  // Required for a purchase. A tip needs either this (tip from a release
+  // page) or tipCreatorId (tip from an artist's profile, no release at all).
+  productId: z.string().min(1).optional(),
+  tipCreatorId: z.string().min(1).optional(),
   shipping: shippingSchema.optional(),
   isGift: z.boolean().optional(),
   guest: guestSchema.optional(),
@@ -94,9 +97,10 @@ const MULTI_UNIT_TYPES = new Set(["EVENT", "MERCH"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { productId, shipping, isGift = false, guest, quantity, gateway, promoCode, payAmountKobo, tipKobo, tipOnly } = bodySchema.parse(
-      await req.json(),
-    );
+    const { productId, tipCreatorId, shipping, isGift = false, guest, quantity, gateway, promoCode, payAmountKobo, tipKobo, tipOnly } =
+      bodySchema.parse(await req.json());
+    if (!tipOnly && !productId) return NextResponse.json({ error: "Missing product" }, { status: 400 });
+    if (tipOnly && !productId && !tipCreatorId) return NextResponse.json({ error: "Who is this tip for?" }, { status: 400 });
     if (tipKobo > 0 && tipKobo < MIN_TIP_KOBO) {
       return NextResponse.json({ error: `The smallest tip is ₦${MIN_TIP_KOBO / 100}` }, { status: 400 });
     }
@@ -129,6 +133,65 @@ export async function POST(req: NextRequest) {
       if (isPendingGuest) guestAccessToken = randomBytes(32).toString("hex");
     }
 
+    // Standalone tip (explicit ask, 2026-11-07): no purchase needed, from a
+    // release page or straight from the artist's profile. Nothing is bought,
+    // so none of the stock/ownership/gift rules below apply. A release tip
+    // keeps the release as one quantity-0 OrderItem (stock code and sales
+    // counts skip it); a profile tip has no OrderItem at all.
+    if (tipOnly) {
+      let recipient: { id: string; displayName: string } | null = null;
+      let tipProduct: { id: string; title: string } | null = null;
+      if (productId) {
+        const p = await db.product.findUnique({
+          where: { id: productId },
+          select: { id: true, title: true, type: true, status: true, creator: { select: { id: true, displayName: true } } },
+        });
+        if (!p || p.status !== "PUBLISHED" || p.type !== "RELEASE") {
+          return NextResponse.json({ error: "Not available" }, { status: 404 });
+        }
+        recipient = p.creator;
+        tipProduct = { id: p.id, title: p.title };
+      } else {
+        recipient = await db.user.findFirst({
+          where: { id: tipCreatorId, pendingGuestAt: null, deletedAt: null },
+          select: { id: true, displayName: true },
+        });
+        if (!recipient) return NextResponse.json({ error: "Artist not found" }, { status: 404 });
+      }
+      if (recipient.id === buyer.id) return NextResponse.json({ error: "You can't tip yourself" }, { status: 400 });
+
+      try {
+        const order = await db.order.create({
+          data: {
+            buyerId: buyer.id,
+            status: "PENDING",
+            guestAccessToken,
+            isTipOnly: true,
+            tipKobo,
+            tipRecipientId: recipient.id,
+            ...(tipProduct ? { items: { create: { productId: tipProduct.id, priceKobo: 0, quantity: 0 } } } : {}),
+          },
+        });
+        await db.payment.create({
+          data: { orderId: order.id, processor: gateway, processorRef: order.id, amountKobo: tipKobo, status: "INITIATED" },
+        });
+        const checkoutUrl = await startProcessorCheckout({
+          gateway,
+          txRef: order.id,
+          amountKobo: tipKobo,
+          customerEmail: buyer.email,
+          customerName: buyer.displayName,
+          redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
+          title: tipProduct ? `Tip · ${tipProduct.title}` : `Tip for ${recipient.displayName}`,
+        });
+        return NextResponse.json({ orderId: order.id, checkoutUrl, guestOrderToken: guestAccessToken }, { status: 201 });
+      } catch (err) {
+        console.error(err);
+        return NextResponse.json({ error: "Could not start checkout" }, { status: 502 });
+      }
+    }
+    if (!productId) return NextResponse.json({ error: "Missing product" }, { status: 400 });
+
     // Sellable types are added here as each one's purchase flow ships
     // (Beat/Merch now; Event has its own tier-as-Product purchase path).
     const product = await db.product.findUnique({
@@ -154,44 +217,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "This ticket isn't on sale right now" }, { status: 409 });
     }
     if (product.creatorId === buyer.id) {
-      return NextResponse.json({ error: tipOnly ? "You can't tip yourself" : "You can't buy your own listing" }, { status: 400 });
-    }
-
-    // "Tip artist" button: no purchase, so none of the stock/ownership/gift
-    // rules below apply. The one OrderItem has quantity 0 — reserve/confirm/
-    // release are no-ops for it and sales counts (sum of quantity) skip it.
-    if (tipOnly) {
-      if (product.type !== "RELEASE") {
-        return NextResponse.json({ error: "Tips are only available on music" }, { status: 400 });
-      }
-      try {
-        const order = await db.order.create({
-          data: {
-            buyerId: buyer.id,
-            status: "PENDING",
-            guestAccessToken,
-            isTipOnly: true,
-            tipKobo,
-            items: { create: { productId, priceKobo: 0, quantity: 0 } },
-          },
-        });
-        await db.payment.create({
-          data: { orderId: order.id, processor: gateway, processorRef: order.id, amountKobo: tipKobo, status: "INITIATED" },
-        });
-        const checkoutUrl = await startProcessorCheckout({
-          gateway,
-          txRef: order.id,
-          amountKobo: tipKobo,
-          customerEmail: buyer.email,
-          customerName: buyer.displayName,
-          redirectUrl: `${req.nextUrl.origin}/checkout/callback`,
-          title: `Tip · ${product.title}`,
-        });
-        return NextResponse.json({ orderId: order.id, checkoutUrl, guestOrderToken: guestAccessToken }, { status: 201 });
-      } catch (err) {
-        console.error(err);
-        return NextResponse.json({ error: "Could not start checkout" }, { status: 502 });
-      }
+      return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
     }
 
     // Pay-what-you-want: the fan's chosen price replaces priceKobo as the

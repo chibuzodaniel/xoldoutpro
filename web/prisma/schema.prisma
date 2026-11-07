@@ -179,6 +179,7 @@ model User {
 
   featuredOn          ReleaseCollaborator[] @relation("CollabArtist")
   collabsInvitedByMe  ReleaseCollaborator[] @relation("CollabInviter")
+  tipsReceived        Order[]               @relation("TipsReceived")
   giftsClaimed Gift[] @relation("GiftsClaimed")
 
   groupsCreated FanbaseGroup[]
@@ -1063,6 +1064,12 @@ model Order {
   // A tip never gets a service charge added; recordTip takes its own cut.
   tipKobo   Int     @default(0)
   isTipOnly Boolean @default(false)
+  // Who a tip-only order pays (explicit ask, 2026-11-07: fans can tip an
+  // artist from their profile without buying anything). Set on every
+  // tip-only order: a profile tip has no OrderItem at all, a tip from a
+  // release page also keeps that release as its one quantity-0 OrderItem.
+  tipRecipientId String?
+  tipRecipient   User?   @relation("TipsReceived", fields: [tipRecipientId], references: [id])
 
   items            OrderItem[]
   payment          Payment?

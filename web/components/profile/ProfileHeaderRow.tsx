@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { FollowButton } from "./FollowButton";
 import { ClickablePhoto } from "./ClickablePhoto";
 import { MessageButton } from "@/components/messages/MessageButton";
+import { TipButton } from "@/components/product/TipButton";
 
 type Props = {
   targetUserId: string;
@@ -60,6 +61,8 @@ export function ProfileHeaderRow({ targetUserId, avatarUrl, displayName }: Props
         </Link>
       ) : (
         <div className="flex items-center gap-2">
+          {/* Tip the artist straight from their profile — no purchase needed. */}
+          <TipButton creatorId={targetUserId} artistName={displayName} />
           <MessageButton targetUserId={targetUserId} />
           <FollowButton targetUserId={targetUserId} />
         </div>

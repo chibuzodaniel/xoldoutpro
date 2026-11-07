@@ -142,6 +142,8 @@ function CheckoutCallbackInner() {
   const [productTitle, setProductTitle] = useState<string | null>(null);
   const [priceKobo, setPriceKobo] = useState(0);
   const [isTipOnly, setIsTipOnly] = useState(false);
+  // A profile tip has no product — who it went to, for the card and link.
+  const [tipRecipient, setTipRecipient] = useState<{ handle: string; displayName: string } | null>(null);
   const [eventId, setEventId] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
@@ -177,6 +179,7 @@ function CheckoutCallbackInner() {
       setProductTitle(item?.product?.title ?? null);
       // A tip (on its own, or added at checkout) is part of what was paid.
       setIsTipOnly(Boolean(order.isTipOnly));
+      setTipRecipient(order.tipRecipient ?? null);
       setPriceKobo((order.isTipOnly ? 0 : (item?.priceKobo ?? 0)) + (order.tipKobo ?? 0));
       setEventId(item?.product?.ticketTier?.eventId ?? null);
       setReference(payment?.reference ?? order.id);
@@ -369,10 +372,10 @@ function CheckoutCallbackInner() {
               ))}
             </div>
           ) : (
-            productTitle && (
+            (productTitle || tipRecipient) && (
               <div className="w-full max-w-xs rounded-2xl border border-line bg-surface p-5 text-left">
                 <p className="text-[11px] uppercase tracking-widest text-ink-3 mb-1">{isTipOnly ? "Tip for" : "Order"}</p>
-                <p className="text-sm font-semibold mb-3">{productTitle}</p>
+                <p className="text-sm font-semibold mb-3">{productTitle ?? tipRecipient?.displayName}</p>
                 <div className="flex items-center justify-between text-xs text-ink-3 border-t border-line-soft pt-3">
                   <span>Total paid</span>
                   <span className="text-ink font-semibold">{formatNaira(priceKobo)}</span>
@@ -390,12 +393,21 @@ function CheckoutCallbackInner() {
           )}
 
           <div className="flex flex-col items-center gap-3 mt-1">
-            <button
-              onClick={() => router.push(productHref() ?? "/library")}
-              className="rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white"
-            >
-              {tickets.length > 0 ? "Go to event" : "Go to release"}
-            </button>
+            {isTipOnly && !productId && tipRecipient ? (
+              <button
+                onClick={() => router.push(`/u/${tipRecipient.handle}`)}
+                className="rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white"
+              >
+                Back to {tipRecipient.displayName}
+              </button>
+            ) : (
+              <button
+                onClick={() => router.push(productHref() ?? "/library")}
+                className="rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white"
+              >
+                {tickets.length > 0 ? "Go to event" : "Go to release"}
+              </button>
+            )}
             <button onClick={() => router.push("/discover")} className="text-xs text-ink-3 font-semibold">
               Keep browsing
             </button>

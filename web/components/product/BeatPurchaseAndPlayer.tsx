@@ -135,11 +135,8 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
 
   return (
     <div>
-      {!entitled && !isOwner && priceKobo > 0 && serviceChargePercent != null && (
-        <p className="text-xs text-ink-3 mb-1.5">
-          {nairaAmount(priceKobo)} + {nairaAmount(serviceChargeKobo)} service charge ({serviceChargePercent}%) = {nairaAmount(priceKobo + serviceChargeKobo)} total
-        </p>
-      )}
+      {/* The "₦X + ₦Y service charge (N%) = ₦Z" breakdown was removed
+          (explicit ask, 2026-11-07); the Buy button still shows the total. */}
       {!entitled && !isOwner && !isSoldOut && (
         <ChargeNote kobo={serviceChargePercent != null ? priceKobo + serviceChargeKobo : priceKobo} className="mb-2" />
       )}

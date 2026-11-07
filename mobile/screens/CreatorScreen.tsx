@@ -8,11 +8,12 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Linking,
   useWindowDimensions,
 } from "react-native";
 import { useNavigation, useRoute, type RouteProp } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { apiGet } from "../lib/api";
+import { apiGet, API_BASE_URL } from "../lib/api";
 import type { RootStackParamList } from "../lib/navigation";
 import type { CreatorProfile } from "../lib/creatorTypes";
 import { colors, fonts } from "../lib/theme";
@@ -78,10 +79,19 @@ export function CreatorScreen() {
         <Text style={styles.name}>{user.displayName}</Text>
         <Text style={styles.handle}>@{user.handle}</Text>
         <ShareProfileButton handle={user.handle} displayName={user.displayName} style={{ marginBottom: 10 }} />
-        {appUser && appUser.id !== user.id && (
-          <TouchableOpacity style={styles.messageButton} onPress={() => navigation.navigate("Conversation", { toUserId: user.id })}>
-            <Text style={styles.messageButtonText}>Message</Text>
-          </TouchableOpacity>
+        {appUser?.id !== user.id && (
+          <View style={styles.actionRow}>
+            {/* Standalone tip — no purchase needed. Checkout is on the web, like
+                buying; ?tip=1 opens the profile's tip sheet straight away. */}
+            <TouchableOpacity style={styles.tipButton} onPress={() => Linking.openURL(`${API_BASE_URL}/u/${user.handle}?tip=1`)}>
+              <Text style={styles.tipButtonText}>Tip</Text>
+            </TouchableOpacity>
+            {appUser && (
+              <TouchableOpacity style={styles.messageButton} onPress={() => navigation.navigate("Conversation", { toUserId: user.id })}>
+                <Text style={styles.messageButtonText}>Message</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
         {user.bio && <Text style={styles.bio}>{user.bio}</Text>}
 
@@ -158,7 +168,10 @@ const styles = StyleSheet.create({
   avatarRow: { marginBottom: 10 },
   name: { color: colors.ink, fontSize: 20, fontFamily: fonts.serif },
   handle: { color: colors.ink3, fontSize: 13, marginBottom: 8 },
-  messageButton: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7, marginBottom: 10 },
+  actionRow: { flexDirection: "row", gap: 8, marginBottom: 10 },
+  tipButton: { backgroundColor: colors.red, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7 },
+  tipButtonText: { color: colors.ink, fontSize: 13, fontWeight: "700" },
+  messageButton: { alignSelf: "flex-start", borderWidth: 1, borderColor: colors.line, borderRadius: 8, paddingHorizontal: 16, paddingVertical: 7 },
   messageButtonText: { color: colors.ink2, fontSize: 13, fontWeight: "600" },
   bio: { color: colors.ink2, fontSize: 13, lineHeight: 19, marginBottom: 12, maxWidth: 320 },
   statsRow: { flexDirection: "row", gap: 12, marginBottom: 12 },

@@ -38,6 +38,7 @@ type PaymentForConfirm = {
     commissionOverrideKobo: number | null;
     tipKobo: number;
     isTipOnly: boolean;
+    tipRecipientId: string | null;
     items: { productId: string; quantity: number }[];
     buyer: { referredByAmbassadorId: string | null };
   };
@@ -121,11 +122,12 @@ export async function finalizePayment(
 
   const productId = payment.order.items[0]?.productId;
   const quantity = payment.order.items[0]?.quantity ?? 1;
-  if (!productId) throw new Error("Order has no items");
 
-  // "Tip artist" button: nothing is bought, so there's no stock to win back
-  // or release and no entitlement — just the tip itself.
-  if (payment.order.isTipOnly) return finalizeTipOnly(payment, verified, productId);
+  // Standalone tip (release page or artist profile): nothing is bought, so
+  // there's no stock to win back or release and no entitlement — just the
+  // tip itself. A profile tip has no OrderItem, hence before the check below.
+  if (payment.order.isTipOnly) return finalizeTipOnly(payment, verified, productId ?? null);
+  if (!productId) throw new Error("Order has no items");
 
   // The sweep already released this order's stock hold, so a late success
   // has to win a unit again before it can be treated as a normal sale. If
@@ -325,7 +327,7 @@ export async function finalizePayment(
 async function finalizeTipOnly(
   payment: PaymentForConfirm,
   verified: VerifiedResult,
-  productId: string,
+  productId: string | null,
 ): Promise<{ alreadyProcessed: boolean; success: boolean }> {
   if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
     if (verified.status === "successful") {
@@ -335,17 +337,24 @@ async function finalizeTipOnly(
     return { alreadyProcessed: false, success: false };
   }
 
-  const product = await db.product.findUniqueOrThrow({
-    where: { id: productId },
-    select: { title: true, creatorId: true, creator: { select: { creatorPlan: true } } },
+  // Who gets it: tipRecipientId (set on every tip since profile tips
+  // shipped), else the release's creator for a release tip made before that.
+  const product = productId
+    ? await db.product.findUnique({ where: { id: productId }, select: { title: true, creatorId: true } })
+    : null;
+  const recipientId = payment.order.tipRecipientId ?? product?.creatorId;
+  if (!recipientId) throw new Error(`Tip order ${payment.orderId} has no recipient`);
+  const recipient = await db.user.findUniqueOrThrow({
+    where: { id: recipientId },
+    select: { id: true, handle: true, displayName: true, creatorPlan: true },
   });
   await db.$transaction(async (tx) => {
     await tx.order.update({ where: { id: payment.orderId }, data: { status: "PAID" } });
     await recordTip(tx, {
-      sellerId: product.creatorId,
+      sellerId: recipient.id,
       orderId: payment.orderId,
       tipKobo: payment.amountKobo,
-      sellerPlan: product.creator.creatorPlan,
+      sellerPlan: recipient.creatorPlan,
     });
   });
 
@@ -358,13 +367,13 @@ async function finalizeTipOnly(
     createNotification(payment.order.buyerId, {
       kind: "ORDER_PAID",
       title: "Tip sent",
-      body: `${formatNaira(payment.amountKobo)} tip for ${product.title}. Thank you for supporting the artist.`,
-      url: `/r/${productId}`,
+      body: `${formatNaira(payment.amountKobo)} tip for ${product ? product.title : recipient.displayName}. Thank you for supporting the artist.`,
+      url: product && productId ? `/r/${productId}` : `/u/${recipient.handle}`,
     }),
-    createNotification(product.creatorId, {
+    createNotification(recipient.id, {
       kind: "SALE",
       title: "You got a tip",
-      body: `@${buyer?.handle ?? "a fan"} tipped ${formatNaira(payment.amountKobo)} on ${product.title}`,
+      body: `@${buyer?.handle ?? "a fan"} tipped you ${formatNaira(payment.amountKobo)}${product ? ` on ${product.title}` : ""}`,
       url: "/wallet",
     }),
   ]);

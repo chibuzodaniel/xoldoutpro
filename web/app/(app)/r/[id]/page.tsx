@@ -126,6 +126,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
 
         <PurchaseAndPlayer
           productId={product.id}
+          creatorId={product.creatorId}
           artistName={product.creator.displayName}
           artworkUrl={artwork ?? null}
           priceKobo={product.priceKobo}

@@ -64,6 +64,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           items: {
             include: { product: { select: { id: true, title: true, type: true, ticketTier: { select: { eventId: true } } } } },
           },
+          // Standalone tips — who it went to (a profile tip has no item).
+          tipRecipient: { select: { handle: true, displayName: true } },
         },
       }),
       db.payment.findUnique({ where: { orderId: id }, select: { processorRef: true, createdAt: true, rawPayload: true } }),
