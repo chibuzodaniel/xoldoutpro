@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
-import { recordRefund } from "@/lib/commerce/ledger";
+import { recordRefund, refundableKobo } from "@/lib/commerce/ledger";
 import { refundCharge, isRefundUnsupported, creditRefundToWallet } from "@/lib/commerce/claimPayment";
 import { createNotification } from "@/lib/notifications/create";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
@@ -93,7 +93,12 @@ export async function GET(req: NextRequest) {
 
     await releaseConfirmedUnit(gift.productId);
     if (gift.order.payment) {
-      await recordRefund(db, { sellerId: gift.product.creatorId, orderId: gift.orderId, grossKobo: gift.order.payment.amountKobo });
+      // Tips are never refunded (refundableKobo) — only the gift's price.
+      await recordRefund(db, {
+        sellerId: gift.product.creatorId,
+        orderId: gift.orderId,
+        grossKobo: refundableKobo(gift.order.payment.amountKobo, gift.order.tipKobo),
+      });
       await db.order.update({ where: { id: gift.orderId }, data: { status: "REFUNDED" } });
     }
     // The seller used to find out only by seeing their sold count drop
@@ -169,7 +174,7 @@ async function refundExpiredGifts() {
   let refunded = 0;
   for (const gift of pending) {
     const payment = gift.order.payment;
-    const amountKobo = payment?.amountKobo ?? 0;
+    const amountKobo = payment ? refundableKobo(payment.amountKobo, gift.order.tipKobo) : 0;
     if (amountKobo > 0 && !payment?.providerTransactionId) {
       console.error(`REFUND NEEDED: expired gift ${gift.id} (order ${gift.orderId}, ${amountKobo} kobo) has no processor transaction id — refund manually.`);
       continue;

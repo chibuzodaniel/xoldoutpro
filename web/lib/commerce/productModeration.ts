@@ -1,6 +1,6 @@
 import type { CreatorPlan, ProductType } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
-import { recordRefund, getCommissionRates } from "@/lib/commerce/ledger";
+import { recordRefund, refundableKobo, getCommissionRates } from "@/lib/commerce/ledger";
 import { getBuyerPaysFeePercentFor } from "@/lib/commerce/creatorPlans";
 import { refundCharge } from "@/lib/commerce/claimPayment";
 import { createNotification } from "@/lib/notifications/create";
@@ -82,13 +82,16 @@ export async function takedownProduct(productId: string): Promise<{ refundFailur
     }
 
     const payment = order.payment;
-    if (payment && payment.amountKobo > 0) {
+    // A tip added at checkout is never refunded (refundableKobo) — only the
+    // purchase part goes back to the buyer; the artist keeps the tip.
+    const refundKobo = payment ? refundableKobo(payment.amountKobo, order.tipKobo) : 0;
+    if (payment && refundKobo > 0) {
       if (!payment.providerTransactionId) {
         refundFailures.push({ orderId, reason: "No processor transaction on record — refund manually" });
         continue;
       }
       try {
-        await refundCharge(payment.processor, payment.providerTransactionId, payment.amountKobo);
+        await refundCharge(payment.processor, payment.providerTransactionId, refundKobo);
       } catch (err) {
         refundFailures.push({ orderId, reason: err instanceof Error ? err.message : "Refund call failed" });
         continue;
@@ -97,7 +100,7 @@ export async function takedownProduct(productId: string): Promise<{ refundFailur
 
     await db.$transaction(async (tx) => {
       await tx.entitlement.updateMany({ where: { id: { in: entitlementIds } }, data: { revokedAt: new Date() } });
-      if (payment) await recordRefund(tx, { sellerId: product.creatorId, orderId, grossKobo: payment.amountKobo });
+      if (payment) await recordRefund(tx, { sellerId: product.creatorId, orderId, grossKobo: refundKobo });
       await tx.order.update({ where: { id: orderId }, data: { status: "REFUNDED" } });
     });
 
@@ -105,7 +108,9 @@ export async function takedownProduct(productId: string): Promise<{ refundFailur
       await createNotification(order.buyerId, {
         kind: "REFUND",
         title: "Order refunded",
-        body: `${product.title} · ${formatNaira(payment.amountKobo)} refunded to your original payment method.`,
+        body: `${product.title} · ${formatNaira(refundKobo)} refunded to your original payment method${
+          order.tipKobo > 0 ? `. Your ${formatNaira(order.tipKobo)} tip stays with the artist` : ""
+        }.`,
         url: "/library",
       });
     }

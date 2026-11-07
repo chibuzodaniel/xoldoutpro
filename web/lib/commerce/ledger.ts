@@ -156,6 +156,18 @@ export async function recordSale(
   }
 }
 
+/**
+ * Tips are never refunded, for any reason (explicit ask, 2026-11-07: "a tip
+ * is a gift given and cannot be returned"). Every refund path — takedowns,
+ * late sold-out payments, expired gifts — refunds only this much of a
+ * payment, and passes the same figure to recordRefund, so the tip's
+ * TIP_CREDIT/TIP_COMMISSION_FEE rows are never reversed. A tip-only order
+ * (Order.isTipOnly) has nothing refundable at all.
+ */
+export function refundableKobo(paymentAmountKobo: number, tipKobo: number): number {
+  return Math.max(paymentAmountKobo - tipKobo, 0);
+}
+
 /** Live, moderator-editable platform cut of a fan tip (SiteControlsPanel). */
 export async function getTipCommissionRate(client: Prisma.TransactionClient | typeof db = db): Promise<number> {
   const row = await client.platformSettings.findUnique({ where: { id: "singleton" }, select: { commissionTipPercent: true } });
@@ -353,9 +365,9 @@ export async function recordRefund(
   args: { sellerId: string; orderId: string; grossKobo: number },
 ) {
   const [commissionEntries, promoterFeeEntry, ambassadorEntries, royaltyCreditEntries] = await Promise.all([
-    // TIP_COMMISSION_FEE too: grossKobo is the whole payment, tip included,
-    // so the platform's cut of the tip is kept the same way as a sale's.
-    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: { in: ["COMMISSION_FEE", "TIP_COMMISSION_FEE"] } } }),
+    // COMMISSION_FEE only — never TIP_COMMISSION_FEE: grossKobo excludes any
+    // tip (refundableKobo), and the tip itself is never reversed.
+    tx.walletLedgerEntry.findMany({ where: { orderId: args.orderId, kind: "COMMISSION_FEE" } }),
     tx.walletLedgerEntry.findFirst({ where: { orderId: args.orderId, kind: "PROMOTER_FEE" } }),
     // Up to two — a sale can credit an ambassador on the buyer's side, the
     // seller's side, or both (recordSale above), each its own row.

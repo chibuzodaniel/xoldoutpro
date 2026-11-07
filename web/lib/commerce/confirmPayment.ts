@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { confirmStock, releaseReservation, reserveStock } from "@/lib/commerce/stock";
 import { claimPaymentForWebhook, refundCharge, isRefundUnsupported, creditRefundToWallet } from "@/lib/commerce/claimPayment";
-import { recordSale, recordTip, getWalletBalances, getCommissionRates, getTipCommissionRate } from "@/lib/commerce/ledger";
+import { recordSale, recordTip, refundableKobo, getWalletBalances, getCommissionRates, getTipCommissionRate } from "@/lib/commerce/ledger";
 import { giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificationEmail } from "@/lib/email";
@@ -51,27 +51,50 @@ type VerifiedResult = { id: number | string; status: "successful" | "failed" | s
 // only thing to undo; the order just stays FAILED. A failed refund call is
 // logged loudly rather than thrown, since retrying the webhook can't help
 // (the payment row is already claimed).
+//
+// A tip on the same payment is never refunded (explicit ask, 2026-11-07: "a
+// tip is a gift given and cannot be returned") — it's paid to the artist as
+// normal and only the purchase part goes back to the buyer.
 async function refundLateSoldOutPayment(payment: PaymentForConfirm, chargeId: string, productId: string) {
-  const product = await db.product.findUnique({ where: { id: productId }, select: { title: true } });
+  const product = await db.product.findUnique({
+    where: { id: productId },
+    select: { title: true, creatorId: true, creator: { select: { creatorPlan: true } } },
+  });
+  const tipKobo = payment.order.tipKobo;
+  const refundKobo = refundableKobo(payment.amountKobo, tipKobo);
+
+  if (tipKobo > 0 && product) {
+    await db.$transaction((tx) =>
+      recordTip(tx, { sellerId: product.creatorId, orderId: payment.orderId, tipKobo, sellerPlan: product.creator.creatorPlan }),
+    );
+    await createNotification(product.creatorId, {
+      kind: "SALE",
+      title: "You got a tip",
+      body: `A fan tipped ${formatNaira(tipKobo)} on ${product.title}`,
+      url: "/wallet",
+    });
+  }
+  if (refundKobo === 0) return;
+
   let toWallet = false;
   try {
-    await refundCharge(payment.processor, chargeId, payment.amountKobo);
+    await refundCharge(payment.processor, chargeId, refundKobo);
   } catch (err) {
     if (!isRefundUnsupported(err)) {
       console.error(
-        `REFUND NEEDED: late payment ${payment.id} (charge ${chargeId}, order ${payment.orderId}, ${payment.amountKobo} kobo) — item sold out and the automatic refund failed.`,
+        `REFUND NEEDED: late payment ${payment.id} (charge ${chargeId}, order ${payment.orderId}, ${refundKobo} kobo, tip of ${tipKobo} kept) — item sold out and the automatic refund failed.`,
         err,
       );
       return;
     }
     // Processor won't reverse this charge — wallet credit instead.
-    await creditRefundToWallet({ userId: payment.order.buyerId, orderId: payment.orderId, amountKobo: payment.amountKobo });
+    await creditRefundToWallet({ userId: payment.order.buyerId, orderId: payment.orderId, amountKobo: refundKobo });
     toWallet = true;
   }
   await createNotification(payment.order.buyerId, {
     kind: "REFUND",
     title: "Payment refunded",
-    body: `${product?.title ?? "Your item"} sold out before your payment came through · ${formatNaira(payment.amountKobo)} refunded to your ${toWallet ? "xoldOut wallet" : "original payment method"}.`,
+    body: `${product?.title ?? "Your item"} sold out before your payment came through · ${formatNaira(refundKobo)} refunded to your ${toWallet ? "xoldOut wallet" : "original payment method"}${tipKobo > 0 ? `. Your ${formatNaira(tipKobo)} tip went to the artist` : ""}.`,
     url: toWallet ? "/wallet" : "/library",
   });
 }
