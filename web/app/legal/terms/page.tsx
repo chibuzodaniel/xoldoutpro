@@ -82,6 +82,15 @@ export default function TermsOfServicePage() {
             the beat file itself as a standalone product.
           </p>
           <p>
+            <strong>License tiers.</strong> A producer may instead offer a beat under one or more named licenses (for
+            example Basic, Premium or Exclusive), each with its own price, files and terms — such as streaming limits,
+            monetization, music video, radio, live performance, Content ID, duration and producer credit. Those terms are
+            shown before purchase, you agree to the license you choose at checkout, and they replace the single license
+            above for that purchase. A copy of your agreement is available to download from the beat&apos;s page. When an
+            exclusive license is sold, the producer stops selling further licenses for that beat on XOLDOUT; licenses
+            sold before it remain valid.
+          </p>
+          <p>
             <strong>Producer Agreement.</strong> Before publishing a beat, a producer must confirm they own it, or
             have the rights to license it, and that any samples used have been cleared for commercial use — XOLDOUT
             relies on this confirmation and does not independently verify it. By publishing, a producer authorizes

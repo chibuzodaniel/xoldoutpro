@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { licensesSchema } from "@/lib/commerce/beatLicenses";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generatePreviewClip } from "@/lib/audio/generatePreviewClip";
@@ -23,6 +24,9 @@ const createSchema = z
     bpm: z.number().int().positive().optional(),
     musicalKey: z.string().max(10).optional(),
     tags: z.array(z.string().max(24)).max(8).default([]),
+    // License tiers (lib/commerce/beatLicenses.ts) — optional; none = the
+    // single flat license, priced by priceKobo, as before.
+    licenses: licensesSchema.default([]),
     // Required every publish, even for a returning producer — this is a
     // per-beat ownership/rights confirmation, not the one-time Producer
     // Agreement acceptance below (User.producerAgreementAcceptedAt).
@@ -50,9 +54,21 @@ export async function POST(req: NextRequest) {
           type: "BEAT",
           title: body.title,
           description: body.description,
-          priceKobo: body.priceKobo,
+          // With tiers, the listing shows the cheapest one ("from ₦X"); each
+          // tier's own price is what checkout charges.
+          priceKobo: body.licenses.length ? Math.min(...body.licenses.map((l) => l.priceKobo)) : body.priceKobo,
           status: "PUBLISHED",
           publishedAt: new Date(),
+          beatLicenses: {
+            create: body.licenses.map((l, i) => ({
+              name: l.name,
+              priceKobo: l.priceKobo,
+              formats: l.formats,
+              isExclusive: l.isExclusive,
+              terms: l.terms,
+              order: i,
+            })),
+          },
           beat: {
             create: {
               coverImageLadder: body.coverImageLadder,
@@ -71,7 +87,7 @@ export async function POST(req: NextRequest) {
           },
           stockPolicy: { create: { cap: body.cap } },
         },
-        include: { beat: true, stockPolicy: true },
+        include: { beat: true, stockPolicy: true, beatLicenses: true },
       });
 
       // One-time — only set on the very first beat a producer ever

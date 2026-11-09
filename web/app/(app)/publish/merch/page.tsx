@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { VariantsEditor, emptyVariants, variantsPayload, type VariantsState } from "@/components/merch/VariantsEditor";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
@@ -19,6 +20,9 @@ export default function UploadMerchPage() {
   const [priceNaira, setPriceNaira] = useState("");
   const [shippingFeeNaira, setShippingFeeNaira] = useState("");
   const [hasCap, setHasCap] = useState(false);
+  // Sizes & colours (optional) and an optional size guide.
+  const [variants, setVariants] = useState<VariantsState>(emptyVariants);
+  const [sizeGuide, setSizeGuide] = useState("");
   const [capValue, setCapValue] = useState("");
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -66,6 +70,8 @@ export default function UploadMerchPage() {
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
       return toast.error("Enter a valid limited quantity");
     }
+    const variantResult = variantsPayload(variants);
+    if ("error" in variantResult) return toast.error(variantResult.error);
 
     setSubmitting(true);
     try {
@@ -84,7 +90,17 @@ export default function UploadMerchPage() {
         setGalleryUploading(false);
       }
 
-      const payload = { title, description, priceKobo, shippingFeeKobo, cap, imageLadder, galleryImageUrls };
+      const payload = {
+        title,
+        description,
+        priceKobo,
+        shippingFeeKobo,
+        cap,
+        imageLadder,
+        galleryImageUrls,
+        variants: variantResult.variants,
+        sizeGuide: sizeGuide.trim() || undefined,
+      };
 
       const res = await apiFetch("/api/merch", { method: "POST", body: JSON.stringify(payload) });
       if (!res.ok) {
@@ -250,6 +266,22 @@ export default function UploadMerchPage() {
             />
           </div>
           <p className="text-[10.5px] text-ink-3">Added to the price at checkout. Leave blank for free shipping.</p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Sizes and colours (optional)</label>
+          <p className="text-[10.5px] text-ink-3 -mt-1">Buyers pick one before checkout. Same price for every option.</p>
+          <VariantsEditor value={variants} onChange={setVariants} />
+          {variants.sizes.length > 0 && (
+            <textarea
+              value={sizeGuide}
+              onChange={(e) => setSizeGuide(e.target.value)}
+              maxLength={1000}
+              rows={3}
+              placeholder="Size guide (optional), e.g. M fits chest 96–101cm"
+              className="rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none focus:border-red resize-none"
+            />
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

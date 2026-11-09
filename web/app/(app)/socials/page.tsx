@@ -13,6 +13,7 @@ import { FallbackImg } from "@/components/ui/FallbackImg";
 import { AppHeader } from "@/components/nav/AppHeader";
 import { LiveNowPanel } from "@/components/live/LiveNowPanel";
 import { BroadcastIcon } from "@/components/live/LiveIcons";
+import { PeopleToFollow } from "@/components/social/PeopleToFollow";
 
 type FollowedCreator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
@@ -135,6 +136,8 @@ function SocialsPageInner() {
                 Watch artists streaming right now, send gifts and request songs.
               </Link>
             </div>
+
+            {tab === "forYou" && <PeopleToFollow />}
 
             {tab === "following" && following && following.length > 0 && (
               <div className="-mx-4 mt-6 flex gap-4 overflow-x-auto px-4 [scrollbar-width:none]">

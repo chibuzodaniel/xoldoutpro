@@ -23,7 +23,7 @@ type CatalogProduct = {
 type FulfillmentOrder = {
   id: string;
   buyer: { displayName: string; handle: string };
-  items: { product: { id: string; title: string } }[];
+  items: { product: { id: string; title: string }; variantLabel?: string | null; quantity?: number }[];
   merchFulfillment: {
     status: "TO_SHIP" | "SHIPPED" | "DELIVERED";
     recipientName: string;
@@ -276,7 +276,7 @@ export default function MerchCatalogPage() {
           {orders.map((o) => (
             <div key={o.id} className="rounded-lg border border-line bg-surface p-4">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-semibold">{o.items.map((i) => i.product.title).join(", ")}</p>
+                <p className="text-sm font-semibold">{o.items.map((i) => (i.variantLabel ? `${i.product.title} (${i.variantLabel})` : i.product.title)).join(", ")}</p>
                 <span className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">
                   {o.merchFulfillment?.status.replace("_", " ")}
                 </span>

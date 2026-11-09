@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
@@ -15,6 +16,8 @@ import { isGuestEmailVerified } from "@/lib/commerce/guestVerification";
 import { adminAuth } from "@/lib/firebase/admin";
 import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
 import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO, MAX_TIP_KOBO } from "@/lib/commerce/constants";
+import { reserveVariant, confirmVariant, releaseVariant, variantLabel } from "@/lib/commerce/variants";
+import { isExclusiveSnapshot, closeBeatAfterExclusive } from "@/lib/commerce/beatLicenses";
 
 // One spot for every processor's checkout-page call — the purchase and
 // tip-only paths below both end here.
@@ -79,6 +82,12 @@ const bodySchema = z.object({
   // against EventPromoter below; a stale/invalid/self-referral code is
   // silently ignored rather than blocking checkout.
   promoCode: z.string().optional(),
+  // Merch size/colour (MerchVariant) — required when the listing has variants.
+  variantId: z.string().min(1).optional(),
+  // Beat license tier (BeatLicense) and the buyer's agreement to its terms —
+  // both required when the beat has tiers.
+  licenseId: z.string().min(1).optional(),
+  acceptedLicenseTerms: z.boolean().optional(),
   // "Let fans pay anything" releases (Product.payWhatYouWant): the price the
   // fan chose, in kobo. Must be at least the product's priceKobo floor
   // (never below PAY_WHAT_YOU_WANT_MIN_KOBO). Ignored for fixed-price items.
@@ -97,7 +106,7 @@ const MULTI_UNIT_TYPES = new Set(["EVENT", "MERCH"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { productId, tipCreatorId, shipping, isGift = false, guest, quantity, gateway, promoCode, payAmountKobo, tipKobo, tipOnly } =
+    const { productId, tipCreatorId, shipping, isGift = false, guest, quantity, gateway, promoCode, payAmountKobo, tipKobo, tipOnly, variantId, licenseId, acceptedLicenseTerms } =
       bodySchema.parse(await req.json());
     if (!tipOnly && !productId) return NextResponse.json({ error: "Missing product" }, { status: 400 });
     if (tipOnly && !productId && !tipCreatorId) return NextResponse.json({ error: "Who is this tip for?" }, { status: 400 });
@@ -220,9 +229,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "You can't buy your own listing" }, { status: 400 });
     }
 
+    // Beat license tiers (lib/commerce/licenseTerms.ts): pick one, agree to
+    // its terms, pay its price. Name + full terms are snapshotted on the
+    // order line so later edits never change what was bought.
+    let license: { id: string; name: string; priceKobo: number; snapshot: Prisma.InputJsonValue } | null = null;
+    if (product.type === "BEAT") {
+      const licenses = await db.beatLicense.findMany({ where: { productId } });
+      if (licenses.length > 0) {
+        const picked = licenses.find((l) => l.id === licenseId);
+        if (!picked) return NextResponse.json({ error: "Pick a license first" }, { status: 400 });
+        if (acceptedLicenseTerms !== true) {
+          return NextResponse.json({ error: `Agree to the ${picked.name} license terms to buy` }, { status: 400 });
+        }
+        license = {
+          id: picked.id,
+          name: picked.name,
+          priceKobo: picked.priceKobo,
+          snapshot: { formats: picked.formats, isExclusive: picked.isExclusive, terms: picked.terms } as Prisma.InputJsonValue,
+        };
+      }
+    }
+
     // Pay-what-you-want: the fan's chosen price replaces priceKobo as the
     // per-unit price, never below the release's own floor (₦500 minimum).
-    let unitPriceKobo = product.priceKobo;
+    let unitPriceKobo = license ? license.priceKobo : product.priceKobo;
     if (product.payWhatYouWant) {
       const floorKobo = Math.max(product.priceKobo, PAY_WHAT_YOU_WANT_MIN_KOBO);
       unitPriceKobo = payAmountKobo ?? floorKobo;
@@ -261,6 +291,18 @@ export async function POST(req: NextRequest) {
     // OrderItem already is, since it doesn't depend on payment succeeding.
     if (product.type === "MERCH" && !shipping) {
       return NextResponse.json({ error: "Shipping address is required" }, { status: 400 });
+    }
+
+    // Merch sizes & colours (lib/commerce/variants.ts): a listing with
+    // variants needs one picked, and it must belong to this listing.
+    let variant: { id: string; label: string } | null = null;
+    if (product.type === "MERCH") {
+      const variants = await db.merchVariant.findMany({ where: { productId }, select: { id: true, size: true, color: true } });
+      if (variants.length > 0) {
+        const picked = variants.find((v) => v.id === variantId);
+        if (!picked) return NextResponse.json({ error: "Pick a size or colour first" }, { status: 400 });
+        variant = { id: picked.id, label: variantLabel(picked) };
+      }
     }
 
     // Ticket promoter split (EVENT only) — resolve the promo code against
@@ -311,6 +353,15 @@ export async function POST(req: NextRequest) {
     if (!reservation.ok) {
       return NextResponse.json({ error: "Sold out" }, { status: 409 });
     }
+    if (variant && !(await reserveVariant(variant.id, quantity))) {
+      await releaseReservation(productId, quantity);
+      return NextResponse.json({ error: `${variant.label} is sold out` }, { status: 409 });
+    }
+    // Releases both holds (listing + size/colour) when checkout can't go ahead.
+    const releaseHolds = async () => {
+      await releaseReservation(productId, quantity);
+      if (variant) await releaseVariant(variant.id, quantity);
+    };
 
     // Free releases are a sale at ₦0 (PRD §7.1/§8): no payment processor
     // involved, entitlement granted immediately, still counted as a unit sold.
@@ -327,7 +378,18 @@ export async function POST(req: NextRequest) {
               isGift,
               promoterId,
               commissionOverrideKobo,
-              items: { create: { productId, priceKobo: 0, quantity } },
+              items: {
+                create: {
+                  productId,
+                  priceKobo: 0,
+                  quantity,
+                  variantId: variant?.id,
+                  variantLabel: variant?.label,
+                  licenseId: license?.id,
+                  licenseName: license?.name,
+                  licenseTerms: license?.snapshot,
+                },
+              },
               merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
             },
           });
@@ -345,6 +407,8 @@ export async function POST(req: NextRequest) {
             }
           }
           await confirmStock(productId, quantity, tx);
+          if (variant) await confirmVariant(variant.id, quantity, tx);
+          if (license && isExclusiveSnapshot(license.snapshot)) await closeBeatAfterExclusive(tx, productId);
           return created;
         });
 
@@ -374,7 +438,7 @@ export async function POST(req: NextRequest) {
 
         return NextResponse.json({ free: true, orderId: order.id, customToken }, { status: 201 });
       } catch (err) {
-        await releaseReservation(productId, quantity);
+        await releaseHolds();
         throw err;
       }
     }
@@ -389,7 +453,18 @@ export async function POST(req: NextRequest) {
           promoterId,
           commissionOverrideKobo,
           tipKobo,
-          items: { create: { productId, priceKobo: unitPriceKobo, quantity } },
+          items: {
+            create: {
+              productId,
+              priceKobo: unitPriceKobo,
+              quantity,
+              variantId: variant?.id,
+              variantLabel: variant?.label,
+              licenseId: license?.id,
+              licenseName: license?.name,
+              licenseTerms: license?.snapshot,
+            },
+          },
           merchFulfillment: shipping ? { create: { ...shipping, shippingFeeKobo } } : undefined,
         },
       });
@@ -409,7 +484,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ orderId: order.id, checkoutUrl, guestOrderToken: guestAccessToken }, { status: 201 });
     } catch (err) {
-      await releaseReservation(productId, quantity);
+      await releaseHolds();
       console.error(err);
       return NextResponse.json({ error: "Could not start checkout" }, { status: 502 });
     }

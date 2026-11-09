@@ -665,6 +665,8 @@ model Product {
   billboards           Billboard[]
   addOns               ProductAddOn[]
   collaborators        ReleaseCollaborator[]
+  merchVariants        MerchVariant[]
+  beatLicenses         BeatLicense[]
 
   @@index([creatorId])
   @@index([status, type])
@@ -991,6 +993,56 @@ model MerchItem {
   imageLadder      Json
   galleryImageUrls String[] @default([])
   shippingFeeKobo  Int      @default(0) // flat fee, creator-set at publish time; added to Product.priceKobo at checkout
+  // Optional size guide text shown next to the size picker (v2, 2026-11-09).
+  sizeGuide        String?
+}
+
+// Beat license tiers (v2, design/v2-prototype, 2026-11-09). Optional — a beat
+// with none sells under the single flat license in /legal/terms (as before).
+// Each tier has its own price, formats and structured terms (lib/commerce/
+// beatLicenses.ts). The buyer picks one and agrees to it at checkout; the
+// tier's name and full terms are snapshotted on OrderItem so later edits
+// never change what someone bought. Buying an exclusive tier closes the beat
+// to further sales. Product.priceKobo holds the cheapest tier ("from ₦X").
+model BeatLicense {
+  id          String   @id @default(cuid())
+  productId   String
+  product     Product  @relation(fields: [productId], references: [id])
+  name        String
+  priceKobo   Int
+  formats     String[] @default([])
+  isExclusive Boolean  @default(false)
+  terms       Json
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  orderItems OrderItem[]
+
+  @@index([productId, order])
+}
+
+// Merch sizes & colours (v2, design/v2-prototype, 2026-11-09). Optional — a
+// merch listing with no variants works exactly as before. Each variant is a
+// size and/or colour with its own optional stock, on top of the listing's
+// overall StockPolicy (both are reserved/confirmed/released together —
+// lib/commerce/variants.ts). Same price for every variant. The buyer's pick
+// is snapshotted on OrderItem (variantId + variantLabel).
+model MerchVariant {
+  id        String    @id @default(cuid())
+  productId String
+  product   Product   @relation(fields: [productId], references: [id])
+  size      String?
+  color     String?
+  cap       Int? // null = no stock limit of its own
+  sold      Int       @default(0)
+  reserved  Int       @default(0)
+  soldOutAt DateTime?
+  order     Int       @default(0)
+  createdAt DateTime  @default(now())
+
+  orderItems OrderItem[]
+
+  @@index([productId, order])
 }
 
 enum FulfillmentStatus {
@@ -1086,6 +1138,17 @@ model OrderItem {
   productId String
   product   Product @relation(fields: [productId], references: [id])
   priceKobo Int // per-unit snapshot at purchase time, independent of later price edits
+  // Merch size/colour the buyer picked (MerchVariant), with a readable
+  // snapshot ("M · Black") so later variant edits never change past orders.
+  variantId    String?
+  variant      MerchVariant? @relation(fields: [variantId], references: [id])
+  variantLabel String?
+  // Beat license tier the buyer agreed to (BeatLicense), with its name and
+  // full terms snapshotted — the license agreement is generated from these.
+  licenseId    String?
+  license      BeatLicense? @relation(fields: [licenseId], references: [id])
+  licenseName  String?
+  licenseTerms Json?
   // Ticket/merch group buys (EVENT/MERCH only — RELEASE/BEAT stay quantity 1,
   // enforced in the orders API, not here). One Entitlement is still created
   // per unit (see Entitlement's own comment), so each ticket keeps its own

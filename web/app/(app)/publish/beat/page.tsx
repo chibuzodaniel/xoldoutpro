@@ -11,6 +11,9 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
 import Link from "next/link";
+import { useAuth } from "@/components/auth/AuthProvider";
+import { LicenseTiersEditor, tiersFromPresets, tiersPayload, type TierDraft } from "@/components/beats/LicenseTiersEditor";
+import { licensePresets } from "@/lib/commerce/licenseTerms";
 
 type AudioState = {
   status: "idle" | "uploading" | "ready" | "error";
@@ -34,6 +37,10 @@ export default function UploadBeatPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [isFree, setIsFree] = useState(false);
+  // "One price" (the flat license, as before) or license tiers.
+  const { appUser } = useAuth();
+  const [pricingMode, setPricingMode] = useState<"single" | "tiers">("single");
+  const [tiers, setTiers] = useState<TierDraft[]>(() => tiersFromPresets(licensePresets(appUser?.displayName ?? "the producer")));
   const [priceNaira, setPriceNaira] = useState("");
   const [hasCap, setHasCap] = useState(false);
   const [capValue, setCapValue] = useState("");
@@ -107,8 +114,11 @@ export default function UploadBeatPage() {
       return toast.error("Upload the beat's audio file first");
     }
 
-    const priceKobo = isFree ? 0 : Math.round(parseFloat(priceNaira || "0") * 100);
-    if (!isFree && (!priceNaira || priceKobo <= 0)) return toast.error("Set a price, or mark this beat free");
+    const tierResult = pricingMode === "tiers" ? tiersPayload(tiers) : null;
+    if (tierResult && "error" in tierResult) return toast.error(tierResult.error);
+    const licenses = tierResult && "licenses" in tierResult ? tierResult.licenses : [];
+    const priceKobo = licenses.length ? Math.min(...licenses.map((l) => l.priceKobo)) : isFree ? 0 : Math.round(parseFloat(priceNaira || "0") * 100);
+    if (!licenses.length && !isFree && (!priceNaira || priceKobo <= 0)) return toast.error("Set a price, or mark this beat free");
     const cap = hasCap ? parseInt(capValue, 10) : null;
     if (hasCap && (!capValue || !Number.isInteger(cap) || (cap as number) <= 0)) {
       return toast.error("Enter a valid limited quantity");
@@ -135,6 +145,7 @@ export default function UploadBeatPage() {
         musicalKey: musicalKey || undefined,
         tags,
         ownershipConfirmed,
+        licenses,
       };
 
       const res = await apiFetch("/api/beats", { method: "POST", body: JSON.stringify(payload) });
@@ -294,6 +305,28 @@ export default function UploadBeatPage() {
 
         <div className="flex flex-col gap-2">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Price</label>
+          <div className="flex gap-2">
+            {(
+              [
+                ["single", "One price"],
+                ["tiers", "License tiers"],
+              ] as const
+            ).map(([mode, label]) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setPricingMode(mode)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                  pricingMode === mode ? "border-red text-red-soft bg-red/10" : "border-line text-ink-2 hover:border-line-strong hover:text-ink"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {pricingMode === "tiers" && <LicenseTiersEditor tiers={tiers} onChange={setTiers} />}
+          {pricingMode === "single" && (
+          <>
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -321,6 +354,8 @@ export default function UploadBeatPage() {
           <p className="text-[10.5px] text-ink-3">
             One price, full commercial-use license — buyers get the master file, forever.
           </p>
+          </>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">

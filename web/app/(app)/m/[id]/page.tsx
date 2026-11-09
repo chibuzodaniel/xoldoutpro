@@ -35,6 +35,8 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
       creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
       merchItem: true,
       stockPolicy: true,
+      // Sizes & colours, in the seller's order.
+      merchVariants: { orderBy: { order: "asc" }, select: { id: true, size: true, color: true, cap: true, sold: true, reserved: true, soldOutAt: true } },
     },
   });
 
@@ -83,7 +85,20 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
       <HeroDescription text={product.description} />
       <div className="mt-5" />
 
-      <MerchPurchaseForm productId={product.id} priceKobo={product.priceKobo} shippingFeeKobo={shippingFee} isSoldOut={isSoldOut} />
+      <MerchPurchaseForm
+        productId={product.id}
+        priceKobo={product.priceKobo}
+        shippingFeeKobo={shippingFee}
+        isSoldOut={isSoldOut}
+        sizeGuide={product.merchItem.sizeGuide}
+        variants={product.merchVariants.map((v) => ({
+          id: v.id,
+          size: v.size,
+          color: v.color,
+          soldOut: Boolean(v.soldOutAt) || (v.cap !== null && v.sold + v.reserved >= v.cap),
+          remaining: v.cap !== null ? Math.max(v.cap - v.sold, 0) : null,
+        }))}
+      />
     </ProductHero>
   );
 }

@@ -30,9 +30,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const fulfillments = Array.from(fulfillmentsByOrderId.values()).map((ent) => {
     const f = ent.order.merchFulfillment;
-    const quantity = ent.order.items.find((i) => i.productId === id)?.quantity ?? 1;
+    const item = ent.order.items.find((i) => i.productId === id);
+    const quantity = item?.quantity ?? 1;
     return {
       quantity,
+      // Size/colour picked at checkout (merch variants), if any.
+      variantLabel: item?.variantLabel ?? null,
       status: f?.status ?? null,
       recipientName: f?.recipientName ?? null,
       addressLine1: f?.addressLine1 ?? null,

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { releaseReservation, releaseConfirmedUnit } from "@/lib/commerce/stock";
+import { releaseVariant } from "@/lib/commerce/variants";
 import { recordRefund, refundableKobo } from "@/lib/commerce/ledger";
 import { refundCharge, isRefundUnsupported, creditRefundToWallet } from "@/lib/commerce/claimPayment";
 import { createNotification } from "@/lib/notifications/create";
@@ -54,6 +55,9 @@ export async function GET(req: NextRequest) {
     if (claim.count === 0) continue; // a webhook won the race in the meantime
 
     if (productId && !payment.order.isTipOnly) await releaseReservation(productId, quantity);
+    // Merch size/colour hold (lib/commerce/variants.ts) is released with it.
+    const variantId = payment.order.items[0]?.variantId;
+    if (variantId) await releaseVariant(variantId, quantity);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
     swept += 1;
   }

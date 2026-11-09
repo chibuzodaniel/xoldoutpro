@@ -11,10 +11,21 @@ import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
 
-type Props = { productId: string; priceKobo: number; shippingFeeKobo: number; isSoldOut: boolean };
+// Merch sizes & colours (v2, 2026-11-09). Empty = a plain listing, as before.
+export type MerchVariantOption = { id: string; size: string | null; color: string | null; soldOut: boolean; remaining: number | null };
+
+type Props = {
+  productId: string;
+  priceKobo: number;
+  shippingFeeKobo: number;
+  isSoldOut: boolean;
+  variants?: MerchVariantOption[];
+  sizeGuide?: string | null;
+};
 
 type Fulfillment = {
   quantity: number;
+  variantLabel?: string | null;
   status: "TO_SHIP" | "SHIPPED" | "DELIVERED" | null;
   recipientName: string | null;
   addressLine1: string | null;
@@ -50,7 +61,7 @@ const STATUS_LABEL: Record<NonNullable<Fulfillment["status"]>, string> = {
   DELIVERED: "Delivered",
 };
 
-export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSoldOut }: Props) {
+export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSoldOut, variants = [], sizeGuide }: Props) {
   const router = useRouter();
   const toast = useToast();
   const { firebaseUser } = useAuth();
@@ -76,6 +87,19 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
 
+  // Size/colour picker. A listing can have sizes, colours, or both.
+  const sizes = [...new Set(variants.map((v) => v.size).filter((s): s is string => Boolean(s)))];
+  const colors = [...new Set(variants.map((v) => v.color).filter((c): c is string => Boolean(c)))];
+  const [size, setSize] = useState<string | null>(null);
+  const [color, setColor] = useState<string | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const hasVariants = variants.length > 0;
+  const chosen = hasVariants
+    ? (variants.find((v) => (sizes.length ? v.size === size : true) && (colors.length ? v.color === color : true)) ?? null)
+    : null;
+  const optionSoldOut = (s: string | null, c: string | null) =>
+    !variants.some((v) => (s === null || v.size === s) && (c === null || v.color === c) && !v.soldOut);
+
   async function load() {
     const res = await apiFetch(`/api/merch/${productId}/access`);
     if (!res.ok) return;
@@ -92,6 +116,14 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
   }, [productId]);
 
   async function handleStart() {
+    if (hasVariants && !chosen) {
+      toast.error(sizes.length && colors.length ? "Pick a size and a colour" : sizes.length ? "Pick a size" : "Pick a colour");
+      return;
+    }
+    if (chosen?.soldOut) {
+      toast.error("That option is sold out");
+      return;
+    }
     if (!firebaseUser) {
       try {
         setGuestInfo(await pickGuestInfo());
@@ -113,6 +145,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
         body: JSON.stringify({
           productId,
           quantity,
+          variantId: chosen?.id,
           gateway,
           guest: guestInfo ?? undefined,
           shipping: {
@@ -151,7 +184,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       {fulfillments.map((f, i) => (
         <div key={i} className="rounded-lg border border-line bg-surface p-4">
           <p className="text-sm font-semibold mb-1">
-            You bought this{f.quantity > 1 ? ` · ×${f.quantity}` : ""}.
+            You bought this{f.variantLabel ? ` · ${f.variantLabel}` : ""}{f.quantity > 1 ? ` · ×${f.quantity}` : ""}.
           </p>
           {f.status && (
             <>
@@ -181,11 +214,74 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     );
   }
 
+  const picker = hasVariants && (
+    <div className="flex flex-col gap-3">
+      {sizes.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Size{size ? `: ${size}` : ""}</p>
+            {sizeGuide && (
+              <button type="button" onClick={() => setGuideOpen((v) => !v)} className="text-xs font-semibold text-red-soft">
+                {guideOpen ? "Hide size guide" : "Size guide"}
+              </button>
+            )}
+          </div>
+          {guideOpen && sizeGuide && <p className="mb-2 whitespace-pre-line rounded-xl border border-line-soft p-3 text-xs text-ink-2">{sizeGuide}</p>}
+          <div className="flex flex-wrap gap-2">
+            {sizes.map((s) => {
+              const out = optionSoldOut(s, colors.length ? color : null);
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  disabled={out}
+                  onClick={() => setSize(s)}
+                  className={`min-w-[48px] rounded-xl border px-3 py-2.5 text-sm font-semibold ${
+                    size === s ? "border-red bg-red/10 text-red-soft" : "border-line text-ink-2"
+                  } disabled:line-through disabled:opacity-40`}
+                >
+                  {s}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {colors.length > 0 && (
+        <div>
+          <p className="mb-2 text-[12px] font-bold uppercase tracking-widest text-ink-3">Colour{color ? `: ${color}` : ""}</p>
+          <div className="flex flex-wrap gap-2">
+            {colors.map((c) => {
+              const out = optionSoldOut(sizes.length ? size : null, c);
+              return (
+                <button
+                  key={c}
+                  type="button"
+                  disabled={out}
+                  onClick={() => setColor(c)}
+                  className={`rounded-full border px-4 py-2 text-sm font-semibold ${
+                    color === c ? "border-red bg-red/10 text-red-soft" : "border-line text-ink-2"
+                  } disabled:line-through disabled:opacity-40`}
+                >
+                  {c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      {chosen && chosen.remaining !== null && !chosen.soldOut && chosen.remaining <= 10 && (
+        <p className="text-xs font-semibold text-red-soft">Only {chosen.remaining} left in this option</p>
+      )}
+    </div>
+  );
+
   if (!showForm) {
     return (
       <>
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {pastOrders}
+          {picker}
           <div className="flex items-center gap-2">
             <div className="flex items-center rounded-lg border border-line shrink-0">
               <button
@@ -219,6 +315,11 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
     <>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         {pastOrders}
+        {chosen && (
+          <p className="text-sm text-ink-2">
+            Option: <span className="font-semibold text-ink">{[chosen.size, chosen.color].filter(Boolean).join(" · ")}</span>
+          </p>
+        )}
         <p className="text-[12px] uppercase tracking-widest text-ink-3">Shipping address</p>
       <input
         value={recipientName}

@@ -12,6 +12,10 @@ import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
+import { termRows, type LicenseTerms } from "@/lib/commerce/licenseTerms";
+
+// Beat license tiers (v2, 2026-11-09). Empty = the single flat license, as before.
+export type BeatLicenseOption = { id: string; name: string; priceKobo: number; formats: string[]; isExclusive: boolean; terms: LicenseTerms };
 
 type Props = {
   productId: string;
@@ -21,6 +25,7 @@ type Props = {
   durationSec: number;
   priceKobo: number;
   isSoldOut: boolean;
+  licenses?: BeatLicenseOption[];
 };
 
 function formatNaira(kobo: number) {
@@ -43,7 +48,7 @@ function formatTime(sec: number) {
 // /api/beats/[id]/audio-url instead of the track route) — this is what
 // makes a beat preview survive a route change into the mini player like
 // Release playback already does.
-export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl, durationSec, priceKobo, isSoldOut }: Props) {
+export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl, durationSec, priceKobo: listPriceKobo, isSoldOut, licenses = [] }: Props) {
   const router = useRouter();
   const player = usePlayer();
   const toast = useToast();
@@ -56,6 +61,13 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
   // for everyone — corrected from the access response once it loads.
   const [downloadsAllowed, setDownloadsAllowed] = useState(true);
   const [serviceChargePercent, setServiceChargePercent] = useState<number | null>(null);
+  // License pick + agreement. With tiers, the chosen tier's price is what's charged.
+  const [licenseId, setLicenseId] = useState<string | null>(licenses[0]?.id ?? null);
+  const [agreed, setAgreed] = useState(false);
+  const [fullTermsFor, setFullTermsFor] = useState<string | null>(null);
+  const [gettingAgreement, setGettingAgreement] = useState(false);
+  const chosenLicense = licenses.find((l) => l.id === licenseId) ?? null;
+  const priceKobo = chosenLicense ? chosenLicense.priceKobo : listPriceKobo;
   const { gatewaySheetOpen, pickGateway, handleGatewaySelect, closeGatewaySheet } = useGatewayCheckout();
   const { guestInfoSheetOpen, pickGuestInfo, handleGuestInfoSubmit, closeGuestInfoSheet } = useGuestCheckout();
 
@@ -108,12 +120,44 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
     }
   }
 
+  async function handleDownloadAgreement() {
+    setGettingAgreement(true);
+    try {
+      const res = await apiFetch(`/api/beats/${productId}/agreement`);
+      if (!res.ok) throw new Error("Could not get your license agreement");
+      const blob = await res.blob();
+      const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? "license.txt";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Download failed");
+    } finally {
+      setGettingAgreement(false);
+    }
+  }
+
   async function handleBuy() {
+    if (licenses.length > 0 && (!chosenLicense || !agreed)) {
+      toast.error(chosenLicense ? `Tick the box to agree to the ${chosenLicense.name} license terms` : "Pick a license");
+      return;
+    }
     setBusy(true);
     try {
       const guest: GuestInfo | undefined = firebaseUser ? undefined : await pickGuestInfo();
       const gateway = priceKobo > 0 ? await pickGateway() : undefined;
-      const res = await apiFetch("/api/orders", { method: "POST", body: JSON.stringify({ productId, guest, gateway }) });
+      const res = await apiFetch("/api/orders", {
+        method: "POST",
+        body: JSON.stringify({
+          productId,
+          guest,
+          gateway,
+          ...(chosenLicense ? { licenseId: chosenLicense.id, acceptedLicenseTerms: agreed } : {}),
+        }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Could not start checkout");
       if (data.customToken) await completeGuestSignIn(data.customToken);
@@ -133,8 +177,72 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
 
   const serviceChargeKobo = serviceChargePercent != null ? Math.round((priceKobo * serviceChargePercent) / 100) : 0;
 
+  const canBuy = !entitled && !isOwner && !isSoldOut;
+
   return (
     <div>
+      {canBuy && licenses.length > 0 && (
+        <section className="mb-5">
+          <h2 className="font-serif text-2xl font-bold">Licensing options</h2>
+          <p className="mb-3 text-sm text-ink-3">Set by the producer. Review what each license allows before you buy.</p>
+          <div className="flex flex-col gap-3">
+            {licenses.map((l) => {
+              const selected = l.id === licenseId;
+              const rows = termRows(l.terms);
+              const showAll = fullTermsFor === l.id;
+              return (
+                <div
+                  key={l.id}
+                  className={`rounded-2xl border p-4 ${selected ? "border-red bg-red-tint" : "border-line bg-surface"}`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLicenseId(l.id);
+                      setAgreed(false);
+                    }}
+                    className="flex w-full items-start justify-between gap-3 text-left"
+                    aria-pressed={selected}
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${selected ? "border-red" : "border-line-strong"}`}>
+                        {selected && <span className="h-2.5 w-2.5 rounded-full bg-red" />}
+                      </span>
+                      <span className="text-[17px] font-bold">{l.name}</span>
+                      {l.isExclusive && <span className="rounded bg-red px-1.5 py-0.5 text-[10px] font-extrabold text-white">EXCLUSIVE</span>}
+                    </span>
+                    <span className="font-serif text-2xl font-bold text-red-soft">{nairaAmount(l.priceKobo)}</span>
+                  </button>
+                  <div className="mt-2 flex gap-1.5">
+                    {l.formats.map((f) => (
+                      <span key={f} className="rounded bg-surface-2 px-2 py-0.5 text-[11px] font-bold">
+                        {f}
+                      </span>
+                    ))}
+                  </div>
+                  <dl className="mt-3 flex flex-col gap-1.5 text-[13px]">
+                    {(showAll ? rows : rows.slice(0, 5)).map((r) => (
+                      <div key={r.label} className="flex justify-between gap-3">
+                        <dt className="text-ink-3">{r.label}</dt>
+                        <dd className="text-right text-ink">{r.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <button type="button" onClick={() => setFullTermsFor(showAll ? null : l.id)} className="mt-2 text-[13px] font-semibold text-red-soft">
+                    {showAll ? "Hide full terms" : "Show full terms"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {chosenLicense && (
+            <label className="mt-4 flex items-start gap-3 text-[14px] text-ink-2">
+              <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-5 w-5 accent-red" />
+              I&apos;ve read the {chosenLicense.name} license terms and agree to them.
+            </label>
+          )}
+        </section>
+      )}
       {/* The "₦X + ₦Y service charge (N%) = ₦Z" breakdown was removed
           (explicit ask, 2026-11-07); the Buy button still shows the total. */}
       {!entitled && !isOwner && !isSoldOut && (
@@ -146,14 +254,16 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
         {!entitled && !isOwner && (
           <button
             onClick={handleBuy}
-            disabled={busy || isSoldOut}
+            disabled={busy || isSoldOut || (licenses.length > 0 && !agreed)}
             className="flex-1 rounded-full bg-red px-5 py-4 text-[16px] font-bold text-white disabled:opacity-50"
           >
             {isSoldOut
               ? "Sold out"
               : busy
                 ? "Starting checkout…"
-                : serviceChargePercent != null && priceKobo > 0
+                : chosenLicense
+                  ? `Accept terms to buy · ${nairaAmount(serviceChargePercent != null ? priceKobo + serviceChargeKobo : priceKobo)}`
+                  : serviceChargePercent != null && priceKobo > 0
                   ? `Buy · ${nairaAmount(priceKobo + serviceChargeKobo)}`
                   : formatNaira(priceKobo)}
           </button>
@@ -202,7 +312,17 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
             )}
             {downloading ? "Downloading…" : "Download"}
           </button>
-          {entitled && <p className="text-[12px] text-green mt-3">You own this beat, licensed for commercial use.</p>}
+          {entitled && (
+            <button
+              type="button"
+              onClick={handleDownloadAgreement}
+              disabled={gettingAgreement}
+              className="mt-2 w-full rounded-lg border border-line px-4 py-3 text-sm font-semibold disabled:opacity-60"
+            >
+              {gettingAgreement ? "Preparing…" : "Download license agreement"}
+            </button>
+          )}
+          {entitled && <p className="text-[12px] text-green mt-3">You own this beat. Your license terms are in the agreement above.</p>}
         </div>
       )}
 

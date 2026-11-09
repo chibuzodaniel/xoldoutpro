@@ -8,6 +8,8 @@ import { sendOrderConfirmationEmail, sendPaymentFailedEmail, sendSaleNotificatio
 import { createNotification } from "@/lib/notifications/create";
 import { activatePendingGuest } from "@/lib/commerce/guestCheckout";
 import { getRoyaltySplits } from "@/lib/music/collaborators";
+import { reserveVariant, confirmVariant, releaseVariant } from "@/lib/commerce/variants";
+import { isExclusiveSnapshot, closeBeatAfterExclusive } from "@/lib/commerce/beatLicenses";
 
 const SITE_URL = "https://www.xoldout.app";
 
@@ -39,7 +41,7 @@ type PaymentForConfirm = {
     tipKobo: number;
     isTipOnly: boolean;
     tipRecipientId: string | null;
-    items: { productId: string; quantity: number }[];
+    items: { productId: string; quantity: number; variantId?: string | null; licenseTerms?: unknown }[];
     buyer: { referredByAmbassadorId: string | null };
   };
 };
@@ -122,6 +124,8 @@ export async function finalizePayment(
 
   const productId = payment.order.items[0]?.productId;
   const quantity = payment.order.items[0]?.quantity ?? 1;
+  // Merch size/colour picked at checkout — its stock moves with the listing's.
+  const variantId = payment.order.items[0]?.variantId ?? null;
 
   // Standalone tip (release page or artist profile): nothing is bought, so
   // there's no stock to win back or release and no entitlement — just the
@@ -145,10 +149,16 @@ export async function finalizePayment(
       await refundLateSoldOutPayment(payment, String(verified.id), productId);
       return { alreadyProcessed: false, success: false };
     }
+    if (variantId && !(await reserveVariant(variantId, quantity))) {
+      await releaseReservation(productId, quantity);
+      await refundLateSoldOutPayment(payment, String(verified.id), productId);
+      return { alreadyProcessed: false, success: false };
+    }
   }
 
   if (verified.status !== "successful" || verified.amountKobo !== payment.amountKobo) {
     await releaseReservation(productId, quantity);
+    if (variantId) await releaseVariant(variantId, quantity);
     await db.order.update({ where: { id: payment.orderId }, data: { status: "FAILED" } });
 
     const [buyer, failedProduct] = await Promise.all([
@@ -200,6 +210,9 @@ export async function finalizePayment(
       }
     }
     await confirmStock(productId, quantity, tx);
+    if (variantId) await confirmVariant(variantId, quantity, tx);
+    // An exclusive beat license closes the beat to further sales.
+    if (isExclusiveSnapshot(payment.order.items[0]?.licenseTerms)) await closeBeatAfterExclusive(tx, productId);
 
     // Ticket promoter split (EVENT only) — resolved from the promoterId
     // captured at checkout time (app/api/orders/route.ts, from a

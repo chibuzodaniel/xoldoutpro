@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
+import { variantInputSchema, MAX_VARIANTS } from "@/lib/commerce/variants";
 
 const createSchema = z.object({
   title: z.string().min(1).max(200),
@@ -12,6 +13,9 @@ const createSchema = z.object({
   cap: z.number().int().positive().nullable(),
   imageLadder: z.record(z.string(), z.string()),
   galleryImageUrls: z.array(z.string()).max(8).default([]),
+  // Sizes & colours (lib/commerce/variants.ts) — optional; none = one plain listing as before.
+  variants: z.array(variantInputSchema).max(MAX_VARIANTS).default([]),
+  sizeGuide: z.string().trim().max(1000).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -35,11 +39,15 @@ export async function POST(req: NextRequest) {
               imageLadder: body.imageLadder,
               galleryImageUrls: body.galleryImageUrls,
               shippingFeeKobo: body.shippingFeeKobo,
+              sizeGuide: body.sizeGuide || null,
             },
           },
           stockPolicy: { create: { cap: body.cap } },
+          merchVariants: {
+            create: body.variants.map((v, i) => ({ size: v.size?.trim() || null, color: v.color?.trim() || null, cap: v.cap ?? null, order: i })),
+          },
         },
-        include: { merchItem: true, stockPolicy: true },
+        include: { merchItem: true, stockPolicy: true, merchVariants: true },
       });
       return created;
     });

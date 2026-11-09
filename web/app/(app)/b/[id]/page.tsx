@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
 import { ProductHero, HeroPrice, HeroMeta, HeroDescription } from "@/components/product/detail/ProductHero";
 import { HeroPlayButton } from "@/components/product/detail/HeroPlayButton";
+import type { LicenseTerms } from "@/lib/commerce/licenseTerms";
 import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
 
@@ -36,6 +37,8 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
       creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
       beat: true,
       stockPolicy: true,
+      // License tiers, in the producer's order.
+      beatLicenses: { orderBy: { order: "asc" }, select: { id: true, name: true, priceKobo: true, formats: true, isExclusive: true, terms: true } },
     },
   });
 
@@ -74,7 +77,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
     >
         <HeroMeta parts={[...product.beat.tags, product.beat.musicalKey, product.beat.bpm ? `${product.beat.bpm} BPM` : null]} />
         <HeroPrice
-          price={<Price kobo={product.priceKobo} freeLabel="Free" />}
+          price={product.beatLicenses.length > 1 ? <>From <Price kobo={product.priceKobo} /></> : <Price kobo={product.priceKobo} freeLabel="Free" />}
           note={remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} of ${cap} left`) : `${sold} sold`}
           noteTone={remaining !== null ? "alert" : "muted"}
         />
@@ -89,6 +92,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
           durationSec={product.beat.durationSec}
           priceKobo={product.priceKobo}
           isSoldOut={isSoldOut}
+          licenses={product.beatLicenses.map((l) => ({ ...l, terms: l.terms as unknown as LicenseTerms }))}
         />
 
         <Link href="/legal/terms#beat-licenses" className="mt-4 block text-center text-[12px] text-ink-3 underline">
