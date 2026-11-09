@@ -10,3 +10,6 @@
 /*.png
 /*.html
 tsconfig.tsbuildinfo
+
+# Design references (prototypes) never ship with the web build.
+/design
