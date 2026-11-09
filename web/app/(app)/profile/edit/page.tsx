@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
@@ -16,6 +16,7 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PushStatusNotice } from "@/components/push/PushStatusNotice";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 
 
 const PLAN_LABEL: Record<NonNullable<AppUser["creatorPlan"]>, string> = {
@@ -100,6 +101,9 @@ export default function EditProfilePage() {
       setBusy(false);
     }
   }
+
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const closeLogout = useCallback(() => setLogoutOpen(false), []);
 
   async function handleLogout() {
     if (firebaseAuth) await signOut(firebaseAuth);
@@ -324,7 +328,7 @@ export default function EditProfilePage() {
         </div>
 
         <button
-          onClick={handleLogout}
+          onClick={() => setLogoutOpen(true)}
           className="w-full rounded-lg border border-line px-4 py-3.5 text-sm font-semibold text-red-soft"
         >
           Log Out
@@ -339,6 +343,18 @@ export default function EditProfilePage() {
         </button>
       </div>
 
+      {/* Log out confirmation (v2, design/v2-prototype). */}
+      <BottomSheet open={logoutOpen} onClose={closeLogout} title="Log out?">
+        <div className="flex flex-col gap-3 px-5 pb-2">
+          <p className="text-sm text-ink-3">You can sign back in any time with your email or Google.</p>
+          <button type="button" onClick={closeLogout} className="w-full rounded-full bg-white px-4 py-3.5 text-[15px] font-bold text-black">
+            Stay signed in
+          </button>
+          <button type="button" onClick={handleLogout} className="w-full rounded-full border border-line px-4 py-3.5 text-[15px] font-bold text-red-soft">
+            Log out
+          </button>
+        </div>
+      </BottomSheet>
       <DeleteAccountSheet open={deleteSheetOpen} onClose={() => setDeleteSheetOpen(false)} handle={appUser.handle} />
       <PlanPickerSheet open={planSheetOpen} onClose={() => setPlanSheetOpen(false)} />
     </div>

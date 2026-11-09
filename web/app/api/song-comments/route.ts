@@ -10,13 +10,14 @@ import {
   songCommentSelect,
   songUrl,
   viewerVotes,
+  SONG_KINDS,
 } from "@/lib/music/songComments";
 
 // YouTube-style song comments under the player (explicit ask, 2026-11-04).
 // Fetched only when the player's Comments tab is open — never polled.
 
 const listSchema = z.object({
-  kind: z.enum(["track", "beat"]),
+  kind: z.enum(SONG_KINDS),
   trackId: z.string().min(1).max(64),
   sort: z.enum(["top", "new"]).default("top"),
   offset: z.coerce.number().int().min(0).max(5000).default(0),
@@ -54,7 +55,7 @@ export async function GET(req: NextRequest) {
 }
 
 const createSchema = z.object({
-  kind: z.enum(["track", "beat"]),
+  kind: z.enum(SONG_KINDS),
   trackId: z.string().min(1).max(64),
   body: z.string().trim().min(1).max(SONG_COMMENT_MAX_LENGTH),
   parentId: z.string().min(1).max(64).optional(),
@@ -94,9 +95,9 @@ export async function POST(req: NextRequest) {
     if (recipient !== user.id) {
       notifyUsersAfterResponse([recipient], {
         kind: "COMMENT",
-        title: parent ? "New reply" : "New comment on your song",
+        title: parent ? "New reply" : kind === "product" ? "New comment" : "New comment on your song",
         body: `${user.displayName}: ${body.slice(0, 120)}`,
-        url: songUrl(kind, song.productId),
+        url: songUrl(kind, song.productId, "productType" in song ? song.productType : undefined),
         icon: comment.author.avatarUrl ?? undefined,
         tag: `song-comment-${topId ?? comment.id}`,
       });

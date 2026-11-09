@@ -124,7 +124,7 @@ function FeedList({ children, empty, clearHref, ids }: { children: React.ReactNo
         <p className="text-sm text-ink-2">{empty}</p>
         {clearHref && (
           <Link href={clearHref} className="mt-1 inline-block text-xs font-semibold text-red-soft">
-            Clear filters
+            Clear search and filters
           </Link>
         )}
       </div>

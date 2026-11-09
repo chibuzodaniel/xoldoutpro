@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { ShareButton } from "@/components/ui/ShareButton";
+import { ProductLikeButton } from "@/components/product/detail/ProductLikeButton";
 import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
@@ -69,6 +70,8 @@ export function ProductHero({
         <span className="inline-block rounded-full bg-red-tint px-3 py-1 text-[12px] font-bold uppercase tracking-[0.14em] text-red-soft">{chip}</span>
         <div className="mt-3 flex items-start justify-between gap-3">
           <h1 className="min-w-0 font-serif text-[32px] font-bold leading-[1.05] tracking-tight [overflow-wrap:anywhere] min-[380px]:text-[38px]">{title}</h1>
+          <div className="flex shrink-0 items-start gap-2">
+          {share.chatShare.type === "PRODUCT" && <ProductLikeButton productId={share.chatShare.id} />}
           <ShareButton
             title={title}
             text={share.text}
@@ -76,6 +79,7 @@ export function ProductHero({
             label="Share"
             className="mt-1 shrink-0 border border-line bg-transparent text-ink px-4 py-2.5 text-[14px]"
           />
+          </div>
         </div>
 
         <p className="mt-2 flex flex-wrap items-center gap-x-1.5 text-[17px]">

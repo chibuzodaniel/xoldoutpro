@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import {
@@ -16,6 +16,9 @@ import {
   primaryBadgeType,
 } from "@/components/profile/VerifiedBadge";
 import { useToast } from "@/components/ui/ToastProvider";
+import { FeedCommentsSheet } from "@/components/discover/FeedCommentsSheet";
+import { FeedCardMenu } from "@/components/discover/FeedCardMenu";
+import { useHiddenItems } from "@/lib/hiddenItems";
 
 // v2 Discover feed card (design/v2-prototype): full-width artwork with the
 // title over it, a short description, share, and the buy button. Every
@@ -29,6 +32,7 @@ export type FeedCardProduct = {
   priceKobo: number;
   payWhatYouWant?: boolean;
   publishedAt: Date | string | null;
+  creatorId?: string;
   creator: { handle: string; displayName: string };
   release: { artworkLadder: unknown; releaseType: string } | null;
   beat: { coverImageLadder: unknown } | null;
@@ -148,6 +152,20 @@ export function FeedCard({
   const player = usePlayer();
   const toast = useToast();
   const [expanded, setExpanded] = useState(false);
+  const [commentsOpen, setCommentsOpen] = useState(false);
+  const [commentsAdded, setCommentsAdded] = useState(0);
+  const closeComments = useCallback(() => setCommentsOpen(false), []);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const hidden = useHiddenItems().includes(p.id);
+  // What the comments hang off: a release's first song, the beat, or (merch/events) the product.
+  const commentTarget =
+    p.type === "BEAT"
+      ? { kind: "beat" as const, id: p.id }
+      : p.type === "RELEASE"
+        ? p.firstTrack
+          ? { kind: "track" as const, id: p.firstTrack.id }
+          : null
+        : { kind: "product" as const, id: p.id };
 
   const ago = daysAgo(p.publishedAt);
   const isNew = ago !== null && ago <= 7;
@@ -227,6 +245,10 @@ export function FeedCard({
             }
           : null;
 
+  if (hidden) return null;
+  // Music "Buy Now" opens checkout straight away on the release page (prototype: buy → checkout).
+  const buyHref = p.type === "RELEASE" && !p.payWhatYouWant ? `${href}?buy=1` : href;
+
   return (
     <article className="overflow-hidden rounded-[28px] border border-line-soft bg-surface">
       <div className="relative aspect-[5/6] w-full bg-gradient-to-br from-red/50 via-red-tint to-black">
@@ -267,7 +289,7 @@ export function FeedCard({
         <div className="absolute right-3 top-3">
           <button
             type="button"
-            onClick={() => setMenuOpen((v) => !v)}
+            onClick={() => setMenuOpen(true)}
             aria-label="More options"
             aria-expanded={menuOpen}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-black/40 text-white"
@@ -283,32 +305,15 @@ export function FeedCard({
               <circle cx="12" cy="19" r="1.8" />
             </svg>
           </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-11 z-10 w-44 overflow-hidden rounded-xl border border-line bg-surface text-[14px] shadow-xl">
-              <Link href={href} className="block px-4 py-3 hover:bg-surface-2">
-                See details
-              </Link>
-              <Link
-                href={`/u/${p.creator.handle}`}
-                className="block px-4 py-3 hover:bg-surface-2"
-              >
-                View artist
-              </Link>
-              <button
-                type="button"
-                onClick={async () => {
-                  setMenuOpen(false);
-                  await navigator.clipboard
-                    ?.writeText(`${window.location.origin}${href}`)
-                    .catch(() => {});
-                  toast.success("Link copied");
-                }}
-                className="block w-full px-4 py-3 text-left hover:bg-surface-2"
-              >
-                Copy link
-              </button>
-            </div>
-          )}
+          <FeedCardMenu
+            open={menuOpen}
+            onClose={closeMenu}
+            productId={p.id}
+            title={p.title}
+            href={href}
+            creator={{ id: p.creatorId, handle: p.creator.handle, displayName: p.creator.displayName }}
+            onShare={share}
+          />
         </div>
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-5 pb-5">
           <div className="min-w-0">
@@ -417,8 +422,9 @@ export function FeedCard({
               </svg>
               {Math.max(0, (p.likeCount ?? 0) + likeDelta)}
             </button>
-            <Link
-              href={href}
+            <button
+              type="button"
+              onClick={() => (commentTarget ? setCommentsOpen(true) : router.push(href))}
               aria-label={`Comments on ${p.title}`}
               className="flex items-center gap-1.5 text-[15px] font-semibold hover:text-ink"
             >
@@ -435,8 +441,18 @@ export function FeedCard({
                   strokeLinejoin="round"
                 />
               </svg>
-              {(p.commentCount ?? 0) > 0 ? p.commentCount : ""}
-            </Link>
+              {(p.commentCount ?? 0) + commentsAdded > 0 ? (p.commentCount ?? 0) + commentsAdded : ""}
+            </button>
+            {commentTarget && (
+              <FeedCommentsSheet
+                open={commentsOpen}
+                onClose={closeComments}
+                title={p.title}
+                kind={commentTarget.kind}
+                trackId={commentTarget.id}
+                onPosted={() => setCommentsAdded((n) => n + 1)}
+              />
+            )}
             <button
               type="button"
               onClick={share}
@@ -471,7 +487,7 @@ export function FeedCard({
             </span>
           ) : (
             <Link
-              href={href}
+              href={buyHref}
               className="inline-flex items-center gap-2 rounded-full bg-red px-5 py-2.5 text-[15px] font-bold text-white"
             >
               <svg

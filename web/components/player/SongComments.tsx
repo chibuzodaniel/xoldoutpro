@@ -255,7 +255,7 @@ function Thread({
   onDeleted,
 }: {
   comment: SongComment;
-  kind: "track" | "beat";
+  kind: "track" | "beat" | "product";
   trackId: string;
   creatorId: string | null;
   canDeleteAll: boolean;
@@ -369,9 +369,12 @@ export function SongComments({
   trackId,
   listVisible,
   onPosted,
+  layout = "inline",
 }: {
-  kind: "track" | "beat";
+  kind: "track" | "beat" | "product";
   trackId: string;
+  /** "sheet": the list scrolls and the composer sits pinned below it (feed comments sheet). */
+  layout?: "inline" | "sheet";
   /** false while the Lyrics tab is showing: only the composer renders. */
   listVisible: boolean;
   onPosted?: () => void;
@@ -455,11 +458,7 @@ export function SongComments({
 
   const canDeleteAll = !!appUser && (appUser.isModerator || appUser.id === creatorId);
 
-  return (
-    <div className="flex flex-col gap-5">
-      <Composer placeholder="Share your thoughts…" onSubmit={postComment} />
-
-      {listVisible && (
+  const list = listVisible && (
         <>
           <div className="flex items-center justify-between">
             <p className="text-sm font-bold">
@@ -504,7 +503,23 @@ export function SongComments({
             </div>
           )}
         </>
-      )}
+      );
+
+  if (layout === "sheet") {
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto overscroll-contain px-5 pb-4">{list}</div>
+        <div className="border-t border-line-soft px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+12px)]">
+          <Composer placeholder="Add a comment" onSubmit={postComment} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Composer placeholder="Share your thoughts…" onSubmit={postComment} />
+      {list}
     </div>
   );
 }

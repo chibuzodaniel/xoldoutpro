@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
 import { useOwnedProducts } from "@/components/product/OwnedBadges";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { EventCard, type EventCardData } from "@/components/product/EventCard";
+import { BottomSheet } from "@/components/ui/BottomSheet";
+import { useToast } from "@/components/ui/ToastProvider";
 
 // "On XOLDOUT" on a profile (design/v2-prototype, 2026-11-09): Music /
 // Events / Merch tabs; music as 2-across cards with a play button and a
@@ -43,6 +45,26 @@ function SongCard({ product: p, queue }: { product: ShowcaseProduct; queue: Play
   const owned = useOwnedProducts().has(p.id);
   const track = toTrack(p);
   const playing = track && player.current?.trackId === track.trackId && player.isPlaying;
+  const toast = useToast();
+  // Options sheet (design/v2-prototype "Options for <title>").
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const row = "flex w-full items-center px-5 py-4 text-left text-[16px] font-semibold hover:bg-surface-2";
+
+  async function share() {
+    setMenuOpen(false);
+    const url = `${window.location.origin}${hrefFor(p)}`;
+    try {
+      if (navigator.share) await navigator.share({ title: p.title, text: `${p.title} by ${p.creator.displayName} on XOLDOUT`, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        toast.success("Link copied");
+      }
+    } catch {
+      // Share sheet dismissed.
+    }
+  }
+
   return (
     <div className="overflow-hidden rounded-2xl border border-line-soft bg-surface">
       <div className="relative aspect-square bg-gradient-to-br from-red/50 to-black">
@@ -68,6 +90,38 @@ function SongCard({ product: p, queue }: { product: ShowcaseProduct; queue: Play
             )}
           </button>
         )}
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label={`Options for ${p.title}`}
+          className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
+            <circle cx="12" cy="5" r="1.8" />
+            <circle cx="12" cy="12" r="1.8" />
+            <circle cx="12" cy="19" r="1.8" />
+          </svg>
+        </button>
+        <BottomSheet open={menuOpen} onClose={closeMenu} title={p.title}>
+          {track && (
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                player.play(track, queue);
+              }}
+              className={row}
+            >
+              Play preview
+            </button>
+          )}
+          <button type="button" onClick={share} className={row}>
+            Share
+          </button>
+          <Link href={owned || p.priceKobo === 0 ? hrefFor(p) : `${hrefFor(p)}${p.type === "RELEASE" ? "?buy=1" : ""}`} onClick={closeMenu} className={row}>
+            {owned ? "Open details" : p.type === "RELEASE" ? "Buy" : "Open details"}
+          </Link>
+        </BottomSheet>
         {owned && <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-bold text-white">OWNED</span>}
       </div>
       <Link href={hrefFor(p)} className="block px-3 py-2.5">

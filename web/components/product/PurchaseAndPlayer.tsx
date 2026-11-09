@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
@@ -105,6 +105,20 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [productId]);
+
+  // "Buy Now" on a Discover card (v2, design/v2-prototype) lands here with
+  // ?buy=1: once access has loaded, open checkout straight away (once).
+  const autoBuyDone = useRef(false);
+  useEffect(() => {
+    if (autoBuyDone.current || tracks === null) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("buy") !== "1") return;
+    autoBuyDone.current = true;
+    params.delete("buy");
+    window.history.replaceState(null, "", `${window.location.pathname}${params.size ? `?${params}` : ""}`);
+    if (!entitled && !isOwner && !isSoldOut && !payWhatYouWant) handleBuy();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks]);
 
   const unitKobo = payWhatYouWant ? nairaTextToKobo(payNaira) : priceKobo;
   const checkoutTipKobo = checkoutTipOpen ? nairaTextToKobo(checkoutTipNaira) : 0;
