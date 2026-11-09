@@ -3,6 +3,7 @@ import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { downloadsEnabled } from "@/lib/audio/serveDownload";
 import { getSellerServiceChargePercent } from "@/lib/commerce/creatorPlans";
+import { hasActiveSubscription } from "@/lib/subscriptions/payments";
 
 // Track list + preview windows are public browsing info — served to signed-out
 // visitors too (entitled/isOwner just default false). Only /api/orders (the
@@ -19,9 +20,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const entitlement = user ? await db.entitlement.findFirst({ where: { userId: user.id, productId: id } }) : null;
   const entitled = Boolean(entitlement && !entitlement.revokedAt);
+  // Catalog subscriber (v2): streams this release in full without owning it.
+  const subscribed = !entitled && (await hasActiveSubscription(user?.id, product.creatorId));
 
   return NextResponse.json({
     entitled,
+    subscribed,
     // Lets the release page's Playlist chip add this purchase to a playlist.
     entitlementId: entitled && entitlement ? entitlement.id : null,
     isOwner: user ? product.creatorId === user.id : false,

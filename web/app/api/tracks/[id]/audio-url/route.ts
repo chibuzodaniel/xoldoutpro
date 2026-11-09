@@ -5,6 +5,7 @@ import { presignDownload } from "@/lib/storage/r2";
 import { downloadsEnabled, serveTaggedAudioDownload, pickArtworkUrl } from "@/lib/audio/serveDownload";
 import { recordDownload } from "@/lib/commerce/downloads";
 import { waveformFor } from "@/lib/audio/waveformLink";
+import { hasActiveSubscription } from "@/lib/subscriptions/payments";
 
 export const runtime = "nodejs";
 // A ?download=1 request proxies the master through ffmpeg (ID3 tagging) —
@@ -48,6 +49,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       entitled = Boolean((entitlement && !entitlement.revokedAt) || track.release.product.creatorId === user.id);
     }
 
+    // Catalog subscribers (v2, 2026-11-09) stream the full song while their
+    // subscription is active. Streaming only: downloads and offline saves
+    // below still need a real purchase (`entitled`).
+    // An offline-save request (?offline=1) is a download, so a subscriber
+    // never gets the full file for it.
+    const offlineRequest = req.nextUrl.searchParams.get("offline") === "1";
+    const subscribed = !entitled && !offlineRequest && (await hasActiveSubscription(user?.id, track.release.product.creatorId));
+    const fullStream = entitled || subscribed;
+
     // ?download=1 (explicit ask, mirroring the beat purchase flow's real
     // master-file download — DECISIONS.md previously deferred this exact
     // decision for music tracks) serves the original master file directly
@@ -71,7 +81,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       });
     }
 
-    const keyToSign = entitled ? track.audioStreamUrl : (track.previewAudioUrl ?? track.audioStreamUrl);
+    const keyToSign = fullStream ? track.audioStreamUrl : (track.previewAudioUrl ?? track.audioStreamUrl);
     const url = await presignDownload(keyToSign, 300);
 
     // Fire-and-forget play signal for the Socials "suggested" feed ranking
@@ -99,13 +109,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // a byte range of the original), so its window is [0, duration-of-window]
     // rather than the original track's [previewStartSec, previewEndSec].
     // Passing that through unchanged needed no player-side changes at all.
-    const usingRealPreviewClip = !entitled && Boolean(track.previewAudioUrl);
+    const usingRealPreviewClip = !fullStream && Boolean(track.previewAudioUrl);
     return NextResponse.json({
       url,
-      entitled,
-      ...(await waveformFor(track.waveformPeaksUrl, entitled, track.previewStartSec, track.previewEndSec, track.durationSec)),
-      previewStartSec: entitled ? null : usingRealPreviewClip ? 0 : track.previewStartSec,
-      previewEndSec: entitled ? null : usingRealPreviewClip ? track.previewEndSec - track.previewStartSec : track.previewEndSec,
+      // "entitled" here means full-length playback (the player and the mobile
+      // app read it that way); a subscriber gets it too, flagged by `subscribed`.
+      entitled: fullStream,
+      subscribed,
+      ...(await waveformFor(track.waveformPeaksUrl, fullStream, track.previewStartSec, track.previewEndSec, track.durationSec)),
+      previewStartSec: fullStream ? null : usingRealPreviewClip ? 0 : track.previewStartSec,
+      previewEndSec: fullStream ? null : usingRealPreviewClip ? track.previewEndSec - track.previewStartSec : track.previewEndSec,
     });
   } catch (err) {
     console.error(err);

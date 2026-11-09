@@ -8,6 +8,7 @@ import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvide
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { downloadTrackForOffline, isDownloaded, removeDownload } from "@/lib/offline/downloads";
 import { CollectionsTab } from "@/components/library/CollectionsTab";
+import { SubscriptionsTab } from "@/components/subscriptions/SubscriptionsTab";
 import { CartIconLink } from "@/components/nav/CartIconLink";
 import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
@@ -72,6 +73,8 @@ const TABS = [
   // v2 (design/v2-prototype): shown as "Your Playlist"; the key stays
   // "collections" so ?tab=collections links keep working.
   { key: "collections", label: "Your Playlist" },
+  // Catalog subscriptions (v2, 2026-11-09).
+  { key: "subscriptions", label: "Your Subscriptions" },
   { key: "events", label: "Events" },
 ] as const;
 type LibraryTab = (typeof TABS)[number]["key"];
@@ -89,7 +92,9 @@ export default function LibraryPage() {
 function LibraryPageInner() {
   const player = usePlayer();
   const toast = useToast();
-  const initialTab = useSearchParams().get("tab");
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const renewId = searchParams.get("renew");
   const [tab, setTab] = useState<LibraryTab>(
     TAB_KEYS.includes(initialTab as LibraryTab) ? (initialTab as LibraryTab) : "purchased",
   );
@@ -677,8 +682,9 @@ function LibraryPageInner() {
       </div>
 
       {tab === "collections" && <CollectionsTab />}
+      {tab === "subscriptions" && <SubscriptionsTab renewId={renewId} />}
 
-      {tab !== "collections" && visible === null && <LoadingSpinner full size="md" />}
+      {tab !== "collections" && tab !== "subscriptions" && visible === null && <LoadingSpinner full size="md" />}
 
       {tab === "purchased" && visible !== null && (
         <>

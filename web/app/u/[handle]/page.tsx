@@ -12,6 +12,7 @@ import { NewVisitorGate } from "@/components/auth/NewVisitorGate";
 import { discoverCardInclude } from "@/lib/discover/getDiscoverData";
 import { withFeedExtras } from "@/lib/discover/feed";
 import { ProfileShowcase } from "@/components/profile/ProfileShowcase";
+import { CatalogSubscriptionCard } from "@/components/subscriptions/CatalogSubscriptionCard";
 
 
 // Public, non-personalized profile data — cache and serve from the CDN,
@@ -36,7 +37,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
   const user = await db.user.findUnique({ where: { handle } });
   if (!user) notFound();
 
-  const [catalog, events, fansCount, salesAgg, featuredOn] = await Promise.all([
+  const [catalog, events, fansCount, salesAgg, featuredOn, subscriptionPlans, subscriberCount] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: {
@@ -65,6 +66,17 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       orderBy: { publishedAt: "desc" },
       take: 30,
     }),
+    // Catalog subscription (v2): plans and active subscribers, only when offered.
+    user.catalogSubscriptionOn
+      ? db.subscriptionPlan.findMany({
+          where: { creatorId: user.id },
+          select: { durationDays: true, priceKobo: true },
+          orderBy: { durationDays: "asc" },
+        })
+      : Promise.resolve([]),
+    user.catalogSubscriptionOn
+      ? db.catalogSubscription.count({ where: { creatorId: user.id, currentPeriodEnd: { gt: new Date() } } })
+      : Promise.resolve(0),
   ]);
 
   // First track of each song (for the play buttons), one query for the page.
@@ -98,6 +110,11 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <p className="text-[12px] text-ink-3">xoldout.app/u/{user.handle}</p>
         <p className="mt-3 text-[15px] text-ink-2">
           {fansCount.toLocaleString("en-NG")} Followers <span className="px-1.5 text-ink-3">•</span> {(salesAgg._sum.sold ?? 0).toLocaleString("en-NG")} Sales
+          {subscriptionPlans.length > 0 && (
+            <>
+              <span className="px-1.5 text-ink-3">•</span> {subscriberCount.toLocaleString("en-NG")} Subscribers
+            </>
+          )}
         </p>
         {user.bio && <p className="mt-3 max-w-md text-[16px] italic text-ink-2">{user.bio}</p>}
         {user.tags.length > 0 && (
@@ -114,6 +131,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         </div>
         <div className="mx-auto mt-5 w-full max-w-md">
           <ProfileActions targetUserId={user.id} handle={user.handle} displayName={user.displayName} />
+          <CatalogSubscriptionCard creator={{ id: user.id, displayName: user.displayName }} plans={subscriptionPlans} />
         </div>
         <ReportButton targetType="PROFILE" targetId={user.id} className="mt-3 text-xs text-ink-3" />
       </div>

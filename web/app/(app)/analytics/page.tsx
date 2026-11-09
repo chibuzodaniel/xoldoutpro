@@ -25,6 +25,7 @@ type AnalyticsData = {
     totalCustomers: number;
     returningCustomers: number;
     sellOutRatePct: number | null;
+    subscribers?: number;
   };
   topProducts: ProductStat[];
 };
@@ -86,6 +87,10 @@ export default function AnalyticsPage() {
             </p>
           )}
         </div>
+        <a href="/profile/subscription" className="rounded-xl border border-line bg-surface px-4 py-3 text-center">
+          <p className="font-serif text-2xl">{totals.subscribers ?? 0}</p>
+          <p className="text-[11px] uppercase tracking-widest text-ink-3 mt-0.5">Subscribers</p>
+        </a>
       </div>
 
       <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-1">Top products</h2>

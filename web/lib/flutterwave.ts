@@ -50,6 +50,10 @@ export type VerifiedTransaction = {
   status: "successful" | "failed" | string;
   amountKobo: number;
   currency: string;
+  // Card payments only: Flutterwave returns a reusable token for the card,
+  // which catalog subscriptions save to renew automatically (chargeSavedCard).
+  cardToken?: string | null;
+  customerEmail?: string | null;
 };
 
 /**
@@ -59,7 +63,15 @@ export type VerifiedTransaction = {
  */
 export async function verifyTransaction(transactionId: number | string): Promise<VerifiedTransaction> {
   const data = await fw<{
-    data: { id: number; tx_ref: string; status: string; amount: number; currency: string };
+    data: {
+      id: number;
+      tx_ref: string;
+      status: string;
+      amount: number;
+      currency: string;
+      card?: { token?: string | null } | null;
+      customer?: { email?: string | null } | null;
+    };
   }>(`/transactions/${transactionId}/verify`);
   return {
     id: data.data.id,
@@ -67,7 +79,31 @@ export async function verifyTransaction(transactionId: number | string): Promise
     status: data.data.status,
     amountKobo: Math.round(data.data.amount * 100),
     currency: data.data.currency,
+    cardToken: data.data.card?.token ?? null,
+    customerEmail: data.data.customer?.email ?? null,
   };
+}
+
+/**
+ * Charges a card saved from an earlier payment (verifyTransaction().cardToken)
+ * without the customer present — catalog subscription auto-renewal. The
+ * result is confirmed the same way as any payment: verifyTransaction on the
+ * returned id (and the webhook), never this response alone.
+ */
+export async function chargeSavedCard(args: { token: string; email: string; amountKobo: number; txRef: string; narration: string }) {
+  const data = await fw<{ data: { id: number; tx_ref: string; status: string } }>("/tokenized-charges", {
+    method: "POST",
+    body: JSON.stringify({
+      token: args.token,
+      currency: "NGN",
+      country: "NG",
+      amount: (args.amountKobo / 100).toFixed(2),
+      email: args.email,
+      tx_ref: args.txRef,
+      narration: args.narration,
+    }),
+  });
+  return data.data;
 }
 
 /**

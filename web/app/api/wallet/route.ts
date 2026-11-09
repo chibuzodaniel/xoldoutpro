@@ -48,6 +48,8 @@ export async function GET(req: NextRequest) {
               "TIP_COMMISSION_FEE",
               "ROYALTY_SPLIT_FEE",
               "ROYALTY_SPLIT_CREDIT",
+              "SUBSCRIPTION_CREDIT",
+              "SUBSCRIPTION_COMMISSION_FEE",
             ],
           },
         },

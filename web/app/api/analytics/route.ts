@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
 
-    const [products, orders, fans, newFans30d] = await Promise.all([
+    const [products, orders, fans, newFans30d, subscribers] = await Promise.all([
       db.product.findMany({
         where: { creatorId: user.id, status: { not: "DRAFT" } },
         select: { id: true, title: true, type: true, publishedAt: true, stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } } },
@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
       }),
       db.follow.count({ where: { followedId: user.id } }),
       db.follow.count({ where: { followedId: user.id, createdAt: { gte: new Date(Date.now() - THIRTY_DAYS_MS) } } }),
+      // Active catalog subscribers (v2, 2026-11-09). One indexed count.
+      db.catalogSubscription.count({ where: { creatorId: user.id, currentPeriodEnd: { gt: new Date() } } }),
     ]);
 
     const productStats = products.map((p) => {
@@ -49,7 +51,7 @@ export async function GET(req: NextRequest) {
     const topProducts = [...productStats].sort((a, b) => b.sold - a.sold).slice(0, 5);
 
     return NextResponse.json({
-      totals: { unitsSold, fans, newFans30d, totalCustomers, returningCustomers, sellOutRatePct },
+      totals: { unitsSold, fans, newFans30d, totalCustomers, returningCustomers, sellOutRatePct, subscribers },
       topProducts,
       products: productStats,
     });

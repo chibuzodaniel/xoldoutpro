@@ -175,13 +175,20 @@ model User {
 
   collections Collection[]
 
-  giftsSent    Gift[] @relation("GiftsSent")
+  giftsSent Gift[] @relation("GiftsSent")
 
-  featuredOn          ReleaseCollaborator[] @relation("CollabArtist")
-  collabsInvitedByMe  ReleaseCollaborator[] @relation("CollabInviter")
-  tipsReceived        Order[]               @relation("TipsReceived")
-  productLikes        ProductLike[]
-  giftsClaimed Gift[] @relation("GiftsClaimed")
+  featuredOn            ReleaseCollaborator[] @relation("CollabArtist")
+  collabsInvitedByMe    ReleaseCollaborator[] @relation("CollabInviter")
+  tipsReceived          Order[]               @relation("TipsReceived")
+  // Catalog subscriptions (v2, design/v2-prototype, 2026-11-09): an artist's
+  // plans, the artists this user subscribes to, and who subscribes to them.
+  subscriptionPlans     SubscriptionPlan[]    @relation("SubscriptionPlans")
+  catalogSubscriptions  CatalogSubscription[] @relation("Subscriber")
+  catalogSubscribers    CatalogSubscription[] @relation("SubscribedCreator")
+  // Whether this artist currently offers a catalog subscription.
+  catalogSubscriptionOn Boolean               @default(false)
+  productLikes          ProductLike[]
+  giftsClaimed          Gift[]                @relation("GiftsClaimed")
 
   groupsCreated FanbaseGroup[]
   memberships   Membership[]
@@ -541,6 +548,12 @@ enum LedgerKind {
   // recordRefund.
   ROYALTY_SPLIT_FEE
   ROYALTY_SPLIT_CREDIT
+  // Catalog subscriptions (v2, 2026-11-09): the subscription payment paid to
+  // the artist and the platform's cut (PlatformSettings.
+  // commissionSubscriptionPercent). Never counted as a sale. Written by
+  // lib/subscriptions/payments.ts; WalletLedgerEntry.subscriptionId says which.
+  SUBSCRIPTION_CREDIT
+  SUBSCRIPTION_COMMISSION_FEE
 }
 
 // Three creator-selectable monetization plans (DECISIONS.md) — see
@@ -570,20 +583,22 @@ enum LedgerStatus {
 }
 
 model WalletLedgerEntry {
-  id          String       @id @default(cuid())
-  userId      String
-  user        User         @relation(fields: [userId], references: [id])
-  amountKobo  Int // signed: credits positive, debits negative
-  kind        LedgerKind
-  status      LedgerStatus
-  orderId     String?
-  order       Order?       @relation(fields: [orderId], references: [id])
-  payoutId    String?
-  payout      Payout?      @relation(fields: [payoutId], references: [id])
-  billboardId String?
-  billboard   Billboard?   @relation(fields: [billboardId], references: [id])
-  createdAt   DateTime     @default(now())
-  availableAt DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id])
+  amountKobo     Int // signed: credits positive, debits negative
+  kind           LedgerKind
+  status         LedgerStatus
+  orderId        String?
+  order          Order?       @relation(fields: [orderId], references: [id])
+  payoutId       String?
+  payout         Payout?      @relation(fields: [payoutId], references: [id])
+  billboardId    String?
+  billboard      Billboard?   @relation(fields: [billboardId], references: [id])
+  createdAt      DateTime     @default(now())
+  availableAt    DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
+  // Set on SUBSCRIPTION_CREDIT / SUBSCRIPTION_COMMISSION_FEE rows only.
+  subscriptionId String?
 
   @@index([userId, status])
 }
@@ -632,29 +647,29 @@ enum ProductStatus {
 }
 
 model Product {
-  id          String        @id @default(cuid())
-  creatorId   String
-  creator     User          @relation(fields: [creatorId], references: [id])
-  type        ProductType
-  title       String
-  description String
-  priceKobo   Int // 0 = free; free is first-class, not a discount
+  id             String        @id @default(cuid())
+  creatorId      String
+  creator        User          @relation(fields: [creatorId], references: [id])
+  type           ProductType
+  title          String
+  description    String
+  priceKobo      Int // 0 = free; free is first-class, not a discount
   // "Let fans pay anything" (RELEASE only, explicit ask 2026-11-06): the fan
   // picks the price at checkout and priceKobo is the minimum they may pay
   // (PAY_WHAT_YOU_WANT_MIN_KOBO, ₦500). OrderItem.priceKobo snapshots what
   // was actually paid.
-  payWhatYouWant Boolean @default(false)
-  status      ProductStatus @default(DRAFT)
-  createdAt   DateTime      @default(now())
-  publishedAt DateTime?
-  deletedAt   DateTime?
+  payWhatYouWant Boolean       @default(false)
+  status         ProductStatus @default(DRAFT)
+  createdAt      DateTime      @default(now())
+  publishedAt    DateTime?
+  deletedAt      DateTime?
   // How many Creative Add-ons (ProductAddOn) this item has — kept in step
   // by every add-on write so every browsing surface can show the E+ badge
   // from the product row alone, without a join or count per card.
-  addOnCount  Int           @default(0)
+  addOnCount     Int           @default(0)
   // Likes (v2 feed card heart, design/v2-prototype, 2026-11-09) — kept in step
   // by every like/unlike (ProductLike) so cards never count rows.
-  likeCount   Int           @default(0)
+  likeCount      Int           @default(0)
 
   release              Release?
   beat                 Beat?
@@ -663,7 +678,7 @@ model Product {
   stockPolicy          StockPolicy?
   entitlements         Entitlement[]
   orderItems           OrderItem[]
-  reports              Report[]      @relation("ReportsOnProduct")
+  reports              Report[]              @relation("ReportsOnProduct")
   gifts                Gift[]
   pinnedInLiveSessions LiveSession[]
   billboards           Billboard[]
@@ -1105,17 +1120,17 @@ enum OrderStatus {
 }
 
 model Order {
-  id        String      @id @default(cuid())
-  buyerId   String
-  buyer     User        @relation(fields: [buyerId], references: [id])
-  status    OrderStatus @default(PENDING)
-  isGift    Boolean     @default(false) // routes the entitlement to a Gift instead of the buyer at confirm time
-  createdAt DateTime    @default(now())
+  id               String      @id @default(cuid())
+  buyerId          String
+  buyer            User        @relation(fields: [buyerId], references: [id])
+  status           OrderStatus @default(PENDING)
+  isGift           Boolean     @default(false) // routes the entitlement to a Gift instead of the buyer at confirm time
+  createdAt        DateTime    @default(now())
   // Guest checkout by a brand-new email only (see User.pendingGuestAt): the
   // browser that started checkout holds this and shows it to GET
   // /api/orders/[id] from the return page — once the order is PAID that
   // returns a sign-in token for the freshly activated account.
-  guestAccessToken String? @unique
+  guestAccessToken String?     @unique
 
   // Ticket promoter split (EVENT only) — set at checkout time from a
   // `?promo=<code>` link (EventTierPicker), resolved against EventPromoter.
@@ -1154,26 +1169,26 @@ model Order {
   // artist from their profile without buying anything). Set on every
   // tip-only order: a profile tip has no OrderItem at all, a tip from a
   // release page also keeps that release as its one quantity-0 OrderItem.
-  tipRecipientId String?
-  tipRecipient   User?   @relation("TipsReceived", fields: [tipRecipientId], references: [id])
+  tipRecipientId  String?
+  tipRecipient    User?   @relation("TipsReceived", fields: [tipRecipientId], references: [id])
 
   items            OrderItem[]
   payment          Payment?
-
-  @@index([checkoutGroupId])
   entitlements     Entitlement[]
   ledgerEntries    WalletLedgerEntry[]
   merchFulfillment MerchOrderFulfillment?
   gift             Gift?
+
+  @@index([checkoutGroupId])
 }
 
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  order     Order   @relation(fields: [orderId], references: [id])
-  productId String
-  product   Product @relation(fields: [productId], references: [id])
-  priceKobo Int // per-unit snapshot at purchase time, independent of later price edits
+  id           String        @id @default(cuid())
+  orderId      String
+  order        Order         @relation(fields: [orderId], references: [id])
+  productId    String
+  product      Product       @relation(fields: [productId], references: [id])
+  priceKobo    Int // per-unit snapshot at purchase time, independent of later price edits
   // Merch size/colour the buyer picked (MerchVariant), with a readable
   // snapshot ("M · Black") so later variant edits never change past orders.
   variantId    String?
@@ -1182,7 +1197,7 @@ model OrderItem {
   // Beat license tier the buyer agreed to (BeatLicense), with its name and
   // full terms snapshotted — the license agreement is generated from these.
   licenseId    String?
-  license      BeatLicense? @relation(fields: [licenseId], references: [id])
+  license      BeatLicense?  @relation(fields: [licenseId], references: [id])
   licenseName  String?
   licenseTerms Json?
   // Ticket/merch group buys (EVENT/MERCH only — RELEASE/BEAT stay quantity 1,
@@ -1191,7 +1206,7 @@ model OrderItem {
   // check-in code; this field is what confirmStock/reserveStock act on and
   // what the total charge (priceKobo * quantity + any flat shipping) is
   // computed from.
-  quantity  Int     @default(1)
+  quantity     Int           @default(1)
 }
 
 enum PaymentStatus {
@@ -1201,47 +1216,57 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id                     String        @id @default(cuid())
+  id                       String        @id @default(cuid())
   // Exactly one of orderId/billboardId/creatorPlanUserId/coinTopUpUserId is
   // ever set — same optional-FK side-by-side pattern as WalletLedgerEntry's
   // orderId/payoutId. A Billboard's Bachs checkout (lib/commerce/
   // billboards.ts), a creator-plan charge (lib/commerce/creatorPlans.ts),
   // and an XG top-up (lib/live/coins.ts) are the only other things this
   // Payment/webhook pipeline pays for besides an Order.
-  orderId                String?       @unique
+  orderId                  String?       @unique
   // Cart checkout (v2, 2026-11-09): one payment for several orders. The
   // orders share this id (Order.checkoutGroupId) and each keeps its own
   // share in Order.amountKobo. Exactly one of orderId/checkoutGroupId/
   // billboardId/creatorPlanUserId/coinTopUpUserId is set.
-  checkoutGroupId        String?       @unique
-  order                  Order?        @relation(fields: [orderId], references: [id])
-  billboardId            String?       @unique
-  billboard              Billboard?    @relation(fields: [billboardId], references: [id])
+  checkoutGroupId          String?       @unique
+  order                    Order?        @relation(fields: [orderId], references: [id])
+  billboardId              String?       @unique
+  billboard                Billboard?    @relation(fields: [billboardId], references: [id])
   // A LIMITED join/renewal or a BUYER_PAYS_FEE slot-pack purchase —
   // creatorPlanPaymentKind tells the Bachs webhook which of the two to
   // apply on success (lib/commerce/creatorPlans.ts's
   // finalizeCreatorPlanFeePayment). Not a relation to a dedicated model
   // (unlike Billboard) since there's no separate approval-state entity —
   // success just updates the User row directly.
-  creatorPlanUserId      String?
-  creatorPlanPaymentKind String? // "LIMITED_ACTIVATION" | "SLOT_PACK"
+  creatorPlanUserId        String?
+  creatorPlanPaymentKind   String? // "LIMITED_ACTIVATION" | "SLOT_PACK"
   // An XG pack purchase (lib/live/coins.ts's createCoinTopUpCheckout) —
   // same "no dedicated entity" shape as creatorPlanUserId above: success
   // just credits a CoinLedgerEntry for coinTopUpXgAmount directly.
-  coinTopUpUserId        String?
-  coinTopUpXgAmount      Int?
-  processor              String        @default("flutterwave")
-  processorRef           String        @unique // tx_ref; webhook idempotency key
+  coinTopUpUserId          String?
+  coinTopUpXgAmount        Int?
+  // A catalog subscription payment (lib/subscriptions/payments.ts) — first
+  // subscribe, a manual renewal, or (once a processor supports it) an
+  // automatic renewal. Same "no order" shape as the XG top-up above: on
+  // success the subscriber's CatalogSubscription is created or extended by
+  // subscriptionDurationDays. subscriptionSubscriberId is set exactly when
+  // this is a subscription payment.
+  subscriptionSubscriberId String?
+  subscriptionCreatorId    String?
+  subscriptionDurationDays Int?
+  subscriptionAutoRenew    Boolean?
+  processor                String        @default("flutterwave")
+  processorRef             String        @unique // tx_ref; webhook idempotency key
   // Flutterwave's own numeric transaction id (verifyTransaction()'s `id`) —
   // distinct from processorRef/tx_ref, which is ours. The refund endpoint
   // (POST /transactions/{id}/refund) takes this one, not the tx_ref, so it
   // has to be captured at webhook time or a refund has nothing to call.
-  providerTransactionId  String?
-  status                 PaymentStatus @default(INITIATED)
-  amountKobo             Int
-  webhookReceivedAt      DateTime?
-  rawPayload             Json?
-  createdAt              DateTime      @default(now())
+  providerTransactionId    String?
+  status                   PaymentStatus @default(INITIATED)
+  amountKobo               Int
+  webhookReceivedAt        DateTime?
+  rawPayload               Json?
+  createdAt                DateTime      @default(now())
 }
 
 // The header bell — deliberately transactional/money-related only (a sale
@@ -1655,12 +1680,12 @@ model AmbassadorTierRate {
 // (PurchaseAndPlayer/BeatPurchaseAndPlayer's Download button and the
 // /api/tracks|beats/[id]/audio-url?download=1 routes both check this).
 model PlatformSettings {
-  id                          String    @id @default("singleton")
-  downloadsEnabled            Boolean   @default(true)
+  id                            String    @id @default("singleton")
+  downloadsEnabled              Boolean   @default(true)
   // ₦5,000/day starting default — see lib/commerce/billboards.ts's
   // getBillboardDailyRateKobo(). What a creator pays for one day of the
   // Discover billboard rail; moderator-editable via SiteControlsPanel.
-  billboardDailyRateKobo      Int       @default(500000)
+  billboardDailyRateKobo        Int       @default(500000)
   // Per-product-type commission for CreatorPlan.UNLIMITED sellers only
   // (DECISIONS.md) — super-moderator-editable via SiteControlsPanel
   // (lib/commerce/ledger.ts's getCommissionRates() reads these;
@@ -1676,14 +1701,17 @@ model PlatformSettings {
   // never actually applied in production). Event stays separate at its
   // original 5% (creator still bears the real-world cost of the show) —
   // confirmed with the user: tickets are NOT folded into the flat 12%.
-  commissionReleasePercent    Int       @default(12)
-  commissionBeatPercent       Int       @default(12)
-  commissionMerchPercent      Int       @default(12)
-  commissionEventPercent      Int       @default(5)
+  commissionReleasePercent      Int       @default(12)
+  commissionBeatPercent         Int       @default(12)
+  commissionMerchPercent        Int       @default(12)
+  commissionEventPercent        Int       @default(5)
   // Platform cut of fan tips (explicit ask, 2026-11-06: "same commission as
   // sales but editable in admin"). Applies to UNLIMITED and BUYER_PAYS_FEE
   // sellers; LIMITED sellers keep 100% of tips, as they do of sales.
-  commissionTipPercent        Int       @default(12)
+  commissionTipPercent          Int       @default(12)
+  // Platform cut of catalog subscription payments (explicit ask, 2026-11-09:
+  // "separate, editable in admin"). LIMITED sellers keep 100%, as with tips.
+  commissionSubscriptionPercent Int       @default(12)
   // ─── Creator plans: BUYER_PAYS_FEE ─────────────────────────────────────
   // Service-charge rate added on top of the price at checkout and paid by
   // the buyer — lib/commerce/creatorPlans.ts, app/api/orders/route.ts.
@@ -1695,29 +1723,29 @@ model PlatformSettings {
   // User's own comment) — buyerPaysFeeSlotPackFeeKobo buys
   // buyerPaysFeeSlotPackSize more room, stacking indefinitely, whenever a
   // creator hits the cap.
-  buyerPaysFeePercent         Int       @default(12)
-  buyerPaysFeeEventPercent    Int       @default(12)
-  buyerPaysFeeUploadCap       Int       @default(50)
-  buyerPaysFeeSlotPackSize    Int       @default(50)
-  buyerPaysFeeSlotPackFeeKobo Int       @default(400000)
+  buyerPaysFeePercent           Int       @default(12)
+  buyerPaysFeeEventPercent      Int       @default(12)
+  buyerPaysFeeUploadCap         Int       @default(50)
+  buyerPaysFeeSlotPackSize      Int       @default(50)
+  buyerPaysFeeSlotPackFeeKobo   Int       @default(400000)
   // ─── Creator plans: LIMITED ─────────────────────────────────────────────
   // Flat one-time fee (wallet-or-Bachs, lib/commerce/creatorPlans.ts) to
   // join OR renew — both charge the same amount and both reset
   // User.limitedUploadsUsed to 0 for a fresh cycle. Explicit ask,
   // 2026-09-22: sales are unlimited on this plan — there is no sales cap,
   // renewal is only ever triggered by hitting limitedPlanUploadCap.
-  limitedPlanFeeKobo          Int       @default(400000)
-  limitedPlanUploadCap        Int       @default(100)
+  limitedPlanFeeKobo            Int       @default(400000)
+  limitedPlanUploadCap          Int       @default(100)
   // ─── Xoldout Live: XG -> Naira creator payout rate ─────────────────────
   // Explicit ask, 2026-10-04: "₦6 per XG, super moderator can edit".
   // Snapshotted onto each XgEarning row the moment the XG is received, so
   // editing this never changes the value of XG a creator already earned.
-  xgPayoutRateKobo            Int       @default(600)
+  xgPayoutRateKobo              Int       @default(600)
   // Explicit ask, 2026-10-04: "make the payout for live coins 1 week for now
   // and can be changed later by super admins". Days each received XG is held
   // before it is paid into the wallet (lib/live/xgEarnings.ts). Read live,
   // so a change applies to XG still being held.
-  xgPayoutHoldDays            Int       @default(7)
+  xgPayoutHoldDays              Int       @default(7)
   // The most recently published Android APK — written by mobile's
   // `npm run publish-apk` script (POST /api/internal/apk-release, secret-
   // gated) after it builds via EAS and uploads the artifact to R2. Read by
@@ -1725,12 +1753,12 @@ model PlatformSettings {
   // the mobile app's own in-app update check poll. buildNumber is our own
   // monotonic counter (mobile/app.json's extra.buildNumber) — not Android's
   // versionCode, which EAS's `preview` profile doesn't auto-increment.
-  latestApkVersion            String?
-  latestApkBuildNumber        Int?
-  latestApkUrl                String?
-  latestApkReleasedAt         DateTime?
-  updatedAt                   DateTime  @updatedAt
-  updatedBy                   String?
+  latestApkVersion              String?
+  latestApkBuildNumber          Int?
+  latestApkUrl                  String?
+  latestApkReleasedAt           DateTime?
+  updatedAt                     DateTime  @updatedAt
+  updatedBy                     String?
 }
 
 // ─── Billboards ─────────────────────────────────────────────────────────
@@ -2375,4 +2403,53 @@ model LiveBattleVote {
   createdAt    DateTime             @default(now())
 
   @@id([battleId, voterId])
+}
+
+// ─── Catalog subscriptions (v2, design/v2-prototype, 2026-11-09) ──────────
+// An artist offers one or more durations (Monthly / 3 months / 6 months /
+// Yearly) at their own prices; a fan pays for a period and can then stream
+// every song of that artist in full (no downloads — explicit ask) until
+// currentPeriodEnd. Status is derived from the date, so nothing has to run
+// for a subscription to expire.
+model SubscriptionPlan {
+  id           String   @id @default(cuid())
+  creatorId    String
+  creator      User     @relation("SubscriptionPlans", fields: [creatorId], references: [id])
+  durationDays Int // 30, 90, 180 or 365 (lib/subscriptions/plans.ts)
+  priceKobo    Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([creatorId, durationDays])
+}
+
+model CatalogSubscription {
+  id                  String    @id @default(cuid())
+  subscriberId        String
+  subscriber          User      @relation("Subscriber", fields: [subscriberId], references: [id])
+  creatorId           String
+  creator             User      @relation("SubscribedCreator", fields: [creatorId], references: [id])
+  // The plan the next renewal uses (snapshotted from the last payment).
+  durationDays        Int
+  priceKobo           Int
+  startedAt           DateTime  @default(now())
+  currentPeriodEnd    DateTime
+  // The fan's auto-renew switch. On: we renew for them — charging a saved
+  // card where the processor supports it (cardToken), otherwise reminding
+  // them before the end with a one-tap renew. Off: it just ends.
+  autoRenew           Boolean   @default(true)
+  // When the "renews soon" reminder for the current period went out.
+  renewalNotifiedAt   DateTime?
+  // Saved card for automatic charging — only a processor that can re-charge
+  // Naira cards fills these (Flutterwave, once approved). Null with Bachs.
+  cardToken           String?
+  cardProcessor       String?
+  cardEmail           String?
+  lastChargeAttemptAt DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([subscriberId, creatorId])
+  @@index([creatorId, currentPeriodEnd])
+  @@index([autoRenew, currentPeriodEnd])
 }

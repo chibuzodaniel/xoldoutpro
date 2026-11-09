@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyTransaction } from "@/lib/flutterwave";
 import { finalizePayment, finalizeGroupPayment } from "@/lib/commerce/confirmPayment";
+import { finalizeSubscriptionPayment } from "@/lib/subscriptions/payments";
 
 export const runtime = "nodejs";
 
@@ -39,6 +40,16 @@ export async function POST(req: NextRequest) {
   // orderId/order are optional in the schema (a Billboard payment has
   // neither — see lib/commerce/billboards.ts) but this processor is only
   // ever used for Order checkout, so both are expected to be set here.
+  if (payment?.subscriptionSubscriberId) {
+    // Catalog subscription (lib/subscriptions/payments.ts) — incl. automatic renewals.
+    try {
+      await finalizeSubscriptionPayment(payment, verified, body);
+    } catch (err) {
+      console.error(err);
+      return NextResponse.json({ error: "Could not finalize subscription" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
   if (payment?.checkoutGroupId) {
     // Cart checkout: one payment for several orders (lib/commerce/confirmPayment.ts).
     try {

@@ -91,6 +91,13 @@ const I = {
       <path d="M5 17v2a2 2 0 002 2h10a2 2 0 002-2v-2" strokeLinecap="round" />
     </svg>
   ),
+  music: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
+      <path d="M9 18V5l12-2v13" strokeLinejoin="round" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </svg>
+  ),
   chat: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
       <path d="M21 11.5a8.5 8.5 0 01-8.5 8.5c-1.2 0-2.3-.25-3.3-.7L4 20l.9-4.5A8.5 8.5 0 1121 11.5z" strokeLinecap="round" strokeLinejoin="round" />
@@ -235,6 +242,7 @@ export default function ProfilePage() {
           <Tile icon={I.wallet} title="Wallet" sub="Earnings and payouts" href="/wallet" />
           <Tile icon={I.insights} title="Insights" sub="Views, sales, growth" href="/analytics" />
           <Tile icon={I.settings} title="Settings" sub="Account and security" href="/profile/edit" />
+          <Tile icon={I.music} title="Subscription" sub="Catalog subscription for fans" href="/profile/subscription" />
           <Tile
             icon={I.collab}
             title="Collaborations"

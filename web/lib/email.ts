@@ -625,3 +625,35 @@ export async function sendPromoterAddedEmail(input: {
   `;
   return sendEmail({ to: input.to, subject: `You're a ticket promoter for ${input.eventTitle}`, html: shell(body) });
 }
+
+// ─── Catalog subscription renewal reminder (v2, 2026-11-09) ─────────────
+// Sent by the daily renewals job (lib/subscriptions/renewals.ts) a few days
+// before a subscription with auto-renew on ends, when there's no saved card
+// to charge — the fan renews with one tap from the link.
+export async function sendSubscriptionRenewalEmail(input: {
+  to: string;
+  artistName: string;
+  endsOn: string;
+  priceKobo: number;
+  planLabel: string;
+  renewUrl: string;
+}): Promise<boolean> {
+  const rows = [
+    { label: "Artist", value: escapeHtml(input.artistName) },
+    { label: "Plan", value: escapeHtml(input.planLabel) },
+    { label: "Ends", value: escapeHtml(input.endsOn) },
+  ];
+  const body = `
+    <tr><td style="padding:44px 40px 0;text-align:center;">
+      ${iconCircle("&#9835;", C.red)}
+      <div style="color:${C.white};font-size:22px;font-weight:700;margin-bottom:6px;">Keep listening to ${escapeHtml(input.artistName)}</div>
+      <div style="color:${C.body};font-size:14px;line-height:20px;margin-bottom:28px;max-width:380px;margin-left:auto;margin-right:auto;">
+        Your catalog subscription ends on ${escapeHtml(input.endsOn)}. Renew now so the music doesn't stop.
+      </div>
+      <div style="color:${C.white};font-family:${MONO};font-size:36px;font-weight:700;letter-spacing:-0.5px;margin-bottom:32px;">${escapeHtml(formatNaira(input.priceKobo))}</div>
+    </td></tr>
+    <tr><td style="padding:0 40px 32px;">${receiptCard(C.red, rows)}</td></tr>
+    <tr><td style="padding:0 40px 40px;">${button(input.renewUrl, "Renew subscription", "red", true)}</td></tr>
+  `;
+  return sendEmail({ to: input.to, subject: `Your ${input.artistName} subscription ends ${input.endsOn}`, html: shell(body) });
+}

@@ -12,6 +12,8 @@ const LEDGER_KIND_LABEL: Record<LedgerKind, string> = {
   SALE_CREDIT: "Sale",
   TIP_CREDIT: "Fan tip",
   TIP_COMMISSION_FEE: "Platform commission on tip",
+  SUBSCRIPTION_CREDIT: "Catalog subscription",
+  SUBSCRIPTION_COMMISSION_FEE: "Platform commission on subscription",
   ROYALTY_SPLIT_FEE: "Featured artist royalty share",
   ROYALTY_SPLIT_CREDIT: "Royalty from a feature",
   COMMISSION_FEE: "Platform commission",
@@ -71,7 +73,7 @@ export async function getUserModerationDetail(userId: string) {
       db.walletLedgerEntry.aggregate({
         where: {
           userId,
-          kind: { in: ["SALE_CREDIT", "COMMISSION_FEE", "AMBASSADOR_COMMISSION", "PROMOTER_CREDIT", "PROMOTER_FEE", "TIP_CREDIT", "TIP_COMMISSION_FEE", "ROYALTY_SPLIT_FEE", "ROYALTY_SPLIT_CREDIT"] },
+          kind: { in: ["SALE_CREDIT", "COMMISSION_FEE", "AMBASSADOR_COMMISSION", "PROMOTER_CREDIT", "PROMOTER_FEE", "TIP_CREDIT", "TIP_COMMISSION_FEE", "ROYALTY_SPLIT_FEE", "ROYALTY_SPLIT_CREDIT", "SUBSCRIPTION_CREDIT", "SUBSCRIPTION_COMMISSION_FEE"] },
         },
         _sum: { amountKobo: true },
       }),

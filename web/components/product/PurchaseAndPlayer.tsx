@@ -65,6 +65,8 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
   const toast = useToast();
   const { firebaseUser } = useAuth();
   const [entitled, setEntitled] = useState(false);
+  // Catalog subscriber (v2): plays this release in full without owning it.
+  const [subscribed, setSubscribed] = useState(false);
   // The buyer's purchase, for the Playlist chip (null until bought).
   const [entitlementId, setEntitlementId] = useState<string | null>(null);
   const [playlistOpen, setPlaylistOpen] = useState(false);
@@ -93,6 +95,7 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
     if (!res.ok) return;
     const data = await res.json();
     setEntitled(data.entitled);
+    setSubscribed(Boolean(data.subscribed));
     setIsOwner(data.isOwner);
     setTracks(data.tracks);
     setDownloadsAllowed(data.downloadsEnabled ?? true);
@@ -217,6 +220,16 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
 
   return (
     <div>
+      {subscribed && (
+        <p className="mb-4 flex items-center gap-2 rounded-2xl border border-red bg-red-tint px-4 py-3 text-[13px] text-ink-2">
+          <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-red-soft" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+            <path d="M5 12l5 5 9-10" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>
+            Included in your <span className="font-semibold text-ink">{artistName}</span> subscription — play the full songs. Buy to download.
+          </span>
+        </p>
+      )}
       {/* v2 action chips (design/v2-prototype): Comments, Tip, Playlist. */}
       <div className="mb-5 flex flex-wrap gap-2.5">
         <button type="button" onClick={openComments} className={chip}>

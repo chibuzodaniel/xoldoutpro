@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push/send";
+import { runSubscriptionRenewals } from "@/lib/subscriptions/renewals";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -48,5 +49,14 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ reminded: unread.length });
+  // Catalog subscription renewals (v2, 2026-11-09) ride this same daily cron.
+  let subscriptions: Awaited<ReturnType<typeof runSubscriptionRenewals>> | { error: string };
+  try {
+    subscriptions = await runSubscriptionRenewals();
+  } catch (err) {
+    console.error("subscription renewals failed", err);
+    subscriptions = { error: "failed" };
+  }
+
+  return NextResponse.json({ reminded: unread.length, subscriptions });
 }
