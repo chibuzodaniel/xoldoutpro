@@ -54,7 +54,7 @@ export function FollowingFeed() {
 
   return (
     <OwnedBadgesProvider productIds={data.products.map((p) => p.id)}>
-      <div className="flex flex-col gap-5 px-4 pt-5">
+      <div className="grid grid-cols-1 gap-5 px-4 pt-5 md:grid-cols-2 md:px-6 xl:grid-cols-3">
         {data.products.map((p, i) => (
           <FeedCard key={p.id} product={p} priority={i === 0} />
         ))}

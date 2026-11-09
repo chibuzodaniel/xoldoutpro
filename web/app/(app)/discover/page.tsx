@@ -131,7 +131,8 @@ function FeedList({ children, empty, clearHref, ids }: { children: React.ReactNo
   }
   return (
     <OwnedBadgesProvider productIds={ids}>
-      <div className="mt-5 flex flex-col gap-5 px-4">{children}</div>
+      {/* One card per row on phones; a grid on wide screens so cards stay a sensible size. */}
+      <div className="mt-5 grid grid-cols-1 gap-5 px-4 md:grid-cols-2 md:px-6 xl:grid-cols-3">{children}</div>
     </OwnedBadgesProvider>
   );
 }
@@ -272,7 +273,7 @@ function ChartSection({ title, sub, more, children }: { title: string; sub?: str
 }
 
 function Grid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-3 gap-3 px-4">{children}</div>;
+  return <div className="grid grid-cols-3 gap-3 px-4 md:grid-cols-5 md:px-6 xl:grid-cols-7">{children}</div>;
 }
 
 function Avatar({ url, name, index, size = "md" }: { url: string | null; name: string; index: number; size?: "md" | "lg" }) {

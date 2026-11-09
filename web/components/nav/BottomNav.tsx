@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { PublishSheet } from "./PublishSheet";
-import { APP_COLUMN, useIsFullWidth } from "./AppFrame";
 
 const UNREAD_POLL_MS = 45000;
 
@@ -73,7 +72,6 @@ export function BottomNav() {
   const { appUser } = useAuth();
   const [publishOpen, setPublishOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const fullWidth = useIsFullWidth();
 
   // On Socials, the central FAB creates a feed post instead of opening the
   // general "what are you publishing" sheet — it hands off via a query param
@@ -125,13 +123,7 @@ export function BottomNav() {
       <div aria-hidden className="h-16 shrink-0" />
       {/* v2 look (design/v2-prototype): black bar, muted outline icons, the
           active tab in red with an underline, a larger ringed Drop button. */}
-      {/* Fixed to the screen, so it's narrowed to the same centred column as
-          the app on wide screens (AppFrame). */}
-      <nav
-        className={`fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-line-soft bg-bg/95 backdrop-blur px-2 py-2 ${
-          fullWidth ? "" : `${APP_COLUMN} md:border-x`
-        }`}
-      >
+      <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-line-soft bg-bg/95 backdrop-blur px-2 py-2">
         {ITEMS.map((item) =>
           item.isFab ? (
             // Explicit ask: a bare "+"/pencil icon doesn't read as an

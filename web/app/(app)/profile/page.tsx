@@ -148,7 +148,7 @@ export default function ProfilePage() {
       <div className="relative">
         <ClickablePhoto targetUserId={appUser.id} kind="cover" photoUrl={appUser.coverUrl} alt="Cover photo" label="Cover photo" className="block w-full">
           <div
-            className="h-56 bg-gradient-to-br from-red/40 via-surface-2 to-black bg-cover bg-center"
+            className="h-56 bg-gradient-to-br from-red/40 via-surface-2 to-black bg-cover bg-center md:h-72"
             style={appUser.coverUrl ? { backgroundImage: `url(${appUser.coverUrl})` } : undefined}
           />
         </ClickablePhoto>
@@ -214,8 +214,8 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="px-4">
-        <div className="mt-6 grid grid-cols-2 gap-3">
+      <div className="px-4 md:px-6">
+        <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-3">
           <Link href="/profile/edit" className="flex items-center justify-center gap-2 rounded-full bg-white px-4 py-3.5 text-[15px] font-bold text-black">
             <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M4 20l.9-4.5L16.6 3.8a1.6 1.6 0 012.3 0l1.3 1.3a1.6 1.6 0 010 2.3L8.5 19.1 4 20z" strokeLinejoin="round" />
@@ -231,7 +231,7 @@ export default function ProfilePage() {
           />
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Tile icon={I.wallet} title="Wallet" sub="Earnings and payouts" href="/wallet" />
           <Tile icon={I.insights} title="Insights" sub="Views, sales, growth" href="/analytics" />
           <Tile icon={I.settings} title="Settings" sub="Account and security" href="/profile/edit" />
@@ -268,7 +268,7 @@ export default function ProfilePage() {
               + Drop
             </Link>
           </div>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-4 gap-2 md:max-w-xl">
             {CATALOG.map((c) => (
               <Link key={c.key} href={c.href} className="rounded-2xl border border-line bg-surface px-2 py-3 text-center">
                 <span className="block font-serif text-2xl font-bold">{stats?.catalog[c.key] ?? 0}</span>
@@ -276,7 +276,7 @@ export default function ProfilePage() {
               </Link>
             ))}
           </div>
-          <Link href={publicPath} className="mt-3 block rounded-full border border-line px-4 py-3.5 text-center text-[15px] font-bold">
+          <Link href={publicPath} className="mt-3 block rounded-full border border-line px-4 py-3.5 text-center text-[15px] font-bold md:max-w-xl">
             Preview public profile
           </Link>
         </section>

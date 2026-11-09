@@ -82,7 +82,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       <div className="relative">
         <ClickablePhoto targetUserId={user.id} kind="cover" photoUrl={user.coverUrl} alt="Cover photo" label="Cover photo" className="block w-full">
           <div
-            className="h-56 bg-gradient-to-br from-red/40 via-surface-2 to-black bg-cover bg-center"
+            className="h-56 bg-gradient-to-br from-red/40 via-surface-2 to-black bg-cover bg-center md:h-72"
             style={user.coverUrl ? { backgroundImage: `url(${user.coverUrl})` } : undefined}
           />
         </ClickablePhoto>
@@ -113,13 +113,13 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         <div className="mt-4">
           <ProfileLinkBadges links={socialLinks} />
         </div>
-        <div className="mt-5 w-full">
+        <div className="mx-auto mt-5 w-full max-w-md">
           <ProfileActions targetUserId={user.id} handle={user.handle} displayName={user.displayName} />
         </div>
         <ReportButton targetType="PROFILE" targetId={user.id} className="mt-3 text-xs text-ink-3" />
       </div>
 
-      <div className="px-4">
+      <div className="px-4 md:px-6">
         <ProfileLinkList links={socialLinks} />
 
         {(catalog.length > 0 || events.length > 0 || featuredOn.length > 0) && (
@@ -149,7 +149,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
               {featuredOn.length > 0 && (
                 <div>
                   <h2 className="text-[17px] font-bold mb-3">Featured on</h2>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-3 md:grid-cols-5 xl:grid-cols-7">
                     {featuredOn.map((p) => (
                       <ProductCard key={p.id} product={p} />
                     ))}
@@ -162,7 +162,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                 return (
                   <div key={label}>
                     <h2 className="text-[17px] font-bold mb-3">{label}</h2>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-3 md:grid-cols-5 xl:grid-cols-7">
                       {items.map((p) => (
                         <ProductCard key={p.id} product={p} />
                       ))}

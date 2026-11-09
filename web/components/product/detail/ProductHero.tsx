@@ -49,20 +49,23 @@ export function ProductHero({
 }) {
   return (
     <div className="pb-6">
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-4 md:px-6">
         <BackCircle />
       </div>
 
-      <div className="px-4 pt-4">
+      {/* Phones: artwork above the details. Wide screens: artwork on the left
+          (stays in view while scrolling), details and buying on the right. */}
+      <div className="md:grid md:grid-cols-[minmax(0,460px)_minmax(0,1fr)] md:gap-10 md:px-6 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:gap-14">
+      <div className="px-4 pt-4 md:sticky md:top-4 md:self-start md:px-0">
         <div className={`relative ${aspect} w-full overflow-hidden rounded-[28px] bg-gradient-to-br from-red/50 via-red-tint to-black`}>
           {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
-          <ArtworkImage src={image} alt={title} sizes="(max-width: 640px) 100vw, 640px" priority unoptimized className="object-cover" />
+          <ArtworkImage src={image} alt={title} sizes="(max-width: 768px) 100vw, 520px" priority unoptimized className="object-cover" />
           {overlay}
         </div>
         {gallery}
       </div>
 
-      <div className="px-4 pt-5">
+      <div className="min-w-0 px-4 pt-5 md:max-w-2xl md:px-0 md:pt-4">
         <span className="inline-block rounded-full bg-red-tint px-3 py-1 text-[12px] font-bold uppercase tracking-[0.14em] text-red-soft">{chip}</span>
         <div className="mt-3 flex items-start justify-between gap-3">
           <h1 className="min-w-0 font-serif text-[32px] font-bold leading-[1.05] tracking-tight [overflow-wrap:anywhere] min-[380px]:text-[38px]">{title}</h1>
@@ -102,6 +105,7 @@ export function ProductHero({
         </div>
 
         {children}
+      </div>
       </div>
     </div>
   );
