@@ -17,6 +17,8 @@ export type FeedExtras = {
   firstTrack: { id: string; title: string; lyricsText: string | null } | null;
   isVerified: boolean;
   verificationBadges: string[];
+  // Song comments on this release/beat (all of its tracks), for the card's 💬.
+  commentCount: number;
 };
 
 export type FeedProduct = CardProduct & FeedExtras;
@@ -28,15 +30,20 @@ export type FeedProduct = CardProduct & FeedExtras;
  */
 export async function withFeedExtras(products: CardProduct[]): Promise<FeedProduct[]> {
   if (products.length === 0) return [];
-  const rows = await db.product.findMany({
-    where: { id: { in: products.map((p) => p.id) } },
-    select: {
-      id: true,
-      creator: { select: { isVerified: true, verificationBadges: true } },
-      release: { select: { tracks: { orderBy: { order: "asc" }, take: 1, select: { id: true, title: true, lyricsText: true } } } },
-    },
-  });
+  const ids = products.map((p) => p.id);
+  const [rows, comments] = await Promise.all([
+    db.product.findMany({
+      where: { id: { in: ids } },
+      select: {
+        id: true,
+        creator: { select: { isVerified: true, verificationBadges: true } },
+        release: { select: { tracks: { orderBy: { order: "asc" }, take: 1, select: { id: true, title: true, lyricsText: true } } } },
+      },
+    }),
+    db.songComment.groupBy({ by: ["productId"], where: { productId: { in: ids } }, _count: { _all: true } }),
+  ]);
   const byId = new Map(rows.map((r) => [r.id, r]));
+  const commentsBy = new Map(comments.map((c) => [c.productId, c._count._all]));
   return products.map((p) => {
     const r = byId.get(p.id);
     return {
@@ -44,6 +51,7 @@ export async function withFeedExtras(products: CardProduct[]): Promise<FeedProdu
       firstTrack: r?.release?.tracks[0] ?? null,
       isVerified: r?.creator.isVerified ?? false,
       verificationBadges: (r?.creator.verificationBadges as string[] | undefined) ?? [],
+      commentCount: commentsBy.get(p.id) ?? 0,
     };
   });
 }

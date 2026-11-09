@@ -5,9 +5,6 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getOptionalUser } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { reserveStock, confirmStock, releaseReservation } from "@/lib/commerce/stock";
-import { initializePayment as initializeFlutterwavePayment } from "@/lib/flutterwave";
-import { initializePayment as initializeMonnifyPayment } from "@/lib/monnify";
-import { initializePayment as initializeBachsPayment } from "@/lib/bachs";
 import { GIFTABLE_TYPES, giftExpiresAt } from "@/lib/commerce/gifts";
 import { buildTicketInfo } from "@/lib/commerce/tickets";
 import { sendOrderConfirmationEmail } from "@/lib/email";
@@ -15,26 +12,11 @@ import { resolveGuestBuyer, activatePendingGuest } from "@/lib/commerce/guestChe
 import { isGuestEmailVerified } from "@/lib/commerce/guestVerification";
 import { adminAuth } from "@/lib/firebase/admin";
 import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
+import { startProcessorCheckout } from "@/lib/commerce/processorCheckout";
 import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO, MAX_TIP_KOBO } from "@/lib/commerce/constants";
 import { reserveVariant, confirmVariant, releaseVariant, variantLabel } from "@/lib/commerce/variants";
 import { isExclusiveSnapshot, closeBeatAfterExclusive } from "@/lib/commerce/beatLicenses";
 
-// One spot for every processor's checkout-page call — the purchase and
-// tip-only paths below both end here.
-async function startProcessorCheckout(args: {
-  gateway: "flutterwave" | "monnify" | "bachs";
-  txRef: string;
-  amountKobo: number;
-  customerEmail: string;
-  customerName: string;
-  redirectUrl: string;
-  title: string;
-}) {
-  const { gateway, ...rest } = args;
-  if (gateway === "monnify") return initializeMonnifyPayment(rest);
-  if (gateway === "bachs") return initializeBachsPayment(rest);
-  return initializeFlutterwavePayment(rest);
-}
 
 const shippingSchema = z.object({
   recipientName: z.string().min(1).max(120),

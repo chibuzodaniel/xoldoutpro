@@ -1,6 +1,7 @@
 import type { CreatorPlan, ProductType } from "@/generated/prisma/client";
 import { db } from "@/lib/db";
 import { recordRefund, refundableKobo, getCommissionRates } from "@/lib/commerce/ledger";
+import { chargeForOrder, orderAmountKobo } from "@/lib/commerce/groupPayment";
 import { getBuyerPaysFeePercentFor } from "@/lib/commerce/creatorPlans";
 import { refundCharge } from "@/lib/commerce/claimPayment";
 import { createNotification } from "@/lib/notifications/create";
@@ -81,7 +82,8 @@ export async function takedownProduct(productId: string): Promise<{ refundFailur
       continue;
     }
 
-    const payment = order.payment;
+    // Own payment, or this order's share of a cart payment (lib/commerce/groupPayment.ts).
+    const payment = await chargeForOrder(order);
     // A tip added at checkout is never refunded (refundableKobo) — only the
     // purchase part goes back to the buyer; the artist keeps the tip.
     const refundKobo = payment ? refundableKobo(payment.amountKobo, order.tipKobo) : 0;
@@ -207,7 +209,7 @@ export async function getProductModerationDetail(productId: string) {
       buyerHandle: oi.order.buyer.handle,
       buyerDisplayName: oi.order.buyer.displayName,
       quantity: oi.quantity,
-      amountKobo: oi.order.payment?.amountKobo ?? oi.priceKobo * oi.quantity,
+      amountKobo: orderAmountKobo(oi.order) ?? oi.priceKobo * oi.quantity,
       status: oi.order.status,
       createdAt: oi.order.createdAt,
       // Which side's referral earned each credit isn't stored on the

@@ -8,6 +8,7 @@ import { guestOrderToken, forgetGuestOrder, completeGuestSignIn } from "@/lib/us
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { clearCart } from "@/lib/cart";
 
 type OrderStatus = "PENDING" | "PAID" | "REFUNDED" | "FAILED";
 
@@ -181,6 +182,12 @@ function CheckoutCallbackInner() {
       setIsTipOnly(Boolean(order.isTipOnly));
       setTipRecipient(order.tipRecipient ?? null);
       setPriceKobo((order.isTipOnly ? 0 : (item?.priceKobo ?? 0)) + (order.tipKobo ?? 0));
+      // Cart checkout: several items under one payment — show the total.
+      if (order.isGroup) {
+        setProductId(null);
+        setProductTitle(order.itemCount === 1 ? (item?.product?.title ?? "1 item") : `${order.itemCount} items`);
+        setPriceKobo(order.totalKobo ?? 0);
+      }
       setEventId(item?.product?.ticketTier?.eventId ?? null);
       setReference(payment?.reference ?? order.id);
       setPaymentDate(payment?.date ?? order.createdAt);
@@ -218,6 +225,8 @@ function CheckoutCallbackInner() {
       }
 
       if (order.status === "PAID" || order.status === "FAILED") {
+        // A paid cart is done with — empty it on this device.
+        if (order.isGroup && order.status === "PAID") clearCart();
         setStatus(order.status);
         return;
       }
@@ -405,7 +414,7 @@ function CheckoutCallbackInner() {
                 onClick={() => router.push(productHref() ?? "/library")}
                 className="rounded-lg bg-red px-6 py-3 text-sm font-semibold text-white"
               >
-                {tickets.length > 0 ? "Go to event" : "Go to release"}
+                {tickets.length > 0 ? "Go to event" : productId ? "Go to release" : "Go to Library"}
               </button>
             )}
             <button onClick={() => router.push("/discover")} className="text-xs text-ink-3 font-semibold">

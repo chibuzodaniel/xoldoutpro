@@ -63,15 +63,31 @@ export function ProfileActions({ targetUserId, handle, displayName }: { targetUs
       </div>
     );
   }
+  // Signed-out visitors still see Follow and Message (design/v2-prototype);
+  // they lead to sign-in.
+  if (!appUser) {
+    return (
+      <div className="grid grid-cols-2 gap-3">
+        <Link href="/login" className="flex items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-[14px] font-bold text-black">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+            <circle cx="9" cy="8" r="3.5" />
+            <path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5M19 8v6M16 11h6" strokeLinecap="round" />
+          </svg>
+          Follow
+        </Link>
+        <Link href="/login" className="flex items-center justify-center rounded-full border border-line px-4 py-3 text-[14px] font-bold text-ink">
+          Message
+        </Link>
+        <TipButton creatorId={targetUserId} artistName={displayName} className="rounded-full bg-red px-4 py-3 text-[14px] font-bold text-white" />
+        {share}
+      </div>
+    );
+  }
   return (
-    <div className="flex flex-wrap items-center justify-center gap-2">
+    <div className="grid grid-cols-2 gap-3 [&>*]:w-full [&>*]:justify-center">
       <FollowButton targetUserId={targetUserId} />
       <MessageButton targetUserId={targetUserId} />
-      <TipButton
-        creatorId={targetUserId}
-        artistName={displayName}
-        className="rounded-full bg-red px-5 py-2 text-[14px] font-bold text-white"
-      />
+      <TipButton creatorId={targetUserId} artistName={displayName} className="rounded-full bg-red px-4 py-3 text-[14px] font-bold text-white" />
       {share}
     </div>
   );

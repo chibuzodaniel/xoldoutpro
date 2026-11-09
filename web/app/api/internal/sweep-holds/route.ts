@@ -62,6 +62,30 @@ export async function GET(req: NextRequest) {
     swept += 1;
   }
 
+  // Same cleanup for an abandoned cart checkout (one payment, several orders —
+  // Payment.checkoutGroupId): every order in it fails and releases its holds.
+  const staleGroups = await db.payment.findMany({
+    where: { status: "INITIATED", createdAt: { lt: cutoff }, checkoutGroupId: { not: null } },
+    select: { id: true, checkoutGroupId: true },
+  });
+  for (const payment of staleGroups) {
+    const claim = await db.payment.updateMany({ where: { id: payment.id, status: "INITIATED" }, data: { status: "FAILED" } });
+    if (claim.count === 0) continue; // a webhook won the race in the meantime
+    const orders = await db.order.findMany({
+      where: { checkoutGroupId: payment.checkoutGroupId, status: "PENDING" },
+      select: { id: true, items: { select: { productId: true, quantity: true, variantId: true } } },
+    });
+    for (const order of orders) {
+      for (const item of order.items) {
+        if (item.quantity <= 0) continue;
+        await releaseReservation(item.productId, item.quantity);
+        if (item.variantId) await releaseVariant(item.variantId, item.quantity);
+      }
+      await db.order.update({ where: { id: order.id }, data: { status: "FAILED" } });
+    }
+    swept += orders.length;
+  }
+
   // Same abandoned-checkout cleanup as above, for Billboard purchases
   // (lib/commerce/billboards.ts) — without this, a creator who starts a
   // Bachs checkout and never completes it would be permanently blocked from

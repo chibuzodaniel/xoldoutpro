@@ -10,6 +10,7 @@ import { GatewayPickerSheet } from "@/components/checkout/GatewayPickerSheet";
 import { GuestInfoSheet } from "@/components/checkout/GuestInfoSheet";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
+import { addToCart } from "@/lib/cart";
 
 // Merch sizes & colours (v2, 2026-11-09). Empty = a plain listing, as before.
 export type MerchVariantOption = { id: string; size: string | null; color: string | null; soldOut: boolean; remaining: number | null };
@@ -21,6 +22,10 @@ type Props = {
   isSoldOut: boolean;
   variants?: MerchVariantOption[];
   sizeGuide?: string | null;
+  // For the cart line (v2 cart).
+  title?: string;
+  artistName?: string;
+  imageUrl?: string | null;
 };
 
 type Fulfillment = {
@@ -61,7 +66,7 @@ const STATUS_LABEL: Record<NonNullable<Fulfillment["status"]>, string> = {
   DELIVERED: "Delivered",
 };
 
-export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSoldOut, variants = [], sizeGuide }: Props) {
+export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSoldOut, variants = [], sizeGuide, title, artistName, imageUrl }: Props) {
   const router = useRouter();
   const toast = useToast();
   const { firebaseUser } = useAuth();
@@ -302,6 +307,34 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
               {formatNaira(priceKobo * quantity)}
             </button>
           </div>
+          {priceKobo > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                if (hasVariants && !chosen) {
+                  toast.error(sizes.length && colors.length ? "Pick a size and a colour" : sizes.length ? "Pick a size" : "Pick a colour");
+                  return;
+                }
+                if (chosen?.soldOut) return toast.error("That option is sold out");
+                addToCart({
+                  productId,
+                  type: "MERCH",
+                  title: title ?? "Merch",
+                  artistName: artistName ?? "",
+                  imageUrl: imageUrl ?? null,
+                  href: `/m/${productId}`,
+                  unitPriceKobo: priceKobo,
+                  quantity,
+                  variantId: chosen?.id,
+                  variantLabel: chosen ? [chosen.size, chosen.color].filter(Boolean).join(" · ") : undefined,
+                });
+                toast.success("Added to cart");
+              }}
+              className="rounded-full border border-line px-5 py-3.5 text-[15px] font-bold text-ink"
+            >
+              Add to cart
+            </button>
+          )}
           {(shippingFeeKobo > 0 || serviceChargePercent != null) && (
             <p className="text-xs text-ink-3">{breakdownText(priceKobo * quantity, shippingFeeKobo, serviceChargePercent, serviceChargeKobo)}</p>
           )}

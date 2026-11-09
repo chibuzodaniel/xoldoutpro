@@ -87,6 +87,9 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
 
       <MerchPurchaseForm
         productId={product.id}
+        title={product.title}
+        artistName={product.creator.displayName}
+        imageUrl={primaryImage ?? null}
         priceKobo={product.priceKobo}
         shippingFeeKobo={shippingFee}
         isSoldOut={isSoldOut}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
+import { CartIconLink } from "@/components/nav/CartIconLink";
 
 export function AppHeader() {
   const { appUser } = useAuth();
@@ -68,6 +69,7 @@ export function AppHeader() {
               <path d="M20 20l-4.3-4.3" strokeLinecap="round" />
             </svg>
           </Link>
+          <CartIconLink />
           {appUser && (
             <Link href="/messages" aria-label="Messages" className="relative text-ink-2">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">

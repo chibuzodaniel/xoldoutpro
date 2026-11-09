@@ -57,6 +57,49 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
     }
 
+    // Cart checkout (v2): the return page polls with the cart's group id (a
+    // UUID — order ids never contain "-", so ordinary orders skip this).
+    if (user && id.includes("-")) {
+      const group = await db.order.findMany({
+        where: { checkoutGroupId: id, buyerId: user.id },
+        include: { items: { include: { product: { select: { id: true, title: true, type: true, ticketTier: { select: { eventId: true } } } } } } },
+        orderBy: { createdAt: "asc" },
+      });
+      if (group.length > 0) {
+        const statuses = group.map((o) => o.status);
+        const status = statuses.some((s) => s === "PENDING")
+          ? "PENDING"
+          : statuses.some((s) => s === "PAID")
+            ? "PAID"
+            : statuses.every((s) => s === "REFUNDED")
+              ? "REFUNDED"
+              : "FAILED";
+        const groupPayment = await db.payment.findUnique({
+          where: { checkoutGroupId: id },
+          select: { processorRef: true, createdAt: true, rawPayload: true, amountKobo: true },
+        });
+        return NextResponse.json({
+          order: {
+            id,
+            status,
+            createdAt: group[0].createdAt,
+            isGroup: true,
+            itemCount: group.length,
+            paidCount: statuses.filter((s) => s === "PAID").length,
+            totalKobo: groupPayment?.amountKobo ?? group.reduce((sum, o) => sum + (o.amountKobo ?? 0), 0),
+            isTipOnly: false,
+            tipKobo: 0,
+            items: group.flatMap((o) => o.items),
+          },
+          payment: groupPayment
+            ? { reference: groupPayment.processorRef, date: groupPayment.createdAt, method: derivePaymentMethod(groupPayment.rawPayload) }
+            : null,
+          entitlements: [],
+          customToken: null,
+        });
+      }
+    }
+
     const [order, payment] = await Promise.all([
       db.order.findUnique({
         where: { id },

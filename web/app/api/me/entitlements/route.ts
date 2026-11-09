@@ -17,9 +17,13 @@ export async function GET(req: NextRequest) {
     .slice(0, 200);
   if (ids.length === 0) return NextResponse.json({ entitled: [] });
 
-  const rows = await db.entitlement.findMany({
-    where: { userId: user.id, productId: { in: ids }, revokedAt: null },
-    select: { productId: true },
-  });
-  return NextResponse.json({ entitled: rows.map((r) => r.productId) });
+  // Likes ride along in the same request (v2 feed card hearts) — no extra call.
+  const [rows, likes] = await Promise.all([
+    db.entitlement.findMany({
+      where: { userId: user.id, productId: { in: ids }, revokedAt: null },
+      select: { productId: true },
+    }),
+    db.productLike.findMany({ where: { userId: user.id, productId: { in: ids } }, select: { productId: true } }),
+  ]);
+  return NextResponse.json({ entitled: rows.map((r) => r.productId), liked: likes.map((l) => l.productId) });
 }

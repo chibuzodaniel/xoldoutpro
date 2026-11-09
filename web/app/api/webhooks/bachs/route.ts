@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyTransaction } from "@/lib/bachs";
-import { finalizePayment } from "@/lib/commerce/confirmPayment";
+import { finalizePayment, finalizeGroupPayment } from "@/lib/commerce/confirmPayment";
 import { finalizeBillboardPayment } from "@/lib/commerce/billboards";
 import { finalizeCreatorPlanFeePayment } from "@/lib/commerce/creatorPlans";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
   // here before deciding which finalize path (and which relations) to load.
   const paymentRef = await db.payment.findUnique({
     where: { processorRef: verified.txRef },
-    select: { id: true, orderId: true, billboardId: true, creatorPlanUserId: true, coinTopUpUserId: true },
+    select: { id: true, orderId: true, billboardId: true, creatorPlanUserId: true, coinTopUpUserId: true, checkoutGroupId: true },
   });
   if (!paymentRef) return NextResponse.json({ error: "Unknown payment" }, { status: 404 });
 
@@ -110,6 +110,10 @@ export async function POST(req: NextRequest) {
     } else if (paymentRef.creatorPlanUserId) {
       const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
       await finalizeCreatorPlanFeePayment(payment, verified, body);
+    } else if (paymentRef.checkoutGroupId) {
+      // Cart checkout: one payment for several orders (lib/commerce/confirmPayment.ts).
+      const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
+      await finalizeGroupPayment({ ...payment, checkoutGroupId: paymentRef.checkoutGroupId }, verified, body);
     } else if (paymentRef.coinTopUpUserId) {
       const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
       await finalizeCoinTopUpPayment(payment, verified, body);

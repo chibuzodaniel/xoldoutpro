@@ -22,6 +22,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   return NextResponse.json({
     entitled,
+    // Lets the release page's Playlist chip add this purchase to a playlist.
+    entitlementId: entitled && entitlement ? entitlement.id : null,
     isOwner: user ? product.creatorId === user.id : false,
     // Explicit ask: when a super-moderator turns real-file downloads off,
     // the Download button should disappear entirely (not just error on

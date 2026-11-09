@@ -121,7 +121,67 @@ export async function finalizePayment(
 ): Promise<{ alreadyProcessed: boolean; success?: boolean }> {
   const claim = await claimPaymentForWebhook(payment.id, verified, rawPayload);
   if (claim === "alreadyProcessed") return { alreadyProcessed: true };
+  return finalizeClaimedOrder(payment, verified, claim);
+}
 
+/**
+ * Cart checkout (v2, 2026-11-09): one processor payment for several orders
+ * (Payment.checkoutGroupId). Claimed once, then each order is finalized
+ * exactly like a single-order payment, using its own share (Order.amountKobo)
+ * — so stock, ledger, splits, emails and refunds stay per order. A wrong total
+ * fails every order (each releases its stock). If a delivery crashed part-way,
+ * the processor's retry finishes whatever is still PENDING.
+ */
+export async function finalizeGroupPayment(
+  payment: { id: string; amountKobo: number; processor: string; checkoutGroupId: string },
+  verified: VerifiedResult,
+  rawPayload: unknown,
+): Promise<{ alreadyProcessed: boolean; success?: boolean }> {
+  let claim = await claimPaymentForWebhook(payment.id, verified, rawPayload);
+  let onlyPending = false;
+  if (claim === "alreadyProcessed") {
+    const current = await db.payment.findUnique({ where: { id: payment.id }, select: { status: true } });
+    if (current?.status !== "SUCCESSFUL") return { alreadyProcessed: true };
+    claim = "claimed";
+    onlyPending = true;
+  }
+
+  const orders = await db.order.findMany({
+    where: { checkoutGroupId: payment.checkoutGroupId, ...(onlyPending ? { status: "PENDING" } : {}) },
+    include: { items: true, buyer: { select: { referredByAmbassadorId: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (onlyPending && orders.length === 0) return { alreadyProcessed: true };
+
+  const totalOk = verified.status === "successful" && verified.amountKobo === payment.amountKobo;
+  if (verified.status === "successful" && !totalOk) {
+    console.error(`Cart payment ${payment.id} paid ${verified.amountKobo} kobo against ${payment.amountKobo} expected — every order failed, reconcile manually.`);
+  }
+
+  let anySuccess = false;
+  for (const order of orders) {
+    const share = order.amountKobo ?? 0;
+    try {
+      const result = await finalizeClaimedOrder(
+        { id: payment.id, orderId: order.id, amountKobo: share, processor: payment.processor, order },
+        { id: verified.id, status: totalOk ? "successful" : "failed", amountKobo: totalOk ? share : -1 },
+        claim,
+      );
+      if (result.success) anySuccess = true;
+    } catch (err) {
+      // Logged and rethrown after the loop would lose the other orders —
+      // keep going; the processor's retry finishes this one (onlyPending).
+      console.error(`Cart payment ${payment.id}: finalizing order ${order.id} failed`, err);
+    }
+  }
+  return { alreadyProcessed: false, success: anySuccess };
+}
+
+async function finalizeClaimedOrder(
+  payment: PaymentForConfirm,
+  verified: VerifiedResult,
+  claim: "claimed" | "late",
+): Promise<{ alreadyProcessed: boolean; success?: boolean }> {
   const productId = payment.order.items[0]?.productId;
   const quantity = payment.order.items[0]?.quantity ?? 1;
   // Merch size/colour picked at checkout — its stock moves with the listing's.

@@ -8,6 +8,7 @@ import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvide
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { downloadTrackForOffline, isDownloaded, removeDownload } from "@/lib/offline/downloads";
 import { CollectionsTab } from "@/components/library/CollectionsTab";
+import { CartIconLink } from "@/components/nav/CartIconLink";
 import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
 import { TicketQrCode } from "@/components/ui/TicketQrCode";
@@ -638,6 +639,7 @@ function LibraryPageInner() {
               <path d="M20 20l-4.3-4.3" strokeLinecap="round" />
             </svg>
           </button>
+          <CartIconLink />
           <button type="button" onClick={() => setNotificationsOpen(true)} aria-label="Notifications" className="relative text-ink-2">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
               <path d="M18 8a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6" strokeLinecap="round" strokeLinejoin="round" />

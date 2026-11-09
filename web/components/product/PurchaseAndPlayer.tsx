@@ -15,6 +15,8 @@ import { downloadViaSignedLink } from "@/lib/downloadFile";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
 import { TipAmountPicker, nairaTextToKobo } from "@/components/product/TipAmountPicker";
 import { TipButton } from "@/components/product/TipButton";
+import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
+import { addToCart } from "@/lib/cart";
 import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO } from "@/lib/commerce/constants";
 
 type AccessTrack = {
@@ -38,6 +40,8 @@ type Props = {
   isSoldOut: boolean;
   // "Let fans pay anything": priceKobo is then the minimum, the fan picks the price.
   payWhatYouWant?: boolean;
+  // For the cart line (v2 cart).
+  title?: string;
 };
 
 function formatNaira(kobo: number) {
@@ -55,12 +59,15 @@ function formatTime(sec: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl, priceKobo, isSoldOut, payWhatYouWant = false }: Props) {
+export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl, priceKobo, isSoldOut, payWhatYouWant = false, title }: Props) {
   const router = useRouter();
   const player = usePlayer();
   const toast = useToast();
   const { firebaseUser } = useAuth();
   const [entitled, setEntitled] = useState(false);
+  // The buyer's purchase, for the Playlist chip (null until bought).
+  const [entitlementId, setEntitlementId] = useState<string | null>(null);
+  const [playlistOpen, setPlaylistOpen] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [tracks, setTracks] = useState<AccessTrack[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,6 +96,7 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
     setIsOwner(data.isOwner);
     setTracks(data.tracks);
     setDownloadsAllowed(data.downloadsEnabled ?? true);
+    setEntitlementId(data.entitlementId ?? null);
     setServiceChargePercent(data.serviceChargePercent ?? null);
   }
 
@@ -183,8 +191,47 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
   const totalKobo = purchaseKobo + checkoutTipKobo;
   const canBuy = !entitled && !isOwner && !isSoldOut;
 
+  // Comments live under the full-screen player: open it on the first track.
+  function openComments() {
+    const first = tracks?.[0];
+    if (!first) return;
+    if (player.current?.trackId !== first.id) handlePlay(first);
+    else player.setExpanded(true);
+  }
+
+  const chip = "inline-flex items-center gap-2 rounded-full border border-line px-4 py-2.5 text-[14px] font-semibold text-ink hover:border-line-strong";
+
   return (
     <div>
+      {/* v2 action chips (design/v2-prototype): Comments, Tip, Playlist. */}
+      <div className="mb-5 flex flex-wrap gap-2.5">
+        <button type="button" onClick={openComments} className={chip}>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M21 11.5a8.5 8.5 0 01-8.5 8.5c-1.2 0-2.3-.25-3.3-.7L4 20l.9-4.5A8.5 8.5 0 1121 11.5z" strokeLinejoin="round" />
+          </svg>
+          Comments
+        </button>
+        {!isOwner && (
+          <TipButton
+            productId={productId}
+            creatorId={creatorId}
+            artistName={artistName}
+            label={`Tip ${artistName}`}
+            className={chip}
+          />
+        )}
+        <button
+          type="button"
+          onClick={() => (entitlementId ? setPlaylistOpen(true) : toast.error("Buy this first to add it to a playlist"))}
+          className={chip}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M6 3h12v18l-6-4-6 4V3z" strokeLinejoin="round" />
+          </svg>
+          Playlist
+        </button>
+      </div>
+
       {canBuy && payWhatYouWant && (
         <div className="mb-3">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Name your price</label>
@@ -242,7 +289,36 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
       {canBuy && <ChargeNote kobo={totalKobo} className="mb-2" />}
       {/* v2: the buy row stays pinned to the bottom of the screen while the
           track list scrolls under it (design/v2-prototype). */}
-      <div className="sticky bottom-0 z-10 -mx-4 mb-4 flex gap-2 border-t border-line-soft bg-bg/95 px-4 py-3 backdrop-blur">
+      <div className="sticky bottom-0 z-10 -mx-4 mb-4 flex gap-2 border-t border-line-soft bg-bg/95 px-4 py-3 backdrop-blur empty:hidden">
+        {/* Cart (v2, design/v2-prototype): add this and pay for several items at once. */}
+        {!entitled && !isOwner && !isSoldOut && unitKobo > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (payWhatYouWant && unitKobo < floorKobo) return toast.error(`The lowest you can pay is ${nairaAmount(floorKobo)}`);
+              const added = addToCart({
+                productId,
+                type: "RELEASE",
+                title: title ?? "Release",
+                artistName,
+                imageUrl: artworkUrl,
+                href: `/r/${productId}`,
+                unitPriceKobo: unitKobo,
+                quantity: 1,
+                payAmountKobo: payWhatYouWant ? unitKobo : undefined,
+              });
+              toast.success(added ? "Added to cart" : "Already in your cart");
+            }}
+            className="flex shrink-0 items-center gap-2 rounded-full border border-line px-5 py-4 text-[15px] font-bold text-ink"
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.9" aria-hidden>
+              <path d="M3 4h2l2.4 11.2a1.5 1.5 0 001.5 1.2h8.6a1.5 1.5 0 001.5-1.1L21 8H6.2" strokeLinecap="round" strokeLinejoin="round" />
+              <circle cx="9.5" cy="20" r="1.4" />
+              <circle cx="17" cy="20" r="1.4" />
+            </svg>
+            Cart
+          </button>
+        )}
         {!entitled && !isOwner && (
           <button
             onClick={handleBuy}
@@ -254,20 +330,11 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
               : busy
                 ? "Starting checkout…"
                 : totalKobo > 0
-                  ? `Buy · ${nairaAmount(totalKobo)}`
+                  ? `Buy now · ${nairaAmount(totalKobo)}`
                   : formatNaira(0)}
           </button>
         )}
-        {/* Standalone tip: any fan, no purchase needed (explicit ask, 2026-11-07). */}
-        {!isOwner && (
-          <TipButton
-            productId={productId}
-            creatorId={creatorId}
-            artistName={artistName}
-            label={entitled || isSoldOut ? `Tip ${artistName}` : "Tip"}
-            className={`${entitled || isSoldOut ? "flex-1" : "shrink-0"} rounded-full border border-line px-5 py-4 text-[16px] font-semibold text-ink hover:border-line-strong`}
-          />
-        )}
+        {/* Tip is in the chips row above (standalone tip, no purchase needed). */}
       </div>
 
       <div className="flex flex-col divide-y divide-line-soft border-y border-line-soft">
@@ -340,6 +407,7 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
         </p>
       )}
 
+      {entitlementId && <AddToCollectionSheet entitlementId={entitlementId} open={playlistOpen} onClose={() => setPlaylistOpen(false)} />}
       <GatewayPickerSheet open={gatewaySheetOpen} onSelect={handleGatewaySelect} onClose={closeGatewaySheet} />
       <GuestInfoSheet open={guestInfoSheetOpen} onSubmit={handleGuestInfoSubmit} onClose={closeGuestInfoSheet} />
     </div>

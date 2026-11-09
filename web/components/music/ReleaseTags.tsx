@@ -206,7 +206,9 @@ export function ReleaseTags({
     );
   }
 
-  if (genres.length === 0 && !isCreator) return null;
+  // Visitors see the genres in the release's detail line instead (v2 product
+  // page, design/v2-prototype); this block is the owner's genre + edit row.
+  if (!isCreator) return null;
 
   const chip = "rounded-full border border-line px-2.5 py-1 text-[11px] font-semibold text-ink-2 hover:border-line-strong hover:text-ink";
   return (

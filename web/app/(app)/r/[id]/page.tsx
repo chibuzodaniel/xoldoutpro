@@ -9,6 +9,7 @@ import { Price } from "@/components/currency/CurrencyProvider";
 import { ReleaseExtras } from "@/components/addons/ReleaseExtras";
 import { ReleaseTags } from "@/components/music/ReleaseTags";
 import { acceptedCreditsSelect } from "@/lib/music/collaborators";
+import { genreLabel } from "@/lib/music/tags";
 
 // Public product data — cache and revalidate in the background instead of
 // hitting the DB on every view.
@@ -101,12 +102,14 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
               <Price kobo={product.priceKobo} freeLabel="Free" />
             )
           }
-          note={remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} of ${cap} left`) : `${sold} sold`}
-          noteTone={remaining !== null ? "alert" : "muted"}
+          // Like the prototype, only scarcity is shown here (a capped release's "N of M left").
+          note={remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} of ${cap} left`) : null}
+          noteTone="alert"
         />
         <HeroMeta
           parts={[
             product.release.tracks.length > 1 ? `${releaseLabel} · ${product.release.tracks.length} tracks` : releaseLabel,
+            ...product.release.genres.map(genreLabel),
             product.payWhatYouWant && "Pay what you want",
           ]}
         />
@@ -133,6 +136,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           artworkUrl={artwork ?? null}
           priceKobo={product.priceKobo}
           payWhatYouWant={product.payWhatYouWant}
+          title={product.title}
           isSoldOut={isSoldOut}
         />
 

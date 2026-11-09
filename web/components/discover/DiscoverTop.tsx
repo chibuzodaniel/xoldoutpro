@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SectionSwitcher } from "./SectionSwitcher";
 
 export type DiscoverSection = "RELEASE" | "BEAT" | "EVENT" | "MERCH";
 
@@ -52,6 +53,13 @@ export function DiscoverTop({ section, q }: { section: DiscoverSection; q: strin
           </Link>
         ))}
       </div>
+      {/* Marker for the floating "Music ▾" switcher once these pills scroll away. */}
+      <div id="discover-pills-end" aria-hidden />
+      <SectionSwitcher
+        current={section}
+        sections={SECTIONS.map((s) => ({ type: s.type, label: s.label, href: sectionHref(s.type) }))}
+        markerId="discover-pills-end"
+      />
     </div>
   );
 }

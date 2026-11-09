@@ -180,6 +180,7 @@ model User {
   featuredOn          ReleaseCollaborator[] @relation("CollabArtist")
   collabsInvitedByMe  ReleaseCollaborator[] @relation("CollabInviter")
   tipsReceived        Order[]               @relation("TipsReceived")
+  productLikes        ProductLike[]
   giftsClaimed Gift[] @relation("GiftsClaimed")
 
   groupsCreated FanbaseGroup[]
@@ -651,6 +652,9 @@ model Product {
   // by every add-on write so every browsing surface can show the E+ badge
   // from the product row alone, without a join or count per card.
   addOnCount  Int           @default(0)
+  // Likes (v2 feed card heart, design/v2-prototype, 2026-11-09) — kept in step
+  // by every like/unlike (ProductLike) so cards never count rows.
+  likeCount   Int           @default(0)
 
   release              Release?
   beat                 Beat?
@@ -667,6 +671,7 @@ model Product {
   collaborators        ReleaseCollaborator[]
   merchVariants        MerchVariant[]
   beatLicenses         BeatLicense[]
+  likes                ProductLike[]
 
   @@index([creatorId])
   @@index([status, type])
@@ -825,6 +830,8 @@ model SongComment {
   @@index([trackKind, trackId, parentId, createdAt])
   @@index([trackKind, trackId, parentId, likeCount])
   @@index([parentId, createdAt])
+  // Feed cards count comments per release/beat (v2, 2026-11-09).
+  @@index([productId])
 }
 
 // value 1 = like, -1 = dislike. Like YouTube, only likes are ever shown as
@@ -997,6 +1004,18 @@ model MerchItem {
   sizeGuide        String?
 }
 
+// One like per account per product (v2 feed cards, 2026-11-09).
+model ProductLike {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@id([userId, productId])
+  @@index([productId])
+}
+
 // Beat license tiers (v2, design/v2-prototype, 2026-11-09). Optional — a beat
 // with none sells under the single flat license in /legal/terms (as before).
 // Each tier has its own price, formats and structured terms (lib/commerce/
@@ -1116,6 +1135,13 @@ model Order {
   // A tip never gets a service charge added; recordTip takes its own cut.
   tipKobo   Int     @default(0)
   isTipOnly Boolean @default(false)
+
+  // Cart checkout (v2, 2026-11-09): orders paid together share this id with
+  // their single Payment (Payment.checkoutGroupId), and amountKobo is this
+  // order's own share of that payment — what its sale, refund and emails use.
+  // Both null for every order paid on its own (Payment.amountKobo is its amount).
+  checkoutGroupId String?
+  amountKobo      Int?
   // Who a tip-only order pays (explicit ask, 2026-11-07: fans can tip an
   // artist from their profile without buying anything). Set on every
   // tip-only order: a profile tip has no OrderItem at all, a tip from a
@@ -1125,6 +1151,8 @@ model Order {
 
   items            OrderItem[]
   payment          Payment?
+
+  @@index([checkoutGroupId])
   entitlements     Entitlement[]
   ledgerEntries    WalletLedgerEntry[]
   merchFulfillment MerchOrderFulfillment?
@@ -1173,6 +1201,11 @@ model Payment {
   // and an XG top-up (lib/live/coins.ts) are the only other things this
   // Payment/webhook pipeline pays for besides an Order.
   orderId                String?       @unique
+  // Cart checkout (v2, 2026-11-09): one payment for several orders. The
+  // orders share this id (Order.checkoutGroupId) and each keeps its own
+  // share in Order.amountKobo. Exactly one of orderId/checkoutGroupId/
+  // billboardId/creatorPlanUserId/coinTopUpUserId is set.
+  checkoutGroupId        String?       @unique
   order                  Order?        @relation(fields: [orderId], references: [id])
   billboardId            String?       @unique
   billboard              Billboard?    @relation(fields: [billboardId], references: [id])

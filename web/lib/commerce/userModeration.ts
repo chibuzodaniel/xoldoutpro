@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { getWalletBalances, getCommissionRates } from "@/lib/commerce/ledger";
 import { getCreatorPlanSettings } from "@/lib/commerce/creatorPlans";
 import { getSellerSales } from "@/lib/commerce/sellerSales";
+import { orderAmountKobo } from "@/lib/commerce/groupPayment";
 
 // Human labels for the moderator-facing activity feed — same enum
 // AmbassadorsPanel/EventCommissionRecompute already surface individual
@@ -111,6 +112,7 @@ export async function getUserModerationDetail(userId: string) {
           id: true,
           status: true,
           isTipOnly: true,
+          amountKobo: true,
           createdAt: true,
           items: { take: 1, select: { product: { select: { title: true, type: true } } } },
           payment: { select: { amountKobo: true } },
@@ -172,7 +174,7 @@ export async function getUserModerationDetail(userId: string) {
         ? `Tip${o.items[0] ? ` · ${o.items[0].product.title}` : ""}`
         : (o.items[0]?.product.title ?? "(deleted product)"),
       productType: o.items[0]?.product.type ?? null,
-      amountKobo: o.payment?.amountKobo ?? 0,
+      amountKobo: orderAmountKobo(o) ?? 0,
       status: o.status,
       createdAt: o.createdAt,
     })),

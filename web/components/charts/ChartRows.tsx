@@ -44,7 +44,9 @@ function imageFor(p: FeedCardProduct) {
   return ladder?.["256"] ?? ladder?.["1024"] ?? null;
 }
 
-const pill = "rounded-full border border-line px-3.5 py-2 text-[13px] font-semibold text-ink";
+// Compact so every action fits on one line under the row (design/v2-prototype);
+// two-word labels may wrap inside their pill.
+const pill = "flex min-h-[40px] max-w-[88px] items-center justify-center rounded-full border border-line px-3 py-1 text-center text-[12.5px] font-semibold leading-tight text-ink";
 
 export function ProductChartRow({
   rank,
@@ -105,9 +107,9 @@ export function ProductChartRow({
             </p>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+        <div className="mt-3 flex flex-nowrap items-center justify-start gap-2">
           {canPreview && (
-            <button type="button" onClick={preview} className={`${pill} inline-flex items-center gap-1.5`}>
+            <button type="button" onClick={preview} className={`${pill} gap-1.5`}>
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d="M7 5v14l11-7z" strokeLinejoin="round" />
               </svg>
@@ -117,7 +119,7 @@ export function ProductChartRow({
           <Link href={href} className={pill}>
             See details
           </Link>
-          <button type="button" onClick={share} aria-label={`Share ${p.title}`} className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-ink-2">
+          <button type="button" onClick={share} aria-label={`Share ${p.title}`} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-line text-ink-2">
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
               <circle cx="18" cy="5" r="2.6" />
               <circle cx="6" cy="12" r="2.6" />
@@ -132,7 +134,7 @@ export function ProductChartRow({
           ) : soldOut ? (
             <span className={`${pill} text-ink-3`}>Sold out</span>
           ) : (
-            <Link href={href} className="rounded-full bg-red px-4 py-2 text-[13px] font-bold text-white">
+            <Link href={href} className="flex min-h-[40px] max-w-[88px] items-center justify-center rounded-full bg-red px-3.5 py-1 text-center text-[12.5px] font-bold leading-tight text-white">
               {p.priceKobo === 0 ? "Get Free" : p.type === "MERCH" ? "Purchase" : "Buy Now"}
             </Link>
           )}
@@ -175,7 +177,7 @@ export function CreatorChartRow({
             <p className="truncate text-[12px] text-ink-3">{stats}</p>
           </div>
         </div>
-        <div className="mt-3 flex items-center justify-end gap-2">
+        <div className="mt-3 flex items-center justify-start gap-2">
           <Link href={`/u/${c.handle}`} className={pill}>
             Visit profile
           </Link>

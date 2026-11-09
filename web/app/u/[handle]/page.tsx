@@ -4,19 +4,15 @@ import { db } from "@/lib/db";
 import { ProfileAvatar, ProfileActions } from "@/components/profile/ProfileHeaderRow";
 import { ProfileLinkBadges, ProfileLinkList } from "@/components/profile/ProfileLinks";
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
-import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
-import { EventCard } from "@/components/product/EventCard";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { buildOgMetadata } from "@/lib/og";
 import { NewVisitorGate } from "@/components/auth/NewVisitorGate";
 import { discoverCardInclude } from "@/lib/discover/getDiscoverData";
+import { withFeedExtras } from "@/lib/discover/feed";
+import { ProfileShowcase } from "@/components/profile/ProfileShowcase";
 
-const CATALOG_SECTIONS: { types: ProductCardData["type"][]; label: string }[] = [
-  { types: ["RELEASE", "BEAT"], label: "Music & Beats" },
-  { types: ["MERCH"], label: "Merch" },
-];
 
 // Public, non-personalized profile data — cache and serve from the CDN,
 // revalidating in the background rather than hitting the DB on every view.
@@ -71,6 +67,9 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
     }),
   ]);
 
+  // First track of each song (for the play buttons), one query for the page.
+  const [withTracks, featuredWithTracks] = await Promise.all([withFeedExtras(catalog.filter((p) => p.type !== "MERCH")), withFeedExtras(featuredOn)]);
+
   const socialLinks = (user.socialLinks as { platform: string; url: string }[] | null) ?? [];
 
   return (
@@ -122,57 +121,22 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       <div className="px-4 md:px-6">
         <ProfileLinkList links={socialLinks} />
 
-        {(catalog.length > 0 || events.length > 0 || featuredOn.length > 0) && (
-          <div className="mt-8 flex flex-col gap-7">
-            <h2 className="font-serif text-2xl font-bold">On XOLDOUT</h2>
-            {events.length > 0 && (
-              <div>
-                <h2 className="text-[17px] font-bold mb-3">Events</h2>
-                <div className="grid grid-cols-3 gap-3">
-                  {events.map((ev) => (
-                    <EventCard
-                      key={ev.id}
-                      event={{
-                        id: ev.id,
-                        creatorId: ev.creatorId,
-                        title: ev.title,
-                        coverImageLadder: ev.coverImageLadder,
-                        startsAt: ev.startsAt,
-                        tiers: ev.tiers.map((t) => ({ priceKobo: t.product.priceKobo, stockPolicy: t.product.stockPolicy })),
-                      }}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            <OwnedBadgesProvider productIds={[...catalog, ...featuredOn].map((p) => p.id)}>
-              {featuredOn.length > 0 && (
-                <div>
-                  <h2 className="text-[17px] font-bold mb-3">Featured on</h2>
-                  <div className="grid grid-cols-3 gap-3 md:grid-cols-5 xl:grid-cols-7">
-                    {featuredOn.map((p) => (
-                      <ProductCard key={p.id} product={p} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              {CATALOG_SECTIONS.map(({ types, label }) => {
-                const items = catalog.filter((p) => types.includes(p.type));
-                if (items.length === 0) return null;
-                return (
-                  <div key={label}>
-                    <h2 className="text-[17px] font-bold mb-3">{label}</h2>
-                    <div className="grid grid-cols-3 gap-3 md:grid-cols-5 xl:grid-cols-7">
-                      {items.map((p) => (
-                        <ProductCard key={p.id} product={p} />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </OwnedBadgesProvider>
-          </div>
-        )}
+        <OwnedBadgesProvider productIds={[...catalog, ...featuredOn].map((p) => p.id)}>
+          <ProfileShowcase
+            songs={withTracks.filter((p) => p.type === "RELEASE")}
+            beats={withTracks.filter((p) => p.type === "BEAT")}
+            merch={catalog.filter((p) => p.type === "MERCH")}
+            featuredOn={featuredWithTracks}
+            events={events.map((ev) => ({
+              id: ev.id,
+              creatorId: ev.creatorId,
+              title: ev.title,
+              coverImageLadder: ev.coverImageLadder,
+              startsAt: ev.startsAt,
+              tiers: ev.tiers.map((t) => ({ priceKobo: t.product.priceKobo, stockPolicy: t.product.stockPolicy })),
+            }))}
+          />
+        </OwnedBadgesProvider>
       </div>
     </div>
   );

@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 import { ChargeNote } from "@/components/currency/CurrencyProvider";
 import { termRows, type LicenseTerms } from "@/lib/commerce/licenseTerms";
+import { addToCart } from "@/lib/cart";
 
 // Beat license tiers (v2, 2026-11-09). Empty = the single flat license, as before.
 export type BeatLicenseOption = { id: string; name: string; priceKobo: number; formats: string[]; isExclusive: boolean; terms: LicenseTerms };
@@ -251,6 +252,35 @@ export function BeatPurchaseAndPlayer({ productId, title, artistName, artworkUrl
       {/* v2: the buy row stays pinned to the bottom of the screen while the
           track list scrolls under it (design/v2-prototype). */}
       <div className="sticky bottom-0 z-10 -mx-4 mb-4 flex gap-2 border-t border-line-soft bg-bg/95 px-4 py-3 backdrop-blur">
+        {/* Cart (v2): the chosen license and its agreement go with the item. */}
+        {!entitled && !isOwner && !isSoldOut && priceKobo > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              if (licenses.length > 0 && (!chosenLicense || !agreed)) {
+                toast.error(chosenLicense ? `Tick the box to agree to the ${chosenLicense.name} license terms` : "Pick a license");
+                return;
+              }
+              const added = addToCart({
+                productId,
+                type: "BEAT",
+                title,
+                artistName,
+                imageUrl: artworkUrl,
+                href: `/b/${productId}`,
+                unitPriceKobo: priceKobo,
+                quantity: 1,
+                licenseId: chosenLicense?.id,
+                licenseName: chosenLicense?.name,
+                acceptedLicenseTerms: chosenLicense ? agreed : undefined,
+              });
+              toast.success(added ? "Added to cart" : "Already in your cart");
+            }}
+            className="flex shrink-0 items-center gap-2 rounded-full border border-line px-5 py-4 text-[15px] font-bold text-ink"
+          >
+            Cart
+          </button>
+        )}
         {!entitled && !isOwner && (
           <button
             onClick={handleBuy}

@@ -2,7 +2,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { verifyTransaction } from "@/lib/monnify";
-import { finalizePayment } from "@/lib/commerce/confirmPayment";
+import { finalizePayment, finalizeGroupPayment } from "@/lib/commerce/confirmPayment";
 
 export const runtime = "nodejs";
 
@@ -50,6 +50,16 @@ export async function POST(req: NextRequest) {
   // orderId/order are optional in the schema (a Billboard payment has
   // neither — see lib/commerce/billboards.ts) but this processor is only
   // ever used for Order checkout, so both are expected to be set here.
+  if (payment?.checkoutGroupId) {
+    // Cart checkout: one payment for several orders (lib/commerce/confirmPayment.ts).
+    try {
+      await finalizeGroupPayment({ ...payment, checkoutGroupId: payment.checkoutGroupId }, verified, body);
+    } catch (err) {
+      console.error(err);
+      return NextResponse.json({ error: "Could not finalize order" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
   if (!payment || !payment.orderId || !payment.order) return NextResponse.json({ error: "Unknown order" }, { status: 404 });
 
   try {

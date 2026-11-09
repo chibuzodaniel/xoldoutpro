@@ -15,7 +15,7 @@ import { BattleInviteRing } from "@/components/live/BattleInviteRing";
 // /checkout/callback: a guest who checked out with a new email has no
 // session until their payment lands — the page signs them in itself (see
 // lib/useGuestCheckout.ts guestOrderToken), so it can't sit behind the wall.
-const PUBLIC_EXACT = new Set(["/discover", "/search", "/checkout/callback"]);
+const PUBLIC_EXACT = new Set(["/discover", "/search", "/checkout/callback", "/cart"]);
 const PUBLIC_PREFIXES = ["/r/", "/b/", "/e/", "/m/"];
 
 // Not "public" (a signed-out visitor still can't see the dashboard) — this
