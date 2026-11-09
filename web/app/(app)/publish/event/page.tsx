@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChipPicker } from "@/components/publish/ChipPicker";
+import { EVENT_TYPES } from "@/lib/discover/sectionFilters";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
@@ -24,6 +26,8 @@ export default function CreateEventPage() {
   const [description, setDescription] = useState("");
   const [venue, setVenue] = useState("");
   const [isVirtual, setIsVirtual] = useState(false);
+  const [eventType, setEventType] = useState<string | null>(null);
+  const [city, setCity] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
 
@@ -84,6 +88,8 @@ export default function CreateEventPage() {
         coverImageLadder,
         venue: isVirtual ? undefined : venue,
         isVirtual,
+        eventType: eventType ?? undefined,
+        city: isVirtual ? undefined : city.trim() || undefined,
         startsAt: new Date(startsAt).toISOString(),
         endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
         tiers: parsedTiers,
@@ -205,7 +211,18 @@ export default function CreateEventPage() {
               className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
             />
           )}
+          {!isVirtual && (
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="City (e.g. Lagos) — for Near You"
+              maxLength={80}
+              className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red"
+            />
+          )}
         </div>
+
+        <ChipPicker label="Event type" options={EVENT_TYPES} value={eventType} onChange={setEventType} />
 
         <div className="flex gap-3">
           <div className="flex flex-col gap-1 flex-1">

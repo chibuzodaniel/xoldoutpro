@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { EVENT_TYPES } from "@/lib/discover/sectionFilters";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
@@ -16,6 +17,9 @@ const createSchema = z.object({
   coverImageLadder: z.record(z.string(), z.string()),
   venue: z.string().max(200).optional(),
   isVirtual: z.boolean().default(false),
+  // Discover chips / Near You (v2) — optional.
+  eventType: z.enum(EVENT_TYPES).optional(),
+  city: z.string().trim().max(80).optional(),
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime().optional(),
   tiers: z.array(tierSchema).min(1).max(10),
@@ -39,6 +43,8 @@ export async function POST(req: NextRequest) {
           coverImageLadder: body.coverImageLadder,
           venue: body.venue,
           isVirtual: body.isVirtual,
+          eventType: body.eventType,
+          city: body.city || undefined,
           startsAt: new Date(body.startsAt),
           endsAt: body.endsAt ? new Date(body.endsAt) : undefined,
           status: "PUBLISHED",

@@ -35,7 +35,7 @@ export type FeedCardProduct = {
   creatorId?: string;
   creator: { handle: string; displayName: string };
   release: { artworkLadder: unknown; releaseType: string } | null;
-  beat: { coverImageLadder: unknown } | null;
+  beat: { coverImageLadder: unknown; genre?: string | null; bpm?: number | null } | null;
   merchItem: { imageLadder: unknown } | null;
   stockPolicy: {
     cap: number | null;
@@ -119,10 +119,13 @@ export function FeedCard({
   product: p,
   trending = false,
   priority = false,
+  compact = false,
 }: {
   product: FeedCardProduct;
   trending?: boolean;
   priority?: boolean;
+  /** Beats feed: artwork on the left, Preview + Buy Now below (design/v2-prototype). */
+  compact?: boolean;
 }) {
   const owned = useOwnedProducts().has(p.id);
   const router = useRouter();
@@ -248,6 +251,109 @@ export function FeedCard({
   if (hidden) return null;
   // Music "Buy Now" opens checkout straight away on the release page (prototype: buy → checkout).
   const buyHref = p.type === "RELEASE" && !p.payWhatYouWant ? `${href}?buy=1` : href;
+  const priceLabel = isFree ? "Free" : `${naira(p.priceKobo)}${p.payWhatYouWant ? "+" : ""}`;
+  const menu = (
+    <FeedCardMenu
+      open={menuOpen}
+      onClose={closeMenu}
+      productId={p.id}
+      title={p.title}
+      href={href}
+      creator={{ id: p.creatorId, handle: p.creator.handle, displayName: p.creator.displayName }}
+      onShare={share}
+    />
+  );
+
+  if (compact) {
+    const meta = [p.beat?.genre, p.beat?.bpm ? `${p.beat.bpm} BPM` : null].filter(Boolean).join(" • ") || kindLabel(p, isNew);
+    return (
+      <article className="rounded-[24px] border border-line-soft bg-surface p-4">
+        <div className="flex gap-4">
+          <Link href={href} aria-label={p.title} className="relative h-28 w-28 shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-red/50 via-red-tint to-black min-[400px]:h-32 min-[400px]:w-32">
+            <ArtworkImage src={image} alt={p.title} sizes="128px" priority={priority} unoptimized className="object-cover" />
+            {badge && (
+              <span className={`absolute left-2 top-2 rounded-full px-2.5 py-1 text-[11px] font-extrabold tracking-wide ${badge.cls}`}>{badge.label}</span>
+            )}
+          </Link>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start justify-between gap-2">
+              <Link href={`/u/${p.creator.handle}`} className="flex min-w-0 items-center gap-1.5 pt-0.5 text-[14px] font-semibold text-ink-2">
+                <span className="truncate">{p.creator.displayName}</span>
+                {p.isVerified && <VerifiedBadge className="h-3.5 w-3.5 shrink-0" badgeType={primaryBadgeType(p.verificationBadges)} />}
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                aria-label="More options"
+                aria-expanded={menuOpen}
+                className="-mr-1.5 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-2 hover:text-ink"
+              >
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
+                  <circle cx="12" cy="5" r="1.8" />
+                  <circle cx="12" cy="12" r="1.8" />
+                  <circle cx="12" cy="19" r="1.8" />
+                </svg>
+              </button>
+            </div>
+            <Link href={href} className="mt-0.5 block font-serif text-[24px] font-bold leading-[1.1] line-clamp-2 [overflow-wrap:anywhere]">
+              {p.title}
+            </Link>
+            <p className="mt-1 truncate text-[14px] text-ink-3">{meta}</p>
+            <p className="mt-1 text-[16px] font-bold text-red-soft">{priceLabel}</p>
+          </div>
+        </div>
+
+        <p className={`mt-3 text-[14px] leading-relaxed text-ink-3 ${expanded ? "" : "line-clamp-2"}`}>{blurb}</p>
+        <div className="mt-1.5 flex items-center gap-5 text-[13px] font-semibold">
+          <button type="button" onClick={() => setExpanded((v) => !v)} className="text-red-soft">
+            {expanded ? "See less" : "See more"}
+          </button>
+          <Link href={href} className="text-ink">
+            See details
+          </Link>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <button
+            type="button"
+            onClick={togglePlay}
+            aria-label={isPlayingThis ? `Pause ${p.title}` : `Play a preview of ${p.title}`}
+            className="flex items-center gap-3 text-[15px] font-semibold text-ink-2"
+          >
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-black">
+              {isPlayingThis ? (
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
+                  <rect x="6" y="5" width="4" height="14" rx="1" />
+                  <rect x="14" y="5" width="4" height="14" rx="1" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-5 w-5 translate-x-[1px]" fill="currentColor" aria-hidden>
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </span>
+            {isPlayingThis ? "Playing preview" : "Preview"}
+          </button>
+          {owned ? (
+            <Link href={href} className="rounded-full border border-line px-5 py-3 text-[14px] font-semibold text-ink-3">
+              Owned
+            </Link>
+          ) : soldOut ? (
+            <span className="rounded-full border border-line px-5 py-3 text-[14px] font-semibold text-ink-3">Sold out</span>
+          ) : (
+            <Link href={buyHref} className="inline-flex items-center gap-2 rounded-full bg-red px-6 py-3 text-[16px] font-bold text-white">
+              <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path d="M6 8h12l-1 12H7L6 8z" strokeLinejoin="round" />
+                <path d="M9 8V6a3 3 0 016 0v2" strokeLinecap="round" />
+              </svg>
+              {isFree ? "Get Free" : "Buy Now"}
+            </Link>
+          )}
+        </div>
+        {menu}
+      </article>
+    );
+  }
 
   return (
     <article className="overflow-hidden rounded-[28px] border border-line-soft bg-surface">
@@ -305,15 +411,7 @@ export function FeedCard({
               <circle cx="12" cy="19" r="1.8" />
             </svg>
           </button>
-          <FeedCardMenu
-            open={menuOpen}
-            onClose={closeMenu}
-            productId={p.id}
-            title={p.title}
-            href={href}
-            creator={{ id: p.creatorId, handle: p.creator.handle, displayName: p.creator.displayName }}
-            onShare={share}
-          />
+          {menu}
         </div>
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-5 pb-5">
           <div className="min-w-0">

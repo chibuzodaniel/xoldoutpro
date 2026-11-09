@@ -70,7 +70,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   {/* Centred column on wide screens (components/nav/AppFrame.tsx). */}
                   <AppFrame>
                     <AndroidAppBanner />
-                    <div className="flex-1 min-h-0 overflow-y-auto pb-2">
+                    <div className="no-scrollbar flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-2">
                       {children}
                     </div>
                     <MiniPlayer />

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { ChipPicker } from "@/components/publish/ChipPicker";
+import { BEAT_GENRES, BEAT_MOODS } from "@/lib/discover/sectionFilters";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { uploadAndIngestAudio } from "@/lib/uploadAudio";
@@ -47,6 +49,8 @@ export default function UploadBeatPage() {
   const [bpm, setBpm] = useState("");
   const [musicalKey, setMusicalKey] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [genre, setGenre] = useState<string | null>(null);
+  const [mood, setMood] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState("");
 
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
@@ -144,6 +148,8 @@ export default function UploadBeatPage() {
         bpm: bpm ? parseInt(bpm, 10) : undefined,
         musicalKey: musicalKey || undefined,
         tags,
+        genre: genre ?? undefined,
+        mood: mood ?? undefined,
         ownershipConfirmed,
         licenses,
       };
@@ -242,6 +248,9 @@ export default function UploadBeatPage() {
             className="rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition-colors duration-150 focus:border-red resize-none"
           />
         </div>
+
+        <ChipPicker label="Genre" options={BEAT_GENRES} value={genre} onChange={setGenre} />
+        <ChipPicker label="Mood" options={BEAT_MOODS} value={mood} onChange={setMood} />
 
         <div className="flex gap-3">
           <div className="flex flex-col gap-1 flex-1">

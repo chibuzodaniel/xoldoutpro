@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { MERCH_CATEGORIES } from "@/lib/discover/sectionFilters";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
@@ -16,6 +17,8 @@ const createSchema = z.object({
   // Sizes & colours (lib/commerce/variants.ts) — optional; none = one plain listing as before.
   variants: z.array(variantInputSchema).max(MAX_VARIANTS).default([]),
   sizeGuide: z.string().trim().max(1000).optional(),
+  // Discover chips (v2) — optional.
+  category: z.enum(MERCH_CATEGORIES).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -40,6 +43,7 @@ export async function POST(req: NextRequest) {
               galleryImageUrls: body.galleryImageUrls,
               shippingFeeKobo: body.shippingFeeKobo,
               sizeGuide: body.sizeGuide || null,
+              category: body.category,
             },
           },
           stockPolicy: { create: { cap: body.cap } },

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { VariantsEditor, emptyVariants, variantsPayload, type VariantsState } from "@/components/merch/VariantsEditor";
 import { useRouter } from "next/navigation";
+import { ChipPicker } from "@/components/publish/ChipPicker";
+import { MERCH_CATEGORIES } from "@/lib/discover/sectionFilters";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
@@ -23,6 +25,7 @@ export default function UploadMerchPage() {
   // Sizes & colours (optional) and an optional size guide.
   const [variants, setVariants] = useState<VariantsState>(emptyVariants);
   const [sizeGuide, setSizeGuide] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [capValue, setCapValue] = useState("");
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -100,6 +103,7 @@ export default function UploadMerchPage() {
         galleryImageUrls,
         variants: variantResult.variants,
         sizeGuide: sizeGuide.trim() || undefined,
+        category: category ?? undefined,
       };
 
       const res = await apiFetch("/api/merch", { method: "POST", body: JSON.stringify(payload) });
@@ -213,6 +217,8 @@ export default function UploadMerchPage() {
           </div>
           {galleryUploading && <p className="text-xs text-ink-3">Processing gallery…</p>}
         </div>
+
+        <ChipPicker label="Category" options={MERCH_CATEGORIES} value={category} onChange={setCategory} />
 
         <div className="flex flex-col gap-1">
           <label className="text-[12px] uppercase tracking-widest text-ink-3">Title</label>

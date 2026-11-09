@@ -56,38 +56,91 @@ export async function withFeedExtras(products: CardProduct[]): Promise<FeedProdu
   });
 }
 
-/** Newest published Beats or Merch, with an optional title/artist search. */
-export async function getSectionFeed(type: "BEAT" | "MERCH", q: string | null) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Beats or Merch for Discover, with the v2 section chip (beat genre / merch
+ * category) and shortcut tile (lib/discover/sectionFilters.ts) applied. One
+ * indexed query; ordering is done by the database.
+ */
+export async function getSectionFeed(type: "BEAT" | "MERCH", q: string | null, chip: string | null = null, tile: string | null = null) {
+  const and: Prisma.ProductWhereInput[] = [{ type, status: "PUBLISHED" }];
+  if (q)
+    and.push({
+      OR: [
+        { title: { contains: q, mode: "insensitive" } },
+        { creator: { displayName: { contains: q, mode: "insensitive" } } },
+        { creator: { handle: { contains: q, mode: "insensitive" } } },
+        ...(type === "BEAT"
+          ? [{ beat: { OR: [{ genre: { equals: q, mode: "insensitive" as const } }, { mood: { equals: q, mode: "insensitive" as const } }] } }]
+          : []),
+      ],
+    });
+  if (chip) {
+    // Older beats have no genre yet — fall back to a matching tag.
+    and.push(
+      type === "BEAT"
+        ? { beat: { OR: [{ genre: chip }, { tags: { hasSome: [chip, chip.toLowerCase()] } }] } }
+        : { merchItem: { category: chip } },
+    );
+  }
+  let orderBy: Prisma.ProductOrderByWithRelationInput[] = [{ publishedAt: "desc" }];
+  if (tile === "new") and.push({ publishedAt: { gte: new Date(Date.now() - (type === "BEAT" ? 7 : 14) * DAY_MS) } });
+  if (tile === "free") and.push({ priceKobo: 0 });
+  if (tile === "top") {
+    and.push({ stockPolicy: { sold: { gt: 0 } } });
+    orderBy = [{ stockPolicy: { sold: "desc" } }, { publishedAt: "desc" }];
+  }
+  if (tile === "popular") orderBy = [{ likeCount: "desc" }, { publishedAt: "desc" }];
+  if (tile === "producers") orderBy = [{ creator: { followers: { _count: "desc" } } }, { publishedAt: "desc" }];
+  if (tile === "featured") and.push({ creator: { isVerified: true } });
+
   const products = await db.product.findMany({
-    where: {
-      type,
-      status: "PUBLISHED",
-      ...(q
-        ? {
-            OR: [
-              { title: { contains: q, mode: "insensitive" } },
-              { creator: { displayName: { contains: q, mode: "insensitive" } } },
-              { creator: { handle: { contains: q, mode: "insensitive" } } },
-            ],
-          }
-        : {}),
-    },
-    include: discoverCardInclude,
-    orderBy: { publishedAt: "desc" },
+    where: { AND: and },
+    include: { ...discoverCardInclude, beat: { select: { coverImageLadder: true, genre: true, bpm: true } } },
+    orderBy,
     take: FEED_TAKE,
   });
   return withFeedExtras(products);
 }
 
-/** Upcoming published events, soonest first, with an optional title search. */
-export async function getEventFeed(q: string | null) {
+/** Today in Lagos (UTC+1, no DST) — "Happening Now" means today there. */
+function lagosDayBounds() {
+  const LAGOS_OFFSET = 60 * 60 * 1000;
+  const start = Math.floor((Date.now() + LAGOS_OFFSET) / DAY_MS) * DAY_MS - LAGOS_OFFSET;
+  return { start: new Date(start), end: new Date(start + DAY_MS) };
+}
+
+/**
+ * Upcoming published events, soonest first, with an optional search,
+ * event-type chip and shortcut tile. "near" needs the viewer's city (from
+ * Vercel's IP geolocation header, so no lookup of our own).
+ */
+export async function getEventFeed(q: string | null, chip: string | null = null, tile: string | null = null, city: string | null = null) {
   const now = Date.now();
+  const and: Prisma.EventWhereInput[] = [{ status: "PUBLISHED" }, { startsAt: { gte: new Date(now - 6 * 60 * 60 * 1000) } }];
+  if (q)
+    and.push({
+      OR: [
+        { title: { contains: q, mode: "insensitive" } },
+        { venue: { contains: q, mode: "insensitive" } },
+        { city: { contains: q, mode: "insensitive" } },
+        { creator: { displayName: { contains: q, mode: "insensitive" } } },
+      ],
+    });
+  if (chip) and.push({ eventType: chip });
+  if (tile === "now") {
+    const { start, end } = lagosDayBounds();
+    and.push({ startsAt: { gte: start, lt: end } });
+  }
+  if (tile === "near") {
+    if (!city) return [];
+    and.push({ isVirtual: false }, { OR: [{ city: { equals: city, mode: "insensitive" } }, { venue: { contains: city, mode: "insensitive" } }] });
+  }
+  if (tile === "free") and.push({ tiers: { some: { product: { priceKobo: 0, status: "PUBLISHED" } } } });
+
   const events = await db.event.findMany({
-    where: {
-      status: "PUBLISHED",
-      startsAt: { gte: new Date(Date.now() - 6 * 60 * 60 * 1000) },
-      ...(q ? { title: { contains: q, mode: "insensitive" } } : {}),
-    },
+    where: { AND: and },
     include: {
       creator: { select: { handle: true, displayName: true, isVerified: true, verificationBadges: true } },
       tiers: { select: { product: { select: { priceKobo: true, stockPolicy: true } } } },
@@ -96,7 +149,12 @@ export async function getEventFeed(q: string | null) {
     take: FEED_TAKE,
   });
   // Worked out here, not while rendering, so the card stays a pure render.
-  return events.map((ev) => ({ ...ev, isLive: ev.startsAt.getTime() <= now }));
+  const rows = events.map((ev) => ({ ...ev, isLive: ev.startsAt.getTime() <= now }));
+  if (tile === "trending") {
+    const sold = (ev: (typeof rows)[number]) => ev.tiers.reduce((n, t) => n + (t.product.stockPolicy?.sold ?? 0), 0);
+    rows.sort((x, y) => sold(y) - sold(x));
+  }
+  return rows;
 }
 
 /** Newest releases, beats and merch from the artists this user follows. */

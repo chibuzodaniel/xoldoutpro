@@ -867,6 +867,9 @@ model Beat {
   bpm                  Int?
   musicalKey           String?
   tags                 String[]  @default([])
+  // Discover → Beats chips (v2, design/v2-prototype). Optional; older beats have none.
+  genre                String?
+  mood                 String?
   // Set at publish time once the producer checks the ownership/rights
   // confirmation box (POST /api/beats) — required per beat, unlike
   // User.producerAgreementAcceptedAt above, which is a one-time acceptance.
@@ -955,6 +958,9 @@ model Event {
   coverImageLadder Json
   venue            String?
   isVirtual        Boolean       @default(false)
+  // Discover → Events chips / "Near You" (v2, design/v2-prototype). Optional.
+  eventType        String?
+  city             String?
   startsAt         DateTime
   endsAt           DateTime?
   status           ProductStatus @default(DRAFT)
@@ -1002,6 +1008,8 @@ model MerchItem {
   shippingFeeKobo  Int      @default(0) // flat fee, creator-set at publish time; added to Product.priceKobo at checkout
   // Optional size guide text shown next to the size picker (v2, 2026-11-09).
   sizeGuide        String?
+  // Discover → Merch chips (v2, design/v2-prototype). Optional.
+  category         String?
 }
 
 // One like per account per product (v2 feed cards, 2026-11-09).

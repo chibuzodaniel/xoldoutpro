@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { BEAT_GENRES, BEAT_MOODS } from "@/lib/discover/sectionFilters";
 import { licensesSchema } from "@/lib/commerce/beatLicenses";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
@@ -24,6 +25,9 @@ const createSchema = z
     bpm: z.number().int().positive().optional(),
     musicalKey: z.string().max(10).optional(),
     tags: z.array(z.string().max(24)).max(8).default([]),
+    // Discover chips (v2) — optional.
+    genre: z.enum(BEAT_GENRES).optional(),
+    mood: z.enum(BEAT_MOODS).optional(),
     // License tiers (lib/commerce/beatLicenses.ts) — optional; none = the
     // single flat license, priced by priceKobo, as before.
     licenses: licensesSchema.default([]),
@@ -82,6 +86,8 @@ export async function POST(req: NextRequest) {
               bpm: body.bpm,
               musicalKey: body.musicalKey,
               tags: body.tags,
+              genre: body.genre,
+              mood: body.mood,
               ownershipConfirmedAt: new Date(),
             },
           },

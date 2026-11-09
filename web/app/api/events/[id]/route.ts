@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { EVENT_TYPES } from "@/lib/discover/sectionFilters";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { countTicketsSold } from "@/lib/commerce/eventRestore";
@@ -16,6 +17,8 @@ const patchSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(2000).optional(),
   venue: z.string().max(200).optional(),
+  eventType: z.enum(EVENT_TYPES).optional(),
+  city: z.string().trim().max(80).optional(),
   coverImageLadder: z.record(z.string(), z.string()).optional(),
 });
 
@@ -42,7 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // sold against (see the tiers/[tierId] route) — this route never touches them.
     const updated = await db.event.update({
       where: { id },
-      data: { title: body.title, description: body.description, venue: body.venue, coverImageLadder: body.coverImageLadder },
+      data: { title: body.title, description: body.description, venue: body.venue, eventType: body.eventType, city: body.city, coverImageLadder: body.coverImageLadder },
       include: {
         tiers: {
           where: { product: { status: { not: "DELETED" } } },

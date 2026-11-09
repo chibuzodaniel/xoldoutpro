@@ -11,6 +11,9 @@ import { getEventFeed, getSectionFeed, getTrendingReleaseIds, withFeedExtras } f
 import { DiscoverTabs } from "@/components/discover/DiscoverTabs";
 import { DiscoverTop, type DiscoverSection } from "@/components/discover/DiscoverTop";
 import { MusicFilters } from "@/components/discover/MusicFilters";
+import { SectionFilters } from "@/components/discover/SectionFilters";
+import { parseChip, parseTile, SECTION_TILES } from "@/lib/discover/sectionFilters";
+import { headers } from "next/headers";
 import { FeedCard } from "@/components/discover/FeedCard";
 import { EventFeedCard } from "@/components/discover/EventFeedCard";
 import { FollowingFeed } from "@/components/discover/FollowingFeed";
@@ -39,9 +42,9 @@ const SECTIONS = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string; feed?: string; period?: string; chart?: string }>;
+  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string; feed?: string; period?: string; chart?: string; chip?: string; tile?: string }>;
 }) {
-  const { type, genre, sort, q, feed, period, chart } = await searchParams;
+  const { type, genre, sort, q, feed, period, chart, chip, tile } = await searchParams;
 
   if (feed === "following") {
     return (
@@ -67,7 +70,11 @@ export default async function DiscoverPage({
       <AppHeader />
       <DiscoverTabs active="foryou" />
       <DiscoverTop section={section} q={search} />
-      {section === "RELEASE" ? <MusicFeed genre={genre} sort={sort} q={q} /> : section === "EVENT" ? <EventsFeed q={search} /> : <ProductsFeed type={section} q={search} />}
+      {section === "RELEASE" ? <MusicFeed genre={genre} sort={sort} q={q} /> : section === "EVENT" ? (
+        <EventsFeed q={search} chip={parseChip("EVENT", chip)} tile={parseTile("EVENT", tile)} />
+      ) : (
+        <ProductsFeed type={section} q={search} chip={parseChip(section, chip)} tile={parseTile(section, tile)} />
+      )}
     </div>
   );
 }
@@ -92,21 +99,49 @@ async function MusicFeed({ genre, sort, q }: { genre?: string; sort?: string; q?
   );
 }
 
-async function ProductsFeed({ type, q }: { type: "BEAT" | "MERCH"; q: string | null }) {
-  const products = await getSectionFeed(type, q);
+type Filters = { q: string | null; chip: string | null; tile: string | null };
+
+function tileTitle(type: "BEAT" | "EVENT" | "MERCH", tile: string | null) {
+  return SECTION_TILES[type].find((t) => t.key === tile)?.title;
+}
+
+async function ProductsFeed({ type, q, chip, tile }: { type: "BEAT" | "MERCH" } & Filters) {
+  const products = await getSectionFeed(type, q, chip, tile);
+  const filtered = Boolean(q || chip || tile);
   return (
-    <FeedList empty={q ? "Nothing matches that search." : "Nothing published yet."} clearHref={q ? `/discover?type=${type}` : null} ids={products.map((p) => p.id)}>
-      {products.map((p, i) => (
-        <FeedCard key={p.id} product={p} priority={i === 0} />
-      ))}
-    </FeedList>
+    <>
+      <SectionFilters type={type} q={q} chip={chip} tile={tile} />
+      <FeedList
+        empty={filtered ? `Nothing matches ${[chip, tileTitle(type, tile)].filter(Boolean).join(" · ") || "that search"} yet.` : "Nothing published yet."}
+        clearHref={filtered ? `/discover?type=${type}` : null}
+        ids={products.map((p) => p.id)}
+      >
+        {products.map((p, i) => (
+          <FeedCard key={p.id} product={p} priority={i === 0} compact={type === "BEAT"} />
+        ))}
+      </FeedList>
+    </>
   );
 }
 
-async function EventsFeed({ q }: { q: string | null }) {
-  const events = await getEventFeed(q);
+async function EventsFeed({ q, chip, tile }: Filters) {
+  // "Near You": the viewer's city from Vercel's IP geolocation (read only for this tile).
+  const rawCity = tile === "near" ? (await headers()).get("x-vercel-ip-city") : null;
+  const city = rawCity ? decodeURIComponent(rawCity) : null;
+  const events = await getEventFeed(q, chip, tile, city);
+  const filtered = Boolean(q || chip || tile);
+  const empty =
+    tile === "near"
+      ? city
+        ? `No upcoming events in ${city} yet.`
+        : "We couldn't tell which city you're in."
+      : filtered
+        ? `No events match ${[chip, tileTitle("EVENT", tile)].filter(Boolean).join(" · ") || "that search"} yet.`
+        : "No upcoming events yet.";
   return (
-    <FeedList empty={q ? "No events match that search." : "No upcoming events yet."} clearHref={q ? "/discover?type=EVENT" : null} ids={[]}>
+    <>
+    <SectionFilters type="EVENT" q={q} chip={chip} tile={tile} />
+    <FeedList empty={empty} clearHref={filtered ? "/discover?type=EVENT" : null} ids={[]}>
       {events.map((ev) => (
         <EventFeedCard
           key={ev.id}
@@ -114,6 +149,7 @@ async function EventsFeed({ q }: { q: string | null }) {
         />
       ))}
     </FeedList>
+    </>
   );
 }
 

@@ -274,3 +274,12 @@ select {
   background: color-mix(in srgb, var(--green) 15%, var(--surface) 85%);
   color: var(--green);
 }
+
+/* No visible scrollbars on the app's scroll area (explicit ask, 2026-11-09):
+   it still scrolls with the wheel, trackpad, touch and keyboard. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

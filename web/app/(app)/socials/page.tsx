@@ -162,7 +162,7 @@ function SocialsPageInner() {
                     : "Posts from artists you follow show up here once you start following someone."}
                 </p>
               ) : (
-                <div className="flex flex-col gap-3">
+                <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
                   {posts.map((post) => (
                     <PostCard key={post.id} post={post} onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)} />
                   ))}

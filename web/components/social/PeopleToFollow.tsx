@@ -40,7 +40,7 @@ export function PeopleToFollow() {
   return (
     <section className="mt-7">
       <h2 className="font-serif text-2xl font-bold">People to follow</h2>
-      <div className="-mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-6 md:px-6">
+      <div className="-mx-4 mt-3 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
         {people.map((p) => (
           <div key={p.id} className="flex w-44 shrink-0 flex-col items-center rounded-2xl border border-line bg-surface p-4 text-center">
             <Link href={`/u/${p.handle}`} className="h-20 w-20 overflow-hidden rounded-full bg-gradient-to-br from-red/50 to-black">
