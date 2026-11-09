@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
   tabButton: { paddingBottom: 10 },
   tabLabel: { color: colors.ink3, fontSize: 14, fontWeight: "600" },
   tabLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  tabLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(225,29,46,0.8)" },
+  tabLiveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(225,11,44,0.8)" },
   tabLabelActive: { color: colors.ink },
   tabUnderline: { height: 2, backgroundColor: colors.red, marginTop: 8, borderRadius: 1 },
   feedContent: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 100 },

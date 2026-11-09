@@ -394,7 +394,7 @@ const styles = StyleSheet.create({
   typeBadge: {
     alignSelf: "flex-start",
     borderRadius: 999,
-    backgroundColor: "rgba(225,29,46,0.1)",
+    backgroundColor: "rgba(225,11,44,0.1)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     marginBottom: 8,

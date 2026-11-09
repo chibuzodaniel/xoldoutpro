@@ -1,4 +1,6 @@
-export type SocialLink = { platform: "Instagram" | "X" | "TikTok" | "YouTube" | "Website"; url: string };
+// title and enabled come from the web link-in-bio manager (lib/profile/links.ts on web);
+// this app keeps them as-is when it re-saves the list.
+export type SocialLink = { platform: "Instagram" | "X" | "TikTok" | "YouTube" | "Website"; url: string; title?: string | null; enabled?: boolean };
 
 export type AppUser = {
   id: string;

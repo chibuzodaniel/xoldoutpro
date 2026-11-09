@@ -152,7 +152,7 @@ export function GiftBanner({ moment, isSelf }: { moment: GiftMoment; isSelf: boo
   return (
     <div
 
-      className="animate-gift-banner flex w-fit max-w-[85%] items-center gap-2.5 rounded-full bg-gradient-to-r from-red to-[#8f1220] py-1.5 pl-2.5 pr-5 shadow-[0_4px_18px_-4px_rgba(225,29,46,0.6)]"
+      className="animate-gift-banner flex w-fit max-w-[85%] items-center gap-2.5 rounded-full bg-gradient-to-r from-red to-[#8f1220] py-1.5 pl-2.5 pr-5 shadow-[0_4px_18px_-4px_rgba(225,11,44,0.6)]"
     >
       <GiftArt type={moment.giftType} className="h-6 w-6 shrink-0" />
       <span className="truncate text-[15px] text-white">

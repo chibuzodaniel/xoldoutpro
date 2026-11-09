@@ -54,7 +54,7 @@ export function FlipCameraIcon({ color = "#fff", size = 22 }: IconProps) {
   );
 }
 
-export function CameraOffIcon({ color = "#e11d2e", size = 34 }: IconProps) {
+export function CameraOffIcon({ color = "#e10b2c", size = 34 }: IconProps) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
       <Path d="M3 7.5A1.5 1.5 0 014.5 6H14a1.5 1.5 0 011.5 1.5v9A1.5 1.5 0 0114 18H4.5A1.5 1.5 0 013 16.5v-9zM15.5 10.5L21 7v10l-5.5-3.5" />
@@ -119,8 +119,8 @@ export function GiftArt({ type, size = 40 }: { type: GiftType; size?: number }) 
         <Svg width={size} height={size} viewBox="0 0 48 48">
           <Rect x={17} y={4} width={14} height={24} rx={7} fill="#c9ccd3" stroke="#6b6f78" strokeWidth={1.5} />
           <Path d="M18 11h12M18 15.5h12M18 20h12" stroke="#6b6f78" strokeWidth={1.5} />
-          <Path d="M11 21a13 13 0 0026 0" fill="none" stroke="#e11d2e" strokeWidth={3.2} strokeLinecap="round" />
-          <Path d="M24 34v7M17 42.5h14" stroke="#e11d2e" strokeWidth={3.2} strokeLinecap="round" />
+          <Path d="M11 21a13 13 0 0026 0" fill="none" stroke="#e10b2c" strokeWidth={3.2} strokeLinecap="round" />
+          <Path d="M24 34v7M17 42.5h14" stroke="#e10b2c" strokeWidth={3.2} strokeLinecap="round" />
         </Svg>
       );
     case "MONEY_SPRAY":

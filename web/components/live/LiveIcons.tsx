@@ -121,8 +121,8 @@ export function GiftArt({ type, className = "h-10 w-10" }: { type: GiftArtType; 
         <svg viewBox="0 0 48 48" className={className} aria-hidden>
           <rect x="17" y="4" width="14" height="24" rx="7" fill="#c9ccd3" stroke="#6b6f78" strokeWidth="1.5" />
           <path d="M18 11h12M18 15.5h12M18 20h12" stroke="#6b6f78" strokeWidth="1.5" />
-          <path d="M11 21a13 13 0 0026 0" fill="none" stroke="#e11d2e" strokeWidth="3.2" strokeLinecap="round" />
-          <path d="M24 34v7M17 42.5h14" stroke="#e11d2e" strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M11 21a13 13 0 0026 0" fill="none" stroke="#e10b2c" strokeWidth="3.2" strokeLinecap="round" />
+          <path d="M24 34v7M17 42.5h14" stroke="#e10b2c" strokeWidth="3.2" strokeLinecap="round" />
         </svg>
       );
     case "MONEY_SPRAY":

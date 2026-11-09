@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 10,
     justifyContent: "space-between",
-    backgroundColor: "rgba(225,29,46,0.12)",
+    backgroundColor: "rgba(225,11,44,0.12)",
   },
   tileActive: { borderColor: colors.red },
   tileIcon: { color: colors.redSoft, fontSize: 17 },

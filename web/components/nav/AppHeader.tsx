@@ -53,22 +53,24 @@ export function AppHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-20 flex items-center justify-between px-4 py-3 bg-bg/95 backdrop-blur border-b border-line-soft">
-        <Link href="/discover" className="flex items-center gap-2">
+      {/* v2 look (design/v2-prototype): roomier bar, larger mark and icons.
+          The logo itself is unchanged (explicit ask, 2026-11-09). */}
+      <header className="sticky top-0 z-20 flex items-center justify-between px-4 py-3.5 bg-bg/95 backdrop-blur border-b border-line-soft">
+        <Link href="/discover" className="flex items-center gap-2.5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/xoldout-icon-transparent.png" alt="" className="h-6 w-6" />
-          <span className="font-sans font-extrabold tracking-tight text-[16px]">XOLDOUT</span>
+          <img src="/xoldout-icon-transparent.png" alt="" className="h-7 w-7" />
+          <span className="font-sans font-extrabold tracking-tight text-[18px]">XOLDOUT</span>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-5">
           <Link href="/search" aria-label="Search" className="text-ink-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
               <circle cx="11" cy="11" r="7" />
               <path d="M20 20l-4.3-4.3" strokeLinecap="round" />
             </svg>
           </Link>
           {appUser && (
             <Link href="/messages" aria-label="Messages" className="relative text-ink-2">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
                 <path d="M4 5h16v11H8l-4 3.5V5z" strokeLinejoin="round" />
               </svg>
               {dmCount > 0 && (
@@ -79,7 +81,7 @@ export function AppHeader() {
             </Link>
           )}
           <button type="button" onClick={() => setOpen(true)} aria-label="Notifications" className="relative text-ink-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[22px] w-[22px]">
               <path d="M18 8a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6" strokeLinecap="round" strokeLinejoin="round" />
               <path d="M10 20a2 2 0 004 0" strokeLinecap="round" />
             </svg>

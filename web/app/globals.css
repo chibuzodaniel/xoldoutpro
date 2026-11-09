@@ -9,20 +9,25 @@ html {
   font-size: 106.25%;
 }
 
+/* v2 look (2026-11-09): palette taken from the v2 prototype
+   (design/v2-prototype/index.html) — pure black, near-black surfaces, thin
+   grey borders, #E10B2C accent. Every screen reads these tokens, so this one
+   block re-skins the whole app. The logo is unchanged (explicit ask). */
 :root {
-  --bg: #0a0a0b;
-  --surface: #121214;
-  --surface-2: #1a1a1d;
-  --line: #38383f;
-  --line-soft: #232328;
-  --line-strong: #4a4a53;
-  --ink: #f2f2f4;
-  --ink-2: #e6e6ea;
-  --ink-3: #c9c9d1;
-  --red: #e11d2e;
-  --red-soft: #ff5566;
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --surface-2: #161616;
+  --line: #262626;
+  --line-soft: #1c1c1c;
+  --line-strong: #333333;
+  --ink: #f2f2f2;
+  --ink-2: #e6e6e6;
+  --ink-3: #9a9a9a;
+  --red: #e10b2c;
+  --red-soft: #ff3b4e;
+  --red-tint: #1c050a;
   --amber: #d99a2b;
-  --green: #3f9e6b;
+  --green: #17c964;
   --blue: #5b8fd6;
 }
 
@@ -38,10 +43,12 @@ html {
   --color-ink-3: var(--ink-3);
   --color-red: var(--red);
   --color-red-soft: var(--red-soft);
+  --color-red-tint: var(--red-tint);
   --color-amber: var(--amber);
   --color-green: var(--green);
   --color-blue: var(--blue);
-  --font-serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  /* v2: the prototype's display face (bold Georgia headings). */
+  --font-serif: Georgia, "Times New Roman", serif;
   --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 

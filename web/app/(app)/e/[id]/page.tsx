@@ -1,13 +1,8 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { EventTierPicker } from "@/components/product/EventTierPicker";
-import { ReportButton } from "@/components/trust/ReportButton";
-import { ShareButton } from "@/components/ui/ShareButton";
-import { SendToChatButton } from "@/components/messages/SendToChatButton";
-import { ArtworkImage } from "@/components/ui/ArtworkImage";
-import { PublishedByYou } from "@/components/product/PublishedByYou";
+import { ProductHero, HeroMeta, HeroDescription } from "@/components/product/detail/ProductHero";
 import { SoldCount } from "@/components/product/SoldCount";
 import { EventPromotersPanel } from "@/components/product/EventPromotersPanel";
 import { buildOgMetadata } from "@/lib/og";
@@ -46,7 +41,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const event = await db.event.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true } },
+      creator: { select: { handle: true, displayName: true, isVerified: true, verificationBadges: true } },
       tiers: { include: { product: { include: { stockPolicy: true } } }, orderBy: { order: "asc" } },
     },
   });
@@ -60,53 +55,35 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   // Owned tickets from either state still show in the buyer's Library.
   const visibleTiers = event.tiers.filter((t) => t.product.status === "PUBLISHED" && !t.pausedAt);
 
+  // v2 product page (design/v2-prototype): shared ProductHero on top; the
+  // ticket picker and promoter panel below are the same components as before.
   return (
-    <div className="pb-10">
-      <div className="relative aspect-[4/3] w-full bg-surface-2">
-        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
-        <ArtworkImage src={cover} alt={event.title} sizes="100vw" priority unoptimized className="object-cover" />
-      </div>
+    <ProductHero
+      image={cover}
+      aspect="aspect-[4/3]"
+      chip="Event"
+      title={event.title}
+      creator={{ ...event.creator, verificationBadges: event.creator.verificationBadges as string[] }}
+      creatorId={event.creatorId}
+      share={{ path: `/e/${event.id}`, text: `${event.title} — ${event.creator.displayName} on XOLDOUT`, chatShare: { type: "EVENT", id: event.id } }}
+      report={{ targetType: "EVENT", targetId: event.id }}
+    >
+        <HeroMeta parts={[`${formatDate(event.startsAt)} · ${formatTime(event.startsAt)}`]} />
+        <HeroMeta parts={[event.isVirtual ? "Virtual event" : (event.venue ?? "Venue TBA")]} />
+        <HeroDescription text={event.description} />
 
-      <div className="px-4 pt-4">
-        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
-          Event
-        </span>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl">{event.title}</h1>
-            <Link href={`/u/${event.creator.handle}`} className="text-sm text-ink-3">
-              {event.creator.displayName}
-            </Link>
-            <PublishedByYou creatorId={event.creatorId} />
-          </div>
-          <div className="flex items-center gap-3 shrink-0 pt-1">
-            <ShareButton title={event.title} text={`${event.title} — ${event.creator.displayName} on XOLDOUT`} path={`/e/${event.id}`} />
-            <SendToChatButton share={{ type: "EVENT", id: event.id }} />
-            <ReportButton targetType="EVENT" targetId={event.id} ownerId={event.creatorId} className="text-xs text-ink-3" />
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1 mt-3 mb-4 text-sm text-ink-2">
-          <span>
-            {formatDate(event.startsAt)} · {formatTime(event.startsAt)}
-          </span>
-          <span>{event.isVirtual ? "Virtual event" : event.venue ?? "Venue TBA"}</span>
-        </div>
-
-        {event.description && <p className="text-sm text-ink-2 mb-5">{event.description}</p>}
-
-        <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3 mb-2">Tickets</h2>
-        <div className="flex flex-col gap-2 mb-6">
+        <h2 className="mt-7 mb-3 font-serif text-2xl font-bold">Tickets</h2>
+        <div className="flex flex-col gap-2.5 mb-6">
           {visibleTiers.map((tier) => {
             const isSoldOut = Boolean(tier.product.stockPolicy?.soldOutAt);
             const cap = tier.product.stockPolicy?.cap ?? null;
             const sold = tier.product.stockPolicy?.sold ?? 0;
             const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
             return (
-              <div key={tier.productId} className="rounded-lg border border-line bg-surface px-4 py-3">
+              <div key={tier.productId} className="rounded-2xl border border-line bg-surface px-4 py-3.5">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm font-semibold">{tier.name}</span>
-                  <span className="font-serif text-sm"><Price kobo={tier.product.priceKobo} freeLabel="Free" /></span>
+                  <span className="text-[15px] font-semibold">{tier.name}</span>
+                  <span className="font-serif text-xl font-bold text-red-soft"><Price kobo={tier.product.priceKobo} freeLabel="Free" /></span>
                 </div>
                 <span className="text-xs text-ink-3">
                   {isSoldOut ? (
@@ -133,7 +110,6 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
         />
 
         <EventPromotersPanel eventId={event.id} eventTitle={event.title} creatorId={event.creatorId} />
-      </div>
-    </div>
+    </ProductHero>
   );
 }

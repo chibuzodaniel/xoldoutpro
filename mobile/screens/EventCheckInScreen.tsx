@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
   checkInButtonText: { color: colors.ink, fontSize: 14, fontWeight: "700" },
   resultCard: { borderWidth: 1, borderRadius: 10, padding: 14 },
   resultCardOk: { borderColor: "rgba(63,158,107,0.4)" },
-  resultCardError: { borderColor: "rgba(225,29,46,0.4)" },
+  resultCardError: { borderColor: "rgba(225,11,44,0.4)" },
   resultTextOk: { color: colors.green, fontSize: 13 },
   resultTextError: { color: colors.redSoft, fontSize: 13 },
 });

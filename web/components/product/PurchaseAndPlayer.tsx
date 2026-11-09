@@ -240,12 +240,14 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
         </p>
       )}
       {canBuy && <ChargeNote kobo={totalKobo} className="mb-2" />}
-      <div className="flex gap-2 mb-4">
+      {/* v2: the buy row stays pinned to the bottom of the screen while the
+          track list scrolls under it (design/v2-prototype). */}
+      <div className="sticky bottom-0 z-10 -mx-4 mb-4 flex gap-2 border-t border-line-soft bg-bg/95 px-4 py-3 backdrop-blur">
         {!entitled && !isOwner && (
           <button
             onClick={handleBuy}
             disabled={busy || isSoldOut}
-            className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            className="flex-1 rounded-full bg-red px-5 py-4 text-[16px] font-bold text-white disabled:opacity-50"
           >
             {isSoldOut
               ? "Sold out"
@@ -263,7 +265,7 @@ export function PurchaseAndPlayer({ productId, creatorId, artistName, artworkUrl
             creatorId={creatorId}
             artistName={artistName}
             label={entitled || isSoldOut ? `Tip ${artistName}` : "Tip"}
-            className={`${entitled || isSoldOut ? "flex-1" : "shrink-0"} rounded-lg border border-line px-4 py-3 text-sm font-semibold text-ink hover:border-line-strong`}
+            className={`${entitled || isSoldOut ? "flex-1" : "shrink-0"} rounded-full border border-line px-5 py-4 text-[16px] font-semibold text-ink hover:border-line-strong`}
           />
         )}
       </div>

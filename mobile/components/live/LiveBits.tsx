@@ -375,9 +375,9 @@ const styles = StyleSheet.create({
     gap: 8,
     alignSelf: "flex-start",
     maxWidth: "100%",
-    backgroundColor: "rgba(225,29,46,0.35)",
+    backgroundColor: "rgba(225,11,44,0.35)",
     borderWidth: 1,
-    borderColor: "rgba(225,29,46,0.6)",
+    borderColor: "rgba(225,11,44,0.6)",
     borderRadius: 999,
     paddingVertical: 2,
     paddingLeft: 2,
@@ -396,7 +396,7 @@ const styles = StyleSheet.create({
 
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" },
   sheet: {
-    backgroundColor: "#121214",
+    backgroundColor: "#0d0d0d",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     borderTopWidth: 1,

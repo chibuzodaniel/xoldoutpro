@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 16 },
   chip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
   chipText: { color: colors.ink2, fontSize: 11, fontWeight: "600" },
-  editButton: { borderWidth: 1, borderColor: "rgba(225,29,46,0.6)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
+  editButton: { borderWidth: 1, borderColor: "rgba(225,11,44,0.6)", borderRadius: 999, paddingHorizontal: 12, paddingVertical: 4 },
   edit: { color: colors.redSoft, fontSize: 11, fontWeight: "700" },
   editor: { borderWidth: 1, borderColor: colors.lineSoft, borderRadius: 12, padding: 14, gap: 14, marginBottom: 16, backgroundColor: colors.surface },
   editorTitle: { color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 0.8 },

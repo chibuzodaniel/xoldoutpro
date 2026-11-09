@@ -3,11 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { BeatPurchaseAndPlayer } from "@/components/product/BeatPurchaseAndPlayer";
-import { ReportButton } from "@/components/trust/ReportButton";
-import { ShareButton } from "@/components/ui/ShareButton";
-import { SendToChatButton } from "@/components/messages/SendToChatButton";
-import { ArtworkImage } from "@/components/ui/ArtworkImage";
-import { PublishedByYou } from "@/components/product/PublishedByYou";
+import { ProductHero, HeroPrice, HeroMeta, HeroDescription } from "@/components/product/detail/ProductHero";
+import { HeroPlayButton } from "@/components/product/detail/HeroPlayButton";
 import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
 
@@ -36,7 +33,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
   const product = await db.product.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, avatarUrl: true } },
+      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
       beat: true,
       stockPolicy: true,
     },
@@ -50,60 +47,39 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
   const sold = product.stockPolicy?.sold ?? 0;
   const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
 
+  // v2 product page (design/v2-prototype): shared ProductHero on top; the
+  // buy/play controls below are the same component as before.
   return (
-    <div className="pb-10">
-      <div className="relative aspect-square w-full bg-surface-2">
-        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
-        <ArtworkImage src={cover} alt={product.title} sizes="100vw" priority unoptimized className="object-cover" />
-      </div>
-
-      <div className="px-4 pt-4">
-        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
-          Beat
-        </span>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl">{product.title}</h1>
-            <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
-              {product.creator.displayName}
-            </Link>
-            <PublishedByYou creatorId={product.creatorId} />
-          </div>
-          <div className="flex items-center gap-3 shrink-0 pt-1">
-            <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/b/${product.id}`} />
-            <SendToChatButton share={{ type: "PRODUCT", id: product.id }} />
-            <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3" />
-          </div>
-        </div>
-
-        {(product.beat.bpm || product.beat.musicalKey || product.beat.tags.length > 0) && (
-          <div className="flex flex-wrap items-center gap-2 mt-3">
-            {product.beat.bpm && (
-              <span className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-2">{product.beat.bpm} BPM</span>
-            )}
-            {product.beat.musicalKey && (
-              <span className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-2">{product.beat.musicalKey}</span>
-            )}
-            {product.beat.tags.map((tag) => (
-              <span key={tag} className="rounded-full border border-line px-2.5 py-1 text-[12px] text-ink-2">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )}
-
-        <div className="flex items-center justify-between mt-3 mb-4">
-          <span className="font-serif text-lg"><Price kobo={product.priceKobo} freeLabel="Free" /></span>
-          {remaining !== null ? (
-            <span className="text-sm font-semibold text-red-soft">
-              {isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}
-            </span>
-          ) : (
-            <span className="text-sm text-ink-3">{sold} sold</span>
-          )}
-        </div>
-
-        {product.description && <p className="text-sm text-ink-2 mb-5">{product.description}</p>}
+    <ProductHero
+      image={cover}
+      overlay={
+        <HeroPlayButton
+          track={{
+            trackId: product.id,
+            title: product.title,
+            artistName: product.creator.displayName,
+            artworkUrl: cover ?? null,
+            lyricsText: null,
+            kind: "beat",
+            productId: product.id,
+          }}
+        />
+      }
+      chip="Beat"
+      title={product.title}
+      creator={{ ...product.creator, verificationBadges: product.creator.verificationBadges as string[] }}
+      creatorId={product.creatorId}
+      share={{ path: `/b/${product.id}`, text: `${product.title} — ${product.creator.displayName} on XOLDOUT`, chatShare: { type: "PRODUCT", id: product.id } }}
+      report={{ targetType: "PRODUCT", targetId: product.id }}
+    >
+        <HeroMeta parts={[...product.beat.tags, product.beat.musicalKey, product.beat.bpm ? `${product.beat.bpm} BPM` : null]} />
+        <HeroPrice
+          price={<Price kobo={product.priceKobo} freeLabel="Free" />}
+          note={remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} of ${cap} left`) : `${sold} sold`}
+          noteTone={remaining !== null ? "alert" : "muted"}
+        />
+        <HeroDescription text={product.description} />
+        <div className="mt-5" />
 
         <BeatPurchaseAndPlayer
           productId={product.id}
@@ -115,10 +91,9 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
           isSoldOut={isSoldOut}
         />
 
-        <Link href="/legal/terms#beat-licenses" className="mt-4 block text-center text-[11px] text-ink-3 underline">
+        <Link href="/legal/terms#beat-licenses" className="mt-4 block text-center text-[12px] text-ink-3 underline">
           View license terms
         </Link>
-      </div>
-    </div>
+    </ProductHero>
   );
 }

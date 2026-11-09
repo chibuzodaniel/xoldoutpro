@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { PurchaseAndPlayer } from "@/components/product/PurchaseAndPlayer";
-import { ReportButton } from "@/components/trust/ReportButton";
-import { ShareButton } from "@/components/ui/ShareButton";
-import { SendToChatButton } from "@/components/messages/SendToChatButton";
-import { ArtworkImage } from "@/components/ui/ArtworkImage";
-import { PublishedByYou } from "@/components/product/PublishedByYou";
+import { ProductHero, HeroPrice, HeroMeta, HeroDescription } from "@/components/product/detail/ProductHero";
+import { HeroPlayButton } from "@/components/product/detail/HeroPlayButton";
 import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
 import { ReleaseExtras } from "@/components/addons/ReleaseExtras";
@@ -39,7 +35,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
   const product = await db.product.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, avatarUrl: true } },
+      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
       release: { include: { tracks: { orderBy: { order: "asc" } } } },
       stockPolicy: true,
       // Featured artists — accepted tags only; pending ones stay private to
@@ -56,61 +52,66 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
   const sold = product.stockPolicy?.sold ?? 0;
   const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
 
+  const firstTrack = product.release.tracks[0];
+  const releaseLabel = product.release.releaseType === "EP" ? "EP" : product.release.releaseType === "ALBUM" ? "Album" : "Single";
+
+  // v2 product page (design/v2-prototype): shared ProductHero on top; the
+  // genre editor, pay-anything/tip/buy controls, track list and extras below
+  // are the same components as before.
   return (
-    <div className="pb-10">
-      <div className="relative aspect-square w-full bg-surface-2">
-        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
-        <ArtworkImage src={artwork} alt={product.title} sizes="100vw" priority unoptimized className="object-cover" />
-      </div>
-
-      <div className="px-4 pt-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl">{product.title}</h1>
-            <p className="text-sm text-ink-3">
-              <Link href={`/u/${product.creator.handle}`}>{product.creator.displayName}</Link>
-              {product.collaborators.length > 0 && (
-                <>
-                  {" "}feat.{" "}
-                  {product.collaborators.map((c, i) => (
-                    <span key={c.artist.id}>
-                      {i > 0 && (i === product.collaborators.length - 1 ? " & " : ", ")}
-                      <Link href={`/u/${c.artist.handle}`} className="text-ink-2">
-                        {c.artist.displayName}
-                      </Link>
-                    </span>
-                  ))}
-                </>
-              )}
-            </p>
-            <PublishedByYou creatorId={product.creatorId} />
-          </div>
-          <div className="flex items-center gap-3 shrink-0 pt-1">
-            <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/r/${product.id}`} />
-            <SendToChatButton share={{ type: "PRODUCT", id: product.id }} />
-            <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3" />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between mt-3 mb-4">
-          <span className="font-serif text-lg">
-            {product.payWhatYouWant ? (
+    <ProductHero
+      image={artwork}
+      overlay={
+        firstTrack ? (
+          <HeroPlayButton
+            track={{
+              trackId: firstTrack.id,
+              title: firstTrack.title,
+              artistName: product.creator.displayName,
+              artworkUrl: artwork ?? null,
+              lyricsText: firstTrack.lyricsText,
+              productId: product.id,
+            }}
+            queue={product.release.tracks.map((t) => ({
+              trackId: t.id,
+              title: t.title,
+              artistName: product.creator.displayName,
+              artworkUrl: artwork ?? null,
+              lyricsText: t.lyricsText,
+              productId: product.id,
+            }))}
+          />
+        ) : null
+      }
+      chip="Music"
+      title={product.title}
+      creator={{ ...product.creator, verificationBadges: product.creator.verificationBadges as string[] }}
+      credits={product.collaborators.map((c) => c.artist)}
+      creatorId={product.creatorId}
+      share={{ path: `/r/${product.id}`, text: `${product.title} — ${product.creator.displayName} on XOLDOUT`, chatShare: { type: "PRODUCT", id: product.id } }}
+      report={{ targetType: "PRODUCT", targetId: product.id }}
+    >
+        <HeroPrice
+          price={
+            product.payWhatYouWant ? (
               <>
-                <Price kobo={product.priceKobo} />+ <span className="font-sans text-xs text-ink-3">· pay what you want</span>
+                <Price kobo={product.priceKobo} />+
               </>
             ) : (
               <Price kobo={product.priceKobo} freeLabel="Free" />
-            )}
-          </span>
-          {remaining !== null ? (
-            <span className="text-sm font-semibold text-red-soft">
-              {isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}
-            </span>
-          ) : (
-            <span className="text-sm text-ink-3">{sold} sold</span>
-          )}
-        </div>
+            )
+          }
+          note={remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} of ${cap} left`) : `${sold} sold`}
+          noteTone={remaining !== null ? "alert" : "muted"}
+        />
+        <HeroMeta
+          parts={[
+            product.release.tracks.length > 1 ? `${releaseLabel} · ${product.release.tracks.length} tracks` : releaseLabel,
+            product.payWhatYouWant && "Pay what you want",
+          ]}
+        />
 
+        <div className="mt-3" />
         <ReleaseTags
           productId={product.id}
           creatorId={product.creatorId}
@@ -122,7 +123,8 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
           publishedAt={product.publishedAt ? product.publishedAt.toISOString() : null}
         />
 
-        {product.description && <p className="text-sm text-ink-2 mb-5">{product.description}</p>}
+        <HeroDescription text={product.description} />
+        <div className="mt-5" />
 
         <PurchaseAndPlayer
           productId={product.id}
@@ -135,7 +137,6 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
         />
 
         <ReleaseExtras productId={product.id} releaseTitle={product.title} />
-      </div>
-    </div>
+    </ProductHero>
   );
 }

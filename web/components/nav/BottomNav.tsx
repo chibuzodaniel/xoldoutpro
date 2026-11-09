@@ -6,32 +6,33 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
 import { PublishSheet } from "./PublishSheet";
+import { APP_COLUMN, useIsFullWidth } from "./AppFrame";
 
 const UNREAD_POLL_MS = 45000;
 
 const ICONS: Record<string, React.ReactNode> = {
   discover: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="12" r="9" />
       <path d="M15.5 8.5l-2 5-5 2 2-5 5-2z" strokeLinejoin="round" />
     </svg>
   ),
   socials: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="9" cy="8" r="3.2" />
       <path d="M3 19c0-3.3 2.7-5 6-5s6 1.7 6 5" />
       <path d="M17 8.5a3 3 0 010 5" strokeLinecap="round" />
     </svg>
   ),
   library: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M4 6h9M4 11h9M4 16h5" strokeLinecap="round" />
       <circle cx="18" cy="15.5" r="2.6" />
       <path d="M20.6 15.5V7" strokeLinecap="round" />
     </svg>
   ),
   profile: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <circle cx="12" cy="8.5" r="3.5" />
       <path d="M4.5 20a7.5 7.5 0 0115 0" strokeLinecap="round" />
     </svg>
@@ -61,6 +62,9 @@ function hasBottomNav(pathname: string) {
   if (/^\/live\/(?!coins(\/|$)|new$)[^/]+(\/broadcast)?$/.test(pathname)) return false;
   // A direct-message conversation fills the screen, composer at the bottom.
   if (/^\/messages\/[^/]+$/.test(pathname)) return false;
+  // v2 product pages (design/v2-prototype) are full-screen with their own
+  // round back button and a buy row pinned at the bottom.
+  if (/^\/(r|b|m|e)\/[^/]+$/.test(pathname)) return false;
   return true;
 }
 
@@ -69,6 +73,7 @@ export function BottomNav() {
   const { appUser } = useAuth();
   const [publishOpen, setPublishOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const fullWidth = useIsFullWidth();
 
   // On Socials, the central FAB creates a feed post instead of opening the
   // general "what are you publishing" sheet — it hands off via a query param
@@ -118,7 +123,15 @@ export function BottomNav() {
           Height is the nav's actual measured rendered height — if its
           content ever changes, remeasure and update this together with it. */}
       <div aria-hidden className="h-16 shrink-0" />
-      <nav className="fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-line bg-bg/95 backdrop-blur px-2 py-2">
+      {/* v2 look (design/v2-prototype): black bar, muted outline icons, the
+          active tab in red with an underline, a larger ringed Drop button. */}
+      {/* Fixed to the screen, so it's narrowed to the same centred column as
+          the app on wide screens (AppFrame). */}
+      <nav
+        className={`fixed inset-x-0 bottom-0 z-20 flex items-center justify-around border-t border-line-soft bg-bg/95 backdrop-blur px-2 py-2 ${
+          fullWidth ? "" : `${APP_COLUMN} md:border-x`
+        }`}
+      >
         {ITEMS.map((item) =>
           item.isFab ? (
             // Explicit ask: a bare "+"/pencil icon doesn't read as an
@@ -131,11 +144,11 @@ export function BottomNav() {
               <Link
                 key={item.href}
                 href="/socials?compose=1"
-                className="flex flex-col items-center gap-1 text-[11px] text-ink-3"
+                className="flex flex-col items-center gap-1 text-[11px] font-medium text-ink-2"
                 aria-label="New post"
               >
-                <span className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-[18px] w-[18px]">
+                <span className="-mt-9 flex h-14 w-14 items-center justify-center rounded-full bg-red text-white ring-4 ring-bg shadow-[0_6px_20px_-4px_rgba(225,11,44,0.55)]">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6">
                     <path d="M4 20l.9-4.5a2 2 0 01.55-1.03L16.6 3.32a1.6 1.6 0 012.26 0l1.82 1.82a1.6 1.6 0 010 2.26L9.53 18.55a2 2 0 01-1.03.55L4 20z" strokeLinejoin="round" />
                     <path d="M14.5 5.5l4 4" strokeLinecap="round" />
                   </svg>
@@ -147,11 +160,11 @@ export function BottomNav() {
                 key={item.href}
                 type="button"
                 onClick={() => setPublishOpen(true)}
-                className="flex flex-col items-center gap-1 text-[11px] text-ink-3"
+                className="flex flex-col items-center gap-1 text-[11px] font-medium text-ink-2"
                 aria-label="Publish"
               >
-                <span className="-mt-6 flex h-11 w-11 items-center justify-center rounded-full bg-red text-white shadow-lg shadow-red/30">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-[18px] w-[18px]">
+                <span className="-mt-9 flex h-14 w-14 items-center justify-center rounded-full bg-red text-white ring-4 ring-bg shadow-[0_6px_20px_-4px_rgba(225,11,44,0.55)]">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="h-7 w-7">
                     <path d="M12 5v14M5 12h14" strokeLinecap="round" />
                   </svg>
                 </span>
@@ -162,11 +175,14 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex flex-col items-center gap-1 px-3 py-1 text-[11px] ${
-                pathname?.startsWith(item.href) ? "text-white" : "text-ink-3"
+              className={`relative flex flex-col items-center gap-1 px-3 py-1 text-[11px] font-medium ${
+                pathname?.startsWith(item.href) ? "text-red-soft" : "text-ink-3"
               }`}
             >
-              <span className="relative h-[19px] w-[19px]">
+              {pathname?.startsWith(item.href) && (
+                <span aria-hidden className="absolute -bottom-0.5 left-1/2 h-[2px] w-7 -translate-x-1/2 rounded-full bg-red" />
+              )}
+              <span className="relative h-[21px] w-[21px]">
                 {ICONS[item.icon]}
                 {item.icon === "socials" && unreadCount > 0 && (
                   <span className="absolute -top-1.5 -right-2.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red px-1 text-[9px] font-bold leading-none text-white">

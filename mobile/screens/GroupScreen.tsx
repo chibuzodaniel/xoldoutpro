@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
   messageRowMine: { alignSelf: "flex-end", flexDirection: "row-reverse" },
   bubble: { borderRadius: 14, paddingHorizontal: 12, paddingVertical: 8, maxWidth: "100%" },
   bubbleTheirs: { backgroundColor: colors.surface2 },
-  bubbleMine: { backgroundColor: "rgba(225,29,46,0.25)" },
+  bubbleMine: { backgroundColor: "rgba(225,11,44,0.25)" },
   messageAuthor: { color: colors.redSoft, fontSize: 11, fontWeight: "700", marginBottom: 2 },
   messageImage: { width: 180, height: 180, borderRadius: 8, marginBottom: 6, backgroundColor: colors.surface2 },
   messageBody: { color: colors.ink, fontSize: 14, lineHeight: 19 },

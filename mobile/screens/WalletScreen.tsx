@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
   availableNote: { color: colors.ink3, fontSize: 12, marginBottom: 16 },
   negativeNote: {
     borderWidth: 1,
-    borderColor: "rgba(225,29,46,0.3)",
-    backgroundColor: "rgba(225,29,46,0.1)",
+    borderColor: "rgba(225,11,44,0.3)",
+    backgroundColor: "rgba(225,11,44,0.1)",
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 10,

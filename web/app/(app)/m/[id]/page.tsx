@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { MerchPurchaseForm } from "@/components/product/MerchPurchaseForm";
-import { ReportButton } from "@/components/trust/ReportButton";
-import { ShareButton } from "@/components/ui/ShareButton";
-import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
-import { PublishedByYou } from "@/components/product/PublishedByYou";
+import { ProductHero, HeroPrice, HeroMeta, HeroDescription } from "@/components/product/detail/ProductHero";
 import { buildOgMetadata } from "@/lib/og";
 import { Price } from "@/components/currency/CurrencyProvider";
 
@@ -36,7 +32,7 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
   const product = await db.product.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, avatarUrl: true } },
+      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
       merchItem: true,
       stockPolicy: true,
     },
@@ -51,64 +47,43 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
   const sold = product.stockPolicy?.sold ?? 0;
   const remaining = cap !== null ? Math.max(cap - sold, 0) : null;
 
+  const shippingFee = product.merchItem.shippingFeeKobo;
+
+  // v2 product page (design/v2-prototype): shared ProductHero on top; the
+  // order form below is the same component as before.
   return (
-    <div className="pb-10">
-      <div className="relative aspect-square w-full bg-surface-2">
-        {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`.
-            The gallery images below are raw, uncropped uploads (merchItem.galleryImageUrls
-            has no ladder), so those still need the optimizer's real resizing — left as-is. */}
-        <ArtworkImage src={primaryImage} alt={product.title} sizes="100vw" priority unoptimized className="object-cover" />
-      </div>
-
-      {gallery.length > 0 && (
-        <div className="flex gap-2 px-4 py-3 overflow-x-auto">
-          {gallery.map((url) => (
-            <div key={url} className="relative h-16 w-16 rounded-lg overflow-hidden bg-surface-2 shrink-0">
-              <ArtworkImage src={url} alt={product.title} sizes="64px" className="object-cover" />
-            </div>
-          ))}
-        </div>
-      )}
-
-      <div className="px-4 pt-4">
-        <span className="inline-block rounded-full bg-red/10 text-red-soft px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide mb-2">
-          Merch
-        </span>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h1 className="font-serif text-2xl">{product.title}</h1>
-            <Link href={`/u/${product.creator.handle}`} className="text-sm text-ink-3">
-              {product.creator.displayName}
-            </Link>
-            <PublishedByYou creatorId={product.creatorId} />
+    <ProductHero
+      image={primaryImage}
+      gallery={
+        gallery.length > 0 ? (
+          // Raw, uncropped uploads (galleryImageUrls has no ladder), so these
+          // still go through the image optimizer.
+          <div className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none]">
+            {gallery.map((url) => (
+              <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
+                <ArtworkImage src={url} alt={product.title} sizes="64px" className="object-cover" />
+              </div>
+            ))}
           </div>
-          <div className="flex items-center gap-3 shrink-0 pt-1">
-            <ShareButton title={product.title} text={`${product.title} — ${product.creator.displayName} on XOLDOUT`} path={`/m/${product.id}`} />
-            <SendToChatButton share={{ type: "PRODUCT", id: product.id }} />
-            <ReportButton targetType="PRODUCT" targetId={product.id} ownerId={product.creatorId} className="text-xs text-ink-3" />
-          </div>
-        </div>
+        ) : null
+      }
+      chip="Merch"
+      title={product.title}
+      creator={{ ...product.creator, verificationBadges: product.creator.verificationBadges as string[] }}
+      creatorId={product.creatorId}
+      share={{ path: `/m/${product.id}`, text: `${product.title} — ${product.creator.displayName} on XOLDOUT`, chatShare: { type: "PRODUCT", id: product.id } }}
+      report={{ targetType: "PRODUCT", targetId: product.id }}
+    >
+      <HeroPrice
+        price={<Price kobo={product.priceKobo} freeLabel="Free" />}
+        note={remaining !== null ? (isSoldOut ? "Sold out" : `${remaining} of ${cap} left`) : `${sold} sold`}
+        noteTone={remaining !== null ? "alert" : "muted"}
+      />
+      <HeroMeta parts={["Physical item", shippingFee > 0 ? "Ships from the artist" : "Free shipping"]} />
+      <HeroDescription text={product.description} />
+      <div className="mt-5" />
 
-        <div className="flex items-center justify-between mt-3 mb-4">
-          <span className="font-serif text-lg"><Price kobo={product.priceKobo} freeLabel="Free" /></span>
-          {remaining !== null ? (
-            <span className="text-sm font-semibold text-red-soft">
-              {isSoldOut ? "Sold out" : `${remaining} of ${cap} left`}
-            </span>
-          ) : (
-            <span className="text-sm text-ink-3">{sold} sold</span>
-          )}
-        </div>
-
-        {product.description && <p className="text-sm text-ink-2 mb-5">{product.description}</p>}
-
-        <MerchPurchaseForm
-          productId={product.id}
-          priceKobo={product.priceKobo}
-          shippingFeeKobo={product.merchItem.shippingFeeKobo}
-          isSoldOut={isSoldOut}
-        />
-      </div>
-    </div>
+      <MerchPurchaseForm productId={product.id} priceKobo={product.priceKobo} shippingFeeKobo={shippingFee} isSoldOut={isSoldOut} />
+    </ProductHero>
   );
 }

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { CreatePostSheet } from "@/components/social/CreatePostSheet";
 import { PostCard, type FeedPost } from "@/components/social/PostCard";
@@ -11,25 +12,21 @@ import { FanbaseTab } from "@/components/groups/FanbaseTab";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { AppHeader } from "@/components/nav/AppHeader";
 import { LiveNowPanel } from "@/components/live/LiveNowPanel";
+import { BroadcastIcon } from "@/components/live/LiveIcons";
 
 type FollowedCreator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 
+// v2 Socials (design/v2-prototype, 2026-11-09): For You / Following /
+// Communities across the top. "Communities" is the existing private
+// Fanbase groups (?tab=fanbase still opens it). ?tab=live still opens the
+// full Live panel for old links; the main feed only shows a light "Live now"
+// strip that links there, so the panel's 45s refresh never runs on the feed.
 const TABS = [
-  { key: "feed", label: "Feed", dot: false },
-  { key: "live", label: "Go Live", dot: true },
-  { key: "fanbase", label: "Fanbase", dot: false },
-] as const;
-type SocialsTab = (typeof TABS)[number]["key"];
-
-// "For You" is genuine discovery — every public post from every creator
-// with no relationship required, which is why PostCard shows an inline
-// Follow button there. "Following" is strictly people you follow. For You
-// on the left, Following on the right (matches the reference layout).
-const FEED_MODES = [
   { key: "forYou", label: "For You" },
   { key: "following", label: "Following" },
+  { key: "fanbase", label: "Communities" },
 ] as const;
-type FeedMode = (typeof FEED_MODES)[number]["key"];
+type SocialsTab = (typeof TABS)[number]["key"] | "live";
 
 export default function SocialsPage() {
   return (
@@ -42,124 +39,135 @@ export default function SocialsPage() {
 function SocialsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { appUser } = useAuth();
   const initialTab = searchParams.get("tab");
   const [tab, setTab] = useState<SocialsTab>(
-    initialTab === "fanbase" || initialTab === "live" ? initialTab : "feed",
+    initialTab === "fanbase" || initialTab === "live" || initialTab === "following" ? initialTab : "forYou",
   );
-  const [feedMode, setFeedMode] = useState<FeedMode>("forYou");
   const [following, setFollowing] = useState<FollowedCreator[] | null>(null);
   const [posts, setPosts] = useState<FeedPost[] | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
-  // BottomNav's central "+" links here with ?compose=1 while on Socials
-  // (replacing the general publish sheet it opens everywhere else) — it has
-  // no way to reach this page's `posts` state directly, so it hands off via
-  // the URL instead. Derived straight from searchParams (which itself
-  // re-renders this component on navigation) rather than synced into state
-  // via an effect, so there's no setState-in-effect cascade; the param only
-  // gets stripped once the sheet is actually dismissed.
   const composerOpenFromQuery = searchParams.get("compose") === "1";
   const sheetOpen = composerOpen || composerOpenFromQuery;
+  const isFeed = tab === "forYou" || tab === "following";
 
   function closeComposer() {
     setComposerOpen(false);
-    if (composerOpenFromQuery) router.replace("/socials?tab=feed");
+    if (composerOpenFromQuery) router.replace("/socials");
   }
 
   useEffect(() => {
+    if (!isFeed) return;
+    let cancelled = false;
     async function load() {
       setPosts(null);
-      const res = await apiFetch(feedMode === "forYou" ? "/api/posts?feed=forYou" : "/api/posts");
-      if (!res.ok) return;
+      const res = await apiFetch(tab === "forYou" ? "/api/posts?feed=forYou" : "/api/posts");
+      if (!res.ok || cancelled) return;
       const data: { following: FollowedCreator[]; posts: FeedPost[] } = await res.json();
       setFollowing(data.following);
       setPosts(data.posts);
     }
     load();
-  }, [feedMode]);
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, isFeed]);
 
   return (
     <div className="pb-6">
       <AppHeader />
-      <div className="px-4 py-6">
-        <h1 className="font-serif text-2xl mb-4">Socials</h1>
+      <div className="flex items-center gap-6 border-b border-line-soft px-4">
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`relative py-3 text-[16px] font-semibold whitespace-nowrap transition-colors duration-150 ${tab === t.key ? "text-white" : "text-ink-3 hover:text-ink-2"}`}
+          >
+            {t.label}
+            {tab === t.key && <span className="absolute -bottom-px left-0 right-0 h-[3px] rounded-full bg-red" />}
+          </button>
+        ))}
+      </div>
 
-        <div className="flex items-center gap-5 border-b border-line-soft mb-5">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              onClick={() => setTab(t.key)}
-              className={`relative pb-2.5 text-[14px] font-semibold whitespace-nowrap border-b-2 transition-colors duration-200 ${
-                tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2 hover:border-line"
-              }`}
-            >
-              <span className="flex items-center gap-1.5">
-                {t.label}
-                {t.dot && <span className="h-1.5 w-1.5 rounded-full bg-red/80" aria-hidden />}
-              </span>
-            </button>
-          ))}
-        </div>
-
+      <div className="px-4 pt-5">
         {tab === "fanbase" && <FanbaseTab />}
 
         {tab === "live" && <LiveNowPanel />}
 
-        {tab === "feed" && (
+        {isFeed && (
           <>
-            <div className="flex items-center gap-2 mb-4">
-              {FEED_MODES.map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => setFeedMode(m.key)}
-                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors duration-150 ${
-                    feedMode === m.key ? "bg-red text-white" : "bg-surface-2 text-ink-3"
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
+            {appUser && (
+              <button
+                type="button"
+                onClick={() => setComposerOpen(true)}
+                className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface p-3 text-left"
+              >
+                <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-gradient-to-br from-red/60 to-black">
+                  <FallbackImg src={appUser.avatarUrl} alt={appUser.displayName} className="h-full w-full object-cover" fallback={null} />
+                </span>
+                <span className="flex-1 rounded-full bg-surface-2 px-4 py-3 text-[15px] text-ink-3">Share what you&apos;re hearing…</span>
+                <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-red-soft" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                  <rect x="3" y="4" width="18" height="16" rx="2" />
+                  <circle cx="9" cy="10" r="1.8" />
+                  <path d="M21 16l-5-5-9 9" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+
+            <div className="mt-6 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-serif text-2xl font-bold">
+                <span className="h-2 w-2 rounded-full bg-red" aria-hidden />
+                Live now
+              </h2>
+              <Link href="/live" className="text-sm font-semibold text-red-soft">
+                See who&apos;s live ›
+              </Link>
+            </div>
+            <div className="mt-3 flex gap-3">
+              <Link href="/live/new" className="flex flex-col items-center gap-1.5">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-red text-white">
+                  <BroadcastIcon className="h-7 w-7" />
+                </span>
+                <span className="text-[12px] font-semibold">Go live</span>
+              </Link>
+              <Link href="/live" className="flex flex-1 items-center rounded-2xl border border-line bg-surface px-4 text-[14px] text-ink-3">
+                Watch artists streaming right now, send gifts and request songs.
+              </Link>
             </div>
 
-            {feedMode === "following" && following && following.length > 0 && (
-              <div className="flex gap-4 overflow-x-auto mb-6 -mx-4 px-4">
+            {tab === "following" && following && following.length > 0 && (
+              <div className="-mx-4 mt-6 flex gap-4 overflow-x-auto px-4 [scrollbar-width:none]">
                 {following.map((creator) => (
-                  <Link key={creator.id} href={`/u/${creator.handle}`} className="flex flex-col items-center gap-1 shrink-0 w-14">
-                    <div className="h-12 w-12 rounded-full bg-surface-2 overflow-hidden">
+                  <Link key={creator.id} href={`/u/${creator.handle}`} className="flex w-16 shrink-0 flex-col items-center gap-1.5">
+                    <div className="h-14 w-14 overflow-hidden rounded-full border border-line bg-surface-2">
                       <FallbackImg src={creator.avatarUrl} alt={creator.displayName} className="h-full w-full object-cover" fallback={null} />
                     </div>
-                    <span className="text-[11px] text-ink-3 line-clamp-1 text-center">{creator.displayName}</span>
+                    <span className="line-clamp-1 text-center text-[11px] text-ink-2">{creator.displayName}</span>
                   </Link>
                 ))}
               </div>
             )}
 
-            {posts === null ? (
-              <LoadingSpinner full size="md" />
-            ) : posts.length === 0 ? (
-              <p className="text-sm text-ink-3">
-                {feedMode === "forYou"
-                  ? "Nothing to discover yet — check back once more creators start posting."
-                  : "Announcements from creators you follow will show up here once you start following someone."}
-              </p>
-            ) : (
-              <div className="flex flex-col gap-3">
-                {posts.map((post) => (
-                  <PostCard
-                    key={post.id}
-                    post={post}
-                    onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)}
-                  />
-                ))}
-              </div>
-            )}
+            <div className="mt-6">
+              {posts === null ? (
+                <LoadingSpinner full size="md" />
+              ) : posts.length === 0 ? (
+                <p className="rounded-2xl border border-line-soft p-6 text-center text-sm text-ink-3">
+                  {tab === "forYou"
+                    ? "Nothing to discover yet — check back once more creators start posting."
+                    : "Posts from artists you follow show up here once you start following someone."}
+                </p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {posts.map((post) => (
+                    <PostCard key={post.id} post={post} onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)} />
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <CreatePostSheet
-              open={sheetOpen}
-              onClose={closeComposer}
-              onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])}
-            />
+            <CreatePostSheet open={sheetOpen} onClose={closeComposer} onPosted={(post) => setPosts((cur) => [post, ...(cur ?? [])])} />
           </>
         )}
       </div>

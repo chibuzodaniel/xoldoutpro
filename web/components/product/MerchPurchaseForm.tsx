@@ -202,7 +202,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
                 +
               </button>
             </div>
-            <button onClick={handleStart} className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white">
+            <button onClick={handleStart} className="flex-1 rounded-full bg-red px-5 py-4 text-[16px] font-bold text-white">
               {formatNaira(priceKobo * quantity)}
             </button>
           </div>
@@ -272,7 +272,7 @@ export function MerchPurchaseForm({ productId, priceKobo, shippingFeeKobo, isSol
       <button
         type="submit"
         disabled={busy}
-        className="rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 mt-1"
+        className="rounded-full bg-red px-5 py-4 text-[16px] font-bold text-white disabled:opacity-50 mt-1"
       >
         {busy ? "Starting checkout…" : formatNaira(totalKobo)}
       </button>

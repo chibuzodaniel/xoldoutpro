@@ -83,7 +83,7 @@ export function VerifiedBadge({
       <path
         d={GLYPH_PATH[glyph]}
         fill="none"
-        stroke="var(--color-bg, #0a0a0b)"
+        stroke="var(--color-bg, #000000)"
         strokeWidth="1.8"
         strokeLinecap="round"
         strokeLinejoin="round"

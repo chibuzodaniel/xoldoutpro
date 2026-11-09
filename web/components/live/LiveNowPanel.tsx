@@ -175,7 +175,7 @@ export function GoLiveButton() {
   return (
     <Link
       href="/live/new"
-      className="flex items-center justify-center gap-2.5 rounded-2xl border border-white/5 bg-[#141416] px-4 py-4 text-[16px] font-medium text-white shadow-[0_6px_28px_-6px_rgba(225,29,46,0.55)] transition-colors hover:bg-[#1a1a1d]"
+      className="flex items-center justify-center gap-2.5 rounded-2xl border border-white/5 bg-[#141414] px-4 py-4 text-[16px] font-medium text-white shadow-[0_6px_28px_-6px_rgba(225,11,44,0.55)] transition-colors hover:bg-[#161616]"
     >
       <BroadcastIcon className="h-5 w-5" />
       Go Live

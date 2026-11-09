@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { adminAuth } from "@/lib/firebase/admin";
 import { sendAccountDeletedEmail } from "@/lib/email";
 import { DISPLAY_COUNTRY_CODES } from "@/lib/currency";
+import { LINK_PLATFORMS, MAX_LINK_TITLE, MAX_PROFILE_LINKS } from "@/lib/profile/links";
 
 const SITE_URL = "https://www.xoldout.app";
 
@@ -22,9 +23,14 @@ export async function GET(req: NextRequest) {
 // The set is open (any string up to 24 chars), the four below are just the suggested chips.
 export const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"] as const;
 
+// Link-in-bio (lib/profile/links.ts): more platforms, an optional custom
+// title and an on/off switch. The old five platforms and the bare
+// { platform, url } shape are still valid, so older app builds keep working.
 const socialLinkSchema = z.object({
-  platform: z.enum(["Instagram", "X", "TikTok", "YouTube", "Website"]),
+  platform: z.enum(LINK_PLATFORMS),
   url: z.string().url().max(300),
+  title: z.string().trim().max(MAX_LINK_TITLE).nullable().optional(),
+  enabled: z.boolean().optional(),
 });
 
 const patchSchema = z.object({
@@ -37,7 +43,7 @@ const patchSchema = z.object({
   displayName: z.string().min(1).max(60).optional(),
   bio: z.string().max(280).optional(),
   tags: z.array(z.string().min(1).max(24)).max(8).optional(),
-  socialLinks: z.array(socialLinkSchema).max(6).optional(),
+  socialLinks: z.array(socialLinkSchema).max(MAX_PROFILE_LINKS).optional(),
   pushEnabled: z.boolean().optional(),
   fcmTokens: z.array(z.string()).optional(),
   emailDigestSubscribed: z.boolean().optional(),

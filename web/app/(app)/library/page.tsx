@@ -68,7 +68,9 @@ const FULFILLMENT_LABEL: Record<"TO_SHIP" | "SHIPPED" | "DELIVERED", string> = {
 
 const TABS = [
   { key: "purchased", label: "Purchased" },
-  { key: "collections", label: "Collections" },
+  // v2 (design/v2-prototype): shown as "Your Playlist"; the key stays
+  // "collections" so ?tab=collections links keep working.
+  { key: "collections", label: "Your Playlist" },
   { key: "events", label: "Events" },
 ] as const;
 type LibraryTab = (typeof TABS)[number]["key"];
@@ -424,6 +426,10 @@ function LibraryPageInner() {
       (e) => !q || [e.product.title, e.product.creator.displayName, e.product.ticketTier?.event.title].some((s) => s?.toLowerCase().includes(q)),
     ) ?? null;
   const musicItems = visible?.filter((e) => e.product.release || e.product.beat) ?? [];
+  // v2: songs and beats get their own shelves (design/v2-prototype). The
+  // tile renderer is shared, so only the grouping changes.
+  const songItems = musicItems.filter((e) => e.product.release);
+  const beatItems = musicItems.filter((e) => e.product.beat);
   const merchItems = visible?.filter((e) => e.product.merchItem) ?? [];
   const ticketItems = visible?.filter((e) => e.product.ticketTier) ?? [];
   const expandedEntitlement = musicItems.find((e) => e.id === expandedId && e.product.release) ?? null;
@@ -616,7 +622,7 @@ function LibraryPageInner() {
           a claimed gift already shows up here as a normal purchase. */}
       <div className="flex items-start justify-between gap-3 mb-5">
         <div className="min-w-0">
-          <h1 className="font-serif text-[40px] leading-none">Library</h1>
+          <h1 className="font-serif text-[44px] font-bold leading-none tracking-tight">Library</h1>
           <p className="text-sm text-ink-3 mt-2">Your saved music, purchases and event tickets.</p>
         </div>
         <div className="flex items-center gap-4 pt-2 shrink-0">
@@ -653,7 +659,7 @@ function LibraryPageInner() {
         />
       )}
 
-      <div className="flex items-center gap-10 border-b border-line-soft mb-6">
+      <div className="-mx-4 flex items-center gap-8 overflow-x-auto border-b border-line-soft px-4 mb-6 [scrollbar-width:none]">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -678,11 +684,17 @@ function LibraryPageInner() {
             <p className="text-sm text-ink-3">{q ? "Nothing matches your search." : "Everything you buy shows up here, playable offline. Nothing yet."}</p>
           ) : (
             <div className="flex flex-col gap-9">
-              {musicItems.length > 0 && (
+              {songItems.length > 0 && (
                 <section>
-                  <ShelfHeader icon="music" title="Music" count={musicItems.length} open={!!seeAll.music} onToggle={() => toggleSeeAll("music")} />
-                  {shelf("music", musicItems, renderMusicTile)}
+                  <ShelfHeader icon="music" title="Music" count={songItems.length} open={!!seeAll.music} onToggle={() => toggleSeeAll("music")} />
+                  {shelf("music", songItems, renderMusicTile)}
                   {expandedEntitlement && renderTracklist(expandedEntitlement)}
+                </section>
+              )}
+              {beatItems.length > 0 && (
+                <section>
+                  <ShelfHeader icon="beats" title="Beats" count={beatItems.length} open={!!seeAll.beats} onToggle={() => toggleSeeAll("beats")} />
+                  {shelf("beats", beatItems, renderMusicTile)}
                 </section>
               )}
               {merchItems.length > 0 && (
@@ -740,18 +752,24 @@ function LibraryPageInner() {
   );
 }
 
-function ShelfHeader({ icon, title, count, open, onToggle }: { icon: "music" | "merch"; title: string; count: number; open: boolean; onToggle: () => void }) {
+function ShelfHeader({ icon, title, count, open, onToggle }: { icon: "music" | "beats" | "merch"; title: string; count: number; open: boolean; onToggle: () => void }) {
   return (
     <div className="flex items-center justify-between mb-3">
-      <h2 className="flex items-center gap-2.5 text-[17px] font-semibold">
-        {icon === "music" ? (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 text-red-soft" aria-hidden>
+      <h2 className="flex items-center gap-2.5 font-serif text-[26px] font-bold">
+        {icon === "beats" ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 text-red-soft" aria-hidden>
+            <path d="M4 6h9M4 11h9M4 16h5" strokeLinecap="round" />
+            <circle cx="18" cy="15.5" r="2.6" />
+            <path d="M20.6 15.5V7" strokeLinecap="round" />
+          </svg>
+        ) : icon === "music" ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 text-red-soft" aria-hidden>
             <path d="M9 18V5l11-2v13" strokeLinejoin="round" />
             <circle cx="6" cy="18" r="3" />
             <circle cx="17" cy="16" r="3" />
           </svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5 text-red-soft" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 text-red-soft" aria-hidden>
             <path d="M8 3l-5 3 2 4 2-1v12h10V9l2 1 2-4-5-3a4 4 0 01-8 0z" strokeLinejoin="round" />
           </svg>
         )}
@@ -881,19 +899,19 @@ function EventLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntit
   if (!tier) return null;
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-4 flex items-center gap-4">
+    // v2 ticket card (design/v2-prototype). Tapping the QR still opens it full size.
+    <div className="rounded-2xl border border-line bg-surface p-4 flex items-center gap-4">
       {qr && (
         <TicketQrCode
           qrDataUrl={qr}
           label={`${tier.event.title} · ${tier.name}`}
-          thumbnailClassName="h-16 w-16 rounded bg-white p-1"
+          thumbnailClassName="h-20 w-20 rounded-xl bg-white p-1.5"
         />
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold line-clamp-1">{tier.event.title}</p>
-        <p className="text-xs text-ink-3 mb-1">
-          {tier.name} · {formatEventDate(tier.event.startsAt)}
-        </p>
+        <p className="text-[16px] font-bold line-clamp-1">{tier.event.title}</p>
+        <p className="text-[14px] text-ink-2 mt-0.5">{formatEventDate(tier.event.startsAt)}</p>
+        <p className="text-[13px] text-ink-3 mb-1.5">{tier.name}</p>
         <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">
           {entitlement.checkIn?.checkedInAt ? "Checked in" : "Show this QR code at the door"}
         </p>

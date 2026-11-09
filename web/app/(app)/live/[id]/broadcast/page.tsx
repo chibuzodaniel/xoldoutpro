@@ -520,7 +520,7 @@ export default function LiveBroadcastPage() {
 
       {status === "camera-blocked" && (
         <div className="absolute inset-0 flex flex-col items-center justify-center px-10 text-center">
-          <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-red/15 text-red shadow-[0_0_40px_-4px_rgba(225,29,46,0.35)]">
+          <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-red/15 text-red shadow-[0_0_40px_-4px_rgba(225,11,44,0.35)]">
             <CameraOffIcon className="h-9 w-9" />
           </div>
           <p className="font-serif text-[30px] leading-tight text-white">Camera access is off</p>

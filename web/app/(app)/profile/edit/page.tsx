@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { signOut } from "firebase/auth";
-import { useAuth, type SocialLink, type AppUser } from "@/components/auth/AuthProvider";
+import { useAuth, type AppUser } from "@/components/auth/AuthProvider";
 import { firebaseAuth } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
 import { uploadImage } from "@/lib/uploadImage";
@@ -17,7 +17,6 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PushStatusNotice } from "@/components/push/PushStatusNotice";
 
-const PLATFORMS: SocialLink["platform"][] = ["Instagram", "X", "TikTok", "YouTube", "Website"];
 
 const PLAN_LABEL: Record<NonNullable<AppUser["creatorPlan"]>, string> = {
   UNLIMITED: "Unlimited",
@@ -35,7 +34,6 @@ export default function EditProfilePage() {
   const [bio, setBio] = useState(appUser?.bio ?? "");
   const [tags, setTags] = useState<string[]>(appUser?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
-  const [socialLinks, setSocialLinks] = useState<SocialLink[]>(appUser?.socialLinks ?? []);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(appUser?.avatarUrl ?? null);
@@ -58,18 +56,6 @@ export default function EditProfilePage() {
     setTags((cur) => cur.filter((t) => t !== tag));
   }
 
-  function addSocialLink() {
-    if (socialLinks.length >= 6) return;
-    setSocialLinks((cur) => [...cur, { platform: "Instagram", url: "" }]);
-  }
-
-  function updateSocialLink(index: number, patch: Partial<SocialLink>) {
-    setSocialLinks((cur) => cur.map((l, i) => (i === index ? { ...l, ...patch } : l)));
-  }
-
-  function removeSocialLink(index: number) {
-    setSocialLinks((cur) => cur.filter((_, i) => i !== index));
-  }
 
 
   async function handleToggleDigest() {
@@ -87,10 +73,11 @@ export default function EditProfilePage() {
     e.preventDefault();
     setBusy(true);
     try {
-      const cleanLinks = socialLinks.filter((l) => l.url.trim().length > 0);
+      // Links are edited on /profile/links now (link-in-bio, 2026-11-09), so
+      // this form no longer sends socialLinks — it can't overwrite them.
       const patchRes = await apiFetch("/api/me", {
         method: "PATCH",
-        body: JSON.stringify({ handle, displayName, bio, tags, socialLinks: cleanLinks }),
+        body: JSON.stringify({ handle, displayName, bio, tags }),
       });
       if (!patchRes.ok) {
         const data = await patchRes.json().catch(() => ({}));
@@ -267,43 +254,16 @@ export default function EditProfilePage() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Social accounts</h2>
-          <div className="flex flex-col gap-2">
-            {socialLinks.map((link, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <select
-                  value={link.platform}
-                  onChange={(e) => updateSocialLink(i, { platform: e.target.value as SocialLink["platform"] })}
-                  className="rounded-lg border border-line bg-surface px-2 py-2 text-xs outline-none"
-                >
-                  {PLATFORMS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={link.url}
-                  onChange={(e) => updateSocialLink(i, { url: e.target.value })}
-                  placeholder="https://..."
-                  className="flex-1 min-w-0 rounded-lg border border-line bg-surface px-3 py-2 text-xs outline-none transition-colors duration-150 focus:border-red"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeSocialLink(i)}
-                  className="text-ink-3 shrink-0"
-                  aria-label="Remove social account"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-          {socialLinks.length < 6 && (
-            <button type="button" onClick={addSocialLink} className="text-left text-xs font-semibold text-red-soft">
-              + Add social account
-            </button>
-          )}
+          <h2 className="text-[12px] font-bold uppercase tracking-widest text-ink-3">Links</h2>
+          <Link href="/profile/links" className="flex items-center justify-between rounded-xl border border-line bg-surface px-4 py-3">
+            <span>
+              <span className="block text-sm font-semibold">Manage links</span>
+              <span className="block text-xs text-ink-3">
+                {appUser?.socialLinks.length ? `${appUser.socialLinks.length} link${appUser.socialLinks.length === 1 ? "" : "s"}` : "Add your socials, music and website"}
+              </span>
+            </span>
+            <span className="text-ink-3">›</span>
+          </Link>
         </div>
 
         <button

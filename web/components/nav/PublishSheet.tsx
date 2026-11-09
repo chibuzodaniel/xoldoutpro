@@ -26,14 +26,15 @@ export function PublishSheet({ open, onClose }: Props) {
         }`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h1 className="font-serif text-2xl mb-6">What are you publishing?</h1>
+        <h1 className="font-serif text-[40px] font-bold leading-none">Drop</h1>
+        <p className="mt-2 mb-5 text-[15px] text-ink-3">What are you dropping today?</p>
         <div className="mb-3">
           <PublishOptionsList onNavigate={onClose} />
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="w-full rounded-lg border border-line py-3 text-sm font-semibold text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink"
+          className="w-full rounded-full border border-line py-3.5 text-sm font-semibold text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink"
         >
           Cancel
         </button>

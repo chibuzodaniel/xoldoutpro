@@ -48,7 +48,7 @@ export function VerifiedBadge({ size = 14, badgeType }: { size?: number; badgeTy
         d="M12 2l2.4 2.2 3.2-.5 1 3.1 3 1.3-.7 3.2 2 2.7-2 2.7.7 3.2-3 1.3-1 3.1-3.2-.5L12 22l-2.4-2.2-3.2.5-1-3.1-3-1.3.7-3.2-2-2.7 2-2.7-.7-3.2 3-1.3 1-3.1 3.2.5z"
         fill={color}
       />
-      <Path d={GLYPH_PATH[glyph]} fill="none" stroke="#0a0a0b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <Path d={GLYPH_PATH[glyph]} fill="none" stroke="#000000" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }

@@ -190,7 +190,7 @@ function EventTierPickerInner({ eventId, tiers }: { eventId: string; tiers: Tier
                 <button
                   onClick={() => handleBuy(tier.productId)}
                   disabled={busyProductId === tier.productId}
-                  className="flex-1 rounded-lg bg-red px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+                  className="flex-1 rounded-full bg-red px-5 py-4 text-[16px] font-bold text-white disabled:opacity-50"
                 >
                   {busyProductId === tier.productId
                     ? "Starting checkout…"

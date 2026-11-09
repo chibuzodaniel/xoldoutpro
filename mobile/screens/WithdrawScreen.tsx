@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   percentText: { color: colors.ink, fontSize: 12, fontWeight: "600" },
   label: { color: colors.ink3, fontSize: 11, fontWeight: "700", letterSpacing: 0.6, textTransform: "uppercase", marginBottom: 8 },
   accountRow: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, borderRadius: 10, padding: 14, marginBottom: 8 },
-  accountRowActive: { borderColor: colors.red, backgroundColor: "rgba(225,29,46,0.08)" },
+  accountRowActive: { borderColor: colors.red, backgroundColor: "rgba(225,11,44,0.08)" },
   accountText: { color: colors.ink, fontSize: 13 },
   summaryCard: { borderWidth: 1, borderColor: colors.line, backgroundColor: colors.surface, borderRadius: 12, padding: 14, marginTop: 12, marginBottom: 20, gap: 6 },
   summaryRow: { flexDirection: "row", justifyContent: "space-between" },

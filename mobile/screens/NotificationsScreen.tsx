@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   pillEndedText: { color: colors.ink3, fontSize: 11, fontWeight: "600" },
   headerActions: { flexDirection: "row", alignItems: "center", gap: 16 },
   markAllText: { color: colors.redSoft, fontSize: 13, fontWeight: "600" },
-  unreadGroup: { backgroundColor: "rgba(225,29,46,0.06)", marginHorizontal: -16, paddingHorizontal: 16 },
+  unreadGroup: { backgroundColor: "rgba(225,11,44,0.06)", marginHorizontal: -16, paddingHorizontal: 16 },
   readRow: { opacity: 0.6 },
   readTitle: { color: colors.ink2, fontWeight: "500" },
   unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.red },

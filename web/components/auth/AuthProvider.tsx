@@ -7,7 +7,8 @@ import { firebaseAuth, firebaseConfigured } from "@/lib/firebase/client";
 import { apiFetch } from "@/lib/api";
 import { captureReferralCode, consumeReferralCode } from "@/lib/referral";
 
-export type SocialLink = { platform: "Instagram" | "X" | "TikTok" | "YouTube" | "Website"; url: string };
+// Link-in-bio entry (lib/profile/links.ts) — title and enabled are optional.
+export type SocialLink = { platform: string; url: string; title?: string | null; enabled?: boolean };
 
 export type AppUser = {
   id: string;

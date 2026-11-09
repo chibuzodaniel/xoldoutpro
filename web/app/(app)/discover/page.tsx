@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { ProductCard } from "@/components/product/ProductCard";
 import { EventCard } from "@/components/product/EventCard";
 import { AppHeader } from "@/components/nav/AppHeader";
-import { CategoryTabs, type CategoryType } from "@/components/nav/CategoryTabs";
 import { AVATAR_GRADIENTS } from "@/lib/avatarGradients";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { buildDiscoverMetadata } from "@/lib/og";
@@ -13,8 +11,14 @@ import { getActiveBillboards } from "@/lib/commerce/billboards";
 import { BillboardRail } from "@/components/discover/BillboardRail";
 import { HeroCarousel } from "@/components/discover/HeroCarousel";
 import { OwnedBadgesProvider } from "@/components/product/OwnedBadges";
-import { MusicTab } from "@/components/music/MusicTab";
 import { getMusicTab, parseMusicTabQuery } from "@/lib/music/getMusicTab";
+import { getEventFeed, getSectionFeed, getTrendingReleaseIds, withFeedExtras } from "@/lib/discover/feed";
+import { DiscoverTabs } from "@/components/discover/DiscoverTabs";
+import { DiscoverTop, type DiscoverSection } from "@/components/discover/DiscoverTop";
+import { MusicFilters } from "@/components/discover/MusicFilters";
+import { FeedCard } from "@/components/discover/FeedCard";
+import { EventFeedCard } from "@/components/discover/EventFeedCard";
+import { FollowingFeed } from "@/components/discover/FollowingFeed";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -23,61 +27,187 @@ export const revalidate = 120;
 
 export const metadata: Metadata = buildDiscoverMetadata();
 
-const cardInclude = {
-  creator: { select: { handle: true, displayName: true } },
-  release: { select: { artworkLadder: true, releaseType: true } },
-  beat: { select: { coverImageLadder: true } },
-  merchItem: { select: { imageLadder: true } },
-  stockPolicy: { select: { cap: true, sold: true, soldOutAt: true } },
-} as const;
+const SECTIONS = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
 
-const VALID_TYPES = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
-const SECTION_TITLE: Record<(typeof VALID_TYPES)[number], string> = {
-  RELEASE: "Music",
-  BEAT: "Beats",
-  EVENT: "Events",
-  MERCH: "Merchandise",
-};
-
+// v2 Discover (design/v2-prototype, 2026-11-09):
+//   For You   — /discover[?type=BEAT|EVENT|MERCH][&genre&sort&q]: the big
+//               title, search, section pills, then a feed of large cards.
+//               Music (the default) keeps the Music tab's genre/sort filters.
+//   Following — /discover?feed=following: new drops from followed artists.
+//   Charts    — /discover?feed=charts: what the old "All" page showed —
+//               best-sellers hero, the paid Billboard (sponsored), top
+//               sellers, creators, beats, events and merch.
+// Old links (?type=RELEASE&genre=…) still land in the right place, and
+// /api/discover (the mobile app's feed) is unchanged.
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string }>;
+  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string; feed?: string }>;
 }) {
-  const { type, genre, sort, q } = await searchParams;
-  const activeType = (VALID_TYPES as readonly string[]).includes(type ?? "") ? (type as CategoryType) : null;
+  const { type, genre, sort, q, feed } = await searchParams;
 
-  // The Music tab's own layout (V1.2): search, genre chips, sort tiles.
-  if (activeType === "RELEASE") {
-    const query = parseMusicTabQuery({ genre, sort, q });
-    const products = await getMusicTab(query);
+  if (feed === "following") {
     return (
       <div className="pb-8">
         <AppHeader />
-        <CategoryTabs active={activeType} />
-        <MusicTab query={query} products={products} />
+        <DiscoverTabs active="following" />
+        <FollowingFeed />
       </div>
     );
   }
 
-  if (activeType === "EVENT") {
-    const events = await db.event.findMany({
-      where: { status: "PUBLISHED" },
-      include: { tiers: { select: { product: { select: { priceKobo: true, stockPolicy: true } } } } },
-      orderBy: { startsAt: "asc" },
-      take: 60,
-    });
+  if (feed === "charts") return <ChartsView />;
+
+  const section: DiscoverSection = (SECTIONS as readonly string[]).includes(type ?? "") ? (type as DiscoverSection) : "RELEASE";
+  const search = (q ?? "").trim().slice(0, 80) || null;
+
+  return (
+    <div className="pb-8">
+      <AppHeader />
+      <DiscoverTabs active="foryou" />
+      <DiscoverTop section={section} q={search} />
+      {section === "RELEASE" ? <MusicFeed genre={genre} sort={sort} q={q} /> : section === "EVENT" ? <EventsFeed q={search} /> : <ProductsFeed type={section} q={search} />}
+    </div>
+  );
+}
+
+async function MusicFeed({ genre, sort, q }: { genre?: string; sort?: string; q?: string }) {
+  const query = parseMusicTabQuery({ genre, sort, q });
+  const [products, trending] = await Promise.all([getMusicTab(query).then(withFeedExtras), getTrendingReleaseIds()]);
+  const filtered = Boolean(query.genre || query.q || query.sort !== "new");
+  return (
+    <>
+      <MusicFilters query={query} />
+      <FeedList
+        empty={filtered ? "No songs match these filters." : "No songs here yet."}
+        clearHref={filtered ? "/discover" : null}
+        ids={products.map((p) => p.id)}
+      >
+        {products.map((p, i) => (
+          <FeedCard key={p.id} product={p} trending={trending.has(p.id)} priority={i === 0} />
+        ))}
+      </FeedList>
+    </>
+  );
+}
+
+async function ProductsFeed({ type, q }: { type: "BEAT" | "MERCH"; q: string | null }) {
+  const products = await getSectionFeed(type, q);
+  return (
+    <FeedList empty={q ? "Nothing matches that search." : "Nothing published yet."} clearHref={q ? `/discover?type=${type}` : null} ids={products.map((p) => p.id)}>
+      {products.map((p, i) => (
+        <FeedCard key={p.id} product={p} priority={i === 0} />
+      ))}
+    </FeedList>
+  );
+}
+
+async function EventsFeed({ q }: { q: string | null }) {
+  const events = await getEventFeed(q);
+  return (
+    <FeedList empty={q ? "No events match that search." : "No upcoming events yet."} clearHref={q ? "/discover?type=EVENT" : null} ids={[]}>
+      {events.map((ev) => (
+        <EventFeedCard
+          key={ev.id}
+          event={{ ...ev, creator: { ...ev.creator, verificationBadges: ev.creator.verificationBadges as string[] } }}
+        />
+      ))}
+    </FeedList>
+  );
+}
+
+function FeedList({ children, empty, clearHref, ids }: { children: React.ReactNode[]; empty: string; clearHref: string | null; ids: string[] }) {
+  if (children.length === 0) {
     return (
+      <div className="mx-4 mt-6 rounded-2xl border border-line-soft p-8 text-center">
+        <p className="text-sm text-ink-2">{empty}</p>
+        {clearHref && (
+          <Link href={clearHref} className="mt-1 inline-block text-xs font-semibold text-red-soft">
+            Clear filters
+          </Link>
+        )}
+      </div>
+    );
+  }
+  return (
+    <OwnedBadgesProvider productIds={ids}>
+      <div className="mt-5 flex flex-col gap-5 px-4">{children}</div>
+    </OwnedBadgesProvider>
+  );
+}
+
+async function ChartsView() {
+  const [{ heroes, newReleasesBelowHero, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators }, billboards] = await Promise.all([
+    getDiscoverData(),
+    getActiveBillboards(),
+  ]);
+  const productIds = [...heroes.map((h) => h.product.id), ...newReleasesBelowHero.map((p) => p.id), ...topBeats.map((p) => p.id), ...merchItems.map((p) => p.id)];
+
+  return (
+    <OwnedBadgesProvider productIds={productIds}>
       <div className="pb-8">
         <AppHeader />
-        <CategoryTabs active={activeType} />
-        <section className="px-4">
-          <h3 className="font-serif text-lg mb-3">{SECTION_TITLE.EVENT}</h3>
-          {events.length === 0 ? (
-            <p className="text-sm text-ink-3">Nothing published yet.</p>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              {events.map((ev) => (
+        <DiscoverTabs active="charts" />
+        <div className="px-4 pt-6">
+          <h1 className="font-serif text-[44px] font-bold leading-none tracking-tight">Charts</h1>
+          <p className="mt-2 text-sm text-ink-3">What fans are buying and who&apos;s moving this week.</p>
+        </div>
+
+        <ChartSection title="Top Sellers" sub="Best-selling releases this week">
+          {heroes.length > 0 ? <HeroCarousel slides={heroes} /> : <p className="px-4 text-sm text-ink-3">No sales yet this week.</p>}
+        </ChartSection>
+
+        {billboards.length > 0 && (
+          <ChartSection title="Billboard" sub="Sponsored">
+            <div className="px-4">
+              <BillboardRail slides={billboards} />
+            </div>
+          </ChartSection>
+        )}
+
+        {weeklyTopCreators.length > 0 && (
+          <ChartSection title="Top Creators" sub="Most sales this week" more={{ href: "/discover/top-creators", label: "View all" }}>
+            <ol className="mx-4 divide-y divide-line-soft overflow-hidden rounded-2xl border border-line-soft bg-surface">
+              {weeklyTopCreators.slice(0, 10).map((c, i) => (
+                <li key={c.id}>
+                  <Link href={`/u/${c.handle}`} className="flex items-center gap-3 px-4 py-3">
+                    <span className={`w-6 text-center font-serif text-xl font-bold ${i < 3 ? "text-red-soft" : "text-ink-3"}`}>{i + 1}</span>
+                    <Avatar url={c.avatarUrl} name={c.displayName} index={i} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-semibold">{c.displayName}</span>
+                      <span className="block text-xs text-ink-3">{c.metric}</span>
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </ChartSection>
+        )}
+
+        {newReleasesBelowHero.length > 0 && (
+          <ChartSection title="New This Week" sub="Fresh releases" more={{ href: "/discover?sort=new", label: "See all" }}>
+            <Grid>
+              {newReleasesBelowHero.slice(0, 6).map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </Grid>
+          </ChartSection>
+        )}
+
+        {topBeats.length > 0 && (
+          <ChartSection title="Trending Beats" more={{ href: "/discover?type=BEAT", label: "Browse" }}>
+            <Grid>
+              {topBeats.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </Grid>
+          </ChartSection>
+        )}
+
+        {upcomingEvents.length > 0 && (
+          <ChartSection title="Trending Events" more={{ href: "/discover?type=EVENT", label: "See all" }}>
+            <Grid>
+              {upcomingEvents.map((ev) => (
                 <EventCard
                   key={ev.id}
                   event={{
@@ -90,236 +220,71 @@ export default async function DiscoverPage({
                   }}
                 />
               ))}
-            </div>
-          )}
-        </section>
-      </div>
-    );
-  }
-
-  if (activeType) {
-    const products = await db.product.findMany({
-      where: { type: activeType, status: "PUBLISHED" },
-      include: cardInclude,
-      orderBy: { publishedAt: "desc" },
-      take: 60,
-    });
-    return (
-      <div className="pb-8">
-        <AppHeader />
-        <CategoryTabs active={activeType} />
-        <section className="px-4">
-          <h3 className="font-serif text-lg mb-3">{SECTION_TITLE[activeType]}</h3>
-          {products.length === 0 ? (
-            <p className="text-sm text-ink-3">Nothing published yet.</p>
-          ) : (
-            <OwnedBadgesProvider productIds={products.map((p) => p.id)}>
-              <div className="grid grid-cols-3 gap-3">
-                {products.map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-            </OwnedBadgesProvider>
-          )}
-        </section>
-      </div>
-    );
-  }
-
-  const [
-    { heroes, newReleasesBelowHero, recommended, weeklyTopCreators, topBeats, upcomingEvents, merchItems, creators },
-    billboards,
-  ] = await Promise.all([getDiscoverData(), getActiveBillboards()]);
-  const allProductIds = [...heroes.map((h) => h.product.id), ...newReleasesBelowHero.map((p) => p.id), ...recommended.map((p) => p.id), ...topBeats.map((p) => p.id), ...merchItems.map((p) => p.id)].filter(
-    (id): id is string => Boolean(id),
-  );
-  return (
-    <OwnedBadgesProvider productIds={allProductIds}>
-      <div className="pb-8">
-        <AppHeader />
-        <CategoryTabs active={null} />
-
-      {heroes.length > 0 && <HeroCarousel slides={heroes} />}
-
-      {(newReleasesBelowHero.length > 0 || billboards.length > 0) && (
-        <section className="px-4 mb-7">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-[12px] font-bold uppercase tracking-wide text-red-soft">New Release</h3>
-            {newReleasesBelowHero.length > 4 && (
-              <Link href="/discover?type=RELEASE" className="text-[11px] font-semibold text-red-soft">
-                View all ›
-              </Link>
-            )}
-          </div>
-          <div className="flex items-stretch gap-3">
-            <div className="flex-1 min-w-0 flex flex-col gap-3">
-              <div className="grid grid-cols-2 gap-3 content-start">
-                {newReleasesBelowHero.slice(0, 4).map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-              {/* Nested here, not a separate section — explicit ask, with a
-                  reference screenshot: the billboard falls inside the New
-                  Release row so the Top sellers rail alongside naturally
-                  stretches taller to match (items-stretch on the parent row). */}
-              <BillboardRail slides={billboards} />
-            </div>
-
-            {weeklyTopCreators.length > 0 && (
-              <div className="flex w-24 shrink-0 flex-col">
-                <p className="text-[9.5px] font-semibold uppercase tracking-wide text-ink-3 mb-3 leading-tight">
-                  Top sellers
-                </p>
-                {/* Each row is an equal flex-1 share of whatever height the
-                    left column establishes (items-stretch on the parent
-                    row) — with few entries this fills the full column
-                    top-to-bottom instead of clumping at the top with dead
-                    space below, which `justify-between` used to leave.
-                    Longer now that the billboard makes the left column
-                    taller (explicit ask: "the top seller can be longer"). */}
-                <div className="flex flex-1 flex-col gap-3">
-                  {weeklyTopCreators.slice(0, 5).map((c, i) => (
-                    <Link key={c.id} href={`/u/${c.handle}`} className="flex flex-1 flex-col justify-center min-h-0">
-                      <div className="relative h-[76px] w-16 mb-1.5 shrink-0">
-                        <span
-                          aria-hidden="true"
-                          className="pointer-events-none absolute -left-1.5 -top-2.5 select-none font-sans text-[46px] font-black leading-none text-white/10"
-                        >
-                          {i + 1}
-                        </span>
-                        <div
-                          className={`absolute inset-0 left-3 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${
-                            AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length]
-                          }`}
-                        >
-                          <FallbackImg
-                            src={c.avatarUrl}
-                            alt={c.displayName}
-                            className="h-full w-full object-cover"
-                            fallback={
-                              <span className="flex h-full w-full items-center justify-center font-serif text-lg text-white">
-                                {c.displayName.slice(0, 1).toUpperCase()}
-                              </span>
-                            }
-                          />
-                        </div>
-                      </div>
-                      <span className="block text-[10px] font-semibold text-ink-2 line-clamp-1">{c.displayName}</span>
-                      <span className="block text-[9px] text-ink-3">{c.metric}</span>
-                    </Link>
-                  ))}
-                </div>
-                {weeklyTopCreators.length > 5 && (
-                  <Link
-                    href="/discover/top-creators"
-                    className="mt-3 block text-center text-[9px] font-semibold text-red-soft"
-                  >
-                    View all ›
-                  </Link>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
-      <section className="px-4 mb-7">
-        <h3 className="font-serif text-lg mb-3">Recommended For You</h3>
-        {recommended.length === 0 ? (
-          <p className="text-sm text-ink-3">Nothing published yet.</p>
-        ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {recommended.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
+            </Grid>
+          </ChartSection>
         )}
-      </section>
 
-      {topBeats.length > 0 && (
-        <section className="px-4 mb-7">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-serif text-lg">Beat Store</h3>
-            <Link href="/discover?type=BEAT" className="text-xs text-red-soft font-semibold">
-              Browse ›
-            </Link>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {topBeats.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </section>
-      )}
+        {merchItems.length > 0 && (
+          <ChartSection title="Top Merch" more={{ href: "/discover?type=MERCH", label: "Shop all" }}>
+            <Grid>
+              {merchItems.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </Grid>
+          </ChartSection>
+        )}
 
-      {upcomingEvents.length > 0 && (
-        <section className="px-4 mb-7">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-serif text-lg">Events</h3>
-            <Link href="/discover?type=EVENT" className="text-xs text-red-soft font-semibold">
-              See all ›
-            </Link>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {upcomingEvents.map((ev) => (
-              <EventCard
-                key={ev.id}
-                event={{
-                  id: ev.id,
-                  creatorId: ev.creatorId,
-                  title: ev.title,
-                  coverImageLadder: ev.coverImageLadder,
-                  startsAt: ev.startsAt,
-                  tiers: ev.tiers.map((t) => ({ priceKobo: t.product.priceKobo, stockPolicy: t.product.stockPolicy })),
-                }}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {merchItems.length > 0 && (
-        <section className="px-4 mb-7">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-serif text-lg">Merchandise</h3>
-            <Link href="/discover?type=MERCH" className="text-xs text-red-soft font-semibold">
-              Shop all ›
-            </Link>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {merchItems.map((p) => (
-              <ProductCard key={p.id} product={p} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {creators.length > 0 && (
-        <section className="px-4">
-          <h3 className="font-serif text-lg mb-3">Featured Creators</h3>
-          <div className="flex gap-4 overflow-x-auto pb-1">
-            {creators.map((c, i) => (
-              <Link key={c.id} href={`/u/${c.handle}`} className="flex flex-col items-center gap-1.5 w-16 shrink-0">
-                <div
-                  className={`h-14 w-14 rounded-full overflow-hidden flex items-center justify-center border border-white/10 bg-gradient-to-br ${
-                    AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length]
-                  }`}
-                >
-                  <FallbackImg
-                    src={c.avatarUrl}
-                    alt={c.displayName}
-                    className="h-full w-full object-cover"
-                    fallback={<span className="font-serif text-base text-white">{c.displayName.slice(0, 1).toUpperCase()}</span>}
-                  />
-                </div>
-                <span className="text-[10.5px] font-medium text-ink-2 line-clamp-1 text-center">{c.displayName}</span>
-                <span className="text-[10px] text-ink-3">{c._count.followers}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-    </div>
+        {creators.length > 0 && (
+          <ChartSection title="Most Followed">
+            <div className="flex gap-4 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+              {creators.map((c, i) => (
+                <Link key={c.id} href={`/u/${c.handle}`} className="flex w-16 shrink-0 flex-col items-center gap-1.5">
+                  <Avatar url={c.avatarUrl} name={c.displayName} index={i} size="lg" />
+                  <span className="line-clamp-1 text-center text-[11px] font-medium text-ink-2">{c.displayName}</span>
+                  <span className="text-[10px] text-ink-3">{c._count.followers}</span>
+                </Link>
+              ))}
+            </div>
+          </ChartSection>
+        )}
+      </div>
     </OwnedBadgesProvider>
+  );
+}
+
+function ChartSection({ title, sub, more, children }: { title: string; sub?: string; more?: { href: string; label: string }; children: React.ReactNode }) {
+  return (
+    <section className="mt-8">
+      <div className="mb-3 flex items-end justify-between px-4">
+        <div>
+          <h2 className="font-serif text-2xl font-bold">{title}</h2>
+          {sub && <p className="text-xs text-ink-3">{sub}</p>}
+        </div>
+        {more && (
+          <Link href={more.href} className="text-xs font-semibold text-red-soft">
+            {more.label} ›
+          </Link>
+        )}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Grid({ children }: { children: React.ReactNode }) {
+  return <div className="grid grid-cols-3 gap-3 px-4">{children}</div>;
+}
+
+function Avatar({ url, name, index, size = "md" }: { url: string | null; name: string; index: number; size?: "md" | "lg" }) {
+  const box = size === "lg" ? "h-14 w-14" : "h-11 w-11";
+  return (
+    <span className={`${box} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-gradient-to-br ${AVATAR_GRADIENTS[index % AVATAR_GRADIENTS.length]}`}>
+      <FallbackImg
+        src={url}
+        alt={name}
+        className="h-full w-full object-cover"
+        fallback={<span className="font-serif text-base text-white">{name.slice(0, 1).toUpperCase()}</span>}
+      />
+    </span>
   );
 }

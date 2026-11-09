@@ -250,7 +250,7 @@ export function PostCard({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 16, borderWidth: 1, borderColor: "rgba(225,29,46,0.15)", backgroundColor: "rgba(225,29,46,0.08)", padding: 16 },
+  card: { borderRadius: 16, borderWidth: 1, borderColor: "rgba(225,11,44,0.15)", backgroundColor: "rgba(225,11,44,0.08)", padding: 16 },
   header: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 },
   authorName: { color: colors.ink, fontSize: 14, fontWeight: "600" },
   timeText: { color: colors.ink3, fontSize: 11, marginTop: 1 },

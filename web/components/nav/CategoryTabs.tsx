@@ -30,7 +30,7 @@ export function CategoryTabs({ active }: { active: CategoryType }) {
         >
           {tab.label}
           {tab.type === active && (
-            <span className="absolute -bottom-[2px] left-0 right-0 h-[2px] rounded-full bg-red shadow-[0_0_6px_0_rgba(225,29,46,0.65)]" />
+            <span className="absolute -bottom-[2px] left-0 right-0 h-[2px] rounded-full bg-red shadow-[0_0_6px_0_rgba(225,11,44,0.65)]" />
           )}
         </Link>
       ))}

@@ -774,7 +774,7 @@ function LiveRoom() {
           )}
           <button
             onClick={() => setGiftSheetOpen(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-red/70 bg-black/70 py-2 pl-3 pr-4 text-[16px] font-medium text-white shadow-[0_0_16px_-2px_rgba(225,29,46,0.55)]"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border-2 border-red/70 bg-black/70 py-2 pl-3 pr-4 text-[16px] font-medium text-white shadow-[0_0_16px_-2px_rgba(225,11,44,0.55)]"
           >
             <GiftArt type="GRAMMY" className="h-6 w-6" />
             Gift

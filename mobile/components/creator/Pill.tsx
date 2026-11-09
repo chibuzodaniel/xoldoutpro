@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
-  pillActive: { borderColor: colors.red, backgroundColor: "rgba(225,29,46,0.12)" },
+  pillActive: { borderColor: colors.red, backgroundColor: "rgba(225,11,44,0.12)" },
   label: { color: colors.ink2, fontSize: 12, fontWeight: "600" },
   labelActive: { color: colors.redSoft },
 });

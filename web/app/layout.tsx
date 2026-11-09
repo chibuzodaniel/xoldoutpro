@@ -5,6 +5,7 @@ import { PlayerProvider } from "@/components/player/PlayerProvider";
 import { MiniPlayer } from "@/components/player/MiniPlayer";
 import { ExpandedPlayer } from "@/components/player/ExpandedPlayer";
 import { BottomNav } from "@/components/nav/BottomNav";
+import { AppFrame } from "@/components/nav/AppFrame";
 import { InstallGuideProvider } from "@/components/pwa/InstallGuideProvider";
 import { AndroidAppBanner } from "@/components/mobile/AndroidAppBanner";
 import { ToastProvider } from "@/components/ui/ToastProvider";
@@ -37,7 +38,7 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  themeColor: "#0a0a0b",
+  themeColor: "#000000",
 };
 
 // PlayerProvider (and the single persistent <audio> element it owns) lives
@@ -66,14 +67,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <InAppMessageBanner />
               <InstallGuideProvider>
                 <PlayerProvider>
-                  <div className="flex h-full flex-col">
+                  {/* Centred column on wide screens (components/nav/AppFrame.tsx). */}
+                  <AppFrame>
                     <AndroidAppBanner />
                     <div className="flex-1 min-h-0 overflow-y-auto pb-2">
                       {children}
                     </div>
                     <MiniPlayer />
                     <BottomNav />
-                  </div>
+                  </AppFrame>
                   <ExpandedPlayer />
                 </PlayerProvider>
               </InstallGuideProvider>

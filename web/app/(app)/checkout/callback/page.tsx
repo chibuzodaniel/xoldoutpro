@@ -342,7 +342,7 @@ function CheckoutCallbackInner() {
               {tickets.map((t, i) => (
                 <div
                   key={t.checkInCode}
-                  className="relative w-full rounded-2xl border border-line bg-surface text-left overflow-hidden shadow-[0_0_0_1px_rgba(225,29,72,0.08)]"
+                  className="relative w-full rounded-2xl border border-line bg-surface text-left overflow-hidden shadow-[0_0_0_1px_rgba(225,11,44,0.08)]"
                 >
                   <div className="p-5 pb-4 text-center">
                     {qrDataUrls[t.checkInCode] && (
