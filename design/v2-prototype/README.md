@@ -9,7 +9,7 @@ available, so the running prototype is the visual spec.
 - `XOLDOUT_BUILD.md` — the prototype's own notes: screens, features, rules.
 
 Rules for the rebuild (so the live app keeps working):
-- Work happens on the `v2-preview` branch (Vercel preview). `main` is
+- Work happens on the `v1.2-preview` branch (https://xoldout-preview.vercel.app). `main` is
   production and only changes on an explicit production deploy.
 - Never change or remove fields an existing API returns — the mobile app
   depends on them. Add new fields and new endpoints instead.
