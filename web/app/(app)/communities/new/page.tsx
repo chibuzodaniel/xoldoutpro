@@ -116,7 +116,7 @@ export default function CreateCommunityPage() {
   };
 
   return (
-    <div className="mx-auto flex min-h-full max-w-xl flex-col px-4 pb-28">
+    <div className="mx-auto flex min-h-full max-w-xl flex-col px-4 pb-44">
       <div className="flex items-center gap-3 pt-4">
         <button
           type="button"
@@ -334,7 +334,7 @@ export default function CreateCommunityPage() {
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-[72px] z-20 mx-auto max-w-xl border-t border-line-soft bg-bg/95 px-4 py-3 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-[104px] z-20 mx-auto max-w-xl border-t border-line-soft bg-bg/95 px-4 py-3 backdrop-blur">
         <button type="button" onClick={step === STEPS.length - 1 ? create : next} disabled={busy} className="w-full rounded-full bg-red px-5 py-4 text-[16px] font-bold text-white disabled:opacity-50">
           {busy ? "Creating…" : step === STEPS.length - 1 ? "Create community" : "Continue"}
         </button>
