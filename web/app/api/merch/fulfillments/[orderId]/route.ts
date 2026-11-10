@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 const patchSchema = z.object({
   status: z.enum(["SHIPPED", "DELIVERED"]),
@@ -33,6 +34,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ or
         shippedAt: body.status === "SHIPPED" && !order.merchFulfillment.shippedAt ? new Date() : order.merchFulfillment.shippedAt,
       },
     });
+
+    // Tell the buyer (explicit ask, 2026-11-10: notifications for everything).
+    if (order.merchFulfillment.status !== body.status || (body.trackingInfo && body.trackingInfo !== order.merchFulfillment.trackingInfo)) {
+      const title = order.items.find((i) => i.product.type === "MERCH")?.product.title ?? "Your order";
+      notifyUsersAfterResponse([order.buyerId], {
+        kind: "ORDER_PAID",
+        title: body.status === "DELIVERED" ? "Order delivered" : "Your order has shipped",
+        body: `${title}${body.status === "SHIPPED" && updated.trackingInfo ? ` · Tracking: ${updated.trackingInfo}` : ""}`,
+        url: "/library",
+        tag: `order-${orderId}`,
+      });
+    }
 
     return NextResponse.json({ fulfillment: updated });
   } catch (err) {

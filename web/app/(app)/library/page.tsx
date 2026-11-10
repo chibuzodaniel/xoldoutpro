@@ -9,6 +9,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { downloadTrackForOffline, isDownloaded, removeDownload } from "@/lib/offline/downloads";
 import { CollectionsTab } from "@/components/library/CollectionsTab";
 import { SubscriptionsTab } from "@/components/subscriptions/SubscriptionsTab";
+import { TrackOrderSheet } from "@/components/library/TrackOrderSheet";
 import { CartIconLink } from "@/components/nav/CartIconLink";
 import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
@@ -42,7 +43,17 @@ type LibraryEntitlement = {
     } | null;
   };
   order: {
-    merchFulfillment: { status: "TO_SHIP" | "SHIPPED" | "DELIVERED"; trackingInfo: string | null } | null;
+    createdAt?: string;
+    merchFulfillment: {
+      status: "TO_SHIP" | "SHIPPED" | "DELIVERED";
+      trackingInfo: string | null;
+      shippedAt?: string | null;
+      recipientName?: string;
+      addressLine1?: string;
+      addressLine2?: string | null;
+      city?: string;
+      state?: string;
+    } | null;
   };
   checkIn: { code: string; checkedInAt: string | null } | null;
 };
@@ -99,6 +110,8 @@ function LibraryPageInner() {
     TAB_KEYS.includes(initialTab as LibraryTab) ? (initialTab as LibraryTab) : "purchased",
   );
   const [entitlements, setEntitlements] = useState<LibraryEntitlement[] | null>(null);
+  // "Track order" sheet for a merch purchase (v2, design/v2-prototype).
+  const [trackingId, setTrackingId] = useState<string | null>(null);
   const [downloaded, setDownloaded] = useState<Record<string, boolean>>({});
   const [busyTrackId, setBusyTrackId] = useState<string | null>(null);
   const [downloadingProductId, setDownloadingProductId] = useState<string | null>(null);
@@ -437,6 +450,7 @@ function LibraryPageInner() {
   const songItems = musicItems.filter((e) => e.product.release);
   const beatItems = musicItems.filter((e) => e.product.beat);
   const merchItems = visible?.filter((e) => e.product.merchItem) ?? [];
+  const tracking = trackingId ? (entitlements?.find((e) => e.id === trackingId) ?? null) : null;
   const ticketItems = visible?.filter((e) => e.product.ticketTier) ?? [];
   const expandedEntitlement = musicItems.find((e) => e.id === expandedId && e.product.release) ?? null;
 
@@ -616,6 +630,11 @@ function LibraryPageInner() {
         </div>
         <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
         <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">{FULFILLMENT_LABEL[status]}</p>
+        {e.order.merchFulfillment && (
+          <button type="button" onClick={() => setTrackingId(e.id)} className="mt-1.5 rounded-full border border-line px-3 py-1.5 text-[12px] font-bold">
+            Track order
+          </button>
+        )}
       </div>
     );
   }
@@ -756,6 +775,7 @@ function LibraryPageInner() {
         onClose={() => setNotificationsOpen(false)}
         onRead={() => window.dispatchEvent(new Event("xoldout:notifications-changed"))}
       />
+      <TrackOrderSheet entitlement={tracking} onClose={() => setTrackingId(null)} />
     </div>
   );
 }
