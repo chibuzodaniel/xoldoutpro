@@ -19,6 +19,9 @@ import { EventFeedCard } from "@/components/discover/EventFeedCard";
 import { FollowingFeed } from "@/components/discover/FollowingFeed";
 import { getCharts, CHART_PERIODS, PERIOD_LABEL, type ChartPeriod, type ProductEntry } from "@/lib/charts/getCharts";
 import { ProductChartRow, CreatorChartRow } from "@/components/charts/ChartRows";
+import { ChartFilterBar, ChartSearch } from "@/components/charts/ChartTools";
+import { parseChartFilters, priceMatches, type ChartFilters } from "@/lib/charts/filters";
+import type { Charts } from "@/lib/charts/getCharts";
 
 // Stock/follower counts change often, but not so often that every single
 // pageview needs to hit the DB — cache briefly and revalidate in the
@@ -42,9 +45,10 @@ const SECTIONS = ["RELEASE", "BEAT", "EVENT", "MERCH"] as const;
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string; feed?: string; period?: string; chart?: string; chip?: string; tile?: string }>;
+  searchParams: Promise<{ type?: string; genre?: string; sort?: string; q?: string; feed?: string; period?: string; chart?: string; chip?: string; tile?: string; rtype?: string; loc?: string; pcat?: string; price?: string }>;
 }) {
-  const { type, genre, sort, q, feed, period, chart, chip, tile } = await searchParams;
+  const sp = await searchParams;
+  const { type, genre, sort, q, feed, period, chart, chip, tile } = sp;
 
   if (feed === "following") {
     return (
@@ -59,7 +63,7 @@ export default async function DiscoverPage({
   if (feed === "charts") {
     const p = (CHART_PERIODS as readonly string[]).includes(period ?? "") ? (period as ChartPeriod) : "week";
     const c = CHART_SECTIONS.some((s) => s.key === chart) ? (chart as ChartKey) : null;
-    return <ChartsView period={p} chart={c} />;
+    return <ChartsView period={p} chart={c} filters={c ? parseChartFilters(c, sp) : {}} />;
   }
 
   const section: DiscoverSection = (SECTIONS as readonly string[]).includes(type ?? "") ? (type as DiscoverSection) : "RELEASE";
@@ -186,12 +190,60 @@ const CHART_SECTIONS = [
 ] as const;
 type ChartKey = (typeof CHART_SECTIONS)[number]["key"];
 
-function chartHref(period: ChartPeriod, chart?: ChartKey) {
+function chartHref(period: ChartPeriod, chart?: ChartKey, filters: ChartFilters = {}) {
   const params = new URLSearchParams({ feed: "charts" });
   if (period !== "week") params.set("period", period);
   if (chart) params.set("chart", chart);
+  for (const [k, v] of Object.entries(filters)) if (v) params.set(k, v);
   return `/discover?${params.toString()}`;
 }
+
+// "Filter chart" + "Search charts" (v2): trims the cached chart lists for
+// this request — no extra database work. Ranks are re-numbered within the
+// filtered list.
+function applyChartFilters(charts: Charts, f: ChartFilters): Charts {
+  const q = f.q?.toLowerCase();
+  const product = (e: ProductEntry) => {
+    const facet = charts.facets?.[e.product.id];
+    if (q && !e.product.title.toLowerCase().includes(q) && !e.product.creator.displayName.toLowerCase().includes(q)) return false;
+    if (f.genre && !facet?.genres.includes(f.genre)) return false;
+    if (f.rtype && facet?.releaseType !== f.rtype) return false;
+    if (f.pcat && facet?.category !== f.pcat) return false;
+    return priceMatches(f.price, facet?.priceKobo ?? e.product.priceKobo);
+  };
+  return {
+    ...charts,
+    topSellers: charts.topSellers.filter(product),
+    music: charts.music.filter(product),
+    viral: charts.viral.filter(product),
+    rising: charts.rising.filter(product),
+    beats: charts.beats.filter(product),
+    merch: charts.merch.filter(product),
+    creators: charts.creators.filter(
+      (e) => !q || e.creator.displayName.toLowerCase().includes(q) || e.creator.handle.toLowerCase().includes(q),
+    ),
+    events: charts.events.filter((e) => {
+      if (q && !e.event.title.toLowerCase().includes(q) && !e.event.creator.displayName.toLowerCase().includes(q)) return false;
+      if (f.loc) {
+        const loc = f.loc.toLowerCase();
+        const ok = loc === "online" ? e.event.isVirtual : e.event.city?.toLowerCase() === loc || Boolean(e.event.venue?.toLowerCase().includes(loc));
+        if (!ok) return false;
+      }
+      return priceMatches(f.price, e.event.minPriceKobo);
+    }),
+  };
+}
+
+const CHART_LIST: Record<ChartKey, (c: Charts) => unknown[]> = {
+  top: (c) => c.topSellers,
+  music: (c) => c.music,
+  creators: (c) => c.creators,
+  viral: (c) => c.viral,
+  rising: (c) => c.rising,
+  events: (c) => c.events,
+  beats: (c) => c.beats,
+  merch: (c) => c.merch,
+};
 
 function salesStats(e: ProductEntry) {
   const bits = [`${e.buyers} ${e.buyers === 1 ? "sale" : "sales"}`];
@@ -202,14 +254,16 @@ function salesStats(e: ProductEntry) {
 // v2 Charts (design/v2-prototype, 2026-11-09): ranked lists from
 // lib/charts/getCharts.ts (cached 10 min per period), with Today / This Week /
 // This Month / All Time. ?chart=<key> shows one chart on its own ("See all").
-async function ChartsView({ period, chart }: { period: ChartPeriod; chart: ChartKey | null }) {
-  const [charts, billboards] = await Promise.all([getCharts(period), chart ? Promise.resolve([]) : getActiveBillboards()]);
+async function ChartsView({ period, chart, filters }: { period: ChartPeriod; chart: ChartKey | null; filters: ChartFilters }) {
+  const [allCharts, billboards] = await Promise.all([getCharts(period), chart ? Promise.resolve([]) : getActiveBillboards()]);
+  const filtered = Object.values(filters).some(Boolean);
+  const charts = chart && filtered ? applyChartFilters(allCharts, filters) : allCharts;
   const productIds = [...charts.topSellers, ...charts.music, ...charts.viral, ...charts.rising, ...charts.beats, ...charts.merch].map((e) => e.product.id);
   const sections = CHART_SECTIONS.filter((s) => !chart || s.key === chart);
 
   function productList(list: ProductEntry[]) {
     return list.length === 0 ? (
-      <p className="py-4 text-sm text-ink-3">Nothing here yet for {PERIOD_LABEL[period].toLowerCase()}.</p>
+      <p className="py-4 text-sm text-ink-3">{filtered ? "Nothing in this chart matches your filters." : `Nothing here yet for ${PERIOD_LABEL[period].toLowerCase()}.`}</p>
     ) : (
       <ol>
         {list.map((e, i) => (
@@ -286,24 +340,32 @@ async function ChartsView({ period, chart }: { period: ChartPeriod; chart: Chart
       <div className="pb-8">
         <AppHeader />
         <DiscoverTabs active="charts" />
-        <div className="px-4 pt-6 md:px-6">
+        <div className="relative px-4 pt-6 md:px-6">
           {chart ? (
-            <Link href={chartHref(period)} className="text-sm font-semibold text-red-soft">
-              ‹ All charts
-            </Link>
-          ) : null}
-          <h1 className="mt-1 font-serif text-[44px] font-bold leading-none tracking-tight">{chart ? sections[0]?.title : "Charts"}</h1>
+            <div className="flex items-center gap-3 pr-12">
+              <Link href={chartHref(period)} aria-label="Back to Charts" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink">
+                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                  <path d="M19 12H5M11 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </Link>
+              <h1 className="min-w-0 truncate font-serif text-[36px] font-bold leading-none tracking-tight">{sections[0]?.title}</h1>
+            </div>
+          ) : (
+            <h1 className="mt-1 font-serif text-[44px] font-bold leading-none tracking-tight">Charts</h1>
+          )}
+          {chart && <ChartSearch />}
           <div className="-mx-4 mt-5 flex gap-2.5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
             {CHART_PERIODS.map((p) => (
               <Link
                 key={p}
-                href={chartHref(p, chart ?? undefined)}
+                href={chartHref(p, chart ?? undefined, filters)}
                 className={`shrink-0 rounded-full px-5 py-2.5 text-[15px] font-semibold ${p === period ? "bg-red text-white" : "border border-line bg-surface text-ink-2"}`}
               >
                 {PERIOD_LABEL[p]}
               </Link>
             ))}
           </div>
+          {chart && <ChartFilterBar chart={chart} count={CHART_LIST[chart](charts).length} periodLabel={PERIOD_LABEL[period]} />}
         </div>
 
         <div className="px-4 md:px-6 lg:grid lg:grid-cols-2 lg:gap-x-10">

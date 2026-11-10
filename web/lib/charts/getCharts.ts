@@ -44,6 +44,7 @@ export type EventEntry = {
     startsAt: Date;
     venue: string | null;
     isVirtual: boolean;
+    city: string | null;
     coverImageLadder: unknown;
     creator: { handle: string; displayName: string; isVerified: boolean; verificationBadges: string[] };
     minPriceKobo: number | null;
@@ -51,8 +52,14 @@ export type EventEntry = {
   tickets: number;
 };
 
+// What the "Filter chart" sheet filters on (v2, design/v2-prototype), per
+// ranked product: genres (release genre slugs, or a beat's genre/tags,
+// lower-cased), release type, merch category, price.
+export type ProductFacet = { genres: string[]; releaseType: string | null; category: string | null; priceKobo: number };
+
 export type Charts = {
   period: ChartPeriod;
+  facets: Record<string, ProductFacet>;
   topSellers: ProductEntry[];
   music: ProductEntry[];
   viral: ProductEntry[];
@@ -184,6 +191,31 @@ async function computeCharts(period: ChartPeriod): Promise<Charts> {
     ? await db.product.findMany({ where: { id: { in: ids }, status: "PUBLISHED" }, include: discoverCardInclude })
     : [];
   const products = new Map((await withFeedExtras(rows)).map((p) => [p.id, p]));
+  const facetRows = ids.length
+    ? await db.product.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          priceKobo: true,
+          release: { select: { genres: true, releaseType: true } },
+          beat: { select: { genre: true, tags: true } },
+          merchItem: { select: { category: true } },
+        },
+      })
+    : [];
+  const facets: Record<string, ProductFacet> = {};
+  for (const r of facetRows) {
+    facets[r.id] = {
+      genres: r.release
+        ? r.release.genres
+        : r.beat
+          ? [...(r.beat.genre ? [r.beat.genre] : []), ...r.beat.tags].map((g) => g.toLowerCase())
+          : [],
+      releaseType: r.release?.releaseType ?? null,
+      category: r.merchItem?.category ?? null,
+      priceKobo: r.priceKobo,
+    };
+  }
 
   // Music score: a buyer counts more than a listener (paying is the strongest signal).
   const musicScore = (id: string) => (salesBy.get(id)?.buyers ?? 0) * 3 + (listenBy.get(id) ?? 0);
@@ -275,6 +307,7 @@ async function computeCharts(period: ChartPeriod): Promise<Charts> {
           startsAt: e.startsAt,
           venue: e.venue,
           isVirtual: e.isVirtual,
+          city: e.city,
           coverImageLadder: e.coverImageLadder,
           creator: { ...e.creator, verificationBadges: e.creator.verificationBadges as string[] },
           minPriceKobo: prices.length ? Math.min(...prices) : null,
@@ -287,6 +320,7 @@ async function computeCharts(period: ChartPeriod): Promise<Charts> {
   const prevSalesRanks = prevSales ? rankMap(prevSales.map((r) => r.productId)) : null;
   return {
     period,
+    facets,
     topSellers: entries(salesOrder, prevSalesRanks),
     music: entries(musicOrder, prevMusic),
     viral: entries(viralOrder, prevListeners ? rankMap(prevListeners.map((r) => r.productId)) : null),
@@ -307,5 +341,5 @@ function rankByScore(sales: SalesRow[], listeners: { productId: string; listener
 
 /** One period's charts, cached for 10 minutes. */
 export function getCharts(period: ChartPeriod) {
-  return unstable_cache(() => computeCharts(period), ["charts-v1", period], { revalidate: 600 })();
+  return unstable_cache(() => computeCharts(period), ["charts-v2", period], { revalidate: 600 })();
 }
