@@ -62,7 +62,7 @@ function SocialsPageInner() {
     let cancelled = false;
     async function load() {
       setPosts(null);
-      const res = await apiFetch(tab === "forYou" ? "/api/posts?feed=forYou" : "/api/posts");
+      const res = await apiFetch(tab === "forYou" ? "/api/posts?feed=forYou&v=2" : "/api/posts?v=2");
       if (!res.ok || cancelled) return;
       const data: { following: FollowedCreator[]; posts: FeedPost[] } = await res.json();
       setFollowing(data.following);
@@ -164,7 +164,12 @@ function SocialsPageInner() {
               ) : (
                 <div className="gap-3 md:columns-2 xl:columns-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
                   {posts.map((post) => (
-                    <PostCard key={post.id} post={post} onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId) ?? null)} />
+                    <PostCard
+                      key={post.id}
+                      post={post.repostOf ?? post}
+                      repostedBy={post.repostOf ? post.author : null}
+                      onDeleted={(postId) => setPosts((cur) => cur?.filter((p) => p.id !== postId && p.repostOf?.id !== postId) ?? null)}
+                    />
                   ))}
                 </div>
               )}

@@ -90,6 +90,13 @@ export function FeedCardMenu({
           </svg>
           Share
         </button>
+        <Link href={`/socials?compose=1&attach=product:${productId}&attachTitle=${encodeURIComponent(title)}`} onClick={onClose} className={row}>
+          <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] text-red-soft" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+            <path d="M4 5h16v11H8l-4 4V5z" strokeLinejoin="round" />
+            <path d="M12 8v5M9.5 10.5h5" strokeLinecap="round" />
+          </svg>
+          Post to Socials
+        </Link>
         <Link href={href} onClick={onClose} className={row}>
           <svg viewBox="0 0 24 24" className="h-[22px] w-[22px] text-red-soft" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
             <circle cx="12" cy="12" r="9" />

@@ -373,7 +373,7 @@ async function ChartsView({ period, chart, filters }: { period: ChartPeriod; cha
             <section key={s.key} className="mt-8 min-w-0">
               <div className="mb-1 flex items-end justify-between">
                 <div>
-                  <h2 className="font-serif text-[28px] font-bold leading-tight">{s.title}</h2>
+                  {!chart && <h2 className="font-serif text-[28px] font-bold leading-tight">{s.title}</h2>}
                   <p className="text-xs text-ink-3">{s.sub}</p>
                 </div>
                 {!chart && (

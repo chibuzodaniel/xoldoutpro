@@ -321,20 +321,32 @@ model ProductDownload {
 // layer, not by this model, the same way Report reasons are.
 
 model Post {
-  id        String            @id @default(cuid())
-  authorId  String
-  author    User              @relation("PostsAuthored", fields: [authorId], references: [id])
-  groupId   String?
-  group     FanbaseGroup?     @relation(fields: [groupId], references: [id])
-  replyToId String? // group chat quote-reply (image9 reference) — null for MVP announcement posts
+  id                String            @id @default(cuid())
+  authorId          String
+  author            User              @relation("PostsAuthored", fields: [authorId], references: [id])
+  groupId           String?
+  group             FanbaseGroup?     @relation(fields: [groupId], references: [id])
+  replyToId         String? // group chat quote-reply (image9 reference) — null for MVP announcement posts
   // Community channel (v2). Null = the community's General chat (every
   // message from before channels existed, and the mobile app's group chat).
-  channelId String?
-  channel   CommunityChannel? @relation(fields: [channelId], references: [id])
-  replyTo   Post?             @relation("PostReplies", fields: [replyToId], references: [id])
-  body      String
-  imageUrl  String?
-  createdAt DateTime          @default(now())
+  channelId         String?
+  channel           CommunityChannel? @relation(fields: [channelId], references: [id])
+  replyTo           Post?             @relation("PostReplies", fields: [replyToId], references: [id])
+  body              String
+  imageUrl          String?
+  createdAt         DateTime          @default(now())
+  // Socials v2 (design/v2-prototype): who can see it, reposts and an
+  // attached product/event. "EVERYONE" | "FOLLOWERS". A repost is its own
+  // Post row by the reposter (body empty) pointing at the original; the
+  // mobile app's feed leaves reposts out (it doesn't ask for ?v=2).
+  audience          String            @default("EVERYONE")
+  repostOfId        String?
+  repostOf          Post?             @relation("Reposts", fields: [repostOfId], references: [id])
+  reposts           Post[]            @relation("Reposts")
+  attachedProductId String?
+  attachedProduct   Product?          @relation("PostAttachments", fields: [attachedProductId], references: [id])
+  attachedEventId   String?
+  attachedEvent     Event?            @relation("PostEventAttachments", fields: [attachedEventId], references: [id])
 
   likes    PostLike[]
   comments Comment[]
@@ -342,8 +354,10 @@ model Post {
   reports  Report[]   @relation("ReportsOnPost")
   replies  Post[]     @relation("PostReplies")
 
+  @@unique([authorId, repostOfId])
   @@index([authorId, createdAt])
   @@index([groupId, createdAt])
+  @@index([repostOfId])
   @@index([channelId, createdAt])
 }
 
@@ -775,6 +789,7 @@ model Product {
   merchVariants        MerchVariant[]
   beatLicenses         BeatLicense[]
   likes                ProductLike[]
+  postAttachments      Post[]                @relation("PostAttachments")
 
   @@index([creatorId])
   @@index([status, type])
@@ -1071,10 +1086,11 @@ model Event {
   publishedAt      DateTime?
   deletedAt        DateTime?
 
-  tiers      TicketTier[]
-  reports    Report[]        @relation("ReportsOnEvent")
-  promoters  EventPromoter[]
-  billboards Billboard[]
+  tiers           TicketTier[]
+  reports         Report[]        @relation("ReportsOnEvent")
+  promoters       EventPromoter[]
+  billboards      Billboard[]
+  postAttachments Post[]          @relation("PostEventAttachments")
 
   @@index([creatorId])
 }

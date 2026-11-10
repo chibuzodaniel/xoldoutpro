@@ -30,7 +30,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     }
     if (!canDelete) return NextResponse.json({ error: "You can't delete this" }, { status: 403 });
 
+    // Reposts of this post go with it (Socials v2).
+    const repostIds = (await db.post.findMany({ where: { repostOfId: id }, select: { id: true } })).map((r) => r.id);
     await db.$transaction([
+      db.postLike.deleteMany({ where: { postId: { in: repostIds } } }),
+      db.comment.deleteMany({ where: { postId: { in: repostIds } } }),
+      db.report.deleteMany({ where: { postId: { in: repostIds } } }),
+      db.post.deleteMany({ where: { id: { in: repostIds } } }),
       db.pollVote.deleteMany({ where: { poll: { postId: id } } }),
       db.poll.deleteMany({ where: { postId: id } }),
       db.postLike.deleteMany({ where: { postId: id } }),

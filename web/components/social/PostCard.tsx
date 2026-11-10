@@ -28,6 +28,12 @@ export type FeedPost = {
   likedByMe: boolean;
   commentCount: number;
   followedByMe?: boolean;
+  // Socials v2 (design/v2-prototype).
+  audience?: "EVERYONE" | "FOLLOWERS" | string;
+  repostCount?: number;
+  repostedByMe?: boolean;
+  attachment?: { kind: string; id: string; title: string; subtitle: string; priceKobo: number | null; imageUrl: string | null; href: string } | null;
+  repostOf?: FeedPost | null;
 };
 
 type Comment = {
@@ -83,9 +89,51 @@ function FlyingHeart({ startX, startY, dx, dy, onDone }: { startX: number; start
   );
 }
 
-export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (postId: string) => void }) {
+export function PostCard({
+  post,
+  onDeleted,
+  repostedBy,
+}: {
+  post: FeedPost;
+  onDeleted?: (postId: string) => void;
+  /** Shown as "<name> reposted" above the original post. */
+  repostedBy?: { handle: string; displayName: string } | null;
+}) {
   const { appUser } = useAuth();
   const toast = useToast();
+  const [reposted, setReposted] = useState(Boolean(post.repostedByMe));
+  const [repostCount, setRepostCount] = useState(post.repostCount ?? 0);
+  const [reposting, setReposting] = useState(false);
+
+  async function toggleRepost() {
+    if (reposting) return;
+    if (!reposted && post.audience === "FOLLOWERS") return toast.error("Followers-only posts can't be reposted");
+    setReposting(true);
+    const res = await apiFetch(`/api/posts/${post.id}/repost`, { method: "POST" }).catch(() => null);
+    setReposting(false);
+    if (!res?.ok) {
+      const d = res ? await res.json().catch(() => ({})) : {};
+      return toast.error(typeof d.error === "string" ? d.error : "Couldn't repost");
+    }
+    const d = await res.json();
+    setReposted(d.reposted);
+    setRepostCount(d.repostCount);
+    toast.success(d.reposted ? "You reposted" : "Repost removed");
+  }
+
+  async function sharePost() {
+    const url = `${window.location.origin}${post.attachment?.href ?? `/u/${post.author.handle}`}`;
+    const text = `${post.author.displayName} on XOLDOUT: ${post.body.slice(0, 140)}`;
+    try {
+      if (navigator.share) await navigator.share({ title: "XOLDOUT", text, url });
+      else {
+        await navigator.clipboard.writeText(`${text} ${url}`);
+        toast.success("Link copied");
+      }
+    } catch {
+      // dismissed
+    }
+  }
   const [liked, setLiked] = useState(post.likedByMe);
   const [likeCount, setLikeCount] = useState(post.likeCount);
   const [busy, setBusy] = useState(false);
@@ -195,6 +243,14 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
 
   return (
     <div className="rounded-2xl border border-red/15 bg-red/10 px-4 py-4">
+      {repostedBy && (
+        <Link href={`/u/${repostedBy.handle}`} className="mb-2 flex items-center gap-1.5 text-[12px] font-semibold text-ink-3">
+          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+            <path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {repostedBy.handle === appUser?.handle ? "You reposted" : `${repostedBy.displayName} reposted`}
+        </Link>
+      )}
       <div className="flex items-center gap-2.5 mb-2.5">
         <Link href={`/u/${post.author.handle}`} className="relative h-8 w-8 rounded-full bg-surface-2 overflow-hidden shrink-0">
           <ArtworkImage src={post.author.avatarUrl} alt={post.author.displayName} sizes="32px" className="object-cover" />
@@ -204,7 +260,10 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
             <span className="line-clamp-1">{post.author.displayName}</span>
             {post.author.isVerified && <VerifiedBadge badgeType={primaryBadgeType(post.author.verificationBadges)} />}
           </Link>
-          <p className="text-[12px] text-ink-3">{timeAgo(post.createdAt)}</p>
+          <p className="text-[12px] text-ink-3">
+            {timeAgo(post.createdAt)}
+            {post.audience === "FOLLOWERS" ? " · Followers only" : ""}
+          </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {appUser?.id !== post.author.id && (
@@ -238,6 +297,24 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
           <ArtworkImage src={post.imageUrl} alt="" sizes="100vw" className="object-cover" />
         </div>
       )}
+      {post.attachment && (
+        <Link href={post.attachment.href} className="mb-3 flex items-center gap-3 rounded-xl border border-line bg-surface p-2.5">
+          <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-gradient-to-br from-red/50 to-black">
+            {post.attachment.imageUrl && <ArtworkImage src={post.attachment.imageUrl} alt="" sizes="56px" className="object-cover" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-bold uppercase tracking-wide text-red-soft">
+              {post.attachment.kind === "RELEASE" ? "Music" : post.attachment.kind === "BEAT" ? "Beat" : post.attachment.kind === "MERCH" ? "Merch" : "Event"}
+            </span>
+            <span className="block truncate text-sm font-bold">{post.attachment.title}</span>
+            <span className="block truncate text-[12px] text-ink-3">
+              {post.attachment.subtitle}
+              {post.attachment.priceKobo != null ? ` · ${post.attachment.priceKobo === 0 ? "Free" : `₦${(post.attachment.priceKobo / 100).toLocaleString("en-NG")}`}` : ""}
+            </span>
+          </span>
+          <span className="shrink-0 rounded-full bg-red px-3 py-1.5 text-[12px] font-bold text-white">View</span>
+        </Link>
+      )}
       <div className="flex items-center gap-4">
         <button
           ref={likeButtonRef}
@@ -256,6 +333,27 @@ export function PostCard({ post, onDeleted }: { post: FeedPost; onDeleted?: (pos
             <path d="M4 5h16v11H8l-4 4V5z" strokeLinejoin="round" strokeLinecap="round" />
           </svg>
           {commentCount > 0 ? commentCount.toLocaleString("en-NG") : "Comment"}
+        </button>
+        <button
+          type="button"
+          onClick={toggleRepost}
+          disabled={reposting}
+          aria-pressed={reposted}
+          aria-label="Repost"
+          className={`flex items-center gap-1.5 text-xs ${reposted ? "text-red-soft" : "text-ink-3"}`}
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+            <path d="M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {repostCount > 0 ? repostCount.toLocaleString("en-NG") : "Repost"}
+        </button>
+        <button type="button" onClick={sharePost} aria-label="Share post" className="ml-auto flex items-center text-xs text-ink-3">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+            <circle cx="18" cy="5" r="2.5" />
+            <circle cx="6" cy="12" r="2.5" />
+            <circle cx="18" cy="19" r="2.5" />
+            <path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4" />
+          </svg>
         </button>
       </div>
 
