@@ -513,6 +513,11 @@ model Membership {
   cardToken         String?
   cardProcessor     String?
   cardEmail         String?
+  // Membership card (v2 part 2): the code in its QR, made on first view; an
+  // organizer scanning it is always checked against this row, never the image.
+  cardCode          String?   @unique
+  // Suspended by an admin: keeps the row (and paid time) but no access.
+  suspendedAt       DateTime?
 
   group FanbaseGroup @relation(fields: [groupId], references: [id])
   user  User         @relation(fields: [userId], references: [id])

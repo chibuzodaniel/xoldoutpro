@@ -8,7 +8,6 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
-import { CreateFanbaseSheet } from "@/components/groups/CreateFanbaseSheet";
 import { MyMembershipsSheet } from "@/components/communities/MyMembershipsSheet";
 import { COMMUNITY_CATEGORIES, DIRECTORY_FILTERS, type DirectoryFilter } from "@/lib/communities/constants";
 
@@ -40,7 +39,6 @@ export function CommunitiesDirectory() {
   const [category, setCategory] = useState<string | null>(null);
   const [items, setItems] = useState<Community[] | null>(null);
   const [code, setCode] = useState("");
-  const [createOpen, setCreateOpen] = useState(false);
   const [mineOpen, setMineOpen] = useState(false);
   const closeMine = useCallback(() => setMineOpen(false), []);
 
@@ -81,7 +79,7 @@ export function CommunitiesDirectory() {
       <div className="grid grid-cols-2 gap-3">
         <button
           type="button"
-          onClick={() => (appUser ? setCreateOpen(true) : router.push("/login"))}
+          onClick={() => router.push(appUser ? "/communities/new" : "/login")}
           className="flex items-center justify-center gap-2 rounded-full bg-red px-4 py-3.5 text-[15px] font-bold text-white"
         >
           <span className="text-lg leading-none">+</span> Create community
@@ -178,8 +176,6 @@ export function CommunitiesDirectory() {
           ))}
         </div>
       )}
-
-      <CreateFanbaseSheet open={createOpen} onClose={() => setCreateOpen(false)} onCreated={(groupId) => router.push(`/groups/${groupId}/manage`)} />
       <MyMembershipsSheet open={mineOpen} onClose={closeMine} />
     </div>
   );

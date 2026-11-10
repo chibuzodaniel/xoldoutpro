@@ -188,7 +188,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const memberRows = await db.membership.findMany({
       where: { groupId: id, userId: { not: user.id } },
-      select: { userId: true, role: true, planId: true, expiresAt: true, user: { select: { handle: true } } },
+      select: { userId: true, role: true, planId: true, expiresAt: true, suspendedAt: true, user: { select: { handle: true } } },
     });
     // Only people who can open this channel hear about it.
     const otherMembers = memberRows.filter((m) =>

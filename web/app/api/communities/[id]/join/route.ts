@@ -31,6 +31,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
     if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const existing = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
+    if (existing?.suspendedAt) return NextResponse.json({ error: "You're suspended from this community" }, { status: 403 });
     const invited = Boolean(body.inviteCode && group.inviteCode && body.inviteCode.toUpperCase() === group.inviteCode);
 
     const notifyAdmins = async (title: string, text: string) => {

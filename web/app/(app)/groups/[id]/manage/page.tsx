@@ -10,6 +10,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ManageGroupSheet } from "@/components/groups/ManageGroupSheet";
+import { OrganizerDashboard } from "@/components/communities/OrganizerDashboard";
 import { COMMUNITY_CATEGORIES, MAX_CHANNELS, MAX_PLANS, MIN_PAID_PLAN_KOBO, PLAN_CYCLES } from "@/lib/communities/constants";
 
 type PlanDraft = {
@@ -47,6 +48,7 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
   const [meta, setMeta] = useState({ postPermission: "ALL_MEMBERS", visibility: "REQUEST_TO_JOIN", isVerified: false, verificationRequestedAt: null as string | null });
   const [saving, setSaving] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [tab, setTab] = useState<"overview" | "members" | "settings">("overview");
   const bannerInput = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -205,16 +207,39 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="pb-24">
-      <BackHeader title="Manage community" />
-      <div className="mx-auto flex max-w-2xl flex-col gap-8 px-4">
-        <div className="flex gap-2">
+      <BackHeader title="Organizer dashboard" />
+      <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4">
+        <div className="flex flex-wrap gap-2">
+          <Link href={`/groups/${id}/scan`} className="rounded-full bg-red px-4 py-2.5 text-[13px] font-bold text-white">
+            Scan cards
+          </Link>
           <Link href={`/groups/${id}`} className="rounded-full border border-line px-4 py-2.5 text-[13px] font-bold">
             View community
           </Link>
           <button type="button" onClick={() => setSheetOpen(true)} className="rounded-full border border-line px-4 py-2.5 text-[13px] font-bold">
-            Members, requests &amp; admins
+            Permissions &amp; delete
           </button>
         </div>
+
+        <div role="tablist" className="-mb-4 flex gap-6 border-b border-line-soft">
+          {(["overview", "members", "settings"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              role="tab"
+              aria-selected={tab === t}
+              onClick={() => setTab(t)}
+              className={`-mb-px border-b-2 pb-2.5 text-[16px] font-semibold capitalize ${tab === t ? "border-red text-ink" : "border-transparent text-ink-3"}`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {tab !== "settings" && <OrganizerDashboard communityId={id} view={tab} />}
+
+        {tab === "settings" && (
+        <>
 
         {isOwner && (
           <section className="flex flex-col gap-3">
@@ -406,6 +431,8 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
             {saving === "channels" ? "Saving…" : "Save channels"}
           </button>
         </section>
+        </>
+        )}
       </div>
 
       <ManageGroupSheet

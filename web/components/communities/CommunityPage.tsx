@@ -11,6 +11,7 @@ import { FallbackImg } from "@/components/ui/FallbackImg";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { JoinSheet, type CommunityPlan } from "@/components/communities/JoinSheet";
+import { MembershipCardSheet } from "@/components/communities/MembershipCardSheet";
 import { planPriceLabel } from "@/lib/communities/constants";
 
 type Channel = {
@@ -70,6 +71,8 @@ export function CommunityPage({ id }: { id: string }) {
   const [joinPlan, setJoinPlan] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [invite, setInvite] = useState<string | null>(null);
+  const [cardOpen, setCardOpen] = useState(false);
+  const closeCard = useCallback(() => setCardOpen(false), []);
   const closeJoin = useCallback(() => setJoinOpen(false), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
 
@@ -136,9 +139,14 @@ export function CommunityPage({ id }: { id: string }) {
   }
 
   const primary = viewer.isAdmin ? (
-    <Link href={`/groups/${id}/manage`} className="block w-full rounded-full bg-red px-5 py-3.5 text-center text-[16px] font-bold text-white">
-      Manage community
-    </Link>
+    <div className="flex gap-2">
+      <Link href={`/groups/${id}/manage`} className="flex-1 rounded-full bg-red px-5 py-3.5 text-center text-[16px] font-bold text-white">
+        Manage community
+      </Link>
+      <button type="button" onClick={() => setCardOpen(true)} className="shrink-0 rounded-full border border-line px-5 py-3.5 text-[15px] font-bold">
+        My card
+      </button>
+    </div>
   ) : m?.active ? (
     <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-surface px-4 py-3">
       <span className="text-sm">
@@ -147,18 +155,23 @@ export function CommunityPage({ id }: { id: string }) {
           {m.expiresAt ? ` · ${m.autoRenew ? "renews" : "ends"} ${day(m.expiresAt)}` : " · no expiry"}
         </span>
       </span>
-      {m.expiresAt && myPlan && myPlan.priceKobo > 0 && (
-        <button
-          type="button"
-          onClick={() => {
-            setJoinPlan(myPlan.id);
-            setJoinOpen(true);
-          }}
-          className="shrink-0 rounded-full border border-line px-4 py-2 text-[13px] font-bold"
-        >
-          Renew
+      <span className="flex shrink-0 gap-2">
+        <button type="button" onClick={() => setCardOpen(true)} className="rounded-full bg-red px-4 py-2 text-[13px] font-bold text-white">
+          Card
         </button>
-      )}
+        {m.expiresAt && myPlan && myPlan.priceKobo > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setJoinPlan(myPlan.id);
+              setJoinOpen(true);
+            }}
+            className="rounded-full border border-line px-4 py-2 text-[13px] font-bold"
+          >
+            Renew
+          </button>
+        )}
+      </span>
     </div>
   ) : pending ? (
     <div className="w-full rounded-full border border-line px-5 py-3.5 text-center text-[15px] font-semibold text-ink-3">Application pending</div>
@@ -366,6 +379,8 @@ export function CommunityPage({ id }: { id: string }) {
         inviteCode={invite}
         onJoined={() => load()}
       />
+
+      {m && <MembershipCardSheet open={cardOpen} onClose={closeCard} communityId={id} />}
 
       <BottomSheet open={menuOpen} onClose={closeMenu} title={c.name}>
         <button type="button" onClick={share} className="w-full px-5 py-4 text-left text-[16px] font-semibold hover:bg-surface-2">

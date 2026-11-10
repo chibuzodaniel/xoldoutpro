@@ -1,6 +1,12 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
-import { getOptionalUser } from "@/lib/auth/session";
+import { getOptionalUser, requireUser, AuthError } from "@/lib/auth/session";
+import { getObjectBuffer, putObjectBuffer, publicUrlFor } from "@/lib/storage/r2";
+import { resizeBanner, resizeSquare } from "@/lib/images";
+import { MAX_CHANNELS, MAX_PLANS, MIN_PAID_PLAN_KOBO } from "@/lib/communities/constants";
+import { newInviteCode } from "@/lib/communities/server";
 import { db } from "@/lib/db";
 import { COMMUNITY_CATEGORIES, DIRECTORY_FILTERS, type DirectoryFilter } from "@/lib/communities/constants";
 
@@ -63,12 +69,12 @@ export async function GET(req: NextRequest) {
   const ids = groups.map((g) => g.id);
   const [mine, requests] = user
     ? await Promise.all([
-        db.membership.findMany({ where: { userId: user.id, groupId: { in: ids } }, select: { groupId: true, expiresAt: true } }),
+        db.membership.findMany({ where: { userId: user.id, groupId: { in: ids } }, select: { groupId: true, expiresAt: true, suspendedAt: true } }),
         db.joinRequest.findMany({ where: { userId: user.id, groupId: { in: ids }, status: { in: ["PENDING", "APPROVED"] } }, select: { groupId: true, status: true } }),
       ])
     : [[], []];
   const now = Date.now();
-  const memberOf = new Map(mine.map((m) => [m.groupId, !m.expiresAt || m.expiresAt.getTime() > now]));
+  const memberOf = new Map(mine.map((m) => [m.groupId, !m.suspendedAt && (!m.expiresAt || m.expiresAt.getTime() > now)]));
   const requestOf = new Map(requests.map((r) => [r.groupId, r.status]));
 
   return NextResponse.json({
@@ -94,4 +100,134 @@ export async function GET(req: NextRequest) {
       };
     }),
   });
+}
+
+// Create a community from the 5-step wizard (v2, design/v2-prototype):
+// details, logo + cover, privacy, plans and topic channels in one request.
+// (POST /api/groups — the mobile app's simple "create Fanbase" — still works.)
+const createSchema = z.object({
+  name: z.string().trim().min(1).max(60),
+  handle: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .regex(/^[a-z0-9_.]{3,30}$/, "Handle: 3–30 letters, numbers, dots or underscores")
+    .optional()
+    .nullable(),
+  description: z.string().trim().max(1000).default(""),
+  category: z.enum(COMMUNITY_CATEGORIES).optional().nullable(),
+  location: z.string().trim().max(80).optional().nullable(),
+  rules: z.string().trim().max(3000).optional().nullable(),
+  isPrivate: z.boolean().default(false),
+  logoKey: z.string().optional(),
+  bannerKey: z.string().optional(),
+  plans: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(40),
+        description: z.string().trim().max(200).optional().nullable(),
+        priceKobo: z
+          .number()
+          .int()
+          .min(0)
+          .max(100_000_000)
+          .refine((k) => k === 0 || k >= MIN_PAID_PLAN_KOBO, "Paid plans need at least ₦100."),
+        cycle: z.enum(["MONTHLY", "YEARLY", "ONE_TIME"]),
+        benefits: z.array(z.string().trim().min(1).max(120)).max(12).default([]),
+        capacity: z.number().int().min(1).max(1_000_000).nullable().optional(),
+        requiresApproval: z.boolean().default(false),
+      }),
+    )
+    .max(MAX_PLANS)
+    .default([]),
+  // Topic channels: name plus the indexes (into plans) that can open it.
+  topics: z
+    .array(z.object({ name: z.string().trim().min(1).max(40), planIndexes: z.array(z.number().int().min(0)).max(MAX_PLANS).default([]) }))
+    .max(MAX_CHANNELS - 1)
+    .default([]),
+});
+
+async function finalizeImage(key: string, userId: string, kind: "logo" | "banner") {
+  if (!key.startsWith(`avatars/${userId}/`)) throw new Error("bad-key");
+  const original = await getObjectBuffer(key);
+  const out = kind === "logo" ? await resizeSquare(original, 512) : await resizeBanner(original, 1500, 500);
+  const derivativeKey = `avatars/${userId}/${randomUUID()}-${kind}.jpg`;
+  await putObjectBuffer(derivativeKey, out, "image/jpeg");
+  return publicUrlFor(derivativeKey);
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { user } = await requireUser(req);
+    const body = createSchema.parse(await req.json());
+    if (body.handle) {
+      const taken = await db.fanbaseGroup.findFirst({ where: { handle: body.handle }, select: { id: true } });
+      if (taken) return NextResponse.json({ error: "That handle is taken" }, { status: 409 });
+    }
+    let coverImageUrl: string | null = null;
+    let bannerUrl: string | null = null;
+    try {
+      [coverImageUrl, bannerUrl] = await Promise.all([
+        body.logoKey ? finalizeImage(body.logoKey, user.id, "logo") : Promise.resolve(null),
+        body.bannerKey ? finalizeImage(body.bannerKey, user.id, "banner") : Promise.resolve(null),
+      ]);
+    } catch {
+      return NextResponse.json({ error: "Couldn't use that image" }, { status: 400 });
+    }
+
+    const group = await db.$transaction(async (tx) => {
+      const created = await tx.fanbaseGroup.create({
+        data: {
+          creatorId: user.id,
+          name: body.name,
+          handle: body.handle || null,
+          description: body.description || null,
+          category: body.category ?? null,
+          location: body.location || null,
+          rules: body.rules || null,
+          visibility: body.isPrivate ? "REQUEST_TO_JOIN" : "OPEN",
+          coverImageUrl,
+          bannerUrl,
+          inviteCode: newInviteCode(),
+        },
+      });
+      await tx.membership.create({ data: { groupId: created.id, userId: user.id, role: "ADMIN" } });
+      const planIds: string[] = [];
+      for (const [order, p] of body.plans.entries()) {
+        const plan = await tx.membershipPlan.create({
+          data: {
+            groupId: created.id,
+            name: p.name,
+            description: p.description || null,
+            priceKobo: p.priceKobo,
+            cycle: p.cycle,
+            benefits: p.benefits,
+            capacity: p.capacity ?? null,
+            requiresApproval: p.requiresApproval,
+            order,
+          },
+        });
+        planIds.push(plan.id);
+      }
+      await tx.communityChannel.createMany({
+        data: [
+          { groupId: created.id, name: "Announcements", kind: "ANNOUNCEMENTS", order: 0 },
+          ...body.topics.map((t, i) => ({
+            groupId: created.id,
+            name: t.name,
+            kind: "DISCUSSION",
+            order: i + 1,
+            planIds: t.planIndexes.map((ix) => planIds[ix]).filter((x): x is string => Boolean(x)),
+          })),
+        ],
+      });
+      return created;
+    });
+    return NextResponse.json({ community: { id: group.id } }, { status: 201 });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues[0]?.message ?? "Check the details" }, { status: 400 });
+    console.error(err);
+    return NextResponse.json({ error: "Could not create the community" }, { status: 500 });
+  }
 }

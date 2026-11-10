@@ -45,15 +45,23 @@ export function planPriceLabel(plan: { priceKobo: number; cycle: string }) {
   return per ? `${naira}/${per}` : naira;
 }
 
-/** A membership counts while it has no end date or the end is still ahead. */
-export function isMembershipActive(m: { expiresAt: Date | string | null } | null | undefined, now = Date.now()) {
-  return Boolean(m && (!m.expiresAt || new Date(m.expiresAt).getTime() > now));
+type MembershipLike = { expiresAt: Date | string | null; suspendedAt?: Date | string | null };
+
+/** A membership counts while it isn't suspended and has no end date or the end is still ahead. */
+export function isMembershipActive(m: MembershipLike | null | undefined, now = Date.now()) {
+  return Boolean(m && !m.suspendedAt && (!m.expiresAt || new Date(m.expiresAt).getTime() > now));
+}
+
+export type MembershipState = "active" | "expired" | "suspended";
+export function membershipState(m: MembershipLike, now = Date.now()): MembershipState {
+  if (m.suspendedAt) return "suspended";
+  return !m.expiresAt || new Date(m.expiresAt).getTime() > now ? "active" : "expired";
 }
 
 /** Can this member open this channel? Admins always can. */
 export function canOpenChannel(
   channel: { planIds: string[] },
-  member: { role: string; planId: string | null; expiresAt: Date | string | null } | null | undefined,
+  member: { role: string; planId: string | null; expiresAt: Date | string | null; suspendedAt?: Date | string | null } | null | undefined,
   isOwner = false,
 ) {
   if (isOwner || member?.role === "ADMIN") return true;

@@ -6,6 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { isMembershipActive, planPriceLabel } from "@/lib/communities/constants";
+import { MembershipCardSheet } from "@/components/communities/MembershipCardSheet";
 
 type Plan = { id: string; name: string; priceKobo: number; cycle: string } | null;
 type MembershipRow = { groupId: string; name: string; logoUrl: string | null; role: string; plan: Plan; expiresAt: string | null; autoRenew: boolean };
@@ -18,6 +19,7 @@ function day(iso: string) {
 // "My memberships" (v2, design/v2-prototype): active, applications, expired.
 // Loaded each time the sheet opens.
 export function MyMembershipsSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const [cardFor, setCardFor] = useState<string | null>(null);
   const [data, setData] = useState<{ memberships: MembershipRow[]; applications: ApplicationRow[]; now: number } | null>(null);
 
   useEffect(() => {
@@ -83,6 +85,11 @@ export function MyMembershipsSheet({ open, onClose }: { open: boolean; onClose: 
                 sub={`${m.role === "OWNER" ? "Owner" : (m.plan?.name ?? "Member")} · ${m.expiresAt ? `${m.autoRenew ? "Renews" : "Ends"} ${day(m.expiresAt)}` : "No expiry"}`}
                 badge={m.role === "OWNER" ? "OWNER" : "ACTIVE"}
                 badgeCls="bg-red text-white"
+                action={
+                  <button type="button" onClick={() => setCardFor(m.groupId)} className="rounded-full bg-red px-4 py-2.5 text-[13px] font-bold text-white">
+                    Card
+                  </button>
+                }
               />
             ))}
             {data.applications.length > 0 && <h3 className="text-[13px] text-ink-3">Applications ({data.applications.length})</h3>}
@@ -124,6 +131,7 @@ export function MyMembershipsSheet({ open, onClose }: { open: boolean; onClose: 
           </>
         )}
       </div>
+      {cardFor && <MembershipCardSheet open onClose={() => setCardFor(null)} communityId={cardFor} />}
     </BottomSheet>
   );
 }

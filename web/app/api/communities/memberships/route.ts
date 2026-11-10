@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
         where: { userId: user.id },
         orderBy: { joinedAt: "desc" },
         take: 200,
-        select: { groupId: true, role: true, planId: true, expiresAt: true, autoRenew: true, joinedAt: true, group: groupSelect },
+        select: { groupId: true, role: true, planId: true, expiresAt: true, suspendedAt: true, autoRenew: true, joinedAt: true, group: groupSelect },
       }),
       db.joinRequest.findMany({
         where: { userId: user.id, status: { in: ["PENDING", "APPROVED"] } },
@@ -35,6 +35,7 @@ export async function GET(req: NextRequest) {
         role: m.group.creatorId === user.id ? "OWNER" : m.role,
         plan: m.planId ? (planById.get(m.planId) ?? null) : null,
         expiresAt: m.expiresAt,
+        suspendedAt: m.suspendedAt,
         autoRenew: m.autoRenew,
         joinedAt: m.joinedAt,
       })),
