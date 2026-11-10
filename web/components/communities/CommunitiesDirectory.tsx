@@ -148,7 +148,7 @@ export function CommunitiesDirectory() {
                 {c.isFeatured && <span className="absolute left-3 top-3 rounded-full bg-red px-2.5 py-1 text-[11px] font-extrabold text-white">FEATURED</span>}
               </Link>
               <div className="px-4 pb-4">
-                <div className="-mt-7 h-14 w-14 overflow-hidden rounded-xl border-2 border-surface bg-gradient-to-br from-red/50 to-black">
+                <div className="relative z-10 -mt-7 h-14 w-14 overflow-hidden rounded-xl border-2 border-surface bg-gradient-to-br from-red/50 to-black">
                   <FallbackImg src={c.logoUrl} alt={c.name} className="h-full w-full object-cover" fallback={null} />
                 </div>
                 <Link href={`/groups/${c.id}`} className="mt-2 flex items-center gap-1.5 text-[20px] font-bold leading-tight">

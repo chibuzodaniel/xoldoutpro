@@ -194,7 +194,7 @@ export function CommunityPage({ id }: { id: string }) {
       </div>
 
       <div className="mx-auto max-w-3xl px-4">
-        <div className="-mt-10 flex items-end gap-3">
+        <div className="relative z-10 -mt-10 flex items-end gap-3">
           <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 border-bg bg-gradient-to-br from-red/50 to-black">
             <FallbackImg src={c.logoUrl} alt={c.name} className="h-full w-full object-cover" fallback={null} />
           </div>
