@@ -33,6 +33,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         rules: true,
         inviteCode: true,
         isFeatured: true,
+        suspendedAt: true,
         isVerified: true,
         visibility: true,
         postPermission: true,

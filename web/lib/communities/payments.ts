@@ -25,9 +25,9 @@ export async function planMemberCount(planId: string) {
 export async function getJoinablePlan(groupId: string, planId: string, userId: string) {
   const plan = await db.membershipPlan.findFirst({
     where: { id: planId, groupId, archivedAt: null },
-    include: { group: { select: { id: true, name: true, creatorId: true } } },
+    include: { group: { select: { id: true, name: true, creatorId: true, suspendedAt: true } } },
   });
-  if (!plan) return null;
+  if (!plan || plan.group.suspendedAt) return null;
   if (plan.capacity != null) {
     const existing = await db.membership.findUnique({ where: { groupId_userId: { groupId, userId } }, select: { planId: true, expiresAt: true } });
     const alreadyOnIt = existing?.planId === plan.id && isMembershipActive(existing);

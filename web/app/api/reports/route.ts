@@ -8,22 +8,41 @@ import { alertModerators } from "@/lib/moderation/attention";
 // PRD §14: inappropriate content and copyright claims are time-critical and
 // SLA-backed; bug reports and feature requests are not.
 // Human wording for moderator alerts (lib/moderation/attention.ts).
-const REASON_LABEL: Record<"INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST", string> = {
+const REASONS = [
+  "INAPPROPRIATE_CONTENT",
+  "COPYRIGHT_CLAIM",
+  "BUG",
+  "FEATURE_REQUEST",
+  // Community reports (v2): the prototype's list.
+  "SPAM_OR_SCAM",
+  "FRAUDULENT_PAYMENTS",
+  "ABUSE_OR_HARASSMENT",
+  "ILLEGAL_CONTENT",
+  "OTHER",
+] as const;
+const REASON_LABEL: Record<(typeof REASONS)[number], string> = {
   INAPPROPRIATE_CONTENT: "inappropriate content",
   COPYRIGHT_CLAIM: "copyright claim",
   BUG: "bug report",
   FEATURE_REQUEST: "feature request",
+  SPAM_OR_SCAM: "spam or scam",
+  FRAUDULENT_PAYMENTS: "fraudulent payments",
+  ABUSE_OR_HARASSMENT: "abuse or harassment",
+  ILLEGAL_CONTENT: "illegal content",
+  OTHER: "other",
 };
 
 const SLA_HOURS: Partial<Record<string, number>> = {
   INAPPROPRIATE_CONTENT: 24,
   COPYRIGHT_CLAIM: 24,
+  FRAUDULENT_PAYMENTS: 24,
+  ILLEGAL_CONTENT: 24,
 };
 
 const createSchema = z.object({
-  targetType: z.enum(["PRODUCT", "EVENT", "POST", "PROFILE", "CONVERSATION"]),
+  targetType: z.enum(["PRODUCT", "EVENT", "POST", "PROFILE", "CONVERSATION", "COMMUNITY"]),
   targetId: z.string().min(1),
-  reason: z.enum(["INAPPROPRIATE_CONTENT", "COPYRIGHT_CLAIM", "BUG", "FEATURE_REQUEST"]),
+  reason: z.enum(REASONS),
   details: z.string().trim().max(1000).optional(),
 });
 
@@ -43,6 +62,10 @@ export async function POST(req: NextRequest) {
     } else if (targetType === "POST") {
       const post = await db.post.findUnique({ where: { id: targetId }, select: { id: true } });
       if (!post) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    } else if (targetType === "COMMUNITY") {
+      const group = await db.fanbaseGroup.findUnique({ where: { id: targetId }, select: { creatorId: true } });
+      if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      if (group.creatorId === user.id) return NextResponse.json({ error: "You can't report your own community" }, { status: 400 });
     } else if (targetType === "CONVERSATION") {
       // Only one of the two people in a direct-message conversation can
       // report it — and filing the report is what lets moderators read it.
@@ -74,6 +97,7 @@ export async function POST(req: NextRequest) {
         postId: targetType === "POST" ? targetId : null,
         profileId: targetType === "PROFILE" ? targetId : null,
         conversationId: targetType === "CONVERSATION" ? targetId : null,
+        groupId: targetType === "COMMUNITY" ? targetId : null,
         reason,
         details: details || null,
         slaDueAt: slaHours ? new Date(Date.now() + slaHours * 60 * 60 * 1000) : null,
@@ -120,6 +144,7 @@ export async function GET(req: NextRequest) {
         event: { select: { id: true, title: true, creator: { select: { handle: true, displayName: true } } } },
         post: { select: { id: true, body: true, author: { select: { handle: true, displayName: true } } } },
         profile: { select: { id: true, handle: true, displayName: true } },
+        group: { select: { id: true, name: true, suspendedAt: true, creator: { select: { handle: true, displayName: true } } } },
       },
     });
 

@@ -22,6 +22,7 @@ export async function runMembershipRenewals(now = Date.now()) {
       autoRenew: true,
       renewalNotifiedAt: null,
       suspendedAt: null,
+      group: { suspendedAt: null },
       planId: { not: null },
       expiresAt: { gt: new Date(now), lte: new Date(now + LEAD_DAYS * DAY_MS) },
     },

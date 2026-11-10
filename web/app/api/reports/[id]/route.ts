@@ -5,7 +5,7 @@ import { canModeratorUse, requireModeratorPanel } from "@/lib/moderation/panelAc
 import { db } from "@/lib/db";
 import { takedownProduct } from "@/lib/commerce/productModeration";
 
-const patchSchema = z.object({ action: z.enum(["review", "dismiss", "takedown"]) });
+const patchSchema = z.object({ action: z.enum(["review", "dismiss", "takedown", "suspendCommunity"]) });
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -23,6 +23,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (action === "review") {
       const updated = await db.report.update({ where: { id }, data: { status: "IN_REVIEW" } });
       return NextResponse.json({ report: updated });
+    }
+
+    // Community report (v2 part 3): suspend the community and resolve.
+    if (action === "suspendCommunity") {
+      if (report.targetType !== "COMMUNITY" || !report.groupId) {
+        return NextResponse.json({ error: "This report isn't about a community" }, { status: 400 });
+      }
+      await db.$transaction([
+        db.fanbaseGroup.update({ where: { id: report.groupId }, data: { suspendedAt: new Date() } }),
+        db.report.updateMany({ where: { groupId: report.groupId, status: { not: "RESOLVED" } }, data: { status: "RESOLVED" } }),
+      ]);
+      return NextResponse.json({ ok: true });
     }
 
     if (action === "dismiss") {

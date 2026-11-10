@@ -34,6 +34,8 @@ export const PANEL_LABEL: Record<string, string> = {
   billboards: "Billboards",
   verifyCreator: "Verify creator",
   verifyGroup: "Verify group",
+  // v2 communities part 3: feature/suspend communities, run renewals.
+  communities: "Communities",
   verificationQueue: "Verification queue",
   restoreAccount: "Restore account",
   restoreEvent: "Restore event",

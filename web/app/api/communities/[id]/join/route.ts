@@ -27,9 +27,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const group = await db.fanbaseGroup.findUnique({
       where: { id },
-      select: { id: true, name: true, creatorId: true, visibility: true, inviteCode: true, _count: { select: { plans: { where: { archivedAt: null } } } } },
+      select: { id: true, name: true, creatorId: true, visibility: true, inviteCode: true, suspendedAt: true, _count: { select: { plans: { where: { archivedAt: null } } } } },
     });
     if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (group.suspendedAt) return NextResponse.json({ error: "This community is suspended" }, { status: 403 });
     const existing = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
     if (existing?.suspendedAt) return NextResponse.json({ error: "You're suspended from this community" }, { status: 403 });
     const invited = Boolean(body.inviteCode && group.inviteCode && body.inviteCode.toUpperCase() === group.inviteCode);

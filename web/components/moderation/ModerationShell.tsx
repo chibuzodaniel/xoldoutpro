@@ -21,6 +21,7 @@ import { RestoreAccountPanel } from "./RestoreAccountPanel";
 import { RestoreEventPanel } from "./RestoreEventPanel";
 import { EventPromotersModPanel } from "./EventPromotersModPanel";
 import { VerifyGroupPanel } from "./VerifyGroupPanel";
+import { CommunitiesModPanel } from "./CommunitiesModPanel";
 import { VerificationQueuePanel } from "./VerificationQueuePanel";
 import { ReportsQueuePanel } from "./ReportsQueuePanel";
 import { ProductsPanel } from "./ProductsPanel";
@@ -181,6 +182,7 @@ export function ModerationShell() {
         { id: "users", label: "User directory", icon: "👥", panelKey: "users", render: () => <UsersListPanel /> },
         { id: "verificationQueue", label: "Verification queue", icon: "✅", panelKey: "verificationQueue", render: () => <VerificationQueuePanel /> },
         { id: "verifyCreator", label: "Verify creator (legacy)", icon: "🎤", panelKey: "verifyCreator", render: () => <VerifyCreatorPanel /> },
+        { id: "communities", label: "Communities", icon: "🏘️", panelKey: "communities", render: () => <CommunitiesModPanel /> },
         { id: "verifyGroup", label: "Verify group (legacy)", icon: "💬", panelKey: "verifyGroup", render: () => <VerifyGroupPanel /> },
         { id: "restoreAccount", label: "Restore account", icon: "♻️", panelKey: "restoreAccount", render: () => <RestoreAccountPanel /> },
         { id: "restoreEvent", label: "Restore event", icon: "🎟️", panelKey: "restoreEvent", render: () => <RestoreEventPanel /> },

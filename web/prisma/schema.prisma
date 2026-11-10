@@ -435,15 +435,19 @@ model FanbaseGroup {
   // coverImageUrl stays the square logo; bannerUrl is the wide cover. A
   // community's original chat (Post.channelId null) is its "General"
   // channel; CommunityChannel adds Announcements and topic channels.
-  handle     String?            @unique
-  category   String?
-  bannerUrl  String?
-  location   String?
-  rules      String?
-  inviteCode String?            @unique
-  isFeatured Boolean            @default(false)
-  channels   CommunityChannel[]
-  plans      MembershipPlan[]
+  handle      String?            @unique
+  category    String?
+  bannerUrl   String?
+  location    String?
+  rules       String?
+  inviteCode  String?            @unique
+  isFeatured  Boolean            @default(false)
+  // Suspended by XOLDOUT moderators (v2 part 3): hidden from the directory,
+  // no joining, posting or renewals; members keep their rows.
+  suspendedAt DateTime?
+  reports     Report[]           @relation("ReportsOnCommunity")
+  channels    CommunityChannel[]
+  plans       MembershipPlan[]
 
   @@index([creatorId])
 }
@@ -515,7 +519,7 @@ model Membership {
   cardEmail         String?
   // Membership card (v2 part 2): the code in its QR, made on first view; an
   // organizer scanning it is always checked against this row, never the image.
-  cardCode          String?   @unique
+  cardCode          String?        @unique
   // Suspended by an admin: keeps the row (and paid time) but no access.
   suspendedAt       DateTime?
 
@@ -1474,6 +1478,7 @@ enum ReportTargetType {
   POST
   COMMENT
   PROFILE
+  COMMUNITY // v2 communities (Report.groupId)
 }
 
 enum ReportReason {
@@ -1481,6 +1486,12 @@ enum ReportReason {
   COPYRIGHT_CLAIM
   BUG
   FEATURE_REQUEST
+  // Community reports (v2, design/v2-prototype).
+  SPAM_OR_SCAM
+  FRAUDULENT_PAYMENTS
+  ABUSE_OR_HARASSMENT
+  ILLEGAL_CONTENT
+  OTHER
 }
 
 enum ReportStatus {
@@ -1507,6 +1518,8 @@ model Report {
   profile        User?            @relation("ReportsOnProfile", fields: [profileId], references: [id])
   conversationId String?
   conversation   Conversation?    @relation(fields: [conversationId], references: [id])
+  groupId        String?
+  group          FanbaseGroup?    @relation("ReportsOnCommunity", fields: [groupId], references: [id])
   reason         ReportReason
   details        String? // reporter's free-text context, optional
   status         ReportStatus     @default(OPEN)

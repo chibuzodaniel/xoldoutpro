@@ -4,7 +4,7 @@ import { isMembershipActive } from "@/lib/communities/constants";
 // Server-side helpers shared by the community API routes.
 
 export async function getViewer(groupId: string, userId: string | null | undefined) {
-  const group = await db.fanbaseGroup.findUnique({ where: { id: groupId }, select: { id: true, creatorId: true, name: true, postPermission: true, visibility: true } });
+  const group = await db.fanbaseGroup.findUnique({ where: { id: groupId }, select: { id: true, creatorId: true, name: true, postPermission: true, visibility: true, suspendedAt: true } });
   if (!group) return null;
   const membership = userId ? await db.membership.findUnique({ where: { groupId_userId: { groupId, userId } } }) : null;
   const isOwner = Boolean(userId && group.creatorId === userId);

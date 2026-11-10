@@ -72,12 +72,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const [membership, group, resolved] = await Promise.all([
       db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } }),
-      db.fanbaseGroup.findUnique({ where: { id }, select: { creatorId: true } }),
+      db.fanbaseGroup.findUnique({ where: { id }, select: { creatorId: true, suspendedAt: true } }),
       resolveChannel(id, req.nextUrl.searchParams.get("channel")),
     ]);
     if (!membership || !group) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
     if (!resolved) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
     const isOwner = group.creatorId === user.id;
+    if (group.suspendedAt && !isOwner && membership.role !== "ADMIN") {
+      return NextResponse.json({ error: "This community is suspended" }, { status: 403 });
+    }
     const allowed = resolved.channel ? canOpenChannel(resolved.channel, membership, isOwner) : isOwner || membership.role === "ADMIN" || isMembershipActive(membership);
     if (!allowed) return NextResponse.json({ error: "Your membership doesn't include this channel" }, { status: 403 });
 
@@ -138,6 +141,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const group = await db.fanbaseGroup.findUnique({ where: { id } });
     if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (group.suspendedAt) return NextResponse.json({ error: "This community is suspended" }, { status: 403 });
 
     const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
     const resolved = await resolveChannel(id, channelId);

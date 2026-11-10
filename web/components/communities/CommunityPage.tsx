@@ -12,6 +12,7 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { VerifiedBadge } from "@/components/profile/VerifiedBadge";
 import { JoinSheet, type CommunityPlan } from "@/components/communities/JoinSheet";
 import { MembershipCardSheet } from "@/components/communities/MembershipCardSheet";
+import { ReportSheet, COMMUNITY_REPORT_REASONS } from "@/components/trust/ReportSheet";
 import { planPriceLabel } from "@/lib/communities/constants";
 
 type Channel = {
@@ -35,6 +36,7 @@ type Detail = {
     rules: string | null;
     inviteCode: string | null;
     isVerified: boolean;
+    suspendedAt: string | null;
     isPrivate: boolean;
     memberCount: number;
     createdAt: string;
@@ -72,6 +74,7 @@ export function CommunityPage({ id }: { id: string }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [invite, setInvite] = useState<string | null>(null);
   const [cardOpen, setCardOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const closeCard = useCallback(() => setCardOpen(false), []);
   const closeJoin = useCallback(() => setJoinOpen(false), []);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
@@ -228,7 +231,12 @@ export function CommunityPage({ id }: { id: string }) {
             <span className="inline-block rounded-full border border-line px-3 py-1 text-[12px] font-bold">FREE</span>
           )}
         </div>
-        <div className="mt-4">{primary}</div>
+        {c.suspendedAt && (
+          <p className="mt-4 rounded-2xl border border-red/50 bg-red-tint px-4 py-3 text-sm">
+            This community is suspended by XOLDOUT. Joining, payments and new messages are paused.
+          </p>
+        )}
+        <div className="mt-4">{c.suspendedAt && !viewer.isAdmin ? null : primary}</div>
 
         <div role="tablist" className="mt-6 flex gap-6 border-b border-line-soft">
           {(["channels", "members", "about"] as const).map((t) => (
@@ -380,6 +388,15 @@ export function CommunityPage({ id }: { id: string }) {
         onJoined={() => load()}
       />
 
+      <ReportSheet
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        targetType="COMMUNITY"
+        targetId={id}
+        reasons={COMMUNITY_REPORT_REASONS}
+        title="Report community"
+        detailsPlaceholder="What happened? (optional)"
+      />
       {m && <MembershipCardSheet open={cardOpen} onClose={closeCard} communityId={id} />}
 
       <BottomSheet open={menuOpen} onClose={closeMenu} title={c.name}>
@@ -390,6 +407,18 @@ export function CommunityPage({ id }: { id: string }) {
           <Link href={`/groups/${id}/manage`} onClick={closeMenu} className="block px-5 py-4 text-[16px] font-semibold hover:bg-surface-2">
             Manage community
           </Link>
+        )}
+        {viewer.signedIn && !viewer.isOwner && (
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              setReportOpen(true);
+            }}
+            className="w-full px-5 py-4 text-left text-[16px] font-semibold hover:bg-surface-2"
+          >
+            Report community
+          </button>
         )}
         {m && !viewer.isOwner && (
           <button type="button" onClick={leave} className="w-full px-5 py-4 text-left text-[16px] font-semibold text-red-soft hover:bg-surface-2">

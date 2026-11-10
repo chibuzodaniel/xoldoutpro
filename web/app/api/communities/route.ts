@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   const livePaidPlan = { priceKobo: { gt: 0 }, archivedAt: null };
   const where: Prisma.FanbaseGroupWhereInput = {
+    suspendedAt: null,
     ...(q
       ? {
           OR: [

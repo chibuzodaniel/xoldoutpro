@@ -9,8 +9,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
 type ReportRow = {
   id: string;
-  targetType: "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION";
-  reason: "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST";
+  targetType: "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION" | "COMMUNITY";
+  reason: "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST" | "SPAM_OR_SCAM" | "FRAUDULENT_PAYMENTS" | "ABUSE_OR_HARASSMENT" | "ILLEGAL_CONTENT" | "OTHER";
   status: "OPEN" | "IN_REVIEW" | "RESOLVED";
   details: string | null;
   slaDueAt: string | null;
@@ -21,6 +21,7 @@ type ReportRow = {
   post: { id: string; body: string; author: { handle: string; displayName: string } } | null;
   profile: { id: string; handle: string; displayName: string } | null;
   conversationId: string | null;
+  group: { id: string; name: string; suspendedAt: string | null; creator: { handle: string; displayName: string } } | null;
 };
 
 const REASON_LABEL: Record<ReportRow["reason"], string> = {
@@ -28,6 +29,11 @@ const REASON_LABEL: Record<ReportRow["reason"], string> = {
   COPYRIGHT_CLAIM: "Copyright claim",
   BUG: "Bug report",
   FEATURE_REQUEST: "Feature request",
+  SPAM_OR_SCAM: "Spam or scam",
+  FRAUDULENT_PAYMENTS: "Fraudulent payments",
+  ABUSE_OR_HARASSMENT: "Abuse or harassment",
+  ILLEGAL_CONTENT: "Illegal content",
+  OTHER: "Other",
 };
 
 const PRODUCT_HREF: Record<string, string> = { RELEASE: "/r", BEAT: "/b", MERCH: "/m" };
@@ -48,6 +54,9 @@ function targetSummary(r: ReportRow) {
   }
   if (r.profile) {
     return { label: `Profile · @${r.profile.handle}`, href: `/u/${r.profile.handle}` };
+  }
+  if (r.group) {
+    return { label: `Community · ${r.group.name} (by ${r.group.creator.displayName})${r.group.suspendedAt ? " · suspended" : ""}`, href: `/groups/${r.group.id}` };
   }
   if (r.conversationId) {
     return { label: "Direct message conversation", href: null };
@@ -89,7 +98,7 @@ export function ReportsQueuePanel() {
     load();
   }, [load]);
 
-  async function act(id: string, action: "review" | "dismiss" | "takedown") {
+  async function act(id: string, action: "review" | "dismiss" | "takedown" | "suspendCommunity") {
     if (action === "takedown") {
       const ok = await toast.confirm("Take down this listing? It comes off sale and every discovery surface immediately, every buyer's entitlement is revoked, and the creator's earnings from it are reversed in the ledger. This cannot be undone.", { confirmLabel: "Take down", destructive: true });
       if (!ok) return;
@@ -174,6 +183,16 @@ export function ReportsQueuePanel() {
                   >
                     Dismiss
                   </button>
+                  {r.targetType === "COMMUNITY" && r.group && !r.group.suspendedAt && (
+                    <button
+                      type="button"
+                      onClick={() => act(r.id, "suspendCommunity")}
+                      disabled={busyId === r.id}
+                      className="rounded-lg bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+                    >
+                      Suspend community
+                    </button>
+                  )}
                   {canTakedown && (
                     <button
                       type="button"

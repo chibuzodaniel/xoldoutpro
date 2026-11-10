@@ -4,8 +4,26 @@ import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useToast } from "@/components/ui/ToastProvider";
 
-export type ReportReason = "INAPPROPRIATE_CONTENT" | "COPYRIGHT_CLAIM" | "BUG" | "FEATURE_REQUEST";
-export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION";
+export type ReportReason =
+  | "INAPPROPRIATE_CONTENT"
+  | "COPYRIGHT_CLAIM"
+  | "BUG"
+  | "FEATURE_REQUEST"
+  | "SPAM_OR_SCAM"
+  | "FRAUDULENT_PAYMENTS"
+  | "ABUSE_OR_HARASSMENT"
+  | "ILLEGAL_CONTENT"
+  | "OTHER";
+export type ReportTargetType = "PRODUCT" | "EVENT" | "POST" | "PROFILE" | "CONVERSATION" | "COMMUNITY";
+
+// Community reports (v2, design/v2-prototype).
+export const COMMUNITY_REPORT_REASONS: { value: ReportReason; label: string }[] = [
+  { value: "SPAM_OR_SCAM", label: "Spam or scam" },
+  { value: "FRAUDULENT_PAYMENTS", label: "Fraudulent payments" },
+  { value: "ABUSE_OR_HARASSMENT", label: "Abuse or harassment" },
+  { value: "ILLEGAL_CONTENT", label: "Illegal content" },
+  { value: "OTHER", label: "Other" },
+];
 
 type Props = {
   open: boolean;
