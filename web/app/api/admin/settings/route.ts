@@ -20,6 +20,7 @@ function serialize(
     commissionEventPercent: number;
     commissionTipPercent: number;
     commissionSubscriptionPercent: number;
+    commissionMembershipPercent: number;
     buyerPaysFeePercent: number;
     buyerPaysFeeEventPercent: number;
     buyerPaysFeeUploadCap: number;
@@ -46,6 +47,7 @@ function serialize(
     commissionTipPercent: row?.commissionTipPercent ?? 12,
     // Catalog subscriptions (explicit ask, 2026-11-09) — separate, editable.
     commissionSubscriptionPercent: row?.commissionSubscriptionPercent ?? 12,
+    commissionMembershipPercent: row?.commissionMembershipPercent ?? 12,
     buyerPaysFeePercent: row?.buyerPaysFeePercent ?? 12,
     buyerPaysFeeEventPercent: row?.buyerPaysFeeEventPercent ?? 12,
     buyerPaysFeeUploadCap: row?.buyerPaysFeeUploadCap ?? 50,
@@ -82,6 +84,7 @@ const patchSchema = z.object({
   commissionEventPercent: z.number().int().min(0).max(90).optional(),
   commissionTipPercent: z.number().int().min(0).max(90).optional(),
   commissionSubscriptionPercent: z.number().int().min(0).max(90).optional(),
+  commissionMembershipPercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeePercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeeEventPercent: z.number().int().min(0).max(90).optional(),
   buyerPaysFeeUploadCap: z.number().int().positive().optional(),
@@ -117,6 +120,7 @@ export async function PATCH(req: NextRequest) {
         commissionEventPercent: patch.commissionEventPercent ?? 5,
         commissionTipPercent: patch.commissionTipPercent ?? 12,
         commissionSubscriptionPercent: patch.commissionSubscriptionPercent ?? 12,
+        commissionMembershipPercent: patch.commissionMembershipPercent ?? 12,
         buyerPaysFeePercent: patch.buyerPaysFeePercent ?? 12,
         buyerPaysFeeEventPercent: patch.buyerPaysFeeEventPercent ?? 12,
         buyerPaysFeeUploadCap: patch.buyerPaysFeeUploadCap ?? 50,

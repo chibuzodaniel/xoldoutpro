@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push/send";
 import { runSubscriptionRenewals } from "@/lib/subscriptions/renewals";
+import { runMembershipRenewals } from "@/lib/communities/renewals";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -58,5 +59,13 @@ export async function GET(req: NextRequest) {
     subscriptions = { error: "failed" };
   }
 
-  return NextResponse.json({ reminded: unread.length, subscriptions });
+  let memberships: Awaited<ReturnType<typeof runMembershipRenewals>> | { error: string };
+  try {
+    memberships = await runMembershipRenewals();
+  } catch (err) {
+    console.error("membership renewals failed", err);
+    memberships = { error: "failed" };
+  }
+
+  return NextResponse.json({ reminded: unread.length, subscriptions, memberships });
 }

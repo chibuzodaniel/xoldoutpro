@@ -44,7 +44,7 @@ function ShareIcon() {
 // so that file can be a Server Component (generateMetadata can't be
 // exported from a "use client" file, and this page needs real Open Graph
 // data for its Share button's links to preview correctly).
-export function GroupDetailClient({ id }: { id: string }) {
+export function GroupDetailClient({ id, channelId = null }: { id: string; channelId?: string | null }) {
   const { appUser, firebaseUser } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -64,6 +64,19 @@ export function GroupDetailClient({ id }: { id: string }) {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Community channel (v2): its name/kind for the header and who may post.
+  const [channel, setChannel] = useState<{ name: string; kind: string } | null>(null);
+  const [channelError, setChannelError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!channelId) return;
+    apiFetch(`/api/communities/${id}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const ch = data?.channels?.find((c: { id: string }) => c.id === channelId);
+        if (ch) setChannel({ name: ch.name, kind: ch.kind });
+      })
+      .catch(() => {});
+  }, [id, channelId]);
 
   async function load() {
     const res = await apiFetch(`/api/groups/${id}`);
@@ -88,13 +101,18 @@ export function GroupDetailClient({ id }: { id: string }) {
 
   useEffect(() => {
     if (myRole === null) return;
-    apiFetch(`/api/groups/${id}/posts`)
-      .then((res) => (res.ok ? res.json() : { posts: [], readWatermark: null }))
+    apiFetch(`/api/groups/${id}/posts${channelId ? `?channel=${encodeURIComponent(channelId)}` : ""}`)
+      .then(async (res) => {
+        if (res.ok) return res.json();
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 403) setChannelError(typeof err.error === "string" ? err.error : "Your membership doesn't include this channel");
+        return { posts: [], readWatermark: null };
+      })
       .then((data) => {
         setMessages(data.posts);
         setReadWatermark(data.readWatermark ?? null);
       });
-  }, [id, myRole]);
+  }, [id, myRole, channelId]);
 
   // Runs once, right after the first real message list renders: opens the
   // thread scrolled to the first message newer than readWatermark (the
@@ -213,7 +231,14 @@ export function GroupDetailClient({ id }: { id: string }) {
   const isMember = myRole !== null;
   const amCreator = appUser?.id === group.creatorId;
   const canPost =
-    group.postPermission === "ALL_MEMBERS" ? isMember : group.postPermission === "ADMINS" ? myRole === "ADMIN" : amCreator;
+    !channelError &&
+    (channel?.kind === "ANNOUNCEMENTS"
+      ? myRole === "ADMIN" || amCreator
+      : group.postPermission === "ALL_MEMBERS"
+        ? isMember
+        : group.postPermission === "ADMINS"
+          ? myRole === "ADMIN"
+          : amCreator);
 
   return (
     <div className="flex h-full flex-col">
@@ -268,11 +293,11 @@ export function GroupDetailClient({ id }: { id: string }) {
         )}
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-1 text-base font-semibold">
-            <span className="line-clamp-1">{group.name}</span>
+            <span className="line-clamp-1">{channelId ? `# ${channel?.name ?? "Channel"}` : group.name}</span>
             {group.isVerified && <VerifiedBadge badgeType={group.verificationBadgeType} />}
           </h1>
           <p className="text-xs text-ink-3">
-            {group.memberCount} member{group.memberCount === 1 ? "" : "s"}
+            {channelId ? group.name : `${group.memberCount} member${group.memberCount === 1 ? "" : "s"}`}
           </p>
         </div>
         {isMember && (
@@ -326,8 +351,10 @@ export function GroupDetailClient({ id }: { id: string }) {
           <div ref={messagesContainerRef} className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-4 py-4">
             {messages === null ? (
               <LoadingSpinner full size="md" />
+            ) : channelError ? (
+              <p className="text-sm text-ink-3">{channelError}</p>
             ) : messages.length === 0 ? (
-              <p className="text-sm text-ink-3">No messages yet — say something.</p>
+              <p className="text-sm text-ink-3">{channel?.kind === "ANNOUNCEMENTS" ? "No announcements yet." : "No messages yet — say something."}</p>
             ) : (
               messages.map((m) => (
                 <div
@@ -352,6 +379,7 @@ export function GroupDetailClient({ id }: { id: string }) {
           {canPost && (
             <ChatComposer
               groupId={id}
+              channelId={channelId}
               replyingTo={replyingTo}
               onClearReply={() => setReplyingTo(null)}
               onPosted={(message) => setMessages((cur) => [...(cur ?? []), message])}

@@ -78,6 +78,18 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (group.creatorId !== user.id) return NextResponse.json({ error: "Only the creator can delete this group" }, { status: 403 });
 
+    // A community with paid members whose time hasn't run out can't be
+    // deleted (they paid for that access) — the owner has to wait it out.
+    const paidActive = await db.membership.count({
+      where: { groupId: id, expiresAt: { gt: new Date() }, userId: { not: user.id } },
+    });
+    if (paidActive > 0) {
+      return NextResponse.json(
+        { error: `${paidActive} paid member${paidActive === 1 ? " still has" : "s still have"} time left. You can delete it once their memberships end.` },
+        { status: 409 },
+      );
+    }
+
     const postIdRows = await db.post.findMany({ where: { groupId: id }, select: { id: true } });
     const postIds = postIdRows.map((p) => p.id);
 
@@ -90,6 +102,8 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
       db.post.deleteMany({ where: { groupId: id } }),
       db.joinRequest.deleteMany({ where: { groupId: id } }),
       db.membership.deleteMany({ where: { groupId: id } }),
+      db.communityChannel.deleteMany({ where: { groupId: id } }),
+      db.membershipPlan.deleteMany({ where: { groupId: id } }),
       db.fanbaseGroup.delete({ where: { id } }),
     ]);
 

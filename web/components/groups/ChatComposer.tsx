@@ -9,6 +9,8 @@ import { ImageCropModal } from "@/components/upload/ImageCropModal";
 
 type Props = {
   groupId: string;
+  // Community channel (v2); null/undefined = General.
+  channelId?: string | null;
   replyingTo: ChatMessageData | null;
   onClearReply: () => void;
   onPosted: (message: ChatMessageData) => void;
@@ -20,7 +22,7 @@ type Props = {
 // last message ended instead of at the bottom. Attach + text + send in one
 // row, with an optional "replying to X" strip above it that clears once you
 // send or dismiss it.
-export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Props) {
+export function ChatComposer({ groupId, channelId, replyingTo, onClearReply, onPosted }: Props) {
   const toast = useToast();
   const [body, setBody] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -56,7 +58,7 @@ export function ChatComposer({ groupId, replyingTo, onClearReply, onPosted }: Pr
 
       const res = await apiFetch(`/api/groups/${groupId}/posts`, {
         method: "POST",
-        body: JSON.stringify({ body: trimmed, imageUrl, pollOptions, replyToId: replyingTo?.id }),
+        body: JSON.stringify({ body: trimmed, imageUrl, pollOptions, replyToId: replyingTo?.id, channelId: channelId ?? undefined }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

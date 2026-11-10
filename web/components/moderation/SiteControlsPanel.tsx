@@ -11,7 +11,8 @@ type CommissionKey =
   | "commissionMerchPercent"
   | "commissionEventPercent"
   | "commissionTipPercent"
-  | "commissionSubscriptionPercent";
+  | "commissionSubscriptionPercent"
+  | "commissionMembershipPercent";
 const COMMISSION_KEYS: CommissionKey[] = [
   "commissionReleasePercent",
   "commissionBeatPercent",
@@ -19,6 +20,7 @@ const COMMISSION_KEYS: CommissionKey[] = [
   "commissionEventPercent",
   "commissionTipPercent",
   "commissionSubscriptionPercent",
+  "commissionMembershipPercent",
 ];
 const COMMISSION_LABEL: Record<CommissionKey, string> = {
   commissionReleasePercent: "Music",
@@ -27,6 +29,7 @@ const COMMISSION_LABEL: Record<CommissionKey, string> = {
   commissionEventPercent: "Events (tickets)",
   commissionTipPercent: "Fan tips",
   commissionSubscriptionPercent: "Catalog subscriptions",
+  commissionMembershipPercent: "Paid community memberships",
 };
 
 // Creator plans (DECISIONS.md) — Buyer Pays Fee's service-charge rates
@@ -97,6 +100,7 @@ export function SiteControlsPanel({
     commissionEventPercent: "",
     commissionTipPercent: "",
     commissionSubscriptionPercent: "",
+    commissionMembershipPercent: "",
   });
   const [creatorPlanLoaded, setCreatorPlanLoaded] = useState(false);
   const [creatorPlanInputs, setCreatorPlanInputs] = useState<Record<CreatorPlanKey, string>>({
@@ -129,6 +133,7 @@ export function SiteControlsPanel({
         commissionEventPercent: String(data.commissionEventPercent),
         commissionTipPercent: String(data.commissionTipPercent),
         commissionSubscriptionPercent: String(data.commissionSubscriptionPercent),
+        commissionMembershipPercent: String(data.commissionMembershipPercent),
       });
       setCommissionLoaded(true);
       setCreatorPlanInputs({

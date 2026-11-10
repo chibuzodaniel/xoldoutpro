@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { verifyTransaction } from "@/lib/monnify";
 import { finalizePayment, finalizeGroupPayment } from "@/lib/commerce/confirmPayment";
 import { finalizeSubscriptionPayment } from "@/lib/subscriptions/payments";
+import { finalizeMembershipPayment } from "@/lib/communities/payments";
 
 export const runtime = "nodejs";
 
@@ -51,6 +52,16 @@ export async function POST(req: NextRequest) {
   // orderId/order are optional in the schema (a Billboard payment has
   // neither — see lib/commerce/billboards.ts) but this processor is only
   // ever used for Order checkout, so both are expected to be set here.
+  if (payment?.membershipUserId) {
+    // Paid community membership (lib/communities/payments.ts) — incl. automatic renewals.
+    try {
+      await finalizeMembershipPayment(payment, verified, body);
+    } catch (err) {
+      console.error(err);
+      return NextResponse.json({ error: "Could not finalize membership" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true });
+  }
   if (payment?.subscriptionSubscriberId) {
     // Catalog subscription (lib/subscriptions/payments.ts) — incl. automatic renewals.
     try {

@@ -321,16 +321,20 @@ model ProductDownload {
 // layer, not by this model, the same way Report reasons are.
 
 model Post {
-  id        String        @id @default(cuid())
+  id        String            @id @default(cuid())
   authorId  String
-  author    User          @relation("PostsAuthored", fields: [authorId], references: [id])
+  author    User              @relation("PostsAuthored", fields: [authorId], references: [id])
   groupId   String?
-  group     FanbaseGroup? @relation(fields: [groupId], references: [id])
+  group     FanbaseGroup?     @relation(fields: [groupId], references: [id])
   replyToId String? // group chat quote-reply (image9 reference) — null for MVP announcement posts
-  replyTo   Post?         @relation("PostReplies", fields: [replyToId], references: [id])
+  // Community channel (v2). Null = the community's General chat (every
+  // message from before channels existed, and the mobile app's group chat).
+  channelId String?
+  channel   CommunityChannel? @relation(fields: [channelId], references: [id])
+  replyTo   Post?             @relation("PostReplies", fields: [replyToId], references: [id])
   body      String
   imageUrl  String?
-  createdAt DateTime      @default(now())
+  createdAt DateTime          @default(now())
 
   likes    PostLike[]
   comments Comment[]
@@ -340,6 +344,7 @@ model Post {
 
   @@index([authorId, createdAt])
   @@index([groupId, createdAt])
+  @@index([channelId, createdAt])
 }
 
 // Flat, not threaded — Phase 2 scope is "member participation," not a full
@@ -425,7 +430,63 @@ model FanbaseGroup {
   posts                    Post[]
   verificationApplications VerificationApplication[]
 
+  // ─── Communities (v2, design/v2-prototype, 2026-11-09) ──────────────────
+  // Every Fanbase is a Community (explicit ask: upgrade, don't duplicate).
+  // coverImageUrl stays the square logo; bannerUrl is the wide cover. A
+  // community's original chat (Post.channelId null) is its "General"
+  // channel; CommunityChannel adds Announcements and topic channels.
+  handle     String?            @unique
+  category   String?
+  bannerUrl  String?
+  location   String?
+  rules      String?
+  inviteCode String?            @unique
+  isFeatured Boolean            @default(false)
+  channels   CommunityChannel[]
+  plans      MembershipPlan[]
+
   @@index([creatorId])
+}
+
+// A channel inside a community. kind ANNOUNCEMENTS: only admins post;
+// DISCUSSION: members post (subject to the group's postPermission).
+// planIds empty = every active member; otherwise only members on one of
+// those plans (plus admins) can open it.
+model CommunityChannel {
+  id        String       @id @default(cuid())
+  groupId   String
+  group     FanbaseGroup @relation(fields: [groupId], references: [id])
+  name      String
+  kind      String       @default("DISCUSSION") // "ANNOUNCEMENTS" | "DISCUSSION"
+  planIds   String[]     @default([])
+  order     Int          @default(0)
+  createdAt DateTime     @default(now())
+  posts     Post[]
+
+  @@index([groupId, order])
+}
+
+// A way to join a community. priceKobo 0 = free. cycle ONE_TIME never
+// expires; MONTHLY/YEARLY memberships run to Membership.expiresAt and renew
+// like catalog subscriptions (lib/communities/renewals.ts). capacity null =
+// unlimited. requiresApproval: an admin approves the application first, then
+// (for a paid plan) the fan pays.
+model MembershipPlan {
+  id               String       @id @default(cuid())
+  groupId          String
+  group            FanbaseGroup @relation(fields: [groupId], references: [id])
+  name             String
+  description      String?
+  priceKobo        Int          @default(0)
+  cycle            String       @default("MONTHLY") // "MONTHLY" | "YEARLY" | "ONE_TIME"
+  benefits         String[]     @default([])
+  capacity         Int?
+  requiresApproval Boolean      @default(false)
+  order            Int          @default(0)
+  archivedAt       DateTime?
+  createdAt        DateTime     @default(now())
+
+  @@index([groupId])
 }
 
 enum MembershipRole {
@@ -434,14 +495,24 @@ enum MembershipRole {
 }
 
 model Membership {
-  groupId    String
-  userId     String
-  role       MembershipRole @default(MEMBER)
-  joinedAt   DateTime       @default(now())
+  groupId           String
+  userId            String
+  role              MembershipRole @default(MEMBER)
+  joinedAt          DateTime       @default(now())
   // Null until the member ever opens the group's chat — the Fanbase list's
   // unread count is posts newer than max(lastReadAt, joinedAt), bumped to
   // now() whenever GET /api/groups/[id]/posts is called for this membership.
-  lastReadAt DateTime?
+  lastReadAt        DateTime?
+  // Community plans (v2): which plan this member joined on, and — for a
+  // MONTHLY/YEARLY paid plan — when it lapses (null = never). Same auto-
+  // renew/reminder/saved-card fields as CatalogSubscription.
+  planId            String?
+  expiresAt         DateTime?
+  autoRenew         Boolean        @default(true)
+  renewalNotifiedAt DateTime?
+  cardToken         String?
+  cardProcessor     String?
+  cardEmail         String?
 
   group FanbaseGroup @relation(fields: [groupId], references: [id])
   user  User         @relation(fields: [userId], references: [id])
@@ -462,6 +533,8 @@ model JoinRequest {
   userId    String
   status    JoinRequestStatus @default(PENDING)
   createdAt DateTime          @default(now())
+  // The plan applied for (v2 communities); null for a plain Fanbase request.
+  planId    String?
 
   group FanbaseGroup @relation(fields: [groupId], references: [id])
   user  User         @relation(fields: [userId], references: [id])
@@ -554,6 +627,10 @@ enum LedgerKind {
   // lib/subscriptions/payments.ts; WalletLedgerEntry.subscriptionId says which.
   SUBSCRIPTION_CREDIT
   SUBSCRIPTION_COMMISSION_FEE
+  // Paid community memberships (v2, 2026-11-09): paid to the community's
+  // owner, minus PlatformSettings.commissionMembershipPercent.
+  MEMBERSHIP_CREDIT
+  MEMBERSHIP_COMMISSION_FEE
 }
 
 // Three creator-selectable monetization plans (DECISIONS.md) — see
@@ -583,22 +660,24 @@ enum LedgerStatus {
 }
 
 model WalletLedgerEntry {
-  id             String       @id @default(cuid())
-  userId         String
-  user           User         @relation(fields: [userId], references: [id])
-  amountKobo     Int // signed: credits positive, debits negative
-  kind           LedgerKind
-  status         LedgerStatus
-  orderId        String?
-  order          Order?       @relation(fields: [orderId], references: [id])
-  payoutId       String?
-  payout         Payout?      @relation(fields: [payoutId], references: [id])
-  billboardId    String?
-  billboard      Billboard?   @relation(fields: [billboardId], references: [id])
-  createdAt      DateTime     @default(now())
-  availableAt    DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id])
+  amountKobo        Int // signed: credits positive, debits negative
+  kind              LedgerKind
+  status            LedgerStatus
+  orderId           String?
+  order             Order?       @relation(fields: [orderId], references: [id])
+  payoutId          String?
+  payout            Payout?      @relation(fields: [payoutId], references: [id])
+  billboardId       String?
+  billboard         Billboard?   @relation(fields: [billboardId], references: [id])
+  createdAt         DateTime     @default(now())
+  availableAt       DateTime? // set at creation = createdAt + settlement window; sweep flips PENDING->AVAILABLE at this time
   // Set on SUBSCRIPTION_CREDIT / SUBSCRIPTION_COMMISSION_FEE rows only.
-  subscriptionId String?
+  subscriptionId    String?
+  // Set on MEMBERSHIP_CREDIT / MEMBERSHIP_COMMISSION_FEE rows only.
+  membershipGroupId String?
 
   @@index([userId, status])
 }
@@ -1255,6 +1334,12 @@ model Payment {
   subscriptionCreatorId    String?
   subscriptionDurationDays Int?
   subscriptionAutoRenew    Boolean?
+  // A paid community membership (lib/communities/payments.ts): joining,
+  // renewing early or an automatic renewal. Set together.
+  membershipUserId         String?
+  membershipGroupId        String?
+  membershipPlanId         String?
+  membershipAutoRenew      Boolean?
   processor                String        @default("flutterwave")
   processorRef             String        @unique // tx_ref; webhook idempotency key
   // Flutterwave's own numeric transaction id (verifyTransaction()'s `id`) —
@@ -1712,6 +1797,9 @@ model PlatformSettings {
   // Platform cut of catalog subscription payments (explicit ask, 2026-11-09:
   // "separate, editable in admin"). LIMITED sellers keep 100%, as with tips.
   commissionSubscriptionPercent Int       @default(12)
+  // Platform cut of paid community memberships (prototype: "Platform
+  // commission on paid memberships"), super-moderator editable.
+  commissionMembershipPercent   Int       @default(12)
   // ─── Creator plans: BUYER_PAYS_FEE ─────────────────────────────────────
   // Service-charge rate added on top of the price at checkout and paid by
   // the buyer — lib/commerce/creatorPlans.ts, app/api/orders/route.ts.

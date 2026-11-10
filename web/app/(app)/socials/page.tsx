@@ -8,7 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { CreatePostSheet } from "@/components/social/CreatePostSheet";
 import { PostCard, type FeedPost } from "@/components/social/PostCard";
-import { FanbaseTab } from "@/components/groups/FanbaseTab";
+import { CommunitiesDirectory } from "@/components/communities/CommunitiesDirectory";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { AppHeader } from "@/components/nav/AppHeader";
 import { LiveNowPanel } from "@/components/live/LiveNowPanel";
@@ -92,7 +92,7 @@ function SocialsPageInner() {
       </div>
 
       <div className="px-4 pt-5">
-        {tab === "fanbase" && <FanbaseTab />}
+        {tab === "fanbase" && <CommunitiesDirectory />}
 
         {tab === "live" && <LiveNowPanel />}
 

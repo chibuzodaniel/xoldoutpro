@@ -28,14 +28,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     // findUnique-then-update) makes the transition atomic: two concurrent
     // approve/reject calls can't both pass the "already resolved" guard and
     // both act — only one's updateMany affects a row.
+    // Community plan application (v2): approving a paid plan lets the fan
+    // pay (the payment makes the membership); a free plan joins them now.
+    const plan = action === "approve" && request.planId ? await db.membershipPlan.findUnique({ where: { id: request.planId } }) : null;
+    if (plan && plan.priceKobo > 0) {
+      const { count } = await db.joinRequest.updateMany({ where: { id: requestId, status: "PENDING" }, data: { status: "APPROVED" } });
+      if (count === 0) return NextResponse.json({ error: "Already resolved" }, { status: 409 });
+      const g = await db.fanbaseGroup.findUnique({ where: { id }, select: { name: true } });
+      notifyUsersAfterResponse([request.userId], {
+        kind: "FANBASE",
+        title: "Application approved",
+        body: `You're approved for ${plan.name} in ${g?.name ?? "the community"}. Pay to join.`,
+        url: `/groups/${id}?join=${plan.id}`,
+      });
+      return NextResponse.json({ ok: true, awaitingPayment: true });
+    }
+
     if (action === "approve") {
       const group = await db.$transaction(async (tx) => {
         const { count } = await tx.joinRequest.updateMany({ where: { id: requestId, status: "PENDING" }, data: { status: "APPROVED" } });
         if (count === 0) return null;
         await tx.membership.upsert({
           where: { groupId_userId: { groupId: id, userId: request.userId } },
-          update: {},
-          create: { groupId: id, userId: request.userId, role: "MEMBER" },
+          update: plan ? { planId: plan.id, expiresAt: null } : {},
+          create: { groupId: id, userId: request.userId, role: "MEMBER", planId: plan?.id ?? null },
         });
         return tx.fanbaseGroup.findUnique({ where: { id }, select: { name: true } });
       });

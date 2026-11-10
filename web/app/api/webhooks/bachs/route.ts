@@ -8,6 +8,7 @@ import { finalizeCreatorPlanFeePayment } from "@/lib/commerce/creatorPlans";
 import { reconcilePayout } from "@/lib/commerce/reconcilePayout";
 import { finalizeCoinTopUpPayment } from "@/lib/live/coins";
 import { finalizeSubscriptionPayment } from "@/lib/subscriptions/payments";
+import { finalizeMembershipPayment } from "@/lib/communities/payments";
 
 export const runtime = "nodejs";
 
@@ -100,7 +101,7 @@ export async function POST(req: NextRequest) {
   // here before deciding which finalize path (and which relations) to load.
   const paymentRef = await db.payment.findUnique({
     where: { processorRef: verified.txRef },
-    select: { id: true, orderId: true, billboardId: true, creatorPlanUserId: true, coinTopUpUserId: true, checkoutGroupId: true, subscriptionSubscriberId: true },
+    select: { id: true, orderId: true, billboardId: true, creatorPlanUserId: true, coinTopUpUserId: true, checkoutGroupId: true, subscriptionSubscriberId: true, membershipUserId: true },
   });
   if (!paymentRef) return NextResponse.json({ error: "Unknown payment" }, { status: 404 });
 
@@ -119,6 +120,10 @@ export async function POST(req: NextRequest) {
       // Catalog subscription (lib/subscriptions/payments.ts).
       const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
       await finalizeSubscriptionPayment(payment, verified, body);
+    } else if (paymentRef.membershipUserId) {
+      // Paid community membership (lib/communities/payments.ts).
+      const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
+      await finalizeMembershipPayment(payment, verified, body);
     } else if (paymentRef.coinTopUpUserId) {
       const payment = await db.payment.findUniqueOrThrow({ where: { id: paymentRef.id } });
       await finalizeCoinTopUpPayment(payment, verified, body);

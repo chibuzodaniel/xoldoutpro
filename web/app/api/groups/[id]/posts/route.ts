@@ -4,6 +4,16 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 import { parseMentions } from "@/lib/groups/mentions";
+import { canOpenChannel, isMembershipActive } from "@/lib/communities/constants";
+
+// Community channels (v2, 2026-11-09): ?channel=<id> (GET) / channelId (POST)
+// picks a channel; none or "general" is the community's original chat, which
+// is all the mobile app knows about. A lapsed paid membership loses access.
+async function resolveChannel(groupId: string, raw: string | null | undefined) {
+  if (!raw || raw === "general") return { channel: null as null | { id: string; kind: string; planIds: string[] } };
+  const channel = await db.communityChannel.findFirst({ where: { id: raw, groupId }, select: { id: true, kind: true, planIds: true } });
+  return channel ? { channel } : null;
+}
 
 const authorSelect = {
   select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true },
@@ -60,8 +70,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { user } = await requireUser(req);
     const { id } = await params;
 
-    const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
-    if (!membership) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    const [membership, group, resolved] = await Promise.all([
+      db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } }),
+      db.fanbaseGroup.findUnique({ where: { id }, select: { creatorId: true } }),
+      resolveChannel(id, req.nextUrl.searchParams.get("channel")),
+    ]);
+    if (!membership || !group) return NextResponse.json({ error: "Not authorized" }, { status: 403 });
+    if (!resolved) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    const isOwner = group.creatorId === user.id;
+    const allowed = resolved.channel ? canOpenChannel(resolved.channel, membership, isOwner) : isOwner || membership.role === "ADMIN" || isMembershipActive(membership);
+    if (!allowed) return NextResponse.json({ error: "Your membership doesn't include this channel" }, { status: 403 });
 
     // Captured before the update below overwrites it — the client uses this
     // watermark to scroll to the first message newer than it (unread) rather
@@ -76,9 +94,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .update({ where: { groupId_userId: { groupId: id, userId: user.id } }, data: { lastReadAt: new Date() } })
       .catch(() => {});
 
-    const posts = await db.post.findMany({
-      where: { groupId: id },
-      orderBy: { createdAt: "asc" },
+    // Newest 200, shown oldest first.
+    const newest = await db.post.findMany({
+      where: { groupId: id, channelId: resolved.channel?.id ?? null },
+      orderBy: { createdAt: "desc" },
       take: 200,
       include: {
         author: authorSelect,
@@ -89,6 +108,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     });
 
+    const posts = newest.reverse();
     return NextResponse.json({
       posts: posts.map((p) => serialize(p, p._count.likes, p._count.comments, p.likes.length > 0, user.id)),
       readWatermark,
@@ -104,6 +124,7 @@ const createSchema = z.object({
   imageUrl: z.string().url().nullish(),
   pollOptions: z.array(z.string().trim().min(1).max(80)).min(2).max(6).optional(),
   replyToId: z.string().min(1).optional(),
+  channelId: z.string().min(1).max(64).optional(),
 });
 
 // PRD §11: default new groups to creator-only posting; who else may post is
@@ -113,29 +134,33 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { user } = await requireUser(req);
     const { id } = await params;
-    const { body, imageUrl, pollOptions, replyToId } = createSchema.parse(await req.json());
+    const { body, imageUrl, pollOptions, replyToId, channelId } = createSchema.parse(await req.json());
 
     const group = await db.fanbaseGroup.findUnique({ where: { id } });
     if (!group) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const membership = await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
-    const canPost =
-      group.postPermission === "ALL_MEMBERS"
-        ? Boolean(membership)
-        : group.postPermission === "ADMINS"
-          ? membership?.role === "ADMIN"
-          : group.creatorId === user.id;
-    if (!canPost) return NextResponse.json({ error: "You can't post in this group" }, { status: 403 });
+    const resolved = await resolveChannel(id, channelId);
+    if (!resolved) return NextResponse.json({ error: "Channel not found" }, { status: 404 });
+    const channel = resolved.channel;
+    const isOwner = group.creatorId === user.id;
+    const isAdmin = isOwner || membership?.role === "ADMIN";
+    const canPost = channel?.kind === "ANNOUNCEMENTS"
+      ? isAdmin
+      : (channel ? canOpenChannel(channel, membership, isOwner) : isAdmin || isMembershipActive(membership)) &&
+        (group.postPermission === "ALL_MEMBERS" ? Boolean(membership) || isOwner : group.postPermission === "ADMINS" ? isAdmin : isOwner);
+    if (!canPost) return NextResponse.json({ error: "You can't post in this channel" }, { status: 403 });
 
     if (replyToId) {
-      const target = await db.post.findUnique({ where: { id: replyToId }, select: { groupId: true } });
-      if (!target || target.groupId !== id) return NextResponse.json({ error: "Can't reply to that message" }, { status: 400 });
+      const target = await db.post.findUnique({ where: { id: replyToId }, select: { groupId: true, channelId: true } });
+      if (!target || target.groupId !== id || target.channelId !== (channel?.id ?? null)) return NextResponse.json({ error: "Can't reply to that message" }, { status: 400 });
     }
 
     const post = await db.post.create({
       data: {
         authorId: user.id,
         groupId: id,
+        channelId: channel?.id ?? null,
         body,
         imageUrl: imageUrl ?? null,
         replyToId: replyToId ?? null,
@@ -161,10 +186,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         tag: n.important ? undefined : `fanbase-${id}`,
       });
 
-    const otherMembers = await db.membership.findMany({
+    const memberRows = await db.membership.findMany({
       where: { groupId: id, userId: { not: user.id } },
-      select: { userId: true, user: { select: { handle: true } } },
+      select: { userId: true, role: true, planId: true, expiresAt: true, user: { select: { handle: true } } },
     });
+    // Only people who can open this channel hear about it.
+    const otherMembers = memberRows.filter((m) =>
+      channel ? canOpenChannel(channel, m, m.userId === group.creatorId) : m.role === "ADMIN" || m.userId === group.creatorId || isMembershipActive(m),
+    );
+    const chatUrl = `/groups/${id}${channel ? `?channel=${channel.id}` : ""}`;
 
     // @all/@username is an admin "get their attention" tool (per spec) — a
     // regular member typing "@all" still renders as a chip client-side, but
@@ -175,7 +205,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (isAdminSender && mentionsAll) {
       fanbaseNotify(
         otherMembers.map((m) => m.userId),
-        { important: true, title: `📣 ${group.name}`, body: `${user.displayName} needs everyone's attention: ${preview}`, url: `/groups/${id}` },
+        { important: true, title: `📣 ${group.name}`, body: `${user.displayName} needs everyone's attention: ${preview}`, url: chatUrl },
       );
     } else if (isAdminSender && handles.length > 0) {
       const mentioned = otherMembers.filter((m) => handles.includes(m.user.handle.toLowerCase()));
@@ -183,19 +213,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (mentioned.length > 0) {
         fanbaseNotify(
           mentioned.map((m) => m.userId),
-          { important: true, title: `${user.displayName} mentioned you in ${group.name}`, body: preview, url: `/groups/${id}` },
+          { important: true, title: `${user.displayName} mentioned you in ${group.name}`, body: preview, url: chatUrl },
         );
       }
       if (rest.length > 0) {
         fanbaseNotify(
           rest.map((m) => m.userId),
-          { title: group.name, body: `${user.displayName}: ${preview}`, url: `/groups/${id}` },
+          { title: group.name, body: `${user.displayName}: ${preview}`, url: chatUrl },
         );
       }
     } else {
       fanbaseNotify(
         otherMembers.map((m) => m.userId),
-        { title: group.name, body: `${user.displayName}: ${preview}`, url: `/groups/${id}` },
+        { title: group.name, body: `${user.displayName}: ${preview}`, url: chatUrl },
       );
     }
 
