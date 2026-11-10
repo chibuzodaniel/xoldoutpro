@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { notifyUsersAfterResponse } from "@/lib/notifications/create";
+import { notifyMentions } from "@/lib/notifications/mentions";
 
 // Flat comments (PRD §11 Phase 2 "member participation") — reachable on any
 // Post, but the only UI that renders them is the group post view; the MVP
@@ -46,6 +47,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         tag: `comment-${id}`,
       });
     }
+    await notifyMentions({
+      body,
+      author: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl },
+      url: post.groupId ? `/groups/${post.groupId}` : "/socials",
+      where: "a comment",
+      exclude: [post.authorId],
+    });
     return NextResponse.json({ comment }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

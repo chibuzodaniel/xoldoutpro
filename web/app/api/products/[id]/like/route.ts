@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 
 const bodySchema = z.object({ liked: z.boolean() });
 
@@ -15,12 +16,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { liked } = bodySchema.parse(await req.json());
 
-    const product = await db.product.findUnique({ where: { id }, select: { status: true } });
+    const product = await db.product.findUnique({ where: { id }, select: { status: true, type: true, title: true, creatorId: true } });
     if (!product || product.status !== "PUBLISHED") return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+    let newLike = false;
     const likeCount = await db.$transaction(async (tx) => {
       if (liked) {
         const created = await tx.productLike.createMany({ data: [{ userId: user.id, productId: id }], skipDuplicates: true });
+        newLike = created.count > 0;
         if (created.count > 0) await tx.product.update({ where: { id }, data: { likeCount: { increment: 1 } } });
       } else {
         const removed = await tx.productLike.deleteMany({ where: { userId: user.id, productId: id } });
@@ -28,6 +31,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       return (await tx.product.findUniqueOrThrow({ where: { id }, select: { likeCount: true } })).likeCount;
     });
+
+    // Notify the creator of a brand-new like only (an unlike/re-like toggle
+    // can't spam them, and liking your own release says nothing).
+    if (newLike && product.creatorId !== user.id) {
+      const path = product.type === "BEAT" ? "b" : product.type === "MERCH" ? "m" : product.type === "EVENT" ? "e" : "r";
+      notifyUsersAfterResponse([product.creatorId], {
+        kind: "LIKE",
+        title: "New like",
+        body: `${user.displayName} liked ${product.title}`,
+        url: `/${path}/${id}`,
+        icon: user.avatarUrl ?? undefined,
+        tag: `product-like-${id}`,
+      });
+    }
 
     return NextResponse.json({ liked, likeCount: Math.max(0, likeCount) });
   } catch (err) {

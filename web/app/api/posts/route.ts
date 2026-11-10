@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { notifyMentions } from "@/lib/notifications/mentions";
 
 const authorSelect = {
   select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true },
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
       data: { authorId: user.id, body, imageUrl: imageUrl ?? null },
       include: { author: authorSelect },
     });
+    await notifyMentions({ body, author: { id: user.id, displayName: user.displayName, avatarUrl: user.avatarUrl }, url: "/socials", where: "a post" });
 
     return NextResponse.json({
       post: {

@@ -35,6 +35,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (existing?.suspendedAt) return NextResponse.json({ error: "You're suspended from this community" }, { status: 403 });
     const invited = Boolean(body.inviteCode && group.inviteCode && body.inviteCode.toUpperCase() === group.inviteCode);
 
+    const notifyOwnerJoined = (planName?: string) =>
+      notifyUsersAfterResponse([group.creatorId], {
+        kind: "FANBASE",
+        title: "New member",
+        body: `${user.displayName} joined ${group.name}${planName ? ` (${planName})` : ""}`,
+        url: `/groups/${id}`,
+        icon: user.avatarUrl ?? undefined,
+        tag: `community-join-${id}`,
+      });
+
     const notifyAdmins = async (title: string, text: string) => {
       const admins = await db.membership.findMany({ where: { groupId: id, role: "ADMIN" }, select: { userId: true } });
       notifyUsersAfterResponse([group.creatorId, ...admins.map((a) => a.userId)], {
@@ -51,6 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (existing) return NextResponse.json({ status: "JOINED" });
       if (group.visibility === "OPEN" || invited) {
         await db.membership.create({ data: { groupId: id, userId: user.id, role: "MEMBER" } });
+        notifyOwnerJoined();
         return NextResponse.json({ status: "JOINED" });
       }
       const prior = await db.joinRequest.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } } });
@@ -96,6 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }),
         db.joinRequest.deleteMany({ where: { groupId: id, userId: user.id, status: "APPROVED" } }),
       ]);
+      if (!existing) notifyOwnerJoined(plan.name);
       return NextResponse.json({ status: "JOINED" });
     }
 
