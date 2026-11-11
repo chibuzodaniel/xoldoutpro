@@ -134,14 +134,14 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
       <div className="flex flex-col items-center px-4 text-center">
         {sections.links && (
-          <div className="mt-4">
+          <div className="mt-2">
             <ProfileLinkBadges links={socialLinks} />
           </div>
         )}
         <div className="mx-auto w-full max-w-xl">
           {sections.products && <CatalogSubscriptionCard creator={{ id: user.id, displayName: user.displayName }} plans={subscriptionPlans} />}
         </div>
-        <ReportButton targetType="PROFILE" targetId={user.id} className="mt-3 text-[13px] text-ink-3" />
+        <ReportButton targetType="PROFILE" targetId={user.id} className="mt-2 text-[13px] text-ink-3" />
       </div>
 
       <div className="px-4 md:px-6">
@@ -171,7 +171,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         {sections.links && <ProfileLinkList links={socialLinks} />}
 
         {libraryItems.length > 0 && (
-          <section className="mt-8">
+          <section className="mt-6">
             <h2 className="font-serif text-[24px] font-bold">Music library</h2>
             <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
               {libraryItems.map(({ product: p }) => (
@@ -191,7 +191,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
         {publicPostCount > 0 && (
           <Link
             href={`/u/${user.handle}/posts`}
-            className="mt-8 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#111] px-4 py-3.5 md:max-w-2xl"
+            className="mt-6 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#111] px-4 py-3.5 md:max-w-2xl"
           >
             <span>
               <span className="block text-[16px] font-semibold">View Socials posts</span>

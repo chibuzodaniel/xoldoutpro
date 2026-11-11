@@ -200,7 +200,7 @@ export default function ProfilePage() {
         }
       />
 
-      <div className="mt-4 flex justify-center px-4">
+      <div className="mt-2 flex justify-center px-4">
         <ProfileLinkBadges links={appUser.socialLinks} />
       </div>
 

@@ -50,7 +50,7 @@ export function FollowButton({
       <button
         onClick={toggle}
         disabled={following === null}
-        className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg text-[14px] font-semibold transition-colors duration-150 ${
+        className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full text-[14px] font-semibold transition-colors duration-150 ${
           following ? "border border-white/30 text-white" : "bg-red text-white hover:bg-red-soft"
         }`}
       >

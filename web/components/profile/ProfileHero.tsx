@@ -43,12 +43,12 @@ export function ProfileHero({
       <div className="pointer-events-none absolute inset-x-0 top-24 h-40 bg-gradient-to-b from-transparent to-bg sm:top-32 md:top-40" />
       {topBar}
 
-      <div className="relative -mt-24 px-4 sm:-mt-28">
-        <div className="mx-auto max-w-xl rounded-xl border border-white/15 bg-gradient-to-br from-red/45 via-[#3a0710]/80 to-[#1a0306]/90 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-5">
-          <div className="flex items-start gap-4 sm:gap-5">
+      <div className="relative -mt-24 px-3 sm:-mt-28 sm:px-4">
+        <div className="mx-auto max-w-xl rounded-xl border border-white/15 bg-gradient-to-br from-red/45 via-[#3a0710]/80 to-[#1a0306]/90 p-3.5 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+          <div className="flex items-start gap-3">
             {avatar}
-            <div className="min-w-0 flex-1 pt-1">
-              <h1 className="flex items-center gap-2 text-[24px] font-extrabold uppercase leading-tight tracking-tight sm:text-[28px]">
+            <div className="min-w-0 flex-1">
+              <h1 className="flex items-center gap-2 text-[21px] font-extrabold uppercase leading-tight tracking-tight sm:text-[25px]">
                 <span className="truncate">{user.displayName}</span>
                 {user.isVerified && (
                   <VerifiedBadge className="h-5 w-5 shrink-0" badgeType={primaryBadgeType(user.verificationBadges as string[])} />
@@ -74,10 +74,10 @@ export function ProfileHero({
             </div>
           </div>
 
-          <div className="mt-4 flex items-center justify-center text-[14px] text-white/75 sm:text-[15px]">
+          <div className="mt-3 flex items-center justify-center text-[13px] text-white/75 sm:text-[14px]">
             {stats.map((s, i) => (
               <span key={s.label} className="flex items-center">
-                {i > 0 && <span className="mx-3 h-4 w-px bg-white/35 sm:mx-5" aria-hidden />}
+                {i > 0 && <span className="mx-2.5 h-3.5 w-px bg-white/35 sm:mx-4" aria-hidden />}
                 <span className="whitespace-nowrap">
                   <b className="font-bold text-white">{s.value === null ? "—" : s.value.toLocaleString("en-NG")}</b> {s.label}
                 </span>
@@ -85,7 +85,7 @@ export function ProfileHero({
             ))}
           </div>
 
-          <div className="mt-4">{actions}</div>
+          <div className="mt-3">{actions}</div>
         </div>
       </div>
     </div>

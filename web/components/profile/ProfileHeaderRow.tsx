@@ -34,7 +34,7 @@ export function ProfileAvatar({
     <ClickablePhoto targetUserId={targetUserId} kind="avatar" photoUrl={avatarUrl} alt={displayName} label="Profile photo" className="relative block">
       <div
         className={`relative flex items-center justify-center overflow-hidden bg-surface-2 ${
-          shape === "round" ? "h-[104px] w-[104px] rounded-full border-2 border-white/80 sm:h-28 sm:w-28" : "h-32 w-32 rounded-[28px] border-[3px] border-white"
+          shape === "round" ? "h-[84px] w-[84px] rounded-full border-2 border-white/80 sm:h-24 sm:w-24" : "h-32 w-32 rounded-[28px] border-[3px] border-white"
         }`}
       >
         {avatarUrl ? (
@@ -109,7 +109,7 @@ export function ProfileActions({ targetUserId, handle, displayName }: { targetUs
 }
 
 const circleBtn =
-  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/30 text-white transition-colors duration-150 hover:bg-white/10";
+  "flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/30 text-white transition-colors duration-150 hover:bg-white/10";
 
 const CupIcon = (
   <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -134,7 +134,7 @@ export function ProfileCardActions({ targetUserId, handle, displayName }: { targ
   if (isOwner) {
     return (
       <div className="flex items-center gap-2">
-        <Link href="/profile/edit" className="flex h-10 flex-1 items-center justify-center rounded-lg bg-white text-[14px] font-semibold text-black">
+        <Link href="/profile/edit" className="flex h-10 flex-1 items-center justify-center rounded-full bg-white text-[14px] font-semibold text-black">
           Edit profile
         </Link>
         <ShareButton
@@ -142,7 +142,7 @@ export function ProfileCardActions({ targetUserId, handle, displayName }: { targ
           text={`Follow me on XOLDOUT — @${handle}`}
           path={`/u/${handle}`}
           label="Share"
-          className="h-10 justify-center rounded-lg border border-white/30 bg-transparent px-4 text-[14px] font-semibold text-white"
+          className="h-10 justify-center rounded-full border border-white/30 bg-transparent px-4 text-[14px] font-semibold text-white"
         />
       </div>
     );
@@ -150,7 +150,7 @@ export function ProfileCardActions({ targetUserId, handle, displayName }: { targ
   if (!appUser) {
     return (
       <div className="flex items-center gap-2">
-        <Link href="/login" className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-red text-[14px] font-semibold text-white">
+        <Link href="/login" className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-full bg-red text-[14px] font-semibold text-white">
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>

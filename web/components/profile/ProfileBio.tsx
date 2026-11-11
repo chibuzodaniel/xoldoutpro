@@ -16,8 +16,8 @@ export function ProfileBio({ text }: { text: string }) {
   }, [text, open]);
 
   return (
-    <div className="mt-2">
-      <p ref={ref} className={`whitespace-pre-line break-words text-[15px] text-white ${open ? "" : "line-clamp-2"}`}>
+    <div className="mt-1.5">
+      <p ref={ref} className={`whitespace-pre-line break-words text-[14px] text-white ${open ? "" : "line-clamp-2"}`}>
         {text}
       </p>
       {(clipped || open) && (

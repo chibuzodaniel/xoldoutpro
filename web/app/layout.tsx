@@ -12,6 +12,8 @@ import { ToastProvider } from "@/components/ui/ToastProvider";
 import { CurrencyProvider } from "@/components/currency/CurrencyProvider";
 import { VisitTracker } from "@/components/analytics/VisitTracker";
 import { PushAutoEnroll } from "@/components/push/PushAutoEnroll";
+import { ScrollMemory } from "@/components/nav/ScrollMemory";
+import { Suspense } from "react";
 import { InAppMessageBanner } from "@/components/messages/InAppMessageBanner";
 
 export const metadata: Metadata = {
@@ -70,9 +72,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                   {/* Centred column on wide screens (components/nav/AppFrame.tsx). */}
                   <AppFrame>
                     <AndroidAppBanner />
-                    <div className="no-scrollbar flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-2">
+                    <div id="app-scroll" className="no-scrollbar flex-1 min-h-0 overflow-x-hidden overflow-y-auto pb-2">
                       {children}
                     </div>
+                    {/* Back / swipe-back returns to the last scroll position. */}
+                    <Suspense fallback={null}>
+                      <ScrollMemory />
+                    </Suspense>
                     <MiniPlayer />
                     <BottomNav />
                   </AppFrame>

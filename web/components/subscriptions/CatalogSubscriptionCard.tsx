@@ -39,7 +39,7 @@ export function CatalogSubscriptionCard({ creator, plans }: { creator: { id: str
   const from = Math.min(...plans.map((p) => p.priceKobo));
 
   return (
-    <div className="mt-5 flex items-center gap-3 rounded-2xl border border-red bg-red-tint p-4">
+    <div className="mt-3 flex items-center gap-3 rounded-xl border border-red bg-red-tint p-3">
       <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-red-soft" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
         <path d="M9 18V5l12-2v13" strokeLinejoin="round" />
         <circle cx="6" cy="18" r="3" />
