@@ -13,7 +13,7 @@ import { TrackOrderSheet } from "@/components/library/TrackOrderSheet";
 import { CartIconLink } from "@/components/nav/CartIconLink";
 import { NotificationsSheet } from "@/components/notifications/NotificationsSheet";
 import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet";
-import { TicketQrCode } from "@/components/ui/TicketQrCode";
+import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
@@ -86,7 +86,8 @@ const TABS = [
   { key: "collections", label: "Your Playlist" },
   // Catalog subscriptions (v2, 2026-11-09).
   { key: "subscriptions", label: "Your Subscriptions" },
-  { key: "events", label: "Events" },
+  // Event tickets live in Purchased now, before Beats (explicit ask,
+  // 2026-11-11); an old ?tab=events link opens Purchased.
 ] as const;
 type LibraryTab = (typeof TABS)[number]["key"];
 
@@ -415,6 +416,27 @@ function LibraryPageInner() {
     await loadLibrary();
   }
 
+  // "Remove from library" (explicit ask, 2026-11-11): hides the purchase
+  // from this list only. Not a refund; it stays owned.
+  async function handleRemoveFromLibrary(entitlement: LibraryEntitlement) {
+    const isTicket = Boolean(entitlement.product.ticketTier);
+    const ok = await toast.confirm(
+      isTicket
+        ? "Remove this ticket from your library? Its QR code won't show here any more, so keep a copy if you still plan to go."
+        : `Remove "${entitlement.product.title}" from your library? This isn't a refund.`,
+      { confirmLabel: "Remove", destructive: true },
+    );
+    if (!ok) return;
+    const res = await apiFetch("/api/library", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entitlementId: entitlement.id, hidden: true }),
+    });
+    if (!res.ok) return toast.error("Couldn't remove that. Try again.");
+    setEntitlements((cur) => cur?.filter((e) => e.id !== entitlement.id) ?? cur);
+    toast.success("Removed from your library");
+  }
+
   function handlePlayNext(entitlement: LibraryEntitlement) {
     const tracks = buildPlayable(entitlement);
     if (tracks.length === 0) return;
@@ -627,6 +649,16 @@ function LibraryPageInner() {
           >
             +
           </button>
+          <button
+            type="button"
+            onClick={() => handleRemoveFromLibrary(e)}
+            aria-label="Remove from library"
+            className="absolute top-2 left-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
         <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
         <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">{FULFILLMENT_LABEL[status]}</p>
@@ -707,7 +739,7 @@ function LibraryPageInner() {
 
       {tab === "purchased" && visible !== null && (
         <>
-          {musicItems.length === 0 && merchItems.length === 0 ? (
+          {musicItems.length === 0 && merchItems.length === 0 && ticketItems.length === 0 ? (
             <p className="text-sm text-ink-3">{q ? "Nothing matches your search." : "Everything you buy shows up here, playable offline. Nothing yet."}</p>
           ) : (
             <div className="flex flex-col gap-9">
@@ -716,6 +748,16 @@ function LibraryPageInner() {
                   <ShelfHeader icon="music" title="Music" count={songItems.length} open={!!seeAll.music} onToggle={() => toggleSeeAll("music")} />
                   {shelf("music", songItems, renderMusicTile)}
                   {expandedEntitlement && renderTracklist(expandedEntitlement)}
+                </section>
+              )}
+              {ticketItems.length > 0 && (
+                <section>
+                  <ShelfHeader icon="tickets" title="Tickets" count={ticketItems.length} open={!!seeAll.tickets} onToggle={() => toggleSeeAll("tickets")} />
+                  <div className="flex flex-col gap-4">
+                    {(seeAll.tickets ? ticketItems : ticketItems.slice(0, 2)).map((e) => (
+                      <EventLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} onRemove={() => handleRemoveFromLibrary(e)} />
+                    ))}
+                  </div>
                 </section>
               )}
               {beatItems.length > 0 && (
@@ -730,20 +772,6 @@ function LibraryPageInner() {
                   {shelf("merch", merchItems, renderMerchTile)}
                 </section>
               )}
-            </div>
-          )}
-        </>
-      )}
-
-      {tab === "events" && visible !== null && (
-        <>
-          {ticketItems.length === 0 ? (
-            <p className="text-sm text-ink-3">{q ? "Nothing matches your search." : "Tickets you buy show up here with their door QR code. Nothing yet."}</p>
-          ) : (
-            <div className="flex flex-col gap-4">
-              {ticketItems.map((e) => (
-                <EventLibraryRow key={e.id} entitlement={e} onCollect={() => setCollectingId(e.id)} />
-              ))}
             </div>
           )}
         </>
@@ -767,6 +795,7 @@ function LibraryPageInner() {
           onPlayNext={() => handlePlayNext(actionsFor)}
           onDownloadAll={() => handleDownloadAllForRelease(actionsFor)}
           onRemoveAll={() => handleRemoveAllForRelease(actionsFor)}
+          onRemoveFromLibrary={() => handleRemoveFromLibrary(actionsFor)}
         />
       )}
 
@@ -780,7 +809,7 @@ function LibraryPageInner() {
   );
 }
 
-function ShelfHeader({ icon, title, count, open, onToggle }: { icon: "music" | "beats" | "merch"; title: string; count: number; open: boolean; onToggle: () => void }) {
+function ShelfHeader({ icon, title, count, open, onToggle }: { icon: "music" | "beats" | "merch" | "tickets"; title: string; count: number; open: boolean; onToggle: () => void }) {
   return (
     <div className="flex items-center justify-between mb-3">
       <h2 className="flex items-center gap-2.5 font-serif text-[26px] font-bold">
@@ -789,6 +818,11 @@ function ShelfHeader({ icon, title, count, open, onToggle }: { icon: "music" | "
             <path d="M4 6h9M4 11h9M4 16h5" strokeLinecap="round" />
             <circle cx="18" cy="15.5" r="2.6" />
             <path d="M20.6 15.5V7" strokeLinecap="round" />
+          </svg>
+        ) : icon === "tickets" ? (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 text-red-soft" aria-hidden>
+            <path d="M3 8a2 2 0 002-2h14a2 2 0 002 2v2a2 2 0 000 4v2a2 2 0 00-2 2H5a2 2 0 00-2-2v-2a2 2 0 000-4V8z" strokeLinejoin="round" />
+            <path d="M14 6v12" strokeDasharray="2 2" />
           </svg>
         ) : icon === "music" ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6 text-red-soft" aria-hidden>
@@ -830,6 +864,7 @@ function TileActionsSheet({
   onPlayNext,
   onDownloadAll,
   onRemoveAll,
+  onRemoveFromLibrary,
 }: {
   entitlement: LibraryEntitlement;
   hasDownloaded: boolean;
@@ -841,6 +876,7 @@ function TileActionsSheet({
   onPlayNext: () => void;
   onDownloadAll: () => void;
   onRemoveAll: () => void;
+  onRemoveFromLibrary: () => void;
 }) {
   const isRelease = !!entitlement.product.release;
   const canShuffle = (entitlement.product.release?.tracks.length ?? 0) > 1;
@@ -886,10 +922,13 @@ function TileActionsSheet({
             </button>
           )}
           {isRelease && hasDownloaded && (
-            <button type="button" onClick={run(onRemoveAll)} className="py-3.5 text-sm font-semibold text-center text-red-soft">
-              Delete from library
+            <button type="button" onClick={run(onRemoveAll)} className="py-3.5 text-sm font-semibold text-center text-ink">
+              Remove downloads
             </button>
           )}
+          <button type="button" onClick={run(onRemoveFromLibrary)} className="py-3.5 text-sm font-semibold text-center text-red-soft">
+            Remove from library
+          </button>
         </div>
         <button
           type="button"
@@ -908,45 +947,106 @@ function TileActionsSheet({
 // tap in handleTileTap above). No offline caching yet, unlike Release
 // tracks: this Download button hands over the real master file directly,
 // so there's no separate offline-cache format to build for it.
-function formatEventDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
+function formatEventWhen(iso: string) {
+  const d = new Date(iso);
+  return `${d.toLocaleDateString("en-NG", { weekday: "short", day: "numeric", month: "short" })} · ${d.toLocaleTimeString("en-NG", { hour: "numeric", minute: "2-digit" })}`;
 }
 
-// A ticket in the library is the QR code itself, not something to play —
-// this is the one place the entitlement's TicketCheckIn.code actually
-// surfaces to the buyer.
-function EventLibraryRow({ entitlement, onCollect }: { entitlement: LibraryEntitlement; onCollect: () => void }) {
+/** Short ticket number shown on the card, e.g. XO-7F3K2Q (from the check-in code). */
+function ticketNumber(code: string | undefined) {
+  return code ? `XO-${code.slice(-6).toUpperCase()}` : null;
+}
+
+// Ticket card (explicit ask, 2026-11-11, from the user's screenshot): the
+// list never shows the QR code; "Show ticket" slides it up in a half sheet.
+function EventLibraryRow({ entitlement, onCollect, onRemove }: { entitlement: LibraryEntitlement; onCollect: () => void; onRemove: () => void }) {
   const tier = entitlement.product.ticketTier;
+  const [open, setOpen] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
 
+  // The QR is only drawn once the ticket is opened.
   useEffect(() => {
-    if (!entitlement.checkIn) return;
-    QRCode.toDataURL(entitlement.checkIn.code, { margin: 1, width: 512 }).then(setQr);
-  }, [entitlement.checkIn]);
+    if (!open || qr || !entitlement.checkIn) return;
+    QRCode.toDataURL(entitlement.checkIn.code, { margin: 1, width: 640 }).then(setQr);
+  }, [open, qr, entitlement.checkIn]);
 
   if (!tier) return null;
+  const event = tier.event;
+  const cover = (event.coverImageLadder as Record<string, string> | null)?.["256"] ?? (event.coverImageLadder as Record<string, string> | null)?.["1024"] ?? null;
+  const place = event.isVirtual ? "Online event" : (event.venue ?? "Venue TBA");
+  const number = ticketNumber(entitlement.checkIn?.code);
+  const checkedIn = Boolean(entitlement.checkIn?.checkedInAt);
 
   return (
-    // v2 ticket card (design/v2-prototype). Tapping the QR still opens it full size.
-    <div className="rounded-2xl border border-line bg-surface p-4 flex items-center gap-4">
-      {qr && (
-        <TicketQrCode
-          qrDataUrl={qr}
-          label={`${tier.event.title} · ${tier.name}`}
-          thumbnailClassName="h-20 w-20 rounded-xl bg-white p-1.5"
-        />
-      )}
-      <div className="min-w-0 flex-1">
-        <p className="text-[16px] font-bold line-clamp-1">{tier.event.title}</p>
-        <p className="text-[14px] text-ink-2 mt-0.5">{formatEventDate(tier.event.startsAt)}</p>
-        <p className="text-[13px] text-ink-3 mb-1.5">{tier.name}</p>
-        <p className="text-[11px] uppercase tracking-widest text-red-soft font-semibold">
-          {entitlement.checkIn?.checkedInAt ? "Checked in" : "Show this QR code at the door"}
-        </p>
+    <div className="rounded-3xl border border-white/10 bg-[#0f0f0f] p-4">
+      <div className="flex gap-4">
+        <span className="h-[88px] w-[88px] shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-red/40 to-black">
+          <FallbackImg src={cover} alt="" className="h-full w-full object-cover" fallback={null} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="line-clamp-2 text-[18px] font-bold leading-snug">{event.title}</p>
+          <p className="mt-1 text-[15px] text-ink-2">{formatEventWhen(event.startsAt)}</p>
+          <p className="mt-0.5 truncate text-[15px] text-ink-3">
+            {place} · {entitlement.product.creator.displayName}
+          </p>
+        </div>
       </div>
-      <button type="button" onClick={onCollect} aria-label="Add to collection" className="h-7 w-7 rounded-full border border-line flex items-center justify-center text-ink-3 shrink-0">
-        +
-      </button>
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-[13px] text-ink-3">
+          {tier.name}
+          {number ? ` · ${number}` : ""}
+          {checkedIn ? " · Checked in" : ""}
+        </p>
+        <button type="button" onClick={() => setOpen(true)} className="shrink-0 rounded-full bg-red px-5 py-2.5 text-[15px] font-semibold text-white">
+          Show ticket
+        </button>
+      </div>
+
+      <BottomSheet open={open} onClose={() => setOpen(false)} title="Your ticket" height="half">
+        <div className="flex flex-col items-center px-5 pb-[calc(env(safe-area-inset-bottom)+16px)] text-center">
+          <p className="text-[18px] font-bold">{event.title}</p>
+          <p className="mt-0.5 text-[14px] text-ink-2">
+            {formatEventWhen(event.startsAt)} · {place}
+          </p>
+          <div className="mt-4 rounded-2xl bg-white p-3">
+            {qr ? (
+              // eslint-disable-next-line @next/next/no-img-element -- generated data URL
+              <img src={qr} alt={`Ticket QR code for ${event.title}`} className="h-56 w-56" />
+            ) : (
+              <span className="flex h-56 w-56 items-center justify-center text-sm text-black/50">Loading…</span>
+            )}
+          </div>
+          <p className="mt-3 text-[15px] font-semibold">
+            {tier.name}
+            {number ? ` · ${number}` : ""}
+          </p>
+          <p className={`mt-1 text-[12px] font-semibold uppercase tracking-widest ${checkedIn ? "text-green" : "text-red-soft"}`}>
+            {checkedIn ? "Checked in" : "Show this QR code at the door"}
+          </p>
+          <div className="mt-5 flex w-full max-w-xs gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onCollect();
+              }}
+              className="flex-1 rounded-full border border-line py-2.5 text-[13px] font-semibold"
+            >
+              Add to playlist
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
+                onRemove();
+              }}
+              className="flex-1 rounded-full border border-line py-2.5 text-[13px] font-semibold text-red-soft"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      </BottomSheet>
     </div>
   );
 }

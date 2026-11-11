@@ -9,6 +9,8 @@ import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
+import { LineupEditor, lineupPayload, type LineupDraft } from "@/components/event/LineupEditor";
+import type { UserSuggestion } from "@/components/ui/UserHandleAutocomplete";
 
 type CatalogTier = {
   productId: string;
@@ -31,6 +33,7 @@ type CatalogEvent = {
   publishedAt: string | null;
   coverImageLadder: unknown;
   tiers: CatalogTier[];
+  lineup?: { user: UserSuggestion; role: string; status: string }[];
 };
 
 function formatDate(iso: string) {
@@ -338,6 +341,44 @@ function EventEditor({ event, onSaved }: { event: CatalogEvent; onSaved: () => v
   );
 }
 
+function LineupManager({ event, onSaved }: { event: CatalogEvent; onSaved: () => void }) {
+  const initial: LineupDraft[] = (event.lineup ?? []).map((l) => ({ user: l.user, role: l.role, status: l.status }));
+  const [lineup, setLineup] = useState<LineupDraft[]>(initial);
+  const [busy, setBusy] = useState(false);
+  const toast = useToast();
+  const key = (ls: LineupDraft[]) => ls.map((d) => `${d.user.id}:${d.role}`).join();
+  const changed = key(lineup) !== key(initial);
+
+  async function handleSave() {
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/events/${event.id}/lineup`, { method: "PUT", body: JSON.stringify({ entries: lineupPayload(lineup) }) });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === "string" ? data.error : "Could not save lineup");
+      }
+      toast.success("Lineup saved. Anyone new has been invited.");
+      onSaved();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 pb-3 mb-1 border-b border-line-soft">
+      <p className="text-[11px] uppercase tracking-widest text-ink-3">Lineup</p>
+      <LineupEditor value={lineup} onChange={setLineup} />
+      {changed && (
+        <button onClick={handleSave} disabled={busy} className="self-start rounded-lg bg-red px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+          {busy ? "Saving…" : "Save lineup"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function EventCatalogPage() {
   const toast = useToast();
   const [events, setEvents] = useState<CatalogEvent[] | null>(null);
@@ -413,6 +454,9 @@ export default function EventCatalogPage() {
                       >
                         {isManaging ? "Close" : "Manage"}
                       </button>
+                      <Link href={`/profile/catalog/events/${ev.id}/dashboard`} className="text-xs text-red-soft font-semibold">
+                        Dashboard
+                      </Link>
                       <Link href={`/profile/catalog/events/${ev.id}/checkin`} className="text-xs text-red-soft font-semibold">
                         Check in
                       </Link>
@@ -425,6 +469,7 @@ export default function EventCatalogPage() {
                 {isManaging && (
                   <div className="mt-2 ml-[52px] pl-3 border-l border-line-soft flex flex-col">
                     <EventEditor event={ev} onSaved={load} />
+                    <LineupManager key={`lineup-${ev.id}`} event={ev} onSaved={load} />
                     <div className="flex flex-col divide-y divide-line-soft">
                       {ev.tiers.map((tier) => (
                         <TierRow key={tier.productId} eventId={ev.id} tier={tier} onChanged={load} />

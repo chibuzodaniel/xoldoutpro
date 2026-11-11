@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { MerchPurchaseForm } from "@/components/product/MerchPurchaseForm";
-import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { ProductHero, HeroPrice, HeroMeta, HeroDescription } from "@/components/product/detail/ProductHero";
 import { buildOgMetadata } from "@/lib/og";
+import { MerchGallery } from "@/components/merch/MerchGallery";
 import { Price } from "@/components/currency/CurrencyProvider";
 
 // Public product data — cache and revalidate in the background instead of
@@ -56,25 +56,15 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
   return (
     <ProductHero
       image={primaryImage}
-      gallery={
-        gallery.length > 0 ? (
-          // Raw, uncropped uploads (galleryImageUrls has no ladder), so these
-          // still go through the image optimizer.
-          <div className="mt-3 flex gap-2 overflow-x-auto [scrollbar-width:none]">
-            {gallery.map((url) => (
-              <div key={url} className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-surface-2">
-                <ArtworkImage src={url} alt={product.title} sizes="64px" className="object-cover" />
-              </div>
-            ))}
-          </div>
-        ) : null
-      }
+      // Photo gallery with slideshow and zoom viewer (explicit ask, 2026-11-11).
+      media={<MerchGallery images={[primaryImage, ...gallery].filter(Boolean)} title={product.title} />}
       chip="Merch"
       title={product.title}
       creator={{ ...product.creator, verificationBadges: product.creator.verificationBadges as string[] }}
       creatorId={product.creatorId}
       share={{ path: `/m/${product.id}`, text: `${product.title} — ${product.creator.displayName} on XOLDOUT`, chatShare: { type: "PRODUCT", id: product.id } }}
       report={{ targetType: "PRODUCT", targetId: product.id }}
+      editHref={`/profile/catalog/edit/${product.id}`}
     >
       <HeroPrice
         price={<Price kobo={product.priceKobo} freeLabel="Free" />}

@@ -8,7 +8,8 @@ import { useOwnedProducts } from "@/components/product/OwnedBadges";
 import { ProductCard, type ProductCardData } from "@/components/product/ProductCard";
 import { EventCard, type EventCardData } from "@/components/product/EventCard";
 import { BottomSheet } from "@/components/ui/BottomSheet";
-import { useToast } from "@/components/ui/ToastProvider";
+import { PlayProgressRing } from "@/components/player/PlayProgressRing";
+import { ProductShareSheet } from "@/components/product/ProductShareSheet";
 
 // "On XOLDOUT" on a profile (design/v2-prototype, 2026-11-09): Music /
 // Events / Merch tabs; music as 2-across cards with a play button and a
@@ -45,28 +46,25 @@ function SongCard({ product: p, queue }: { product: ShowcaseProduct; queue: Play
   const owned = useOwnedProducts().has(p.id);
   const track = toTrack(p);
   const playing = track && player.current?.trackId === track.trackId && player.isPlaying;
-  const toast = useToast();
   // Options sheet (design/v2-prototype "Options for <title>").
   const [menuOpen, setMenuOpen] = useState(false);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const row = "flex w-full items-center px-5 py-4 text-left text-[16px] font-semibold hover:bg-surface-2";
 
-  async function share() {
+  // Share opens the Post to Socials / copy link sheet first (2026-11-11).
+  const [shareOpen, setShareOpen] = useState(false);
+  function share() {
     setMenuOpen(false);
-    const url = `${window.location.origin}${hrefFor(p)}`;
-    try {
-      if (navigator.share) await navigator.share({ title: p.title, text: `${p.title} by ${p.creator.displayName} on XOLDOUT`, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-    } catch {
-      // Share sheet dismissed.
-    }
+    setShareOpen(true);
   }
 
   return (
     <div className="overflow-hidden rounded-2xl border border-line-soft bg-surface">
+      <ProductShareSheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        item={{ type: "product", id: p.id, label: p.type === "RELEASE" ? "Music" : p.type === "BEAT" ? "Beat" : "Merch", title: p.title, subtitle: p.creator.displayName, imageUrl: imageFor(p), path: hrefFor(p), shareText: `${p.title} by ${p.creator.displayName} on XOLDOUT` }}
+      />
       <div className="relative aspect-square bg-gradient-to-br from-red/50 to-black">
         <Link href={hrefFor(p)} aria-label={p.title} className="absolute inset-0">
           <ArtworkImage src={imageFor(p)} alt={p.title} sizes="(max-width: 768px) 50vw, 240px" unoptimized className="object-cover" />
@@ -78,6 +76,7 @@ function SongCard({ product: p, queue }: { product: ShowcaseProduct; queue: Play
             aria-label={playing ? `Pause ${p.title}` : `Play ${p.title}`}
             className="absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-white text-black shadow-lg"
           >
+            <PlayProgressRing trackId={track.trackId} />
             {playing ? (
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor" aria-hidden>
                 <rect x="6" y="5" width="4" height="14" rx="1" />

@@ -10,6 +10,10 @@ export type EventCardData = {
   coverImageLadder: unknown;
   startsAt: Date;
   tiers: { priceKobo: number; stockPolicy: { cap: number | null; sold: number; soldOutAt: Date | null } | null }[];
+  // Profile Events list (2026-11-11): where it is, and the profile owner's role when they perform rather than host.
+  venue?: string | null;
+  isVirtual?: boolean;
+  role?: string | null;
 };
 
 function formatDate(d: Date) {
@@ -31,6 +35,9 @@ export function EventCard({ event }: { event: EventCardData }) {
         {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
         <ArtworkImage src={cover} alt={event.title} sizes="33vw" unoptimized className="object-cover" />
 
+        {event.role && (
+          <span className="absolute bottom-1.5 left-1.5 rounded-full bg-red px-2 py-[3px] text-[10px] font-bold uppercase tracking-wide text-white">{event.role}</span>
+        )}
         <span className="absolute left-1.5 top-1.5 rounded-full bg-black/55 backdrop-blur-sm px-2 py-[3px] text-[10px] font-semibold uppercase tracking-wide text-white">
           {formatDate(event.startsAt)}
         </span>
@@ -44,6 +51,9 @@ export function EventCard({ event }: { event: EventCardData }) {
         )}
       </div>
       <p className="text-xs font-semibold mt-1.5 line-clamp-1">{event.title}</p>
+      {(event.venue !== undefined || event.isVirtual !== undefined) && (
+        <p className="text-[11px] text-ink-3 line-clamp-1">{event.isVirtual ? "Online event" : (event.venue ?? "Venue TBA")}</p>
+      )}
       <div className="flex items-center justify-between mt-0.5">
         <span className="text-[12px] font-serif">
           {minPriceKobo === 0 ? "Free" : <>From <Price kobo={minPriceKobo} /></>}

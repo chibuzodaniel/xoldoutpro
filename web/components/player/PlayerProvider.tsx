@@ -27,6 +27,7 @@ type RepeatMode = "off" | "all" | "one";
 type AudioUrlData = {
   url: string;
   entitled: boolean;
+  subscribed?: boolean;
   previewStartSec: number | null;
   previewEndSec: number | null;
   // The track's real waveform for the vinyl player's scrubber (lib/audio/waveformLink.ts).
@@ -51,6 +52,8 @@ type PlayerState = {
   shuffled: boolean;
   expanded: boolean;
   entitled: boolean;
+  /** Bought (or the artist's own): the only case the vinyl player opens (explicit ask, 2026-11-11). */
+  owned: boolean;
   previewStartSec: number | null;
   previewEndSec: number | null;
   waveformSource: WaveformSource | null;
@@ -73,6 +76,8 @@ type PlayerState = {
   cycleRepeat: () => void;
   toggleShuffle: () => void;
   setExpanded: (v: boolean) => void;
+  /** Stop and hide the now-playing bar. */
+  close: () => void;
   next: () => void;
   previous: () => void;
   setVolume: (v: number) => void;
@@ -110,6 +115,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const [shuffled, setShuffled] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [entitled, setEntitled] = useState(true);
+  const [owned, setOwned] = useState(false);
   const [previewStartSec, setPreviewStartSec] = useState<number | null>(null);
   const [previewEndSec, setPreviewEndSec] = useState<number | null>(null);
   const [waveformSource, setWaveformSource] = useState<WaveformSource | null>(null);
@@ -172,6 +178,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const data: AudioUrlData = {
       url: raw.url,
       entitled: raw.entitled,
+      subscribed: Boolean(raw.subscribed),
       previewStartSec: raw.previewStartSec,
       previewEndSec: raw.previewEndSec,
       peaksUrl: raw.peaksUrl,
@@ -184,6 +191,17 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return data;
   }, []);
 
+  const close = useCallback(() => {
+    playTokenRef.current++; // cancels a play() still loading
+    const audio = audioRef.current;
+    if (audio) audio.pause();
+    setIsPlaying(false);
+    setExpanded(false);
+    setCurrent(null);
+    setQueue([]);
+    setQueueIndex(0);
+  }, []);
+
   const play = useCallback(async (track: PlayableTrack, queueArg?: PlayableTrack[]) => {
     const myToken = ++playTokenRef.current;
     const q = queueArg && queueArg.length > 0 ? queueArg : [track];
@@ -194,6 +212,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     setCurrent(track);
     setWaveformSource(null);
     setLoading(true);
+    // Unknown until the server answers; previews never open the vinyl player.
+    setOwned(false);
     try {
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
@@ -218,6 +238,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         if (localArt && myToken === playTokenRef.current) setCurrent((cur) => (cur?.trackId === track.trackId ? { ...cur, artworkUrl: localArt } : cur));
         objectUrlRef.current = offlineUrl;
         setEntitled(true);
+        setOwned(true); // only purchases can be downloaded
         setPreviewStartSec(null);
         setPreviewEndSec(null);
         audio.src = offlineUrl;
@@ -231,6 +252,10 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
       const data = await fetchAudioUrl(track);
       if (myToken !== playTokenRef.current) return;
       setEntitled(data.entitled);
+      // A catalog subscription streams the full song but isn't a purchase.
+      const isOwned = data.entitled && !data.subscribed;
+      setOwned(isOwned);
+      if (!isOwned) setExpanded(false);
       setPreviewStartSec(data.previewStartSec);
       setPreviewEndSec(data.previewEndSec);
       setWaveformSource(
@@ -668,6 +693,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         shuffled,
         expanded,
         entitled,
+        owned,
         previewStartSec,
         previewEndSec,
         waveformSource,
@@ -683,6 +709,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         cycleRepeat,
         toggleShuffle,
         setExpanded,
+        close,
         next,
         previous,
         setVolume,

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-function ShareIcon({ className = "h-4 w-4" }: { className?: string }) {
+export function ShareIcon({ className = "h-4 w-4" }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M12 3v12" strokeLinecap="round" />
@@ -27,6 +27,7 @@ export function ShareButton({
   label = "Share to Fans",
   className = "bg-red text-white",
   variant = "pill",
+  iconOnly = false,
 }: {
   title: string;
   text: string;
@@ -36,6 +37,8 @@ export function ShareButton({
   // "outline" matches the small bordered buttons on profile pages
   // (Insights / Wallet) instead of the big red product-page pill.
   variant?: "pill" | "outline";
+  /** Round icon button (profile cover); `label` becomes the accessible name. */
+  iconOnly?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -66,11 +69,13 @@ export function ShareButton({
       className={
         variant === "outline"
           ? "shrink-0 flex items-center gap-1.5 rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink-2"
-          : `shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold ${className}`
+          : iconOnly
+            ? className
+            : `shrink-0 flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold ${className}`
       }
     >
-      <ShareIcon className={variant === "outline" ? "h-3.5 w-3.5" : "h-4 w-4"} />
-      {copied ? "Copied" : label}
+      <ShareIcon className={iconOnly ? "h-5 w-5" : variant === "outline" ? "h-3.5 w-3.5" : "h-4 w-4"} />
+      {iconOnly ? null : copied ? "Copied" : label}
     </button>
   );
 }

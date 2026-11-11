@@ -11,3 +11,21 @@ export function isWithinEditWindow(publishedAt: Date | string | null): boolean {
   const publishedMs = typeof publishedAt === "string" ? new Date(publishedAt).getTime() : publishedAt.getTime();
   return Date.now() - publishedMs < EDIT_WINDOW_HOURS * 60 * 60 * 1000;
 }
+
+// One-time upgrade edit (explicit ask, 2026-11-11): listings published before
+// this date get one more chance to change name, price, cover and description
+// after their window closed. The first such save stamps Product.upgradeEditAt
+// and opens a fresh window of the same length; then it locks for good. Newer
+// listings keep the normal window only.
+export const UPGRADE_EDIT_CUTOFF = new Date("2026-11-12T00:00:00Z");
+
+export type ListingEditState = "open" | "upgrade" | "closed";
+
+export function listingEditState(publishedAt: Date | string | null, upgradeEditAt: Date | string | null): ListingEditState {
+  if (isWithinEditWindow(publishedAt)) return "open";
+  if (!publishedAt) return "closed";
+  const published = typeof publishedAt === "string" ? new Date(publishedAt) : publishedAt;
+  if (published >= UPGRADE_EDIT_CUTOFF) return "closed";
+  if (!upgradeEditAt) return "upgrade";
+  return isWithinEditWindow(upgradeEditAt) ? "open" : "closed";
+}

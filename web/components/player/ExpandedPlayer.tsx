@@ -133,6 +133,7 @@ export function ExpandedPlayer() {
     repeatMode,
     shuffled,
     expanded,
+    owned,
     entitled,
     previewStartSec,
     previewEndSec,
@@ -155,7 +156,9 @@ export function ExpandedPlayer() {
   const [showQueue, setShowQueue] = useState(false);
   const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
 
-  if (!expanded || !current) return null;
+  // The vinyl player is for people who bought the song (explicit ask,
+  // 2026-11-11); a preview is just the play button where it was started.
+  if (!expanded || !current || !owned) return null;
 
   // A song without lyrics never strands the player on an empty Lyrics tab.
   const activeTab = tab === "lyrics" && !current.lyricsText ? "comments" : tab;

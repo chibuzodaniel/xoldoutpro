@@ -10,6 +10,7 @@ import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { useToast } from "@/components/ui/ToastProvider";
 import { useRequireCreatorPlan } from "@/lib/useRequireCreatorPlan";
+import { LineupEditor, lineupPayload, type LineupDraft } from "@/components/event/LineupEditor";
 
 type TierDraft = { localId: string; name: string; priceNaira: string; hasCap: boolean; capValue: string };
 
@@ -37,6 +38,7 @@ export default function CreateEventPage() {
   const [coverCropFile, setCoverCropFile] = useState<File | null>(null);
 
   const [tiers, setTiers] = useState<TierDraft[]>([newTier("General")]);
+  const [lineup, setLineup] = useState<LineupDraft[]>([]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -93,6 +95,7 @@ export default function CreateEventPage() {
         startsAt: new Date(startsAt).toISOString(),
         endsAt: endsAt ? new Date(endsAt).toISOString() : undefined,
         tiers: parsedTiers,
+        lineup: lineupPayload(lineup),
       };
 
       const res = await apiFetch("/api/events", { method: "POST", body: JSON.stringify(payload) });
@@ -100,7 +103,7 @@ export default function CreateEventPage() {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === "string" ? data.error : "Could not publish event");
       }
-      toast.success("Event published.");
+      toast.success(lineup.length > 0 ? "Event published. Everyone on the lineup has been invited." : "Event published.");
       router.push("/profile/catalog/events");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
@@ -310,6 +313,11 @@ export default function CreateEventPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label className="text-[12px] uppercase tracking-widest text-ink-3">Lineup (optional)</label>
+          <LineupEditor value={lineup} onChange={setLineup} />
         </div>
 
         <button

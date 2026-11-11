@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -23,6 +23,39 @@ type SongComment = {
   author: Author;
   myVote: number;
 };
+
+/** Where a comment list lives: a song/beat/product, or a Socials post (2026-11-11). Same UI for both. */
+type CommentsApi = {
+  list: (qs: URLSearchParams) => string;
+  create: string;
+  createBody: (body: string, parentId?: string) => Record<string, unknown>;
+  replies: (id: string) => string;
+  vote: (id: string) => string;
+  remove: (id: string) => string;
+};
+
+function songApi(kind: "track" | "beat" | "product", trackId: string): CommentsApi {
+  return {
+    list: (qs) => `/api/song-comments?${new URLSearchParams({ kind, trackId, ...Object.fromEntries(qs) })}`,
+    create: "/api/song-comments",
+    createBody: (body, parentId) => ({ kind, trackId, body, ...(parentId ? { parentId } : {}) }),
+    replies: (id) => `/api/song-comments/${id}/replies`,
+    vote: (id) => `/api/song-comments/${id}/vote`,
+    remove: (id) => `/api/song-comments/${id}`,
+  };
+}
+
+function postApi(postId: string): CommentsApi {
+  const base = `/api/posts/${postId}/comments`;
+  return {
+    list: (qs) => `${base}?${new URLSearchParams({ v: "2", ...Object.fromEntries(qs) })}`,
+    create: base,
+    createBody: (body, parentId) => ({ body, ...(parentId ? { parentId } : {}) }),
+    replies: (id) => `${base}/${id}/replies`,
+    vote: (id) => `${base}/${id}/vote`,
+    remove: (id) => `${base}/${id}`,
+  };
+}
 
 function timeAgo(iso: string) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
@@ -247,16 +280,14 @@ function CommentRow({
 
 function Thread({
   comment,
-  kind,
-  trackId,
+  api,
   creatorId,
   canDeleteAll,
   onVote,
   onDeleted,
 }: {
   comment: SongComment;
-  kind: "track" | "beat" | "product";
-  trackId: string;
+  api: CommentsApi;
   creatorId: string | null;
   canDeleteAll: boolean;
   onVote: (c: SongComment, value: number) => void;
@@ -270,7 +301,7 @@ function Thread({
   const replyCount = replies ? replies.length : comment.replyCount;
 
   async function loadReplies() {
-    const res = await apiFetch(`/api/song-comments/${comment.id}/replies`);
+    const res = await apiFetch(api.replies(comment.id));
     if (!res.ok) return toast.error("Couldn't load replies.");
     setReplies((await res.json()).replies);
   }
@@ -282,10 +313,7 @@ function Thread({
   }
 
   async function postReply(body: string) {
-    const res = await apiFetch(`/api/song-comments`, {
-      method: "POST",
-      body: JSON.stringify({ kind, trackId, body, parentId: replyTo?.id ?? comment.id }),
-    });
+    const res = await apiFetch(api.create, { method: "POST", body: JSON.stringify(api.createBody(body, replyTo?.id ?? comment.id)) });
     if (!res.ok) {
       toast.error("Couldn't post your reply. Try again.");
       return false;
@@ -310,7 +338,7 @@ function Thread({
   }
 
   async function deleteReply(c: SongComment) {
-    const res = await apiFetch(`/api/song-comments/${c.id}`, { method: "DELETE" });
+    const res = await apiFetch(api.remove(c.id), { method: "DELETE" });
     if (!res.ok) return toast.error("Couldn't delete that reply.");
     setReplies((cur) => cur?.filter((r) => r.id !== c.id) ?? cur);
   }
@@ -367,12 +395,15 @@ function Thread({
 export function SongComments({
   kind,
   trackId,
+  postId,
   listVisible,
   onPosted,
   layout = "inline",
 }: {
-  kind: "track" | "beat" | "product";
-  trackId: string;
+  kind?: "track" | "beat" | "product";
+  trackId?: string;
+  /** Socials post comments instead of a song's (same UI, /api/posts/[id]/comments). */
+  postId?: string;
   /** "sheet": the list scrolls and the composer sits pinned below it (feed comments sheet). */
   layout?: "inline" | "sheet";
   /** false while the Lyrics tab is showing: only the composer renders. */
@@ -388,11 +419,14 @@ export function SongComments({
   const [nextOffset, setNextOffset] = useState<number | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const loadedKey = useRef<string | null>(null);
+  const [canModerate, setCanModerate] = useState(false);
+  const sourceKey = postId ? `post:${postId}` : `${kind}:${trackId}`;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilt only when the source changes
+  const api = useMemo(() => (postId ? postApi(postId) : songApi(kind ?? "track", trackId ?? "")), [sourceKey]);
 
   const load = useCallback(
     async (offset: number) => {
-      const qs = new URLSearchParams({ kind, trackId, sort, offset: String(offset) });
-      const res = await apiFetch(`/api/song-comments?${qs}`);
+      const res = await apiFetch(api.list(new URLSearchParams({ sort, offset: String(offset) })));
       if (!res.ok) {
         if (offset === 0) setComments([]);
         return;
@@ -403,22 +437,23 @@ export function SongComments({
       if (offset === 0) {
         setTotal(data.total ?? 0);
         setCreatorId(data.creatorId ?? null);
+        setCanModerate(Boolean(data.canModerate));
       }
     },
-    [kind, trackId, sort],
+    [api, sort],
   );
 
   // Fetch once per song + sort, and only once the list is actually on screen.
   useEffect(() => {
-    const key = `${kind}:${trackId}:${sort}`;
+    const key = `${sourceKey}:${sort}`;
     if (!listVisible || loadedKey.current === key) return;
     loadedKey.current = key;
     setComments(null);
     load(0);
-  }, [kind, trackId, sort, listVisible, load]);
+  }, [sourceKey, sort, listVisible, load]);
 
   async function postComment(body: string) {
-    const res = await apiFetch(`/api/song-comments`, { method: "POST", body: JSON.stringify({ kind, trackId, body }) });
+    const res = await apiFetch(api.create, { method: "POST", body: JSON.stringify(api.createBody(body)) });
     if (!res.ok) {
       toast.error(res.status === 401 ? "Sign in to comment." : "Couldn't post your comment. Try again.");
       return false;
@@ -435,7 +470,7 @@ export function SongComments({
     const before = c;
     const optimistic = { myVote: value, likeCount: Math.max(0, c.likeCount + (value === 1 ? 1 : 0) - (c.myVote === 1 ? 1 : 0)) };
     setComments((cur) => cur?.map((x) => (x.id === c.id ? { ...x, ...optimistic } : x)) ?? cur);
-    const res = await apiFetch(`/api/song-comments/${c.id}/vote`, { method: "POST", body: JSON.stringify({ value }) });
+    const res = await apiFetch(api.vote(c.id), { method: "POST", body: JSON.stringify({ value }) });
     if (!res.ok) {
       setComments((cur) => cur?.map((x) => (x.id === c.id ? { ...x, myVote: before.myVote, likeCount: before.likeCount } : x)) ?? cur);
       toast.error("Couldn't save that. Try again.");
@@ -443,7 +478,7 @@ export function SongComments({
   }
 
   async function remove(c: SongComment) {
-    const res = await apiFetch(`/api/song-comments/${c.id}`, { method: "DELETE" });
+    const res = await apiFetch(api.remove(c.id), { method: "DELETE" });
     if (!res.ok) return toast.error("Couldn't delete that comment.");
     setComments((cur) => cur?.filter((x) => x.id !== c.id) ?? cur);
     setTotal((t) => Math.max(0, t - 1 - c.replyCount));
@@ -456,7 +491,7 @@ export function SongComments({
     setLoadingMore(false);
   }
 
-  const canDeleteAll = !!appUser && (appUser.isModerator || appUser.id === creatorId);
+  const canDeleteAll = !!appUser && (appUser.isModerator || appUser.id === creatorId || canModerate);
 
   const list = listVisible && (
         <>
@@ -487,8 +522,7 @@ export function SongComments({
                 <Thread
                   key={c.id}
                   comment={c}
-                  kind={kind}
-                  trackId={trackId}
+                  api={api}
                   creatorId={creatorId}
                   canDeleteAll={canDeleteAll}
                   onVote={vote}

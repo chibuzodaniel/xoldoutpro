@@ -15,7 +15,7 @@ export function FollowButton({
   initialFollowing,
 }: {
   targetUserId: string;
-  size?: "default" | "compact";
+  size?: "default" | "compact" | "pill";
   initialFollowing?: boolean;
 }) {
   const { appUser } = useAuth();
@@ -42,6 +42,26 @@ export function FollowButton({
       setFollowing(!next);
       toast.error(next ? "Couldn't follow. Try again." : "Couldn't unfollow. Try again.");
     }
+  }
+
+  // Profile card (v2): big red "+ Follow" pill; "Following" turns outlined.
+  if (size === "pill") {
+    return (
+      <button
+        onClick={toggle}
+        disabled={following === null}
+        className={`flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-bold transition-colors duration-150 ${
+          following ? "border border-white/40 text-white" : "bg-red text-white shadow-[0_6px_20px_rgba(225,11,44,0.35)] hover:bg-red-soft"
+        }`}
+      >
+        {!following && (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+            <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+          </svg>
+        )}
+        {following ? "Following" : "Follow"}
+      </button>
+    );
   }
 
   return (

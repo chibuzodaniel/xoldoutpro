@@ -56,15 +56,6 @@ export function ReleaseTags({
   const windowOpen = isWithinEditWindow(publishedAt);
   const closesAt = publishedAt ? new Date(new Date(publishedAt).getTime() + EDIT_WINDOW_HOURS * 3600_000) : null;
 
-  function startEditing() {
-    setDraftGenres(genres);
-    setDraftTitle(title);
-    setDraftDescription(description ?? "");
-    setDraftPrice(String(priceKobo / 100));
-    setCoverPreview(artworkUrl);
-    setNewLadder(null);
-    setEditing(true);
-  }
 
   async function handleCover(file: File) {
     setCoverPreview(URL.createObjectURL(file));
@@ -220,16 +211,16 @@ export function ReleaseTags({
       ))}
       {isCreator && genres.length === 0 && <span className="text-xs text-ink-3 mr-1">Add a genre so fans can find this in the Music tab.</span>}
       {isCreator && (
-        <button
-          type="button"
-          onClick={startEditing}
+        // Opens the full Edit release screen (explicit ask, 2026-11-11).
+        <Link
+          href={`/profile/catalog/edit/${productId}`}
           className="flex items-center gap-1.5 rounded-full border border-red/60 px-3 py-1 text-[11px] font-semibold text-red-soft hover:border-red"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-3 w-3" aria-hidden>
             <path d="M4 20h4L19 9l-4-4L4 16v4z" strokeLinejoin="round" />
           </svg>
           Edit release
-        </button>
+        </Link>
       )}
     </div>
   );

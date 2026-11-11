@@ -1,12 +1,13 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { usePlayer } from "./PlayerProvider";
 import { useKeyboardOpen } from "@/lib/useKeyboardOpen";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 
 export function MiniPlayer() {
-  const { current, isPlaying, togglePlay, setExpanded, loading } = usePlayer();
+  const { current, isPlaying, togglePlay, setExpanded, loading, owned, close } = usePlayer();
+  const router = useRouter();
   const pathname = usePathname();
   const keyboardOpen = useKeyboardOpen();
   if (!current) return null;
@@ -19,7 +20,14 @@ export function MiniPlayer() {
 
   return (
     <div className="flex items-center gap-3 border-t border-line bg-surface px-3 py-2">
-      <button onClick={() => setExpanded(true)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+      {/* Bought songs open the vinyl player; a preview opens the song's page (2026-11-11). */}
+      <button
+        onClick={() => {
+          if (owned) return setExpanded(true);
+          if (current.productId) router.push(`/${current.kind === "beat" ? "b" : "r"}/${current.productId}`);
+        }}
+        className="flex items-center gap-3 flex-1 min-w-0 text-left"
+      >
         <div className="relative h-9 w-9 rounded bg-surface-2 shrink-0 overflow-hidden">
           {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
           <ArtworkImage src={current.artworkUrl} alt={current.title} sizes="36px" unoptimized className="object-cover" />
@@ -39,6 +47,12 @@ export function MiniPlayer() {
       </button>
       <button onClick={togglePlay} className="text-lg text-white px-2" aria-label={isPlaying ? "Pause" : "Play"}>
         {loading ? "…" : isPlaying ? "❚❚" : "▶"}
+      </button>
+      {/* Stop and hide the bar (explicit ask, 2026-11-11). */}
+      <button onClick={close} className="flex h-9 w-9 items-center justify-center rounded-full text-ink-3 hover:text-ink" aria-label="Close player">
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+          <path d="M6 6l12 12M18 6L6 18" strokeLinecap="round" />
+        </svg>
       </button>
     </div>
   );

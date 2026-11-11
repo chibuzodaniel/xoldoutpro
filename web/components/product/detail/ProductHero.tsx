@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
-import { ShareButton } from "@/components/ui/ShareButton";
+import { ProductShareButton } from "@/components/product/ProductShareSheet";
 import { ProductLikeButton } from "@/components/product/detail/ProductLikeButton";
 import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { ReportButton } from "@/components/trust/ReportButton";
@@ -23,6 +23,7 @@ export function ProductHero({
   aspect = "aspect-square",
   overlay,
   gallery,
+  media,
   chip,
   title,
   creator,
@@ -30,6 +31,7 @@ export function ProductHero({
   creatorId,
   share,
   report,
+  editHref,
   children,
 }: {
   image: string | null | undefined;
@@ -38,6 +40,8 @@ export function ProductHero({
   overlay?: React.ReactNode;
   // extra photos under the artwork (merch)
   gallery?: React.ReactNode;
+  /** Replaces the artwork column entirely (merch photo gallery). */
+  media?: React.ReactNode;
   chip: string;
   title: string;
   creator: Person;
@@ -46,6 +50,8 @@ export function ProductHero({
   creatorId: string;
   share: { path: string; text: string; chatShare: { type: "PRODUCT" | "EVENT"; id: string } };
   report: { targetType: "PRODUCT" | "EVENT"; targetId: string };
+  /** Owner's Edit listing link (beats, merch). */
+  editHref?: string;
   children?: React.ReactNode;
 }) {
   return (
@@ -57,6 +63,7 @@ export function ProductHero({
       {/* Phones: artwork above the details. Wide screens: artwork on the left
           (stays in view while scrolling), details and buying on the right. */}
       <div className="md:grid md:grid-cols-[minmax(0,460px)_minmax(0,1fr)] md:gap-10 md:px-6 lg:grid-cols-[minmax(0,520px)_minmax(0,1fr)] lg:gap-14">
+      {media ?? (
       <div className="px-4 pt-4 md:sticky md:top-4 md:self-start md:px-0">
         <div className={`relative ${aspect} w-full overflow-hidden rounded-[28px] bg-gradient-to-br from-red/50 via-red-tint to-black`}>
           {/* Already a ladder rung (lib/images.ts) — see ProductCard for why `unoptimized`. */}
@@ -65,6 +72,7 @@ export function ProductHero({
         </div>
         {gallery}
       </div>
+      )}
 
       <div className="min-w-0 px-4 pt-5 md:max-w-2xl md:px-0 md:pt-4">
         <span className="inline-block rounded-full bg-red-tint px-3 py-1 text-[12px] font-bold uppercase tracking-[0.14em] text-red-soft">{chip}</span>
@@ -72,12 +80,19 @@ export function ProductHero({
           <h1 className="min-w-0 font-serif text-[32px] font-bold leading-[1.05] tracking-tight [overflow-wrap:anywhere] min-[380px]:text-[38px]">{title}</h1>
           <div className="flex shrink-0 items-start gap-2">
           {share.chatShare.type === "PRODUCT" && <ProductLikeButton productId={share.chatShare.id} />}
-          <ShareButton
-            title={title}
-            text={share.text}
-            path={share.path}
-            label="Share"
-            className="mt-1 shrink-0 border border-line bg-transparent text-ink px-4 py-2.5 text-[14px]"
+          {/* Share opens a sheet first: Post to Socials or copy/send the link (2026-11-11). */}
+          <ProductShareButton
+            item={{
+              type: share.chatShare.type === "EVENT" ? "event" : "product",
+              id: share.chatShare.id,
+              label: chip,
+              title,
+              subtitle: creator.displayName,
+              imageUrl: image,
+              path: share.path,
+              shareText: share.text,
+            }}
+            className="mt-1 border border-line bg-transparent px-4 py-2.5 text-[14px] text-ink"
           />
           </div>
         </div>
@@ -101,7 +116,7 @@ export function ProductHero({
             </span>
           )}
         </p>
-        <PublishedByYou creatorId={creatorId} />
+        <PublishedByYou creatorId={creatorId} editHref={editHref} />
 
         <div className="mt-2 flex items-center gap-4">
           <SendToChatButton share={share.chatShare} />

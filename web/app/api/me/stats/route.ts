@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
 
-    const [fans, musicReleases, beats, merch, events, salesAgg, pendingFanbaseRequests, pendingCollaborations] = await Promise.all([
+    const [fans, musicReleases, beats, merch, events, salesAgg, pendingFanbaseRequests, pendingCollaborations, subscribers] = await Promise.all([
       db.follow.count({ where: { followedId: user.id } }),
       db.product.count({ where: { creatorId: user.id, type: "RELEASE", status: { not: "DELETED" } } }),
       db.product.count({ where: { creatorId: user.id, type: "BEAT", status: { not: "DELETED" } } }),
@@ -24,10 +24,13 @@ export async function GET(req: NextRequest) {
       }),
       // Featured-artist requests waiting on this user (index: artistId, status).
       db.releaseCollaborator.count({ where: { artistId: user.id, status: "PENDING" } }),
+      // Active catalog subscribers (v2 profile card). Index-backed count.
+      db.catalogSubscription.count({ where: { creatorId: user.id, currentPeriodEnd: { gt: new Date() } } }),
     ]);
 
     return NextResponse.json({
       fans,
+      subscribers,
       sales: salesAgg._sum.sold ?? 0,
       catalog: { music: musicReleases, beats, events, merch },
       pendingFanbaseRequests,

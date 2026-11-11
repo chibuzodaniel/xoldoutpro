@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, getOptionalUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { archiveCommunity } from "@/lib/moderation/deletedContent";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -93,19 +94,24 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const postIdRows = await db.post.findMany({ where: { groupId: id }, select: { id: true } });
     const postIds = postIdRows.map((p) => p.id);
 
-    await db.$transaction([
-      db.pollVote.deleteMany({ where: { poll: { postId: { in: postIds } } } }),
-      db.poll.deleteMany({ where: { postId: { in: postIds } } }),
-      db.postLike.deleteMany({ where: { postId: { in: postIds } } }),
-      db.comment.deleteMany({ where: { postId: { in: postIds } } }),
-      db.report.deleteMany({ where: { postId: { in: postIds } } }),
-      db.post.deleteMany({ where: { groupId: id } }),
-      db.joinRequest.deleteMany({ where: { groupId: id } }),
-      db.membership.deleteMany({ where: { groupId: id } }),
-      db.communityChannel.deleteMany({ where: { groupId: id } }),
-      db.membershipPlan.deleteMany({ where: { groupId: id } }),
-      db.fanbaseGroup.delete({ where: { id } }),
-    ]);
+    await db.$transaction(
+      async (tx) => {
+        // Copy for the admin "Deleted content" panel first (lib/moderation/deletedContent.ts).
+        await archiveCommunity(tx, id, { userId: user.id, role: "OWNER" });
+        await tx.pollVote.deleteMany({ where: { poll: { postId: { in: postIds } } } });
+        await tx.poll.deleteMany({ where: { postId: { in: postIds } } });
+        await tx.postLike.deleteMany({ where: { postId: { in: postIds } } });
+        await tx.comment.deleteMany({ where: { postId: { in: postIds } } });
+        await tx.report.deleteMany({ where: { postId: { in: postIds } } });
+        await tx.post.deleteMany({ where: { groupId: id } });
+        await tx.joinRequest.deleteMany({ where: { groupId: id } });
+        await tx.membership.deleteMany({ where: { groupId: id } });
+        await tx.communityChannel.deleteMany({ where: { groupId: id } });
+        await tx.membershipPlan.deleteMany({ where: { groupId: id } });
+        await tx.fanbaseGroup.delete({ where: { id } });
+      },
+      { timeout: 20_000 },
+    );
 
     return NextResponse.json({ ok: true });
   } catch (err) {

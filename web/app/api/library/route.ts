@@ -9,7 +9,8 @@ export async function GET(req: NextRequest) {
     const { user } = await requireUser(req);
     const canDownload = await downloadsEnabled();
     const entitlements = await db.entitlement.findMany({
-      where: { userId: user.id, revokedAt: null },
+      // Purchases the buyer removed from their library stay owned but aren't listed.
+      where: { userId: user.id, revokedAt: null, hiddenAt: null },
       // Pinned items float to the top (most-recently-pinned first), then
       // everything else by purchase date as before.
       orderBy: [{ pinnedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
@@ -37,7 +38,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
-const patchSchema = z.object({ entitlementId: z.string().min(1), pinned: z.boolean() });
+const patchSchema = z
+  .object({ entitlementId: z.string().min(1), pinned: z.boolean().optional(), hidden: z.boolean().optional() })
+  .refine((b) => b.pinned !== undefined || b.hidden !== undefined, { message: "Nothing to change" });
 
 // Long-press "Pin"/"Unpin" (Library) — scoped to the requesting user's own
 // entitlement via the where clause below, not just the id, so one user can
@@ -45,10 +48,14 @@ const patchSchema = z.object({ entitlementId: z.string().min(1), pinned: z.boole
 export async function PATCH(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
-    const { entitlementId, pinned } = patchSchema.parse(await req.json());
+    const { entitlementId, pinned, hidden } = patchSchema.parse(await req.json());
     const result = await db.entitlement.updateMany({
       where: { id: entitlementId, userId: user.id },
-      data: { pinnedAt: pinned ? new Date() : null },
+      data: {
+        ...(pinned !== undefined ? { pinnedAt: pinned ? new Date() : null } : {}),
+        // "Remove from library" (2026-11-11) — the buyer's own list only.
+        ...(hidden !== undefined ? { hiddenAt: hidden ? new Date() : null } : {}),
+      },
     });
     if (result.count === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
     return NextResponse.json({ ok: true });

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getOptionalUser, requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { archiveAddOn } from "@/lib/moderation/deletedContent";
 import {
   addOnInputSchema,
   prepareAddOns,
@@ -74,6 +75,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     // their copy either way, and a stray file costs far less than a delete
     // that races a buyer's in-flight download.
     await db.$transaction(async (tx) => {
+      await archiveAddOn(tx, addOnId, id, { userId: user.id, role: "OWNER" });
       const removed = await tx.productAddOn.deleteMany({ where: { id: addOnId, productId: id } });
       if (removed.count > 0) await tx.product.update({ where: { id }, data: { addOnCount: { decrement: removed.count } } });
     });

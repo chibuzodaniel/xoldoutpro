@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { FallbackImg } from "@/components/ui/FallbackImg";
@@ -7,7 +8,7 @@ import { useOwnedProducts } from "@/components/product/OwnedBadges";
 import { usePlayer } from "@/components/player/PlayerProvider";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { FollowButton } from "@/components/profile/FollowButton";
-import { useToast } from "@/components/ui/ToastProvider";
+import { ProductShareSheet } from "@/components/product/ProductShareSheet";
 import type { FeedCardProduct } from "@/components/discover/FeedCard";
 
 // Charts rows (design/v2-prototype, 2026-11-09): big red rank, movement
@@ -61,7 +62,6 @@ export function ProductChartRow({
 }) {
   const owned = useOwnedProducts().has(p.id);
   const player = usePlayer();
-  const toast = useToast();
   const href = hrefFor(p);
   const image = imageFor(p);
   const soldOut = Boolean(p.stockPolicy?.soldOutAt);
@@ -73,21 +73,22 @@ export function ProductChartRow({
     else if (p.firstTrack) player.play({ ...common, trackId: p.firstTrack.id, title: p.firstTrack.title, lyricsText: p.firstTrack.lyricsText });
   }
 
-  async function share() {
-    const url = `${window.location.origin}${href}`;
-    try {
-      if (navigator.share) await navigator.share({ title: p.title, url });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-    } catch {
-      // dismissed
-    }
+  // Share opens the Post to Socials / copy link sheet first (2026-11-11).
+  const [shareOpen, setShareOpen] = useState(false);
+  function share() {
+    setShareOpen(true);
   }
+  const shareSheet = (
+    <ProductShareSheet
+      open={shareOpen}
+      onClose={() => setShareOpen(false)}
+      item={{ type: "product", id: p.id, label: p.type === "RELEASE" ? "Music" : p.type === "BEAT" ? "Beat" : "Merch", title: p.title, subtitle: p.creator.displayName, imageUrl: image, path: href, shareText: `${p.title} by ${p.creator.displayName} on XOLDOUT` }}
+    />
+  );
 
   return (
     <li className="flex gap-3 border-b border-line-soft py-4">
+      {shareSheet}
       <Rank rank={rank} movement={movement} />
       <div className="min-w-0 flex-1">
         <div className="flex gap-3">

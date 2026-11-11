@@ -8,6 +8,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { DmAvatar } from "@/components/messages/Avatar";
+import { ContactXoldout } from "@/components/support/ContactXoldout";
 import type { DmConversationRow, DmPerson } from "@/components/messages/types";
 
 // Direct messages inbox (explicit ask, 2026-10-04) — Inbox / Requests tabs,
@@ -90,6 +91,8 @@ export default function MessagesPage() {
         }
       />
       <div className="px-4">
+        {/* Official XOLDOUT account, pinned for everyone (2026-11-11). */}
+        <ContactXoldout className="mb-4" />
         {composing && (
           <div className="mb-5">
             <input

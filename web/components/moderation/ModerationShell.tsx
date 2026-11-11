@@ -26,6 +26,7 @@ import { VerificationQueuePanel } from "./VerificationQueuePanel";
 import { ReportsQueuePanel } from "./ReportsQueuePanel";
 import { ProductsPanel } from "./ProductsPanel";
 import { EventCommissionRecompute } from "./EventCommissionRecompute";
+import { DeletedContentPanel } from "./DeletedContentPanel";
 
 type NavItem = {
   id: string;
@@ -186,6 +187,8 @@ export function ModerationShell() {
         { id: "verifyGroup", label: "Verify group (legacy)", icon: "💬", panelKey: "verifyGroup", render: () => <VerifyGroupPanel /> },
         { id: "restoreAccount", label: "Restore account", icon: "♻️", panelKey: "restoreAccount", render: () => <RestoreAccountPanel /> },
         { id: "restoreEvent", label: "Restore event", icon: "🎟️", panelKey: "restoreEvent", render: () => <RestoreEventPanel /> },
+        // Explicit ask, 2026-11-11: deleted content is visible to super moderators only.
+        { id: "deletedContent", label: "Deleted content", icon: "🗑️", superOnly: true, render: () => <DeletedContentPanel /> },
       ],
     },
     {

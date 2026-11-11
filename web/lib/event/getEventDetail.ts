@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
+import { lineupSelect } from "@/lib/event/lineup";
 
 export async function getEventDetail(id: string) {
   const event = await db.event.findUnique({
     where: { id },
     include: {
       creator: { select: { handle: true, displayName: true } },
+      // v2: additive field, in order.
+      lineup: lineupSelect,
       // Deleted (permanent) and paused (creator-toggled, reversible — see
       // app/api/events/[id]/tiers/[tierId]'s PATCH) tiers are off sale:
       // exclude them from every consumer of this shared lookup (web's own

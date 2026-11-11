@@ -15,6 +15,7 @@ import { computeCreatorPlanCheckout } from "@/lib/commerce/creatorPlans";
 import { startProcessorCheckout } from "@/lib/commerce/processorCheckout";
 import { PAY_WHAT_YOU_WANT_MIN_KOBO, MIN_TIP_KOBO, MAX_TIP_KOBO } from "@/lib/commerce/constants";
 import { reserveVariant, confirmVariant, releaseVariant, variantLabel } from "@/lib/commerce/variants";
+import { assertTicketLimit, resolveEventDiscount, promoterCommissionFor, MarketplaceError } from "@/lib/event/marketplace";
 import { isExclusiveSnapshot, closeBeatAfterExclusive } from "@/lib/commerce/beatLicenses";
 
 
@@ -64,6 +65,8 @@ const bodySchema = z.object({
   // against EventPromoter below; a stale/invalid/self-referral code is
   // silently ignored rather than blocking checkout.
   promoCode: z.string().optional(),
+  // Event discount code typed by the buyer (2026-11-11). Automatic offers apply without one.
+  discountCode: z.string().trim().max(40).optional(),
   // Merch size/colour (MerchVariant) — required when the listing has variants.
   variantId: z.string().min(1).optional(),
   // Beat license tier (BeatLicense) and the buyer's agreement to its terms —
@@ -88,7 +91,7 @@ const MULTI_UNIT_TYPES = new Set(["EVENT", "MERCH"]);
 
 export async function POST(req: NextRequest) {
   try {
-    const { productId, tipCreatorId, shipping, isGift = false, guest, quantity, gateway, promoCode, payAmountKobo, tipKobo, tipOnly, variantId, licenseId, acceptedLicenseTerms } =
+    const { productId, tipCreatorId, shipping, isGift = false, guest, quantity, gateway, promoCode, discountCode, payAmountKobo, tipKobo, tipOnly, variantId, licenseId, acceptedLicenseTerms } =
       bodySchema.parse(await req.json());
     if (!tipOnly && !productId) return NextResponse.json({ error: "Missing product" }, { status: 400 });
     if (tipOnly && !productId && !tipCreatorId) return NextResponse.json({ error: "Who is this tip for?" }, { status: 400 });
@@ -292,12 +295,15 @@ export async function POST(req: NextRequest) {
     // (and any code on a non-EVENT product) are silently ignored, not an
     // error — a stale or copy-pasted-wrong link shouldn't block checkout.
     let promoterId: string | null = null;
+    let promoterTerms: { sharePercent: number } | null = null;
     if (promoCode && product.type === "EVENT" && product.ticketTier) {
       const promoter = await db.eventPromoter.findUnique({
         where: { code: promoCode },
       });
-      if (promoter && promoter.eventId === product.ticketTier.eventId && promoter.userId !== buyer.id) {
+      // Approved promoters only; never on their own purchase (2026-11-11).
+      if (promoter && promoter.status === "APPROVED" && promoter.eventId === product.ticketTier.eventId && promoter.userId !== buyer.id) {
         promoterId = promoter.id;
+        promoterTerms = { sharePercent: promoter.sharePercent };
       }
     }
 
@@ -305,6 +311,36 @@ export async function POST(req: NextRequest) {
     // quantity — "one package, one shipping cost" for items shipped together.
     // Snapshotted onto MerchOrderFulfillment so a later fee edit never
     // changes what a past buyer paid (same pattern as OrderItem.priceKobo).
+    // Events marketplace (2026-11-11): per-buyer ticket limits, then the
+    // discount (typed code or best automatic offer) — both enforced here.
+    let discountId: string | null = null;
+    let discountKobo = 0;
+    let promoterCommissionKobo: number | null = null;
+    if (product.type === "EVENT" && product.ticketTier) {
+      try {
+        await assertTicketLimit({ buyerId: buyer.id, eventId: product.ticketTier.eventId, tierProductId: productId, quantity });
+        const applied = await resolveEventDiscount({ eventId: product.ticketTier.eventId, tierProductId: productId, unitPriceKobo, quantity, code: discountCode });
+        if (applied) {
+          unitPriceKobo = applied.unitPriceKobo;
+          discountId = applied.discount.id;
+          discountKobo = applied.discountKobo;
+        }
+      } catch (err) {
+        if (err instanceof MarketplaceError) return NextResponse.json({ error: err.message }, { status: 400 });
+        throw err;
+      }
+      if (promoterId && promoterTerms) {
+        const ev = await db.event.findUnique({ where: { id: product.ticketTier.eventId }, select: { promoterPayType: true, promoterFlatKobo: true } });
+        promoterCommissionKobo = promoterCommissionFor({
+          payType: ev?.promoterPayType ?? "PERCENT",
+          sharePercent: promoterTerms.sharePercent,
+          flatKobo: ev?.promoterFlatKobo ?? 0,
+          ticketSubtotalKobo: unitPriceKobo * quantity,
+          quantity,
+        });
+      }
+    }
+
     const shippingFeeKobo = product.type === "MERCH" ? (product.merchItem?.shippingFeeKobo ?? 0) : 0;
     const baseKobo = unitPriceKobo * quantity + shippingFeeKobo;
     // Creator plans (DECISIONS.md): a BUYER_PAYS_FEE seller's service charge
@@ -359,6 +395,9 @@ export async function POST(req: NextRequest) {
               status: "PAID",
               isGift,
               promoterId,
+              promoterCommissionKobo,
+              discountId,
+              discountKobo,
               commissionOverrideKobo,
               items: {
                 create: {
@@ -433,6 +472,9 @@ export async function POST(req: NextRequest) {
           guestAccessToken,
           isGift,
           promoterId,
+          promoterCommissionKobo,
+          discountId,
+          discountKobo,
           commissionOverrideKobo,
           tipKobo,
           items: {

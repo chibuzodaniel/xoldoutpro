@@ -37,6 +37,7 @@ type PaymentForConfirm = {
     buyerId: string;
     isGift: boolean;
     promoterId: string | null;
+    promoterCommissionKobo?: number | null;
     commissionOverrideKobo: number | null;
     tipKobo: number;
     isTipOnly: boolean;
@@ -279,10 +280,13 @@ async function finalizeClaimedOrder(
     // `?promo=<code>` link). Looked up here, not trusted from any stale
     // client-supplied value, and only ever applied to a still-existing
     // EventPromoter row for the product actually being sold.
-    let promoter: { userId: string; sharePercent: number } | undefined;
+    let promoter: { userId: string; sharePercent: number; commissionKobo?: number | null } | undefined;
     if (payment.order.promoterId) {
       const promoterRow = await tx.eventPromoter.findUnique({ where: { id: payment.order.promoterId } });
-      if (promoterRow) promoter = { userId: promoterRow.userId, sharePercent: promoterRow.sharePercent };
+      // Never on the promoter's own purchase (also checked at checkout).
+      if (promoterRow && promoterRow.userId !== payment.order.buyerId) {
+        promoter = { userId: promoterRow.userId, sharePercent: promoterRow.sharePercent, commissionKobo: payment.order.promoterCommissionKobo };
+      }
     }
 
     // Featured artists with an accepted royalty split share this sale

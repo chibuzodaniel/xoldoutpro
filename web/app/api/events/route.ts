@@ -4,11 +4,14 @@ import { EVENT_TYPES } from "@/lib/discover/sectionFilters";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { assertCanPublish, recordProductsPublished, UploadCapError } from "@/lib/commerce/creatorPlans";
+import { lineupSchema, lineupEntriesSchema, lineupOwnerSelect, validateLineup, setLineup, notifyLineupAdded, LineupError } from "@/lib/event/lineup";
 
 const tierSchema = z.object({
   name: z.string().min(1).max(60),
   priceKobo: z.number().int().min(0),
   cap: z.number().int().positive().nullable(),
+  // Most of this ticket type one buyer can get (2026-11-11).
+  maxPerBuyer: z.number().int().min(1).max(100).nullable().optional(),
 });
 
 const createSchema = z.object({
@@ -23,6 +26,12 @@ const createSchema = z.object({
   startsAt: z.string().datetime(),
   endsAt: z.string().datetime().optional(),
   tiers: z.array(tierSchema).min(1).max(10),
+  // XOLDOUT accounts on the lineup, in order (v2). Optional.
+  lineupUserIds: lineupSchema.default([]),
+  // With roles (2026-11-11); preferred over lineupUserIds when sent.
+  lineup: lineupEntriesSchema.optional(),
+  // Most tickets one buyer can get for the whole event (2026-11-11).
+  maxPerBuyer: z.number().int().min(1).max(100).nullable().optional(),
 });
 
 // Each tier is its own Product (DECISIONS.md: deliberate deviation from the
@@ -33,8 +42,10 @@ export async function POST(req: NextRequest) {
     const { user } = await requireUser(req);
     const body = createSchema.parse(await req.json());
     await assertCanPublish(user, body.tiers.length);
+    const lineup = body.lineup ?? body.lineupUserIds.map((userId) => ({ userId, role: "ARTIST" as const }));
+    await validateLineup(lineup);
 
-    const event = await db.$transaction(async (tx) => {
+    const { full: event, invited: invitedEntries } = await db.$transaction(async (tx) => {
       const created = await tx.event.create({
         data: {
           creatorId: user.id,
@@ -46,6 +57,7 @@ export async function POST(req: NextRequest) {
           eventType: body.eventType,
           city: body.city || undefined,
           startsAt: new Date(body.startsAt),
+          maxPerBuyer: body.maxPerBuyer ?? null,
           endsAt: body.endsAt ? new Date(body.endsAt) : undefined,
           status: "PUBLISHED",
           publishedAt: new Date(),
@@ -62,22 +74,27 @@ export async function POST(req: NextRequest) {
             priceKobo: tier.priceKobo,
             status: "PUBLISHED",
             publishedAt: new Date(),
-            ticketTier: { create: { eventId: created.id, name: tier.name, order: i } },
+            ticketTier: { create: { eventId: created.id, name: tier.name, order: i, maxPerBuyer: tier.maxPerBuyer ?? null } },
             stockPolicy: { create: { cap: tier.cap } },
           },
         });
       }
 
-      return tx.event.findUniqueOrThrow({
+      const invited = await setLineup(tx, created.id, lineup, user.id);
+
+      const full = await tx.event.findUniqueOrThrow({
         where: { id: created.id },
         include: { tiers: { include: { product: { include: { stockPolicy: true } } }, orderBy: { order: "asc" } } },
       });
+      return { full, invited };
     });
     await recordProductsPublished(user.id, body.tiers.length);
+    notifyLineupAdded({ eventId: event.id, title: event.title, organiserId: user.id, organiserName: user.displayName, entries: invitedEntries });
 
     return NextResponse.json({ event }, { status: 201 });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
+    if (err instanceof LineupError) return NextResponse.json({ error: err.message }, { status: 400 });
     if (err instanceof UploadCapError) return NextResponse.json({ error: err.message, reason: err.reason }, { status: 403 });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });
     console.error(err);
@@ -91,6 +108,7 @@ export async function GET(req: NextRequest) {
     const events = await db.event.findMany({
       where: { creatorId: user.id },
       include: {
+        lineup: lineupOwnerSelect,
         tiers: {
           where: { product: { status: { not: "DELETED" } } },
           include: { product: { include: { stockPolicy: true } } },

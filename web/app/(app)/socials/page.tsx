@@ -162,7 +162,7 @@ function SocialsPageInner() {
                     : "Posts from artists you follow show up here once you start following someone."}
                 </p>
               ) : (
-                <div className="gap-3 md:columns-2 xl:columns-3 [&>*]:mb-3 [&>*]:break-inside-avoid">
+                <div className="-mx-4 border-t border-white/10 md:mx-0 md:columns-2 md:gap-3 md:border-t-0 xl:columns-3 md:[&>*]:mb-3 [&>*]:break-inside-avoid">
                   {posts.map((post) => (
                     <PostCard
                       key={post.id}

@@ -18,6 +18,8 @@ import {
 import { useToast } from "@/components/ui/ToastProvider";
 import { FeedCommentsSheet } from "@/components/discover/FeedCommentsSheet";
 import { FeedCardMenu } from "@/components/discover/FeedCardMenu";
+import { ProductShareSheet } from "@/components/product/ProductShareSheet";
+import { PlayProgressRing } from "@/components/player/PlayProgressRing";
 import { useHiddenItems } from "@/lib/hiddenItems";
 
 // v2 Discover feed card (design/v2-prototype): full-width artwork with the
@@ -208,22 +210,10 @@ export function FeedCard({
       });
   }
 
-  async function share() {
-    const url = `${window.location.origin}${href}`;
-    try {
-      if (navigator.share)
-        await navigator.share({
-          title: p.title,
-          text: `${p.title} by ${p.creator.displayName} on XOLDOUT`,
-          url,
-        });
-      else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-    } catch {
-      // Share sheet dismissed — nothing to do.
-    }
+  // Share opens a sheet first: Post to Socials or copy/send the link (2026-11-11).
+  const [shareOpen, setShareOpen] = useState(false);
+  function share() {
+    setShareOpen(true);
   }
 
   const badge = trending
@@ -261,6 +251,22 @@ export function FeedCard({
       href={href}
       creator={{ id: p.creatorId, handle: p.creator.handle, displayName: p.creator.displayName }}
       onShare={share}
+    />
+  );
+  const shareSheet = (
+    <ProductShareSheet
+      open={shareOpen}
+      onClose={() => setShareOpen(false)}
+      item={{
+        type: "product",
+        id: p.id,
+        label: p.type === "RELEASE" ? "Music" : p.type === "BEAT" ? "Beat" : p.type === "MERCH" ? "Merch" : "Event",
+        title: p.title,
+        subtitle: [p.creator.displayName, kindLabel(p, isNew)].filter(Boolean).join(" · "),
+        imageUrl: image,
+        path: href,
+        shareText: `${p.title} by ${p.creator.displayName} on XOLDOUT`,
+      }}
     />
   );
 
@@ -320,7 +326,8 @@ export function FeedCard({
             aria-label={isPlayingThis ? `Pause ${p.title}` : `Play a preview of ${p.title}`}
             className="flex items-center gap-3 text-[15px] font-semibold text-ink-2"
           >
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-black">
+            <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-black">
+              {(p.type === "BEAT" ? p.id : p.firstTrack?.id) && <PlayProgressRing trackId={(p.type === "BEAT" ? p.id : p.firstTrack?.id) as string} />}
               {isPlayingThis ? (
                 <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden>
                   <rect x="6" y="5" width="4" height="14" rx="1" />
@@ -351,6 +358,7 @@ export function FeedCard({
           )}
         </div>
         {menu}
+        {shareSheet}
       </article>
     );
   }
@@ -412,6 +420,7 @@ export function FeedCard({
             </svg>
           </button>
           {menu}
+          {shareSheet}
         </div>
         <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-5 pb-5">
           <div className="min-w-0">
@@ -451,8 +460,9 @@ export function FeedCard({
                   ? `Pause ${p.title}`
                   : `Play a preview of ${p.title}`
               }
-              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-lg"
+              className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-black shadow-lg"
             >
+              {(p.type === "BEAT" ? p.id : p.firstTrack?.id) && <PlayProgressRing trackId={(p.type === "BEAT" ? p.id : p.firstTrack?.id) as string} />}
               {isPlayingThis ? (
                 <svg
                   viewBox="0 0 24 24"

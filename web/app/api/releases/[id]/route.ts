@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
-import { isWithinEditWindow, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
+import { listingEditState, EDIT_WINDOW_HOURS } from "@/lib/editWindow";
 import { publicUrlFor } from "@/lib/storage/r2";
 import { GENRE_SLUGS, MIN_GENRES, MAX_GENRES } from "@/lib/music/tags";
 import { PAY_WHAT_YOU_WANT_MIN_KOBO } from "@/lib/commerce/constants";
@@ -19,6 +19,9 @@ const patchSchema = z.object({
   // Genres only change where a release is found, so (like PUT .../tags)
   // they stay editable after the edit window closes.
   genres: z.array(z.enum(GENRE_SLUGS)).min(MIN_GENRES, "Pick at least one genre").max(MAX_GENRES).optional(),
+  // Structure (Edit release, explicit ask 2026-11-11): editable any time,
+  // like genres. A single has exactly one track.
+  releaseType: z.enum(["SINGLE", "EP", "ALBUM"]).optional(),
 });
 
 async function loadOwned(id: string, userId: string) {
@@ -41,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
     const touchesListing =
       body.title !== undefined || body.description !== undefined || body.priceKobo !== undefined || body.cap !== undefined || body.artworkLadder !== undefined;
-    if (touchesListing && !isWithinEditWindow(product.publishedAt)) {
+    if (touchesListing && listingEditState(product.publishedAt, product.upgradeEditAt) === "closed") {
       return NextResponse.json(
         { error: `Name, price and cover can only be changed in the first ${EDIT_WINDOW_HOURS} hours after release` },
         { status: 403 },
@@ -85,8 +88,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       });
     }
 
+    if (body.releaseType === "SINGLE") {
+      const trackCount = await db.track.count({ where: { releaseId: id } });
+      if (trackCount !== 1) return NextResponse.json({ error: "A single has exactly one track. Pick EP or Album for this release." }, { status: 400 });
+    }
+
+    // Older listings' one-time upgrade edit: this save uses it (lib/editWindow.ts).
+    const usesUpgrade = touchesListing && listingEditState(product.publishedAt, product.upgradeEditAt) === "upgrade";
+    if (usesUpgrade) await db.product.update({ where: { id }, data: { upgradeEditAt: new Date() } });
+
     const releaseData = {
       ...(body.artworkLadder ? { artworkLadder: body.artworkLadder } : {}),
+      ...(body.releaseType ? { releaseType: body.releaseType } : {}),
       ...(body.genres ? { genres: [...new Set(body.genres)] } : {}),
     };
     const updated = await db.product.update({

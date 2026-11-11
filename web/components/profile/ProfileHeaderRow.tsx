@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { FollowButton } from "./FollowButton";
 import { ClickablePhoto } from "./ClickablePhoto";
@@ -16,12 +17,26 @@ import { ShareButton } from "@/components/ui/ShareButton";
 // everyone else sees Follow / Message / Tip.
 
 /** Centred square avatar; the owner gets the "+" (change photo) badge. */
-export function ProfileAvatar({ targetUserId, avatarUrl, displayName }: { targetUserId: string; avatarUrl: string | null; displayName: string }) {
+export function ProfileAvatar({
+  targetUserId,
+  avatarUrl,
+  displayName,
+  shape = "square",
+}: {
+  targetUserId: string;
+  avatarUrl: string | null;
+  displayName: string;
+  shape?: "square" | "round";
+}) {
   const { appUser } = useAuth();
   const isOwner = appUser?.id === targetUserId;
   return (
     <ClickablePhoto targetUserId={targetUserId} kind="avatar" photoUrl={avatarUrl} alt={displayName} label="Profile photo" className="relative block">
-      <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-[28px] border-[3px] border-white bg-surface-2">
+      <div
+        className={`relative flex items-center justify-center overflow-hidden bg-surface-2 ${
+          shape === "round" ? "h-[104px] w-[104px] rounded-full border-2 border-white/80 sm:h-28 sm:w-28" : "h-32 w-32 rounded-[28px] border-[3px] border-white"
+        }`}
+      >
         {avatarUrl ? (
           <Image src={avatarUrl} alt={displayName} fill sizes="128px" className="object-cover" />
         ) : (
@@ -89,6 +104,99 @@ export function ProfileActions({ targetUserId, handle, displayName }: { targetUs
       <MessageButton targetUserId={targetUserId} />
       <TipButton creatorId={targetUserId} artistName={displayName} className="rounded-full bg-red px-4 py-3 text-[14px] font-bold text-white" />
       {share}
+    </div>
+  );
+}
+
+const circleBtn =
+  "flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border border-white/40 text-white transition-colors duration-150 hover:bg-white/10";
+
+const CupIcon = (
+  <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <path d="M4 8h12v6a5 5 0 01-5 5H9a5 5 0 01-5-5V8zM16 10h1.5a2.5 2.5 0 010 5H16" strokeLinejoin="round" />
+  </svg>
+);
+const SendIcon = (
+  <svg viewBox="0 0 24 24" className="h-[21px] w-[21px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+    <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" strokeLinejoin="round" />
+  </svg>
+);
+
+/**
+ * Buttons inside the v2 profile card (user's reference, 2026-11-11):
+ * visitors get "+ Follow" plus round Tip (cup) and Message (send) buttons;
+ * the owner gets Edit profile plus a round Share.
+ */
+export function ProfileCardActions({ targetUserId, handle, displayName }: { targetUserId: string; handle: string; displayName: string }) {
+  const { appUser } = useAuth();
+  const isOwner = appUser?.id === targetUserId;
+
+  if (isOwner) {
+    return (
+      <div className="flex items-center gap-3">
+        <Link href="/profile/edit" className="flex min-h-[52px] flex-1 items-center justify-center rounded-full bg-white text-[16px] font-bold text-black">
+          Edit profile
+        </Link>
+        <ShareButton
+          title={`${displayName} on XOLDOUT`}
+          text={`Follow me on XOLDOUT — @${handle}`}
+          path={`/u/${handle}`}
+          label="Share"
+          className="min-h-[52px] justify-center border border-white/40 bg-transparent px-5 text-[15px] font-bold text-white"
+        />
+      </div>
+    );
+  }
+  if (!appUser) {
+    return (
+      <div className="flex items-center gap-3">
+        <Link href="/login" className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-full bg-red text-[17px] font-bold text-white">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+            <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+          </svg>
+          Follow
+        </Link>
+        <TipButton creatorId={targetUserId} artistName={displayName} className={circleBtn} label={CupIcon} ariaLabel={`Tip ${displayName}`} />
+        <Link href="/login" className={circleBtn} aria-label={`Message ${displayName}`}>
+          {SendIcon}
+        </Link>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3">
+      <FollowButton targetUserId={targetUserId} size="pill" />
+      <TipButton creatorId={targetUserId} artistName={displayName} className={circleBtn} label={CupIcon} ariaLabel={`Tip ${displayName}`} />
+      <MessageButton targetUserId={targetUserId} className={`${circleBtn} disabled:opacity-50`} ariaLabel={`Message ${displayName}`}>
+        {SendIcon}
+      </MessageButton>
+    </div>
+  );
+}
+
+/** Round back and share buttons floating on the cover. */
+export function ProfileTopBar({ handle, displayName, showBack = true }: { handle: string; displayName: string; showBack?: boolean }) {
+  const router = useRouter();
+  const btn = "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur";
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-4 pt-4">
+      {showBack ? (
+        <button type="button" onClick={() => (window.history.length > 1 ? router.back() : router.push("/discover"))} className={btn} aria-label="Back">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden>
+            <path d="M19 12H5M11 6l-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      ) : (
+        <span />
+      )}
+      <ShareButton
+        title={`${displayName} on XOLDOUT`}
+        text={`Check out ${displayName} (@${handle}) on XOLDOUT`}
+        path={`/u/${handle}`}
+        label={`Share ${displayName}`}
+        iconOnly
+        className={btn}
+      />
     </div>
   );
 }

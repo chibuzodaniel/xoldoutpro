@@ -1,6 +1,7 @@
 "use client";
 
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
+import { PlayProgressRing } from "@/components/player/PlayProgressRing";
 
 // The white play button on a product page's artwork (design/v2-prototype).
 // Plays the first track's preview (or the beat) through the shared player —
@@ -16,6 +17,7 @@ export function HeroPlayButton({ track, queue }: { track: PlayableTrack; queue?:
       aria-label={playing ? `Pause ${track.title}` : `Play ${track.title}`}
       className="absolute bottom-4 right-4 flex h-16 w-16 items-center justify-center rounded-full bg-white text-black shadow-xl"
     >
+      <PlayProgressRing trackId={track.trackId} />
       {playing ? (
         <svg viewBox="0 0 24 24" className="h-6 w-6" fill="currentColor" aria-hidden>
           <rect x="6" y="5" width="4" height="14" rx="1" />

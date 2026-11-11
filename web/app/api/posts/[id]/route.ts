@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { archivePost } from "@/lib/moderation/deletedContent";
 
 // Deletes a Post — a Socials feed announcement (groupId null) or a Fanbase
 // group chat message (groupId set). The author can always delete their own;
@@ -32,19 +33,21 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
 
     // Reposts of this post go with it (Socials v2).
     const repostIds = (await db.post.findMany({ where: { repostOfId: id }, select: { id: true } })).map((r) => r.id);
-    await db.$transaction([
-      db.postLike.deleteMany({ where: { postId: { in: repostIds } } }),
-      db.comment.deleteMany({ where: { postId: { in: repostIds } } }),
-      db.report.deleteMany({ where: { postId: { in: repostIds } } }),
-      db.post.deleteMany({ where: { id: { in: repostIds } } }),
-      db.pollVote.deleteMany({ where: { poll: { postId: id } } }),
-      db.poll.deleteMany({ where: { postId: id } }),
-      db.postLike.deleteMany({ where: { postId: id } }),
-      db.comment.deleteMany({ where: { postId: id } }),
-      db.report.deleteMany({ where: { postId: id } }),
-      db.post.updateMany({ where: { replyToId: id }, data: { replyToId: null } }),
-      db.post.delete({ where: { id } }),
-    ]);
+    await db.$transaction(async (tx) => {
+      // Copy for the admin "Deleted content" panel first (lib/moderation/deletedContent.ts).
+      await archivePost(tx, id, { userId: user.id, role: post.authorId === user.id ? "OWNER" : "COMMUNITY_ADMIN" });
+      await tx.postLike.deleteMany({ where: { postId: { in: repostIds } } });
+      await tx.comment.deleteMany({ where: { postId: { in: repostIds } } });
+      await tx.report.deleteMany({ where: { postId: { in: repostIds } } });
+      await tx.post.deleteMany({ where: { id: { in: repostIds } } });
+      await tx.pollVote.deleteMany({ where: { poll: { postId: id } } });
+      await tx.poll.deleteMany({ where: { postId: id } });
+      await tx.postLike.deleteMany({ where: { postId: id } });
+      await tx.comment.deleteMany({ where: { postId: id } });
+      await tx.report.deleteMany({ where: { postId: id } });
+      await tx.post.updateMany({ where: { replyToId: id }, data: { replyToId: null } });
+      await tx.post.delete({ where: { id } });
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

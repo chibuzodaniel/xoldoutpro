@@ -72,7 +72,10 @@ export async function recordSale(
     productType: "RELEASE" | "BEAT" | "EVENT" | "MERCH";
     // Ticket promoter split (EVENT only, per-event — see EventPromoter):
     // carved out of the SELLER's own net proceeds.
-    promoter?: { userId: string; sharePercent: number };
+    // `commissionKobo` (2026-11-11): fixed at checkout from the price paid
+    // after discounts — % of price or flat per ticket, host's choice. Absent on
+    // older orders, which keep the original % of the seller's net.
+    promoter?: { userId: string; sharePercent: number; commissionKobo?: number | null };
     // Ambassador program (platform-wide — see AmbassadorApplication):
     // carved out of the PLATFORM's own commission share, never the
     // seller's. An ambassador earns on EITHER side of a sale they
@@ -111,8 +114,17 @@ export async function recordSale(
   const rates = await getCommissionRates(tx);
   const commissionKobo =
     args.commissionOverrideKobo != null ? args.commissionOverrideKobo : Math.round(args.grossKobo * rates[args.productType]);
+  // Never more than the seller actually nets on this sale.
   const promoterKobo = args.promoter
-    ? Math.round((args.grossKobo - commissionKobo) * (args.promoter.sharePercent / 100))
+    ? Math.max(
+        0,
+        Math.min(
+          args.grossKobo - commissionKobo,
+          args.promoter.commissionKobo != null
+            ? args.promoter.commissionKobo
+            : Math.round((args.grossKobo - commissionKobo) * (args.promoter.sharePercent / 100)),
+        ),
+      )
     : 0;
 
   const entries: Prisma.WalletLedgerEntryCreateManyInput[] = [

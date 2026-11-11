@@ -176,6 +176,7 @@ model User {
 
   songComments     SongComment[]
   songCommentVotes SongCommentVote[]
+  commentVotes     CommentVote[]
 
   collections Collection[]
 
@@ -229,6 +230,7 @@ model User {
   blocksReceived           UserBlock[]               @relation("BlocksReceived")
   coinLedgerEntries        CoinLedgerEntry[]
   xgEarnings               XgEarning[]
+  eventLineups             EventLineupEntry[]        @relation("EventLineups")
 }
 
 model PayoutAccount {
@@ -375,8 +377,31 @@ model Comment {
   author    User     @relation(fields: [authorId], references: [id])
   body      String
   createdAt DateTime @default(now())
+  // YouTube-style Socials comments (explicit ask, 2026-11-11), same as song
+  // comments: one level of replies, likes kept as a counter. Additive —
+  // older comments are top-level with 0 likes.
+  parentId   String?
+  parent     Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    Comment[]     @relation("CommentReplies")
+  likeCount  Int           @default(0)
+  replyCount Int           @default(0)
+  votes      CommentVote[]
 
   @@index([postId, createdAt])
+  @@index([postId, parentId, likeCount])
+  @@index([parentId, createdAt])
+}
+
+model CommentVote {
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  value     Int // 1 like, -1 dislike
+  createdAt DateTime @default(now())
+
+  @@id([commentId, userId])
+  @@index([userId])
 }
 
 // One poll per post, one vote per user. options[i] is what PollVote.optionIndex
@@ -768,6 +793,10 @@ model Product {
   status         ProductStatus @default(DRAFT)
   createdAt      DateTime      @default(now())
   publishedAt    DateTime?
+  // One-time upgrade edit for listings published before 2026-11-12 (explicit
+  // ask, 2026-11-11): set on the first name/price/cover/description save after
+  // the normal window closed; that save opens a fresh 48h window (lib/editWindow.ts).
+  upgradeEditAt  DateTime?
   deletedAt      DateTime?
   // How many Creative Add-ons (ProductAddOn) this item has — kept in step
   // by every add-on write so every browsing surface can show the E+ badge
@@ -1027,6 +1056,9 @@ model Entitlement {
   // timestamp rather than a boolean, matching this schema's convention
   // elsewhere, so "most recently pinned first" is free without extra state.
   pinnedAt  DateTime?
+  // "Remove from library" (explicit ask, 2026-11-11): hides the purchase from
+  // the buyer's own library only. Not a refund; access and sales unchanged.
+  hiddenAt  DateTime?
 
   checkIn         TicketCheckIn?
   collectionItems CollectionItem[]
@@ -1095,8 +1127,66 @@ model Event {
   promoters       EventPromoter[]
   billboards      Billboard[]
   postAttachments Post[]          @relation("PostEventAttachments")
+  lineup          EventLineupEntry[]
+  discounts       EventDiscount[]
+
+  // Events marketplace (explicit ask, 2026-11-11). Promoters: anyone can
+  // apply when open; the host pays them PERCENT of the ticket price actually
+  // paid (promoter picks within min..max) or a FLAT amount per ticket — from
+  // the host's share, independent of the platform fee.
+  promotersOpen      Boolean @default(false)
+  promoterPayType    String  @default("PERCENT") // "PERCENT" | "FLAT"
+  promoterMinPercent Int     @default(5)
+  promoterMaxPercent Int     @default(20)
+  promoterFlatKobo   Int     @default(0)
+  // Most tickets one buyer can get for this event across all orders (null = no limit).
+  maxPerBuyer        Int?
 
   @@index([creatorId])
+}
+
+// Event discounts (2026-11-11): PERCENT or FLAT (kobo off each ticket); a
+// code, or automatic (no code — early-bird offers). Optional window, usage
+// limit (orders) and ticket types (empty = all). Checked and applied on the
+// server at checkout (app/api/orders); the order snapshots what it got.
+model EventDiscount {
+  id        String    @id @default(cuid())
+  eventId   String
+  event     Event     @relation(fields: [eventId], references: [id])
+  name      String
+  code      String? // stored upper-case; null = applies automatically
+  kind      String // "PERCENT" | "FLAT"
+  value     Int // percent (1-100) or kobo per ticket
+  isEarlyBird Boolean @default(false)
+  startsAt  DateTime?
+  expiresAt DateTime?
+  maxUses   Int?
+  tierIds   String[]  @default([])
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  orders    Order[]
+
+  @@unique([eventId, code])
+  @@index([eventId])
+}
+
+// Event lineup (v2, design/v2-prototype): XOLDOUT accounts only, in the
+// organiser's order. Each person is notified when added. Additive table.
+model EventLineupEntry {
+  eventId String
+  event   Event    @relation(fields: [eventId], references: [id])
+  userId  String
+  user    User     @relation("EventLineups", fields: [userId], references: [id])
+  order   Int
+  addedAt DateTime @default(now())
+  // 2026-11-11: role and invitation. Existing rows count as accepted; new
+  // ones start PENDING until the artist accepts. Only ACCEPTED show publicly.
+  role        String    @default("ARTIST") // HEADLINER | SUPPORTING | SPECIAL_GUEST | DJ | ARTIST
+  status      String    @default("ACCEPTED") // PENDING | ACCEPTED | DECLINED
+  respondedAt DateTime?
+
+  @@id([eventId, userId])
+  @@index([userId])
 }
 
 model TicketTier {
@@ -1107,6 +1197,8 @@ model TicketTier {
   name      String // "Early Bird", "Regular", "VIP"
   order     Int
   pausedAt  DateTime? // creator hid it from sale; reversible any time (unlike TicketTier DELETE), existing tickets/entitlements untouched
+  // Most of this ticket type one buyer can get across all orders (null = no limit).
+  maxPerBuyer Int?
 
   @@index([eventId])
 }
@@ -1247,6 +1339,13 @@ model Order {
   // PROMOTER_FEE/PROMOTER_CREDIT split.
   promoterId String?
   promoter   EventPromoter? @relation(fields: [promoterId], references: [id])
+  // Promoter's commission, fixed at checkout from the price actually paid
+  // after discounts (2026-11-11). Null on older orders (legacy % of net).
+  promoterCommissionKobo Int?
+  // Event discount applied at checkout (2026-11-11): which one, and how much off in total.
+  discountId   String?
+  discount     EventDiscount? @relation(fields: [discountId], references: [id])
+  discountKobo Int            @default(0)
 
   // Snapshotted at checkout time (app/api/orders/route.ts) from the
   // seller's CreatorPlan at that moment — same "lock in what was actually
@@ -1288,6 +1387,7 @@ model Order {
   gift             Gift?
 
   @@index([checkoutGroupId])
+  @@index([discountId])
 }
 
 model OrderItem {
@@ -1973,6 +2073,10 @@ model EventPromoter {
   sharePercent Int
   code         String   @unique @default(cuid())
   createdAt    DateTime @default(now())
+  // Applications (2026-11-11): "PENDING" | "APPROVED" | "REJECTED". Host-added promoters are APPROVED.
+  status       String    @default("APPROVED")
+  decidedAt    DateTime?
+  clickCount   Int       @default(0)
 
   orders Order[]
 
@@ -2578,4 +2682,32 @@ model CatalogSubscription {
   @@unique([subscriberId, creatorId])
   @@index([creatorId, currentPeriodEnd])
   @@index([autoRenew, currentPeriodEnd])
+}
+
+// Deleted content archive (explicit ask, 2026-11-11: "everything deleting is
+// allowed on should be taken down and only visible to the admin as deleted
+// content"). Content that used to be erased (posts, comments, song comments,
+// communities, playlists, add-ons) is copied here in the same transaction,
+// then deleted exactly as before — so no feed, page or mobile API can ever
+// show it, and nothing extra runs on normal reads. Super moderators can view
+// and restore (lib/moderation/deletedContent.ts). DMs are deliberately NOT
+// archived (their text is still wiped on delete). No FKs: the record must
+// outlive whatever it points at.
+model DeletedContent {
+  id            String    @id @default(cuid())
+  kind          String // POST | COMMENT | SONG_COMMENT | COMMUNITY | PLAYLIST | ADD_ON
+  targetId      String
+  ownerId       String?
+  deletedById   String?
+  deletedByRole String // OWNER | COMMUNITY_ADMIN | CREATOR | MODERATOR
+  title         String
+  preview       String?
+  snapshot      Json
+  deletedAt     DateTime  @default(now())
+  restoredAt    DateTime?
+  restoredById  String?
+
+  @@index([deletedAt])
+  @@index([kind, deletedAt])
+  @@index([targetId])
 }

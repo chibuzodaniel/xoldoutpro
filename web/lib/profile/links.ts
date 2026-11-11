@@ -13,6 +13,10 @@ export const LINK_PLATFORMS = [
   "YouTube",
   "Spotify",
   "Apple Music",
+  "YouTube Music",
+  "Deezer",
+  "Tidal",
+  "Shazam",
   "Audiomack",
   "Boomplay",
   "SoundCloud",
@@ -36,4 +40,15 @@ export function visibleLinks(links: ProfileLink[] | null | undefined): ProfileLi
 /** What a link is called on the profile: its custom title, else the platform. */
 export function linkLabel(link: ProfileLink) {
   return link.title?.trim() || link.platform;
+}
+
+/**
+ * Music platforms (explicit ask, 2026-11-11): the profile's "Links" list is
+ * for these, shown as logo + "PLAY" rows. Socials, websites and custom links
+ * show as the small badges under the bio instead.
+ */
+export const MUSIC_PLATFORMS = ["Spotify", "Apple Music", "YouTube Music", "Boomplay", "Audiomack", "Deezer", "SoundCloud", "Tidal", "Shazam"] as const;
+
+export function isMusicPlatform(platform: string) {
+  return (MUSIC_PLATFORMS as readonly string[]).includes(platform);
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
+import { archiveCollection } from "@/lib/moderation/deletedContent";
 
 async function loadOwned(id: string, userId: string) {
   const collection = await db.collection.findUnique({ where: { id } });
@@ -72,7 +73,10 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     const collection = await loadOwned(id, user.id);
     if (!collection) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-    await db.collection.delete({ where: { id } });
+    await db.$transaction(async (tx) => {
+      await archiveCollection(tx, id, { userId: user.id, role: "OWNER" });
+      await tx.collection.delete({ where: { id } });
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

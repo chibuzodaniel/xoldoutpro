@@ -32,6 +32,7 @@
     "react-easy-crop": "^6.2.3",
     "react-toastify": "^11.1.0",
     "sharp": "^0.35.3",
+    "simple-icons": "^16.37.0",
     "zod": "^4.4.3"
   },
   "overrides": {

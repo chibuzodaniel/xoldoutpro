@@ -42,12 +42,14 @@ export function TipButton({
   artistName,
   className = "rounded-lg border border-line px-4 py-1.5 text-xs font-semibold text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink",
   label = "Tip",
+  ariaLabel,
 }: {
   productId?: string;
   creatorId: string;
   artistName: string;
   className?: string;
-  label?: string;
+  label?: React.ReactNode;
+  ariaLabel?: string;
 }) {
   const router = useRouter();
   const toast = useToast();
@@ -132,7 +134,7 @@ export function TipButton({
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={className}>
+      <button type="button" onClick={() => setOpen(true)} className={className} aria-label={ariaLabel}>
         {label}
       </button>
 

@@ -7,7 +7,7 @@ import { apiFetch } from "@/lib/api";
 import { BackHeader } from "@/components/ui/BackHeader";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useToast } from "@/components/ui/ToastProvider";
-import { LINK_PLATFORMS, MAX_LINK_TITLE, MAX_PROFILE_LINKS, type ProfileLink } from "@/lib/profile/links";
+import { LINK_PLATFORMS, MAX_LINK_TITLE, MAX_PROFILE_LINKS, MUSIC_PLATFORMS, isMusicPlatform, type ProfileLink } from "@/lib/profile/links";
 
 type Draft = ProfileLink & { key: string };
 
@@ -86,7 +86,7 @@ function LinksEditor({ initial, handle, onSaved }: { initial: ProfileLink[]; han
       <BackHeader title="Manage links" />
       <div className="mx-auto flex max-w-lg flex-col gap-4 px-4">
         <p className="text-sm text-ink-3">
-          These show on your profile at <span className="text-ink-2">xoldout.app/u/{handle}</span>, in this order. Switch one off to hide it without deleting it.
+          Music platforms show in your Links list with a Play button; socials and websites show as icons under your profile card. They appear on your profile at <span className="text-ink-2">xoldout.app/u/{handle}</span>, in this order. Switch one off to hide it without deleting it.
         </p>
 
         {links.length === 0 && <p className="rounded-2xl border border-line-soft p-6 text-center text-sm text-ink-3">No links yet.</p>}
@@ -104,11 +104,20 @@ function LinksEditor({ initial, handle, onSaved }: { initial: ProfileLink[]; han
                   aria-label="Platform"
                   className="rounded-lg border border-line bg-bg px-2 py-2 text-sm outline-none"
                 >
-                  {LINK_PLATFORMS.map((p) => (
-                    <option key={p} value={p}>
-                      {p === "Link" ? "Custom link" : p}
-                    </option>
-                  ))}
+                  <optgroup label="Music platforms (Links list)">
+                    {MUSIC_PLATFORMS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Socials and websites (icons)">
+                    {LINK_PLATFORMS.filter((p) => !isMusicPlatform(p)).map((p) => (
+                      <option key={p} value={p}>
+                        {p === "Link" ? "Custom link" : p}
+                      </option>
+                    ))}
+                  </optgroup>
                 </select>
                 <span className="flex-1" />
                 <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up" className="h-8 w-8 rounded-full border border-line text-ink-2 disabled:opacity-30">
@@ -159,7 +168,7 @@ function LinksEditor({ initial, handle, onSaved }: { initial: ProfileLink[]; han
         {links.length < MAX_PROFILE_LINKS && (
           <button
             type="button"
-            onClick={() => setLinks((cur) => [...cur, { key: newKey(), platform: "Instagram", url: "", enabled: true }])}
+            onClick={() => setLinks((cur) => [...cur, { key: newKey(), platform: "Spotify", url: "", enabled: true }])}
             className="rounded-full border border-dashed border-line px-4 py-3 text-sm font-semibold text-red-soft"
           >
             + Add link

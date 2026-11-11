@@ -74,6 +74,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
       creatorId={product.creatorId}
       share={{ path: `/b/${product.id}`, text: `${product.title} — ${product.creator.displayName} on XOLDOUT`, chatShare: { type: "PRODUCT", id: product.id } }}
       report={{ targetType: "PRODUCT", targetId: product.id }}
+      editHref={`/profile/catalog/edit/${product.id}`}
     >
         <HeroMeta parts={[...product.beat.tags, product.beat.musicalKey, product.beat.bpm ? `${product.beat.bpm} BPM` : null]} />
         <HeroPrice

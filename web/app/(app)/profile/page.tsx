@@ -1,18 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { ShareButton } from "@/components/ui/ShareButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { apiFetch } from "@/lib/api";
-import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
-import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
+import { ProfileHero } from "@/components/profile/ProfileHero";
+import { ProfileAvatar, ProfileCardActions, ProfileTopBar } from "@/components/profile/ProfileHeaderRow";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 import { SalesMilestoneSheet } from "@/components/profile/SalesMilestoneSheet";
 import { PlanCapNudgeSheet } from "@/components/plans/PlanCapNudgeSheet";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
+import { ContactXoldout } from "@/components/support/ContactXoldout";
 import { ProfileLinkBadges, ProfileLinkList } from "@/components/profile/ProfileLinks";
 
 const FEEDBACK_REASONS = [
@@ -22,6 +21,7 @@ const FEEDBACK_REASONS = [
 
 type Stats = {
   fans: number;
+  subscribers?: number;
   sales: number;
   catalog: { music: number; beats: number; events: number; merch: number };
   pendingFanbaseRequests: number;
@@ -29,10 +29,26 @@ type Stats = {
 };
 
 const CATALOG = [
-  { key: "music", label: "Music", href: "/profile/catalog" },
-  { key: "beats", label: "Beats", href: "/profile/catalog/beats" },
-  { key: "events", label: "Events", href: "/profile/catalog/events" },
-  { key: "merch", label: "Merch", href: "/profile/catalog/merch" },
+  { key: "music", label: "Music releases", href: "/profile/catalog", icon: (
+    <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M9 18V5l11-2v13" strokeLinejoin="round" /><circle cx="6.5" cy="18" r="2.5" /><circle cx="17.5" cy="16" r="2.5" />
+    </svg>
+  ) },
+  { key: "beats", label: "Beats & packs", href: "/profile/catalog/beats", icon: (
+    <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M6 5v14M12 5v14M18 5v14" strokeLinecap="round" />
+    </svg>
+  ) },
+  { key: "events", label: "Events", href: "/profile/catalog/events", icon: (
+    <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <rect x="3" y="7" width="18" height="10" rx="2" /><path d="M8 7v10M16 7v10" />
+    </svg>
+  ) },
+  { key: "merch", label: "Merchandise", href: "/profile/catalog/merch", icon: (
+    <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden>
+      <path d="M5 9h14l-1 11H6L5 9z" strokeLinejoin="round" /><path d="M9 9V7a3 3 0 016 0v2" />
+    </svg>
+  ) },
 ] as const;
 
 const I = {
@@ -152,92 +168,52 @@ export default function ProfilePage() {
 
   return (
     <div className="pb-10">
-      <div className="relative">
-        <ClickablePhoto targetUserId={appUser.id} kind="cover" photoUrl={appUser.coverUrl} alt="Cover photo" label="Cover photo" className="block w-full">
-          <div
-            className="h-56 bg-gradient-to-br from-red/40 via-surface-2 to-black bg-cover bg-center md:h-72"
-            style={appUser.coverUrl ? { backgroundImage: `url(${appUser.coverUrl})` } : undefined}
-          />
-        </ClickablePhoto>
-        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-bg to-transparent" />
-      </div>
-
-      <div className="-mt-20 flex flex-col items-center px-4 text-center">
-        <ClickablePhoto targetUserId={appUser.id} kind="avatar" photoUrl={appUser.avatarUrl} alt={appUser.displayName} label="Profile photo" className="relative block">
-          <div className="relative flex h-32 w-32 items-center justify-center overflow-hidden rounded-[28px] border-[3px] border-white bg-surface-2">
-            {appUser.avatarUrl ? (
-              <Image src={appUser.avatarUrl} alt={appUser.displayName} fill sizes="128px" className="object-cover" />
-            ) : (
-              <span className="font-serif text-4xl text-ink-3">{appUser.displayName.slice(0, 1).toUpperCase()}</span>
+      {/* v2 own profile (user's reference, 2026-11-11): same card as the
+          public profile (bio included), with Edit profile + Share. */}
+      <ProfileHero
+        user={appUser}
+        topBar={<ProfileTopBar handle={appUser.handle} displayName={appUser.displayName} showBack={false} />}
+        avatar={<ProfileAvatar targetUserId={appUser.id} avatarUrl={appUser.avatarUrl} displayName={appUser.displayName} shape="round" />}
+        stats={[
+          { label: "Followers", value: stats ? stats.fans : null },
+          { label: "Sales", value: stats ? stats.sales : null },
+          { label: "Subscribers", value: stats ? (stats.subscribers ?? 0) : null },
+        ]}
+        actions={<ProfileCardActions targetUserId={appUser.id} handle={appUser.handle} displayName={appUser.displayName} />}
+        extra={
+          <>
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              {appUser.tags.map((tag) => (
+                <span key={tag} className="rounded-full border border-white/25 px-2.5 py-0.5 text-[11px] text-white/80">
+                  {tag}
+                </span>
+              ))}
+              <Link href="/profile/edit" aria-label="Edit tags" className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-white/40 text-[12px] text-white/70">
+                +
+              </Link>
+            </div>
+            {!appUser.isVerified && (
+              <Link
+                href="/verification"
+                className="mt-2.5 inline-flex animate-pulse items-center gap-1 rounded-full border border-white/40 bg-white/10 px-3 py-1 text-[12px] font-semibold text-white"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                  <circle cx="12" cy="12" r="9" />
+                </svg>
+                Get Verified
+              </Link>
             )}
-          </div>
-          <span className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-bg bg-red">
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 stroke-white" fill="none" strokeWidth="2.5">
-              <path d="M12 5v14M5 12h14" strokeLinecap="round" />
-            </svg>
-          </span>
-        </ClickablePhoto>
+          </>
+        }
+      />
 
-        <h1 className="mt-4 flex items-center justify-center gap-2 text-[32px] font-extrabold leading-tight">
-          {appUser.displayName}
-          {appUser.isVerified && <VerifiedBadge className="h-6 w-6 shrink-0" badgeType={primaryBadgeType(appUser.verificationBadges)} />}
-        </h1>
-        <p className="text-[17px] text-ink-2">@{appUser.handle}</p>
-        <Link href={publicPath} className="text-[12px] text-ink-3">
-          xoldout.app{publicPath}
-        </Link>
-        {!appUser.isVerified && (
-          <Link
-            href="/verification"
-            className="mt-3 inline-flex animate-pulse items-center gap-1 rounded-full border border-red/40 bg-red/10 px-3 py-1 text-[12px] font-semibold text-red-soft"
-          >
-            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
-              <circle cx="12" cy="12" r="9" />
-            </svg>
-            Get Verified
-          </Link>
-        )}
-
-        <p className="mt-3 text-[15px] text-ink-2">
-          {stats ? stats.fans.toLocaleString("en-NG") : "—"} Followers <span className="px-1.5 text-ink-3">•</span> {stats ? stats.sales.toLocaleString("en-NG") : "—"} Sales
-        </p>
-
-        {appUser.bio && <p className="mt-3 max-w-md text-[16px] italic text-ink-2">{appUser.bio}</p>}
-
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          {appUser.tags.map((tag) => (
-            <span key={tag} className="rounded-full border border-line px-3 py-1 text-xs text-ink-2">
-              {tag}
-            </span>
-          ))}
-          <Link href="/profile/edit" aria-label="Edit tags" className="flex h-6 w-6 items-center justify-center rounded-full border border-dashed border-line text-ink-3">
-            +
-          </Link>
-        </div>
-
-        <div className="mt-4">
-          <ProfileLinkBadges links={appUser.socialLinks} />
-        </div>
+      <div className="mt-4 flex justify-center px-4">
+        <ProfileLinkBadges links={appUser.socialLinks} />
       </div>
 
       <div className="px-4 md:px-6">
-        <div className="mx-auto mt-6 grid max-w-md grid-cols-2 gap-3">
-          <Link href="/profile/edit" className="flex items-center justify-center gap-2 rounded-full bg-white px-4 py-3.5 text-[15px] font-bold text-black">
-            <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M4 20l.9-4.5L16.6 3.8a1.6 1.6 0 012.3 0l1.3 1.3a1.6 1.6 0 010 2.3L8.5 19.1 4 20z" strokeLinejoin="round" />
-            </svg>
-            Edit profile
-          </Link>
-          <ShareButton
-            title={`${appUser.displayName} on XOLDOUT`}
-            text={`Follow me on XOLDOUT — @${appUser.handle}`}
-            path={publicPath}
-            label="Share profile"
-            className="w-full justify-center border border-line bg-transparent px-4 py-3.5 text-[15px] font-bold text-ink"
-          />
-        </div>
-
+        <ContactXoldout className="mt-4" />
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Tile icon={I.wallet} title="Wallet" sub="Earnings and payouts" href="/wallet" />
           <Tile icon={I.insights} title="Insights" sub="Views, sales, growth" href="/analytics" />
@@ -251,6 +227,7 @@ export default function ProfilePage() {
             href="/profile/collaborations"
             alert={pendingCollabs > 0}
           />
+          <Tile icon={I.music} title="Invitations" sub="Perform at events: accept or decline" href="/profile/invitations" />
           <Tile
             icon={I.lock}
             title="Fanbase requests"
@@ -270,22 +247,24 @@ export default function ProfilePage() {
           <Tile icon={I.chat} title="Send feedback" sub="Report a bug or idea" onClick={() => setFeedbackOpen(true)} />
         </div>
 
-        <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-serif text-2xl font-bold">Your catalog</h2>
+        <section className="mt-8 md:max-w-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] font-bold uppercase tracking-[0.18em] text-ink-2">Your catalog</h2>
             <Link href="/publish" className="text-sm font-semibold text-red-soft">
               + Drop
             </Link>
           </div>
-          <div className="grid grid-cols-4 gap-2 md:max-w-xl">
+          {/* Catalog list (user's reference, 2026-11-11): icon, name, count. */}
+          <div className="mt-3 border-t border-white/10">
             {CATALOG.map((c) => (
-              <Link key={c.key} href={c.href} className="rounded-2xl border border-line bg-surface px-2 py-3 text-center">
-                <span className="block font-serif text-2xl font-bold">{stats?.catalog[c.key] ?? 0}</span>
-                <span className="block text-[12px] text-ink-3">{c.label}</span>
+              <Link key={c.key} href={c.href} className="flex items-center gap-4 border-b border-white/10 py-4 text-ink transition-colors duration-150 hover:bg-white/[0.03]">
+                <span className="w-6 text-ink-2">{c.icon}</span>
+                <span className="flex-1 text-[17px]">{c.label}</span>
+                <span className="font-serif text-[18px] text-ink-2">{stats?.catalog[c.key] ?? 0}</span>
               </Link>
             ))}
           </div>
-          <Link href={publicPath} className="mt-3 block rounded-full border border-line px-4 py-3.5 text-center text-[15px] font-bold md:max-w-xl">
+          <Link href={publicPath} className="mt-4 block rounded-full border border-line px-4 py-3.5 text-center text-[15px] font-bold">
             Preview public profile
           </Link>
         </section>
