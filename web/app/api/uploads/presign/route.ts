@@ -2,7 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser, AuthError } from "@/lib/auth/session";
-import { presignUpload } from "@/lib/storage/r2";
+import { presignUpload, publicUrlFor } from "@/lib/storage/r2";
 import { ADD_ON_CONTENT_TYPES } from "@/lib/commerce/addOnRules";
 
 // What a client is allowed to ask for a direct-to-R2 upload URL for.
@@ -18,10 +18,12 @@ const KIND_CONFIG = {
   // 100 MB cap is enforced when the add-on is attached (objectSize), since
   // a presigned PUT can't limit size on its own.
   addon: { prefix: "addons", contentTypes: ADD_ON_CONTENT_TYPES },
+  // Community Timeline photos and videos (2026-11-11), public like post images.
+  postmedia: { prefix: "postmedia", contentTypes: ["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/quicktime", "video/webm"] },
 } as const;
 
 const bodySchema = z.object({
-  kind: z.enum(["avatar", "cover", "artwork", "audio", "billboard", "addon"]),
+  kind: z.enum(["avatar", "cover", "artwork", "audio", "billboard", "addon", "postmedia"]),
   contentType: z.string(),
   extension: z.string().regex(/^[a-z0-9]{1,5}$/),
 });
@@ -38,7 +40,8 @@ export async function POST(req: NextRequest) {
 
     const key = `${config.prefix}/${user.id}/${randomUUID()}.${extension}`;
     const uploadUrl = await presignUpload(key, contentType);
-    return NextResponse.json({ key, uploadUrl });
+    // Timeline media is public: hand back its URL (additive field).
+    return NextResponse.json({ key, uploadUrl, ...(kind === "postmedia" ? { publicUrl: publicUrlFor(key) } : {}) });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: err.issues }, { status: 400 });

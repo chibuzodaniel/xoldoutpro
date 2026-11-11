@@ -11,7 +11,8 @@ import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ManageGroupSheet } from "@/components/groups/ManageGroupSheet";
 import { OrganizerDashboard } from "@/components/communities/OrganizerDashboard";
-import { COMMUNITY_CATEGORIES, MAX_CHANNELS, MAX_PLANS, MIN_PAID_PLAN_KOBO, PLAN_CYCLES } from "@/lib/communities/constants";
+import { PostingPermissions } from "@/components/communities/PostingPermissions";
+import { COMMUNITY_CATEGORIES, MAX_PLANS, MIN_PAID_PLAN_KOBO, PLAN_CYCLES } from "@/lib/communities/constants";
 
 type PlanDraft = {
   key: string;
@@ -24,7 +25,6 @@ type PlanDraft = {
   capacity: string;
   requiresApproval: boolean;
 };
-type ChannelDraft = { key: string; id?: string; name: string; kind: string; planIds: string[] };
 
 const input = "w-full rounded-xl border border-line bg-surface px-3.5 py-3 text-sm outline-none focus:border-red";
 const label = "text-[12px] uppercase tracking-widest text-ink-3";
@@ -32,7 +32,7 @@ let seq = 0;
 const k = () => `n${++seq}`;
 
 // Manage community (v2, design/v2-prototype): details and plans (owner),
-// channels (admins), plus the existing members / requests / delete sheet.
+// member posting permissions (admins, replaces channels — 2026-11-11), plus the existing members / requests / delete sheet.
 export default function ManageCommunityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
@@ -44,7 +44,6 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanDraft[]>([]);
-  const [channels, setChannels] = useState<ChannelDraft[]>([]);
   const [meta, setMeta] = useState({ postPermission: "ALL_MEMBERS", visibility: "REQUEST_TO_JOIN", isVerified: false, verificationRequestedAt: null as string | null });
   const [saving, setSaving] = useState<string | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -82,11 +81,6 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
         capacity: p.capacity ? String(p.capacity) : "",
         requiresApproval: p.requiresApproval,
       })),
-    );
-    setChannels(
-      d.channels
-        .filter((ch: { id: string }) => ch.id !== "general")
-        .map((ch: { id: string; name: string; kind: string; planIds: string[] }) => ({ key: ch.id, id: ch.id, name: ch.name, kind: ch.kind, planIds: ch.planIds })),
     );
     setLoaded(true);
   }, [id]);
@@ -179,31 +173,11 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
     if (d) load();
   }
 
-  async function saveChannels() {
-    if (channels.some((c) => !c.name.trim())) return toast.error("Every channel needs a name");
-    const d = await call(
-      "channels",
-      `/api/communities/${id}/channels`,
-      "PUT",
-      { channels: channels.map((c) => ({ id: c.id, name: c.name.trim(), kind: c.kind, planIds: c.planIds })) },
-      "Channels saved",
-    );
-    if (d) load();
-  }
 
   if (!loaded) return <LoadingSpinner full size="lg" />;
   if (!isAdmin) return <p className="px-4 py-20 text-center text-ink-3">Only this community&apos;s admins can manage it.</p>;
 
   const setPlan = (key: string, patch: Partial<PlanDraft>) => setPlans((cur) => cur.map((p) => (p.key === key ? { ...p, ...patch } : p)));
-  const setChannel = (key: string, patch: Partial<ChannelDraft>) => setChannels((cur) => cur.map((c) => (c.key === key ? { ...c, ...patch } : c)));
-  const move = (i: number, d: number) =>
-    setChannels((cur) => {
-      const next = [...cur];
-      const [x] = next.splice(i, 1);
-      next.splice(Math.max(0, Math.min(next.length, i + d)), 0, x);
-      return next;
-    });
-  const savedPlans = plans.filter((p) => p.id);
 
   return (
     <div className="pb-24">
@@ -364,73 +338,7 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
           </section>
         )}
 
-        <section className="flex flex-col gap-3">
-          <h2 className="font-serif text-2xl font-bold">Channels</h2>
-          <p className="text-sm text-ink-3">
-            Announcements: only admins post. Discussion: members chat. Limit a channel to certain plans, or leave it open to every member. &quot;General&quot; (your original chat) is always there.
-          </p>
-          {channels.map((c, i) => (
-            <div key={c.key} className="flex flex-col gap-2.5 rounded-2xl border border-line bg-surface p-4">
-              <div className="flex gap-2">
-                <input className={input} aria-label="Channel name" placeholder="Channel name" value={c.name} maxLength={40} onChange={(e) => setChannel(c.key, { name: e.target.value })} />
-                <button type="button" onClick={() => move(i, -1)} disabled={i === 0} aria-label="Move up" className="shrink-0 rounded-xl border border-line px-3 disabled:opacity-30">
-                  ↑
-                </button>
-                <button type="button" onClick={() => move(i, 1)} disabled={i === channels.length - 1} aria-label="Move down" className="shrink-0 rounded-xl border border-line px-3 disabled:opacity-30">
-                  ↓
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(["ANNOUNCEMENTS", "DISCUSSION"] as const).map((kind) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => setChannel(c.key, { kind })}
-                    className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${c.kind === kind ? "bg-red text-white" : "border border-line text-ink-2"}`}
-                  >
-                    {kind === "ANNOUNCEMENTS" ? "Announcements" : "Discussion"}
-                  </button>
-                ))}
-              </div>
-              {savedPlans.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-ink-3">Who can access:</span>
-                  <button
-                    type="button"
-                    onClick={() => setChannel(c.key, { planIds: [] })}
-                    className={`rounded-full px-3 py-1 text-[12px] font-semibold ${c.planIds.length === 0 ? "bg-white text-black" : "border border-line text-ink-2"}`}
-                  >
-                    All members
-                  </button>
-                  {savedPlans.map((p) => {
-                    const on = c.planIds.includes(p.id!);
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => setChannel(c.key, { planIds: on ? c.planIds.filter((x) => x !== p.id) : [...c.planIds, p.id!] })}
-                        className={`rounded-full px-3 py-1 text-[12px] font-semibold ${on ? "bg-white text-black" : "border border-line text-ink-2"}`}
-                      >
-                        {p.name || "Plan"}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <button type="button" onClick={() => setChannels((cur) => cur.filter((x) => x.key !== c.key))} className="self-start text-xs font-semibold text-red-soft">
-                Delete channel (its messages move to General)
-              </button>
-            </div>
-          ))}
-          {channels.length < MAX_CHANNELS && (
-            <button type="button" onClick={() => setChannels((cur) => [...cur, { key: k(), name: "", kind: "DISCUSSION", planIds: [] }])} className="rounded-2xl border border-dashed border-line px-4 py-3.5 text-sm font-bold">
-              + New channel
-            </button>
-          )}
-          <button type="button" onClick={saveChannels} disabled={saving === "channels"} className="rounded-full bg-red px-5 py-3.5 font-bold text-white disabled:opacity-50">
-            {saving === "channels" ? "Saving…" : "Save channels"}
-          </button>
-        </section>
+        <PostingPermissions communityId={id} />
         </>
         )}
       </div>

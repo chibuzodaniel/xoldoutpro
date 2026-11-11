@@ -353,6 +353,18 @@ model Post {
   attachedProduct   Product?          @relation("PostAttachments", fields: [attachedProductId], references: [id])
   attachedEventId   String?
   attachedEvent     Event?            @relation("PostEventAttachments", fields: [attachedEventId], references: [id])
+  // Community Timeline (2026-11-11): what kind of post (POST, ANNOUNCEMENT,
+  // QUESTION, POLL, EVENT_RSVP, CAMP_UPDATE, COLLAB, SESSION_UPDATE,
+  // ACHIEVEMENT, DISCUSSION; null = plain/older chat message), approval
+  // status (PUBLISHED | PENDING | REJECTED — only PUBLISHED is ever shown to
+  // other members), pinning, extra photos/videos and edits.
+  kind              String?
+  status            String            @default("PUBLISHED")
+  pinnedAt          DateTime?
+  media             Json?
+  editedAt          DateTime?
+  reviewedAt        DateTime?
+  reviewedById      String?
 
   likes    PostLike[]
   comments Comment[]
@@ -365,6 +377,7 @@ model Post {
   @@index([groupId, createdAt])
   @@index([repostOfId])
   @@index([channelId, createdAt])
+  @@index([groupId, status, createdAt])
 }
 
 // Flat, not threaded — Phase 2 scope is "member participation," not a full
@@ -411,6 +424,9 @@ model Poll {
   postId  String   @id
   post    Post     @relation(fields: [postId], references: [id])
   options String[]
+  // "POLL" or "RSVP" (event attendance, 2026-11-11); voting stops at closesAt.
+  kind     String    @default("POLL")
+  closesAt DateTime?
 
   votes PollVote[]
 }
@@ -452,6 +468,10 @@ model FanbaseGroup {
   coverImageUrl  String?
   visibility     GroupVisibility     @default(REQUEST_TO_JOIN)
   postPermission GroupPostPermission @default(ALL_MEMBERS)
+  // Member Posting Permissions (2026-11-11): OPEN | APPROVAL | ADMIN_ONLY.
+  // Null on older communities = derived from postPermission
+  // (lib/communities/timeline.ts); new communities start at APPROVAL.
+  postingMode    String?
   createdAt      DateTime            @default(now())
 
   // Verification criteria are undecided (same PRD §18 gap as User.isVerified)

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 import { parseMentions } from "@/lib/groups/mentions";
 import { canOpenChannel, isMembershipActive } from "@/lib/communities/constants";
+import { effectivePostingMode, visibleTo } from "@/lib/communities/timeline";
 
 // Community channels (v2, 2026-11-09): ?channel=<id> (GET) / channelId (POST)
 // picks a channel; none or "general" is the community's original chat, which
@@ -99,7 +100,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // Newest 200, shown oldest first.
     const newest = await db.post.findMany({
-      where: { groupId: id, channelId: resolved.channel?.id ?? null },
+      // Timeline (2026-11-11): unapproved posts never show to other members.
+      where: { groupId: id, channelId: resolved.channel?.id ?? null, ...visibleTo(user.id, isOwner || membership.role === "ADMIN") },
       orderBy: { createdAt: "desc" },
       take: 200,
       include: {
@@ -149,11 +151,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const channel = resolved.channel;
     const isOwner = group.creatorId === user.id;
     const isAdmin = isOwner || membership?.role === "ADMIN";
-    const canPost = channel?.kind === "ANNOUNCEMENTS"
-      ? isAdmin
-      : (channel ? canOpenChannel(channel, membership, isOwner) : isAdmin || isMembershipActive(membership)) &&
-        (group.postPermission === "ALL_MEMBERS" ? Boolean(membership) || isOwner : group.postPermission === "ADMINS" ? isAdmin : isOwner);
-    if (!canPost) return NextResponse.json({ error: "You can't post in this channel" }, { status: 403 });
+    // Member Posting Permissions (2026-11-11) apply here too, so the mobile
+    // chat can't get round them: admins always post; members post straight
+    // on (Open), into review (Approval Required), or not at all (Admin Only).
+    const mode = effectivePostingMode(group);
+    const canAccess = channel ? canOpenChannel(channel, membership, isOwner) : isAdmin || isMembershipActive(membership);
+    const canPost = canAccess && (isAdmin || (channel?.kind !== "ANNOUNCEMENTS" && mode !== "ADMIN_ONLY"));
+    if (!canPost) return NextResponse.json({ error: mode === "ADMIN_ONLY" ? "Only admins can post in this community" : "You can't post here" }, { status: 403 });
+    const status = isAdmin || mode === "OPEN" ? "PUBLISHED" : "PENDING";
 
     if (replyToId) {
       const target = await db.post.findUnique({ where: { id: replyToId }, select: { groupId: true, channelId: true } });
@@ -168,6 +173,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         body,
         imageUrl: imageUrl ?? null,
         replyToId: replyToId ?? null,
+        status,
         poll: pollOptions ? { create: { options: pollOptions } } : undefined,
       },
       include: { author: authorSelect, replyTo: replyToSelect, poll: { include: { votes: true } } },
@@ -190,6 +196,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         tag: n.important ? undefined : `fanbase-${id}`,
       });
 
+    // Waiting for approval: only the admins hear about it.
+    if (status === "PENDING") {
+      const admins = await db.membership.findMany({ where: { groupId: id, role: "ADMIN", userId: { not: user.id } }, select: { userId: true } });
+      fanbaseNotify([group.creatorId, ...admins.map((a) => a.userId)].filter((u) => u !== user.id), {
+        title: `Post to review in ${group.name}`,
+        body: `${user.displayName}: ${preview}`,
+        url: `/groups/${id}?review=1`,
+      });
+      return NextResponse.json({ post: { ...serialize(post, 0, 0, false, user.id), pending: true } });
+    }
+
     const memberRows = await db.membership.findMany({
       where: { groupId: id, userId: { not: user.id } },
       select: { userId: true, role: true, planId: true, expiresAt: true, suspendedAt: true, user: { select: { handle: true } } },
@@ -198,7 +215,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const otherMembers = memberRows.filter((m) =>
       channel ? canOpenChannel(channel, m, m.userId === group.creatorId) : m.role === "ADMIN" || m.userId === group.creatorId || isMembershipActive(m),
     );
-    const chatUrl = `/groups/${id}${channel ? `?channel=${channel.id}` : ""}`;
+    const chatUrl = `/groups/${id}?post=${post.id}`;
 
     // @all/@username is an admin "get their attention" tool (per spec) — a
     // regular member typing "@all" still renders as a chip client-side, but

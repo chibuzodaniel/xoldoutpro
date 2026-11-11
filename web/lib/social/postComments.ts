@@ -28,13 +28,15 @@ export async function viewerCommentVotes(userId: string | undefined, commentIds:
  * can see; members only inside a community. Returns the post or null.
  */
 export async function loadCommentablePost(postId: string, viewerId: string | undefined) {
-  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true, authorId: true, groupId: true, audience: true } });
+  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true, authorId: true, groupId: true, audience: true, status: true } });
   if (!post) return null;
   if (post.groupId) {
     if (!viewerId) return null;
     const m = await db.membership.findUnique({ where: { groupId_userId: { groupId: post.groupId, userId: viewerId } }, select: { role: true } });
     if (!m) return null;
-    return { ...post, viewerIsGroupAdmin: m.role === "ADMIN" };
+    const admin = m.role === "ADMIN" || (await db.fanbaseGroup.findUnique({ where: { id: post.groupId }, select: { creatorId: true } }))?.creatorId === viewerId;
+    if (post.status !== "PUBLISHED" && !admin && post.authorId !== viewerId) return null;
+    return { ...post, viewerIsGroupAdmin: admin };
   }
   if (post.audience === "FOLLOWERS" && viewerId !== post.authorId) {
     if (!viewerId) return null;

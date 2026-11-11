@@ -109,15 +109,15 @@ export function ProfileActions({ targetUserId, handle, displayName }: { targetUs
 }
 
 const circleBtn =
-  "flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full border border-white/40 text-white transition-colors duration-150 hover:bg-white/10";
+  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/30 text-white transition-colors duration-150 hover:bg-white/10";
 
 const CupIcon = (
-  <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+  <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
     <path d="M4 8h12v6a5 5 0 01-5 5H9a5 5 0 01-5-5V8zM16 10h1.5a2.5 2.5 0 010 5H16" strokeLinejoin="round" />
   </svg>
 );
 const SendIcon = (
-  <svg viewBox="0 0 24 24" className="h-[21px] w-[21px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+  <svg viewBox="0 0 24 24" className="h-[17px] w-[17px]" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
     <path d="M21 3L10 14M21 3l-7 18-4-7-7-4 18-7z" strokeLinejoin="round" />
   </svg>
 );
@@ -133,8 +133,8 @@ export function ProfileCardActions({ targetUserId, handle, displayName }: { targ
 
   if (isOwner) {
     return (
-      <div className="flex items-center gap-3">
-        <Link href="/profile/edit" className="flex min-h-[52px] flex-1 items-center justify-center rounded-full bg-white text-[16px] font-bold text-black">
+      <div className="flex items-center gap-2">
+        <Link href="/profile/edit" className="flex h-10 flex-1 items-center justify-center rounded-lg bg-white text-[14px] font-semibold text-black">
           Edit profile
         </Link>
         <ShareButton
@@ -142,16 +142,16 @@ export function ProfileCardActions({ targetUserId, handle, displayName }: { targ
           text={`Follow me on XOLDOUT — @${handle}`}
           path={`/u/${handle}`}
           label="Share"
-          className="min-h-[52px] justify-center border border-white/40 bg-transparent px-5 text-[15px] font-bold text-white"
+          className="h-10 justify-center rounded-lg border border-white/30 bg-transparent px-4 text-[14px] font-semibold text-white"
         />
       </div>
     );
   }
   if (!appUser) {
     return (
-      <div className="flex items-center gap-3">
-        <Link href="/login" className="flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-full bg-red text-[17px] font-bold text-white">
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+      <div className="flex items-center gap-2">
+        <Link href="/login" className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-red text-[14px] font-semibold text-white">
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
           Follow
@@ -164,7 +164,7 @@ export function ProfileCardActions({ targetUserId, handle, displayName }: { targ
     );
   }
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       <FollowButton targetUserId={targetUserId} size="pill" />
       <TipButton creatorId={targetUserId} artistName={displayName} className={circleBtn} label={CupIcon} ariaLabel={`Tip ${displayName}`} />
       <MessageButton targetUserId={targetUserId} className={`${circleBtn} disabled:opacity-50`} ariaLabel={`Message ${displayName}`}>

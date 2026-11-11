@@ -11,9 +11,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const { optionIndex } = bodySchema.parse(await req.json());
 
-    const poll = await db.poll.findUnique({ where: { postId: id }, include: { post: { select: { groupId: true } } } });
+    const poll = await db.poll.findUnique({ where: { postId: id }, include: { post: { select: { groupId: true, status: true } } } });
     if (!poll) return NextResponse.json({ error: "Not found" }, { status: 404 });
     if (optionIndex >= poll.options.length) return NextResponse.json({ error: "Invalid option" }, { status: 400 });
+    if (poll.post.status !== "PUBLISHED") return NextResponse.json({ error: "Not found" }, { status: 404 });
+    if (poll.closesAt && poll.closesAt.getTime() <= Date.now()) return NextResponse.json({ error: "Voting has closed" }, { status: 400 });
     if (poll.post.groupId) {
       const membership = await db.membership.findUnique({
         where: { groupId_userId: { groupId: poll.post.groupId, userId: user.id } },

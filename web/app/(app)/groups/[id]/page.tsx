@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { buildOgMetadata } from "@/lib/og";
-import { GroupDetailClient } from "./GroupDetailClient";
 import { CommunityPage } from "@/components/communities/CommunityPage";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -19,8 +18,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   });
 }
 
-// v2 communities: the community page; ?channel=<id|general> opens that
-// channel's chat (the original Fanbase chat is the "general" channel).
+// Communities: the community page with its Timeline (2026-11-11 — channels
+// replaced). Old ?channel= links from notifications open the Timeline too.
 export default async function GroupDetailPage({
   params,
   searchParams,
@@ -29,6 +28,6 @@ export default async function GroupDetailPage({
   searchParams: Promise<{ channel?: string }>;
 }) {
   const [{ id }, { channel }] = await Promise.all([params, searchParams]);
-  if (channel) return <GroupDetailClient id={id} channelId={channel === "general" ? null : channel} />;
+  void channel;
   return <CommunityPage id={id} />;
 }

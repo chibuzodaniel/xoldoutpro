@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
@@ -14,6 +14,7 @@ import { JoinSheet, type CommunityPlan } from "@/components/communities/JoinShee
 import { MembershipCardSheet } from "@/components/communities/MembershipCardSheet";
 import { ReportSheet, COMMUNITY_REPORT_REASONS } from "@/components/trust/ReportSheet";
 import { planPriceLabel } from "@/lib/communities/constants";
+import { Timeline } from "@/components/communities/Timeline";
 
 type Channel = {
   id: string;
@@ -67,7 +68,8 @@ export function CommunityPage({ id }: { id: string }) {
   const { appUser } = useAuth();
   const [data, setData] = useState<Detail | null>(null);
   const [missing, setMissing] = useState(false);
-  const [tab, setTab] = useState<"channels" | "members" | "about">("channels");
+  // Timeline replaces channels (explicit ask, 2026-11-11).
+  const [tab, setTab] = useState<"timeline" | "members" | "about">("timeline");
   const [members, setMembers] = useState<Member[] | null>(null);
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinPlan, setJoinPlan] = useState<string | null>(null);
@@ -109,11 +111,10 @@ export function CommunityPage({ id }: { id: string }) {
   if (missing) return <p className="px-4 py-20 text-center text-ink-3">This community doesn&apos;t exist any more.</p>;
   if (!data) return <LoadingSpinner full size="lg" />;
 
-  const { community: c, channels, plans, viewer } = data;
+  const { community: c, plans, viewer } = data;
   const m = viewer.membership;
   const paid = plans.filter((p) => p.priceKobo > 0);
   const fromKobo = paid.length ? Math.min(...paid.map((p) => p.priceKobo)) : null;
-  const planName = (pid: string) => plans.find((p) => p.id === pid)?.name;
   const myPlan = m?.planId ? plans.find((p) => p.id === m.planId) : null;
   const pending = viewer.joinRequest?.status === "PENDING";
   const approvedPlanId = viewer.joinRequest?.status === "APPROVED" ? viewer.joinRequest.planId : null;
@@ -239,7 +240,7 @@ export function CommunityPage({ id }: { id: string }) {
         <div className="mt-4">{c.suspendedAt && !viewer.isAdmin ? null : primary}</div>
 
         <div role="tablist" className="mt-6 flex gap-6 border-b border-line-soft">
-          {(["channels", "members", "about"] as const).map((t) => (
+          {(["timeline", "members", "about"] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -253,67 +254,21 @@ export function CommunityPage({ id }: { id: string }) {
           ))}
         </div>
 
-        {tab === "channels" && (
-          <ul className="divide-y divide-line-soft">
-            {channels.map((ch) => {
-              const badge = ch.planIds.length ? ch.planIds.map(planName).filter(Boolean).join(", ") : null;
-              const row = (
-                <>
-                  <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${ch.kind === "ANNOUNCEMENTS" ? "bg-red-tint text-red-soft" : "bg-surface-2 text-ink-2"}`}>
-                    {ch.kind === "ANNOUNCEMENTS" ? (
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                        <circle cx="12" cy="12" r="2" />
-                        <path d="M8 8a5.5 5.5 0 000 8M16 8a5.5 5.5 0 010 8M5 5a10 10 0 000 14M19 5a10 10 0 010 14" strokeLinecap="round" />
-                      </svg>
-                    ) : !ch.canOpen ? (
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                        <rect x="5" y="11" width="14" height="9" rx="2" />
-                        <path d="M8 11V8a4 4 0 018 0v3" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                        <path d="M21 11.5a8.5 8.5 0 01-8.5 8.5c-1.2 0-2.3-.25-3.3-.7L4 20l.9-4.5A8.5 8.5 0 1121 11.5z" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate text-[16px] font-bold">{ch.name}</span>
-                      {badge && <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[11px] text-ink-2">{badge}</span>}
-                    </span>
-                    <span className="block truncate text-[13px] text-ink-3">
-                      {!ch.canOpen ? (badge ? `For ${badge} members` : "Members only") : ch.last ? `${ch.last.author}: ${ch.last.body}` : "No messages yet"}
-                    </span>
-                  </span>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-ink-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                    <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </>
-              );
-              return (
-                <li key={ch.id}>
-                  {ch.canOpen ? (
-                    <Link href={`/groups/${id}?channel=${ch.id}`} className="flex items-center gap-3 py-3.5">
-                      {row}
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (pending) return toast.error("Your application is still pending");
-                        setJoinPlan(ch.planIds[0] ?? null);
-                        setJoinOpen(true);
-                      }}
-                      className="flex w-full items-center gap-3 py-3.5 text-left"
-                    >
-                      {row}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
+        {tab === "timeline" &&
+          (viewer.isAdmin || (m && !pending) ? (
+            <Suspense fallback={null}>
+              <Timeline communityId={id} />
+            </Suspense>
+          ) : (
+            <div className="py-8 text-center">
+              <p className="text-sm text-ink-3">{pending ? "Your request to join is pending." : "Join to see the Timeline and take part."}</p>
+              {!pending && (
+                <button type="button" onClick={() => setJoinOpen(true)} className="mt-3 rounded-full bg-red px-5 py-2.5 text-sm font-bold text-white">
+                  Join community
+                </button>
+              )}
+            </div>
+          ))}
 
         {tab === "members" &&
           (!m ? (

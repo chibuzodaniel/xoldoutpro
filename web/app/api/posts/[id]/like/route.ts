@@ -8,6 +8,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { user } = await requireUser(req);
     const { id } = await params;
+    // Community posts waiting for approval can't be liked (2026-11-11).
+    const target = await db.post.findUnique({ where: { id }, select: { status: true } });
+    if (!target || target.status !== "PUBLISHED") return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     const existing = await db.postLike.findUnique({ where: { postId_userId: { postId: id, userId: user.id } } });
     if (existing) {

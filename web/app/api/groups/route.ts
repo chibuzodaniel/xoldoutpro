@@ -144,7 +144,8 @@ export async function POST(req: NextRequest) {
     }
 
     const group = await db.$transaction(async (tx) => {
-      const created = await tx.fanbaseGroup.create({ data: { creatorId: user.id, ...body, coverImageUrl } });
+      // New communities start at Approval Required (Timeline, 2026-11-11).
+      const created = await tx.fanbaseGroup.create({ data: { creatorId: user.id, ...body, coverImageUrl, postingMode: "APPROVAL" } });
       // The creator is always a member (as ADMIN) so membership checks don't
       // need a separate "or you're the creator" branch everywhere.
       await tx.membership.create({ data: { groupId: created.id, userId: user.id, role: "ADMIN" } });

@@ -180,6 +180,8 @@ export async function POST(req: NextRequest) {
       const created = await tx.fanbaseGroup.create({
         data: {
           creatorId: user.id,
+          // Member Posting Permissions default (Timeline, 2026-11-11).
+          postingMode: "APPROVAL",
           name: body.name,
           handle: body.handle || null,
           description: body.description || null,

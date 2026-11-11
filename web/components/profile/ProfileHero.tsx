@@ -1,5 +1,6 @@
 import { ClickablePhoto } from "@/components/profile/ClickablePhoto";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
+import { ProfileBio } from "@/components/profile/ProfileBio";
 
 // v2 profile header (user's reference screenshot, 2026-11-11): full-bleed
 // cover, a red glass card over it with the round avatar on the left, name +
@@ -37,7 +38,7 @@ export function ProfileHero({
       {topBar}
 
       <div className="relative -mt-24 px-4 sm:-mt-28">
-        <div className="mx-auto max-w-xl rounded-[30px] border border-white/20 bg-gradient-to-br from-red/45 via-[#3a0710]/80 to-[#1a0306]/90 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-xl sm:p-6">
+        <div className="mx-auto max-w-xl rounded-xl border border-white/15 bg-gradient-to-br from-red/45 via-[#3a0710]/80 to-[#1a0306]/90 p-5 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl sm:p-5">
           <div className="flex items-start gap-4 sm:gap-5">
             {avatar}
             <div className="min-w-0 flex-1 pt-1">
@@ -54,12 +55,12 @@ export function ProfileHero({
                 </svg>
                 <span className="truncate">xoldout.app/u/{user.handle}</span>
               </a>
-              {user.bio && <p className="mt-2 whitespace-pre-line break-words text-[15px] text-white">{user.bio}</p>}
+              {user.bio && <ProfileBio text={user.bio} />}
               {extra}
             </div>
           </div>
 
-          <div className="mt-5 flex items-center justify-center text-[14px] text-white/75 sm:text-[15px]">
+          <div className="mt-4 flex items-center justify-center text-[14px] text-white/75 sm:text-[15px]">
             {stats.map((s, i) => (
               <span key={s.label} className="flex items-center">
                 {i > 0 && <span className="mx-3 h-4 w-px bg-white/35 sm:mx-5" aria-hidden />}
@@ -70,7 +71,7 @@ export function ProfileHero({
             ))}
           </div>
 
-          <div className="mt-5">{actions}</div>
+          <div className="mt-4">{actions}</div>
         </div>
       </div>
     </div>

@@ -50,12 +50,12 @@ export function FollowButton({
       <button
         onClick={toggle}
         disabled={following === null}
-        className={`flex min-h-[52px] flex-1 items-center justify-center gap-2 rounded-full text-[17px] font-bold transition-colors duration-150 ${
-          following ? "border border-white/40 text-white" : "bg-red text-white shadow-[0_6px_20px_rgba(225,11,44,0.35)] hover:bg-red-soft"
+        className={`flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg text-[14px] font-semibold transition-colors duration-150 ${
+          following ? "border border-white/30 text-white" : "bg-red text-white hover:bg-red-soft"
         }`}
       >
         {!following && (
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden>
             <path d="M12 5v14M5 12h14" strokeLinecap="round" />
           </svg>
         )}

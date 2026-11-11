@@ -53,7 +53,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }),
     // Latest message per channel (General = null), one query.
     db.post.findMany({
-      where: { groupId: id },
+      where: { groupId: id, status: "PUBLISHED" },
       orderBy: { createdAt: "desc" },
       distinct: ["channelId"],
       select: { channelId: true, body: true, imageUrl: true, createdAt: true, author: { select: { displayName: true } } },
