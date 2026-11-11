@@ -103,6 +103,8 @@ export async function GET(req: NextRequest) {
     const { user } = await requireUser(req);
     const forYou = req.nextUrl.searchParams.get("feed") === "forYou";
     const v2 = req.nextUrl.searchParams.get("v") === "2";
+    // One person's posts (profile "View Socials posts", 2026-11-11). Same audience rules.
+    const authorId = req.nextUrl.searchParams.get("author");
 
     const follows = await db.follow.findMany({ where: { followerId: user.id }, select: { followed: authorSelect } });
     const following = follows.map((f) => f.followed);
@@ -120,7 +122,7 @@ export async function GET(req: NextRequest) {
     const posts = await db.post.findMany({
       where: {
         groupId: null,
-        ...(forYou ? {} : { authorId: { in: canSee } }),
+        ...(authorId ? { authorId } : forYou ? {} : { authorId: { in: canSee } }),
         ...(v2 ? {} : { repostOfId: null }),
         OR: [{ audience: "EVERYONE" }, { authorId: { in: canSee } }],
       },

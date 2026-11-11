@@ -15,6 +15,7 @@ import { ProfileShowcase } from "@/components/profile/ProfileShowcase";
 import { CatalogSubscriptionCard } from "@/components/subscriptions/CatalogSubscriptionCard";
 import { readSections } from "@/lib/profile/sections";
 import { LINEUP_ROLE_LABEL } from "@/lib/event/lineupRules";
+import { ProfileMetaLine } from "@/components/profile/ProfileMetaLine";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 
 
@@ -42,7 +43,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   // Profile sections (v2): what the owner chose to show visitors.
   const sections = readSections(user.profileSections);
-  const [catalog, events, fansCount, salesAgg, featuredOn, subscriptionPlans, subscriberCount, publicPosts, libraryItems] = await Promise.all([
+  const [catalog, events, fansCount, salesAgg, featuredOn, subscriptionPlans, subscriberCount, publicPostCount, libraryItems] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: {
@@ -88,21 +89,8 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
       : Promise.resolve(0),
     // Posts and activity: public (Everyone) posts only — this page doesn't know who's viewing.
     sections.posts
-      ? db.post.findMany({
-          where: { authorId: user.id, groupId: null, repostOfId: null, audience: "EVERYONE" },
-          orderBy: { createdAt: "desc" },
-          take: 10,
-          select: {
-            id: true,
-            body: true,
-            imageUrl: true,
-            createdAt: true,
-            _count: { select: { likes: true, comments: true } },
-            attachedProduct: { select: { id: true, type: true, title: true, status: true } },
-            attachedEvent: { select: { id: true, title: true, status: true } },
-          },
-        })
-      : Promise.resolve([]),
+      ? db.post.count({ where: { authorId: user.id, groupId: null, repostOfId: null, audience: "EVERYONE" } })
+      : Promise.resolve(0),
     // Music library: songs they've bought — only when they turned it on.
     sections.library
       ? db.entitlement.findMany({
@@ -132,6 +120,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           then the music-platform Links. */}
       <ProfileHero
         user={user}
+        location={sections.location ? user.profileLocation : null}
         topBar={<ProfileTopBar handle={user.handle} displayName={user.displayName} />}
         avatar={<ProfileAvatar targetUserId={user.id} avatarUrl={user.avatarUrl} displayName={user.displayName} shape="round" />}
         stats={[
@@ -140,28 +129,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           { label: "Subscribers", value: subscriberCount },
         ]}
         actions={<ProfileCardActions targetUserId={user.id} handle={user.handle} displayName={user.displayName} />}
-        extra={
-          <>
-            {user.tags.length > 0 && (
-              <div className="mt-2.5 flex flex-wrap gap-1.5">
-                {user.tags.map((tag) => (
-                  <span key={tag} className="rounded-full border border-white/25 px-2.5 py-0.5 text-[11px] text-white/80">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
-            {sections.location && user.profileLocation && (
-              <p className="mt-2 flex items-center gap-1.5 text-[13px] text-white/70">
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
-                  <path d="M12 21s-7-6.2-7-11.5A7 7 0 0119 9.5C19 14.8 12 21 12 21z" strokeLinejoin="round" />
-                  <circle cx="12" cy="9.5" r="2.5" />
-                </svg>
-                {user.profileLocation}
-              </p>
-            )}
-          </>
-        }
+        extra={<ProfileMetaLine location={sections.location ? user.profileLocation : null} tags={user.tags} />}
       />
 
       <div className="flex flex-col items-center px-4 text-center">
@@ -219,41 +187,22 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
           </section>
         )}
 
-        {publicPosts.length > 0 && (
-          <section className="mt-8">
-            <h2 className="font-serif text-[24px] font-bold">Posts</h2>
-            <div className="mt-3 flex flex-col gap-3 md:max-w-2xl">
-              {publicPosts.map((post) => {
-                const att = post.attachedProduct?.status === "PUBLISHED" ? post.attachedProduct : null;
-                const ev = post.attachedEvent?.status === "PUBLISHED" ? post.attachedEvent : null;
-                return (
-                  <article key={post.id} className="rounded-2xl border border-red/15 bg-red/10 p-4">
-                    <p className="text-[12px] text-ink-3">{post.createdAt.toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}</p>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-ink-2">{post.body}</p>
-                    {post.imageUrl && (
-                      <span className="mt-3 block aspect-square max-w-sm overflow-hidden rounded-lg bg-surface-2">
-                        <FallbackImg src={post.imageUrl} alt="" className="h-full w-full object-cover" fallback={null} />
-                      </span>
-                    )}
-                    {(att || ev) && (
-                      <Link
-                        href={att ? `/${att.type === "BEAT" ? "b" : att.type === "MERCH" ? "m" : "r"}/${att.id}` : `/e/${ev!.id}`}
-                        className="mt-3 block rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold"
-                      >
-                        {att ? att.title : ev!.title} →
-                      </Link>
-                    )}
-                    <p className="mt-2 text-[12px] text-ink-3">
-                      {post._count.likes} likes · {post._count.comments} comments
-                    </p>
-                  </article>
-                );
-              })}
-            </div>
-            <Link href="/socials" className="mt-3 inline-block text-sm font-semibold text-red-soft">
-              See more on Socials →
-            </Link>
-          </section>
+        {/* Posts open on their own page (explicit ask, 2026-11-11). */}
+        {publicPostCount > 0 && (
+          <Link
+            href={`/u/${user.handle}/posts`}
+            className="mt-8 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-[#111] px-4 py-3.5 md:max-w-2xl"
+          >
+            <span>
+              <span className="block text-[16px] font-semibold">View Socials posts</span>
+              <span className="block text-[13px] text-ink-3">
+                {publicPostCount.toLocaleString("en-NG")} post{publicPostCount === 1 ? "" : "s"} by {user.displayName}
+              </span>
+            </span>
+            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0 text-ink-2" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+              <path d="M9 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </Link>
         )}
       </div>
     </div>

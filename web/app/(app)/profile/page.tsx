@@ -12,6 +12,7 @@ import { SalesMilestoneSheet } from "@/components/profile/SalesMilestoneSheet";
 import { PlanCapNudgeSheet } from "@/components/plans/PlanCapNudgeSheet";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { ContactXoldout } from "@/components/support/ContactXoldout";
+import { ProfileMetaLine } from "@/components/profile/ProfileMetaLine";
 import { ProfileLinkBadges, ProfileLinkList } from "@/components/profile/ProfileLinks";
 
 const FEEDBACK_REASONS = [
@@ -172,6 +173,7 @@ export default function ProfilePage() {
           public profile (bio included), with Edit profile + Share. */}
       <ProfileHero
         user={appUser}
+        location={(appUser as unknown as { profileLocation?: string | null }).profileLocation ?? null}
         topBar={<ProfileTopBar handle={appUser.handle} displayName={appUser.displayName} showBack={false} />}
         avatar={<ProfileAvatar targetUserId={appUser.id} avatarUrl={appUser.avatarUrl} displayName={appUser.displayName} shape="round" />}
         stats={[
@@ -181,30 +183,20 @@ export default function ProfilePage() {
         ]}
         actions={<ProfileCardActions targetUserId={appUser.id} handle={appUser.handle} displayName={appUser.displayName} />}
         extra={
-          <>
-            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-              {appUser.tags.map((tag) => (
-                <span key={tag} className="rounded-full border border-white/25 px-2.5 py-0.5 text-[11px] text-white/80">
-                  {tag}
-                </span>
-              ))}
-              <Link href="/profile/edit" aria-label="Edit tags" className="flex h-5 w-5 items-center justify-center rounded-full border border-dashed border-white/40 text-[12px] text-white/70">
-                +
-              </Link>
-            </div>
+          <ProfileMetaLine location={(appUser as unknown as { profileLocation?: string | null }).profileLocation ?? null} tags={appUser.tags}>
+            <Link href="/profile/edit" aria-label="Edit tags" className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-dashed border-white/40 text-[12px] text-white/70">
+              +
+            </Link>
             {!appUser.isVerified && (
-              <Link
-                href="/verification"
-                className="mt-2.5 inline-flex animate-pulse items-center gap-1 rounded-full border border-white/40 bg-white/10 px-3 py-1 text-[12px] font-semibold text-white"
-              >
-                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link href="/verification" className="flex shrink-0 animate-pulse items-center gap-1 rounded-full border border-white/40 bg-white/10 px-2 py-px text-[11px] font-semibold text-white">
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                   <path d="M9 12l2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
                   <circle cx="12" cy="12" r="9" />
                 </svg>
                 Get Verified
               </Link>
             )}
-          </>
+          </ProfileMetaLine>
         }
       />
 
