@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { readSections } from "@/lib/profile/sections";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { adminAuth } from "@/lib/firebase/admin";
@@ -48,6 +49,12 @@ const patchSchema = z.object({
   fcmTokens: z.array(z.string()).optional(),
   emailDigestSubscribed: z.boolean().optional(),
   displayCountry: z.enum(DISPLAY_COUNTRY_CODES).nullable().optional(),
+  // Profile sections (v2): which parts of the public profile visitors see.
+  profileSections: z
+    .object({ links: z.boolean(), products: z.boolean(), posts: z.boolean(), library: z.boolean(), location: z.boolean() })
+    .partial()
+    .optional(),
+  profileLocation: z.string().trim().max(60).nullable().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -60,7 +67,16 @@ export async function PATCH(req: NextRequest) {
       if (taken) return NextResponse.json({ error: "Handle already taken" }, { status: 409 });
     }
 
-    const updated = await db.user.update({ where: { id: user.id }, data: body });
+    const { profileSections, profileLocation, ...rest } = body;
+    const updated = await db.user.update({
+      where: { id: user.id },
+      data: {
+        ...rest,
+        // Merged into what is saved, so a partial update keeps the other switches.
+        ...(profileSections ? { profileSections: { ...readSections(user.profileSections), ...profileSections } } : {}),
+        ...(profileLocation !== undefined ? { profileLocation: profileLocation || null } : {}),
+      },
+    });
     return NextResponse.json({ user: updated });
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });

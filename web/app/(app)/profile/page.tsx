@@ -243,6 +243,7 @@ export default function ProfilePage() {
           <Tile icon={I.insights} title="Insights" sub="Views, sales, growth" href="/analytics" />
           <Tile icon={I.settings} title="Settings" sub="Account and security" href="/profile/edit" />
           <Tile icon={I.music} title="Subscription" sub="Catalog subscription for fans" href="/profile/subscription" />
+          <Tile icon={I.settings} title="Sections" sub="Choose what visitors see" href="/profile/sections" />
           <Tile
             icon={I.collab}
             title="Collaborations"
