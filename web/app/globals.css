@@ -236,43 +236,82 @@ select {
    this file loads after the library's own stylesheet, so source order can't
    be relied on; a two-class selector beats the library's one-class
    selectors regardless of order. */
+/* Every toast uses the same format (explicit ask, 2026-11-12): centred on
+   screen over a dimmed page, the site's card look — dark charcoal with a red
+   tint and border, rounded, white text, red countdown bar. Success and error
+   keep a green / red accent. */
 .Toastify__toast-container {
   padding: 0;
-  width: auto;
-  max-width: 24rem;
+}
+.Toastify__toast-container.Toastify__toast-container--top-center {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, calc(100vw - 2rem));
+  max-width: none;
 }
 
 .Toastify__toast-container .Toastify__toast {
   min-height: unset;
-  border-radius: 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--line) 60%, transparent);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  backdrop-filter: blur(8px);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  padding: 0.625rem 1rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--red) 22%, #111) 0%, #0d0d0d 70%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  padding: 0.875rem 1rem 1rem;
   margin-bottom: 0.5rem;
-  font-family: var(--font-sans);
+  color: #fff;
   font-size: 0.875rem;
-  font-weight: 500;
-  cursor: pointer;
 }
-
 .Toastify__toast-container .Toastify__toast-body {
   padding: 0;
   margin: 0;
   gap: 0.5rem;
 }
-
+.Toastify__toast-container .Toastify__close-button {
+  color: #fff;
+  opacity: 0.6;
+}
+.Toastify__toast-container .Toastify__progress-bar {
+  background: var(--red);
+  height: 3px;
+}
 .Toastify__toast-container .Toastify__toast--error {
-  border-color: color-mix(in srgb, var(--red) 30%, transparent);
-  background: color-mix(in srgb, var(--red) 15%, var(--surface) 85%);
+  border-color: color-mix(in srgb, var(--red) 60%, transparent);
   color: var(--red-soft);
 }
-
 .Toastify__toast-container .Toastify__toast--success {
-  border-color: color-mix(in srgb, var(--green) 30%, transparent);
-  background: color-mix(in srgb, var(--green) 15%, var(--surface) 85%);
+  border-color: color-mix(in srgb, var(--green) 45%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--green) 16%, #111) 0%, #0d0d0d 70%);
   color: var(--green);
+}
+.Toastify__toast-container .Toastify__toast--success .Toastify__progress-bar {
+  background: var(--green);
+}
+
+/* The page dims behind any toast. Toasts that need an answer (confirm,
+   "Leaving XOLDOUT" — class xo-blocking-toast) also block taps on the page;
+   plain messages don't get in the way. Sits just under the toast layer. */
+body:has(.Toastify__toast)::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+  animation: xo-dim-in 0.2s ease-out;
+}
+body:has(.xo-blocking-toast)::after {
+  background: rgba(0, 0, 0, 0.65);
+  pointer-events: auto;
+}
+@keyframes xo-dim-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* No visible scrollbars on the app's scroll area (explicit ask, 2026-11-09):
@@ -282,34 +321,4 @@ select {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
-}
-
-/* "Leaving XOLDOUT" pop-up (2026-11-12): the site's own card look — dark
-   charcoal with a red tint and border, rounded, red countdown bar. */
-.Toastify__toast-container .Toastify__toast.xo-leave-toast {
-  border-radius: 1rem;
-  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--red) 22%, #111) 0%, #0d0d0d 70%);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
-  padding: 0.875rem 1rem 1rem;
-  color: #fff;
-}
-.Toastify__toast-container .xo-leave-toast .Toastify__close-button {
-  color: #fff;
-  opacity: 0.6;
-}
-.Toastify__toast-container .xo-leave-toast .Toastify__progress-bar {
-  background: var(--red);
-  height: 3px;
-}
-
-/* Centre of the screen for the "Leaving XOLDOUT" pop-up (explicit ask,
-   2026-11-12). It's the only top-center toast; :has() keeps every other
-   toast where it was. */
-.Toastify__toast-container--top-center:has(.xo-leave-toast) {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(24rem, calc(100vw - 2rem));
-  max-width: none;
 }

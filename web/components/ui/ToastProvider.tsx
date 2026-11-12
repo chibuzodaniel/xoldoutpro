@@ -1,6 +1,6 @@
 "use client";
 
-import { ToastContainer, Slide, toast, type ToastOptions } from "react-toastify";
+import { ToastContainer, Zoom, toast, type ToastOptions } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 // react-toastify replaces the hand-rolled toast stack this file used to
@@ -82,7 +82,7 @@ function ConfirmContent({
 }) {
   return (
     <div className="w-full">
-      <p className="mb-3 whitespace-pre-line text-[14px] leading-snug text-ink">{message}</p>
+      <p className="mb-3 whitespace-pre-line text-[14px] leading-snug text-white">{message}</p>
       <div className="flex justify-end gap-2">
         <button
           type="button"
@@ -154,6 +154,7 @@ export function useToast() {
           toast.dismiss(id);
         };
         const id = toast(<ConfirmContent message={message} options={options} onAnswer={answer} />, {
+          className: "xo-blocking-toast",
           autoClose: false,
           closeOnClick: false,
           draggable: false,
@@ -176,9 +177,7 @@ export function useToast() {
         toast.dismiss("leaving-xoldout");
         const id = toast(<LeaveContent site={site} onAnswer={answer} />, {
           toastId: "leaving-xoldout",
-          className: "xo-leave-toast",
-          // Centre of the screen (explicit ask) — see globals.css.
-          position: "top-center",
+          className: "xo-blocking-toast",
           autoClose: 8000,
           closeOnClick: false,
           draggable: true,
@@ -198,7 +197,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <>
       {children}
-      <ToastContainer position="top-right" transition={Slide} />
+      {/* Every toast centred over a dimmed page (globals.css, 2026-11-12). */}
+      <ToastContainer position="top-center" transition={Zoom} />
     </>
   );
 }
