@@ -206,8 +206,16 @@ export default function ProfilePage() {
 
       <div className="px-4 md:px-6">
         {/* Preview first, then the XOLDOUT channel card (explicit ask, 2026-11-12). */}
-        <Link href={publicPath} className="mt-4 block rounded-full border border-line px-4 py-3 text-center text-[15px] font-bold md:max-w-xl">
-          Preview public profile
+        <Link href={publicPath} className="mt-4 flex items-center gap-3 rounded-2xl border border-red/30 bg-red/10 px-4 py-3">
+          <span className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-black ring-1 ring-red">
+            {/* eslint-disable-next-line @next/next/no-img-element -- small avatar */}
+            {appUser.avatarUrl && <img src={appUser.avatarUrl} alt="" className="h-full w-full object-cover" />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-bold">Preview public profile</span>
+            <span className="block truncate text-[12px] text-ink-2">See your profile as visitors do · xoldout.app{publicPath}</span>
+          </span>
+          <span className="shrink-0 rounded-full bg-red px-4 py-2 text-[13px] font-bold text-white">Open</span>
         </Link>
         <ContactXoldout className="mt-3" />
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
