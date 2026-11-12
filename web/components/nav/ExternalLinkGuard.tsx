@@ -41,9 +41,7 @@ export function ExternalLinkGuard() {
       e.preventDefault();
       e.stopPropagation();
       const site = url.hostname.replace(/^www\./, "");
-      const ok = await toast.confirm(`You're leaving XOLDOUT to visit ${site}. XOLDOUT isn't responsible for content on other sites.`, {
-        confirmLabel: "Continue",
-      });
+      const ok = await toast.leaving(site);
       if (!ok) return;
       const newTab = a.target === "_blank" || e.metaKey || e.ctrlKey || e.button === 1;
       if (newTab) window.open(url.href, "_blank", "noopener,noreferrer");

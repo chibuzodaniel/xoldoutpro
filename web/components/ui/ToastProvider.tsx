@@ -104,6 +104,33 @@ function ConfirmContent({
   );
 }
 
+// "You're leaving XOLDOUT" toast (explicit ask, 2026-11-12): logo, where
+// they're going, Continue / Stay. Closes itself after a few seconds (= Stay).
+function LeaveContent({ site, onAnswer }: { site: string; onAnswer: (ok: boolean) => void }) {
+  return (
+    <div className="flex w-full items-start gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black ring-1 ring-red">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static logo */}
+        <img src="/xoldout-icon-transparent.png" alt="" className="h-6 w-6" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-[15px] font-bold text-ink">Leaving XOLDOUT</p>
+        <p className="mt-0.5 break-words text-[13px] leading-snug text-ink-2">
+          You&apos;re going to <b className="text-ink">{site}</b>. XOLDOUT isn&apos;t responsible for other sites.
+        </p>
+        <div className="mt-2.5 flex gap-2">
+          <button type="button" autoFocus onClick={() => onAnswer(true)} className="rounded-full bg-red px-4 py-1.5 text-[13px] font-bold text-white">
+            Continue
+          </button>
+          <button type="button" onClick={() => onAnswer(false)} className="rounded-full border border-line px-4 py-1.5 text-[13px] font-semibold text-ink">
+            Stay
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function useToast() {
   return {
     error: (message: string) => toast.error(message, { ...BASE_OPTIONS, icon: ICONS.error }),
@@ -132,6 +159,29 @@ export function useToast() {
           draggable: false,
           closeButton: false,
           hideProgressBar: true,
+          icon: false,
+          onClose: () => answer(false),
+        });
+      }),
+    // Resolves true on Continue; Stay, closing or the timer running out is false.
+    leaving: (site: string) =>
+      new Promise<boolean>((resolve) => {
+        let settled = false;
+        const answer = (ok: boolean) => {
+          if (settled) return;
+          settled = true;
+          resolve(ok);
+          toast.dismiss(id);
+        };
+        toast.dismiss("leaving-xoldout");
+        const id = toast(<LeaveContent site={site} onAnswer={answer} />, {
+          toastId: "leaving-xoldout",
+          autoClose: 8000,
+          closeOnClick: false,
+          draggable: true,
+          closeButton: true,
+          hideProgressBar: false,
+          pauseOnHover: true,
           icon: false,
           onClose: () => answer(false),
         });
