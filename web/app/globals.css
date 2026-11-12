@@ -302,3 +302,14 @@ select {
   background: var(--red);
   height: 3px;
 }
+
+/* Centre of the screen for the "Leaving XOLDOUT" pop-up (explicit ask,
+   2026-11-12). It's the only top-center toast; :has() keeps every other
+   toast where it was. */
+.Toastify__toast-container--top-center:has(.xo-leave-toast) {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(24rem, calc(100vw - 2rem));
+  max-width: none;
+}

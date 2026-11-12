@@ -177,6 +177,8 @@ export function useToast() {
         const id = toast(<LeaveContent site={site} onAnswer={answer} />, {
           toastId: "leaving-xoldout",
           className: "xo-leave-toast",
+          // Centre of the screen (explicit ask) — see globals.css.
+          position: "top-center",
           autoClose: 8000,
           closeOnClick: false,
           draggable: true,
