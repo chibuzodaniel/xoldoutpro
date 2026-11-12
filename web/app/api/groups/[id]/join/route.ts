@@ -43,6 +43,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         body: `${user.displayName} wants to join ${group.name}`,
         url: "/groups/requests",
         icon: user.avatarUrl ?? undefined,
+        actorId: user.id,
       });
     }
 

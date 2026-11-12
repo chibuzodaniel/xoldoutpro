@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   try {
     const { user } = await requireUser(req);
     const [notifications, unreadCount] = await Promise.all([
-      db.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 }),
+      db.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50, include: { actor: { select: { countryCode: true } } } }),
       db.notification.count({ where: { userId: user.id, seenAt: null } }),
     ]);
 
@@ -28,10 +28,12 @@ export async function GET(req: NextRequest) {
     const statusById = new Map(lives.map((l) => [l.id, l.status]));
 
     return NextResponse.json({
-      notifications: notifications.map((n) => {
+      notifications: notifications.map(({ actor, ...n }) => {
         const liveId = n.url?.match(LIVE_URL)?.[1];
+        // The flag of whoever caused it (2026-11-12), when known.
+        const actorCountry = actor?.countryCode ?? null;
         // A Live that no longer exists is as good as ended.
-        return liveId ? { ...n, liveStatus: statusById.get(liveId) ?? "ENDED" } : n;
+        return liveId ? { ...n, actorCountry, liveStatus: statusById.get(liveId) ?? "ENDED" } : { ...n, actorCountry };
       }),
       unreadCount,
     });

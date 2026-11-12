@@ -12,6 +12,7 @@ import { BottomSheet } from "@/components/live/BottomSheet";
 import { ReportSheet } from "@/components/trust/ReportSheet";
 import { DmAvatar } from "@/components/messages/Avatar";
 import { ImageViewer } from "@/components/messages/ImageViewer";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { DISAPPEAR_CHOICES, type DmMessage, type DmThread } from "@/components/messages/types";
 
 // One direct-message conversation (explicit ask, 2026-10-04) — see
@@ -223,7 +224,10 @@ export default function ConversationPage() {
         <Link href={`/u/${t.other.handle}`} className="flex min-w-0 flex-1 items-center gap-2.5">
           <DmAvatar person={t.other} className="h-9 w-9 text-xs" />
           <span className="min-w-0">
-            <span className="block truncate text-[15px] font-semibold">{t.other.displayName}</span>
+            <span className="flex items-center gap-1 truncate text-[15px] font-semibold">
+              <span className="truncate">{t.other.displayName}</span>
+              <CountryFlag code={t.other.countryCode} />
+            </span>
             <span className="block truncate text-xs text-ink-3">
               {t.mutedUntil && "🔕 "}
               {t.disappear.seconds ? `⏱ Disappearing messages · ${t.disappear.label}` : `@${t.other.handle}`}

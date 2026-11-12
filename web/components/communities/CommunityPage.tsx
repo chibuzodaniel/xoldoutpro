@@ -14,6 +14,7 @@ import { JoinSheet, type CommunityPlan } from "@/components/communities/JoinShee
 import { MembershipCardSheet } from "@/components/communities/MembershipCardSheet";
 import { ReportSheet, COMMUNITY_REPORT_REASONS } from "@/components/trust/ReportSheet";
 import { planPriceLabel } from "@/lib/communities/constants";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { Timeline } from "@/components/communities/Timeline";
 
 type Channel = {
@@ -53,7 +54,7 @@ type Detail = {
     joinRequest: { status: string; planId: string | null } | null;
   };
 };
-type Member = { userId: string; role: string; user: { id: string; handle: string; displayName: string; avatarUrl: string | null } };
+type Member = { userId: string; role: string; user: { id: string; handle: string; displayName: string; avatarUrl: string | null; countryCode?: string | null } };
 
 function day(iso: string) {
   return new Date(iso).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" });
@@ -283,7 +284,10 @@ export function CommunityPage({ id }: { id: string }) {
                     <span className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-surface-2">
                       <FallbackImg src={mem.user.avatarUrl} alt={mem.user.displayName} className="h-full w-full object-cover" fallback={null} />
                     </span>
-                    <span className="min-w-0 flex-1 truncate font-semibold">{mem.user.displayName}</span>
+                    <span className="flex min-w-0 flex-1 items-center gap-1 font-semibold">
+                      <span className="truncate">{mem.user.displayName}</span>
+                      <CountryFlag code={mem.user.countryCode} />
+                    </span>
                     {(mem.role === "ADMIN" || mem.userId === appUser?.id) && (
                       <span className="rounded-full border border-line px-2 py-0.5 text-[11px] font-bold text-ink-2">
                         {mem.role === "ADMIN" ? "ADMIN" : "YOU"}

@@ -9,6 +9,7 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { DmAvatar } from "@/components/messages/Avatar";
 import { ContactXoldout } from "@/components/support/ContactXoldout";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import type { DmConversationRow, DmPerson } from "@/components/messages/types";
 
 // Direct messages inbox (explicit ask, 2026-10-04) — Inbox / Requests tabs,
@@ -159,6 +160,7 @@ export default function MessagesPage() {
                     <div className="min-w-0 flex-1">
                       <p className={`truncate text-[15px] ${c.unread ? "font-bold text-white" : "font-semibold"}`}>
                         {c.other.displayName}
+                        <CountryFlag code={c.other.countryCode} className="ml-1 text-[0.9em]" />
                         {c.muted && (
                           <span className="ml-1.5 text-[12px] text-ink-3" aria-label="Muted">
                             🔕

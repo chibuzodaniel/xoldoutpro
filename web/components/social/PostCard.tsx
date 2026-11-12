@@ -11,6 +11,7 @@ import { Linkified } from "@/components/ui/Linkified";
 import { useToast } from "@/components/ui/ToastProvider";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { SongComments } from "@/components/player/SongComments";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 
 export type FeedPost = {
@@ -24,6 +25,7 @@ export type FeedPost = {
     displayName: string;
     avatarUrl: string | null;
     isVerified?: boolean;
+    countryCode?: string | null;
     verificationBadges?: string[];
   };
   likeCount: number;
@@ -222,6 +224,7 @@ export function PostCard({
           <Link href={`/u/${post.author.handle}`} className="flex items-center gap-1.5 text-[17px] font-semibold leading-tight">
             <span className="truncate">{post.author.displayName}</span>
             {post.author.isVerified && <VerifiedBadge badgeType={primaryBadgeType(post.author.verificationBadges)} />}
+            <CountryFlag code={post.author.countryCode} />
           </Link>
           <p className="mt-0.5 flex items-center gap-1 text-[13px] text-ink-3">
             {timeAgo(post.createdAt)} ·

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 
 // v2 Discover feed card for an event (design/v2-prototype). Tickets are
@@ -15,7 +16,7 @@ export type EventFeedCardData = {
   coverImageLadder: unknown;
   // Started already (getEventFeed works this out) — shows HAPPENING NOW.
   isLive: boolean;
-  creator: { handle: string; displayName: string; isVerified: boolean; verificationBadges: string[] };
+  creator: { handle: string; displayName: string; isVerified: boolean; verificationBadges: string[]; countryCode?: string | null };
   tiers: { product: { priceKobo: number; stockPolicy: { cap: number | null; sold: number; soldOutAt: Date | string | null } | null } }[];
 };
 
@@ -49,6 +50,7 @@ export function EventFeedCard({ event: ev }: { event: EventFeedCardData }) {
           <span className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-[0.16em] text-ink-2">
             <span className="truncate">{ev.creator.displayName}</span>
             {ev.creator.isVerified && <VerifiedBadge className="h-3.5 w-3.5 shrink-0" badgeType={primaryBadgeType(ev.creator.verificationBadges)} />}
+            <CountryFlag code={ev.creator.countryCode} />
           </span>
           <span className="mt-1 block font-serif text-[34px] font-bold leading-[1.05] line-clamp-2">{ev.title}</span>
           <span className="mt-1 block text-[15px] text-ink-2">

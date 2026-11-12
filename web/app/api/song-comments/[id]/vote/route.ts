@@ -48,6 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         body: `${user.displayName} liked: "${result.comment.body.slice(0, 80)}"`,
         url: songUrl(result.comment.trackKind as SongKind, result.comment.productId, product?.type),
         icon: user.avatarUrl ?? undefined,
+        actorId: user.id,
         tag: `comment-like-${id}`,
       });
     }

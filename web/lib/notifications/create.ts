@@ -19,7 +19,7 @@ export type NotificationKind =
   | "LIVE"
   | "COLLABORATION";
 
-type NotifyArgs = { kind: NotificationKind; title: string; body: string; url?: string; icon?: string; tag?: string };
+type NotifyArgs = { kind: NotificationKind; title: string; body: string; url?: string; icon?: string; tag?: string; actorId?: string };
 
 /**
  * Every notification is persistent (explicit ask): it's saved to the header
@@ -32,7 +32,7 @@ export async function notifyUsers(userIds: string[], args: NotifyArgs): Promise<
   const ids = [...new Set(userIds)];
   if (ids.length === 0) return;
   await db.notification.createMany({
-    data: ids.map((userId) => ({ userId, kind: args.kind, title: args.title, body: args.body, url: args.url })),
+    data: ids.map((userId) => ({ userId, kind: args.kind, title: args.title, body: args.body, url: args.url, actorId: args.actorId ?? null })),
   });
   await sendPushToUsers(ids, { title: args.title, body: args.body, url: args.url, icon: args.icon, tag: args.tag });
 }

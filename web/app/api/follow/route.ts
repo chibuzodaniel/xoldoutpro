@@ -49,6 +49,7 @@ export async function POST(req: NextRequest) {
         body: `${user.displayName} started following you`,
         url: `/u/${user.handle}`,
         icon: user.avatarUrl ?? undefined,
+        actorId: user.id,
       });
     }
     return NextResponse.json({ following: true });

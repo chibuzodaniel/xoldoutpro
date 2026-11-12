@@ -8,6 +8,7 @@ import { buildOgMetadata } from "@/lib/og";
 import Link from "next/link";
 import { lineupSelect } from "@/lib/event/lineup";
 import { LINEUP_ROLE_LABEL } from "@/lib/event/lineupRules";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 
 // Public product data — cache and revalidate in the background instead of
@@ -55,7 +56,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
   const event = await db.event.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, isVerified: true, verificationBadges: true, avatarUrl: true } },
+      creator: { select: { handle: true, displayName: true, isVerified: true, verificationBadges: true, avatarUrl: true, countryCode: true } },
       tiers: { include: { product: { include: { stockPolicy: true } } }, orderBy: { order: "asc" } },
       lineup: lineupSelect,
     },
@@ -123,6 +124,7 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
             <span className="flex items-center gap-1.5 text-[17px] font-semibold">
               <span className="truncate">{event.creator.displayName}</span>
               {event.creator.isVerified && <VerifiedBadge className="h-4 w-4 shrink-0" badgeType={primaryBadgeType(event.creator.verificationBadges as string[])} />}
+              <CountryFlag code={event.creator.countryCode} />
             </span>
             <span className="block text-[13px] text-ink-3">{organizerFollowers.toLocaleString("en-NG")} followers</span>
           </span>
@@ -168,7 +170,10 @@ export default async function EventDetailPage({ params }: { params: Promise<{ id
                       {LINEUP_ROLE_LABEL[role] ?? "Artist"}
                     </span>
                   </span>
-                  <span className="mt-2.5 w-full truncate text-[14px]">{user.displayName}</span>
+                  <span className="mt-2.5 flex w-full items-center justify-center gap-1 text-[14px]">
+                    <span className="truncate">{user.displayName}</span>
+                    <CountryFlag code={user.countryCode} />
+                  </span>
                 </Link>
               ))}
               {event.lineup.length > 3 && (

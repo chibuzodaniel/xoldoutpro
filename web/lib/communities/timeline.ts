@@ -41,7 +41,7 @@ export function visibleTo(viewerId: string | null | undefined, isAdmin: boolean)
 }
 
 export const timelineInclude = (viewerId: string) => ({
-  author: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
+  author: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true } },
   replyTo: { select: { id: true, body: true, author: { select: { displayName: true } } } },
   _count: { select: { likes: true, comments: true } },
   likes: { where: { userId: viewerId }, select: { userId: true } },
@@ -59,7 +59,7 @@ type Row = {
   editedAt: Date | null;
   createdAt: Date;
   authorId: string;
-  author: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[] };
+  author: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; countryCode: string | null };
   replyTo: { id: string; body: string; author: { displayName: string } } | null;
   _count: { likes: number; comments: number };
   likes: { userId: string }[];

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { FollowButton } from "@/components/profile/FollowButton";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 
 type Person = {
@@ -13,6 +14,7 @@ type Person = {
   displayName: string;
   avatarUrl: string | null;
   isVerified: boolean;
+  countryCode?: string | null;
   verificationBadges: string[];
   role: string | null;
   followers: number;
@@ -54,6 +56,7 @@ export function PeopleToFollow() {
             <Link href={`/u/${p.handle}`} className="mt-3 flex max-w-full items-center gap-1 text-[15px] font-bold">
               <span className="truncate">{p.displayName}</span>
               {p.isVerified && <VerifiedBadge className="h-3.5 w-3.5 shrink-0" badgeType={primaryBadgeType(p.verificationBadges)} />}
+              <CountryFlag code={p.countryCode} />
             </Link>
             <p className="text-[12px] text-ink-3">
               {p.role ? `${p.role} · ` : ""}

@@ -32,7 +32,7 @@ export type Movement = { kind: "new" } | { kind: "up" | "down"; by: number } | {
 
 export type ProductEntry = { product: FeedProduct; buyers: number; revenueKobo: number; listeners: number; movement: Movement };
 export type CreatorEntry = {
-  creator: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; followers: number };
+  creator: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; countryCode: string | null; followers: number };
   buyers: number;
   newFollowers: number;
   movement: Movement;
@@ -46,7 +46,7 @@ export type EventEntry = {
     isVirtual: boolean;
     city: string | null;
     coverImageLadder: unknown;
-    creator: { handle: string; displayName: string; isVerified: boolean; verificationBadges: string[] };
+    creator: { handle: string; displayName: string; isVerified: boolean; verificationBadges: string[]; countryCode: string | null };
     minPriceKobo: number | null;
   };
   tickets: number;
@@ -263,7 +263,7 @@ async function computeCharts(period: ChartPeriod): Promise<Charts> {
   const users = creatorOrder.length
     ? await db.user.findMany({
         where: { id: { in: creatorOrder }, pendingGuestAt: null, deletedAt: null },
-        select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, _count: { select: { followers: true } } },
+        select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true, _count: { select: { followers: true } } },
       })
     : [];
   const userBy = new Map(users.map((u) => [u.id, u]));
@@ -277,6 +277,7 @@ async function computeCharts(period: ChartPeriod): Promise<Charts> {
         displayName: u.displayName,
         avatarUrl: u.avatarUrl,
         isVerified: u.isVerified,
+        countryCode: u.countryCode,
         verificationBadges: u.verificationBadges as string[],
         followers: u._count.followers,
       },
@@ -289,7 +290,7 @@ async function computeCharts(period: ChartPeriod): Promise<Charts> {
     ? await db.event.findMany({
         where: { id: { in: events.map((e) => e.eventId) } },
         include: {
-          creator: { select: { handle: true, displayName: true, isVerified: true, verificationBadges: true } },
+          creator: { select: { handle: true, displayName: true, isVerified: true, verificationBadges: true, countryCode: true } },
           tiers: { select: { product: { select: { priceKobo: true } } } },
         },
       })

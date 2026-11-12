@@ -19,7 +19,7 @@ export const songCommentSelect = {
   likeCount: true,
   replyCount: true,
   parentId: true,
-  author: { select: { id: true, handle: true, displayName: true, avatarUrl: true } },
+  author: { select: { id: true, handle: true, displayName: true, avatarUrl: true, countryCode: true } },
 } as const;
 
 /**

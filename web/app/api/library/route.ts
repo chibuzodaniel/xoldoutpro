@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
       include: {
         product: {
           include: {
-            creator: { select: { displayName: true, handle: true } },
+            creator: { select: { displayName: true, handle: true, countryCode: true } },
             release: { include: { tracks: { orderBy: { order: "asc" } } } },
             beat: true,
             merchItem: true,

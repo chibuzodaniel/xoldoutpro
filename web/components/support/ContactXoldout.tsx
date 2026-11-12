@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MessageButton } from "@/components/messages/MessageButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { SupportAccount } from "@/lib/support/account";
 
@@ -31,9 +30,9 @@ export function ContactXoldout({ className = "" }: { className?: string }) {
 
   return (
     <div className={`flex items-center gap-3 rounded-2xl border border-red/30 bg-red/10 px-4 py-3 ${className}`}>
-      <Link href={`/u/${account.handle}`} className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-black">
-        {/* eslint-disable-next-line @next/next/no-img-element -- small avatar (CPU budget) */}
-        <img src={account.avatarUrl || "/xoldout-icon-transparent.png"} alt="" className="h-full w-full object-cover" />
+      <Link href="/support" className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black ring-1 ring-red">
+        {/* eslint-disable-next-line @next/next/no-img-element -- static logo */}
+        <img src="/xoldout-icon-transparent.png" alt="" className="h-7 w-7" />
       </Link>
       <div className="min-w-0 flex-1">
         <p className="flex items-center gap-1.5 text-[15px] font-bold">
@@ -43,17 +42,12 @@ export function ContactXoldout({ className = "" }: { className?: string }) {
             <path d="M8.5 12.2l2.3 2.3 4.7-4.8" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </p>
-        <p className="truncate text-[12px] text-ink-2">Complaints, problems or ideas? Message us directly.</p>
+        <p className="truncate text-[12px] text-ink-2">Official channel · report issues, complaints or ideas</p>
       </div>
-      {appUser ? (
-        <MessageButton targetUserId={account.id} className="shrink-0 rounded-full bg-red px-4 py-2 text-[13px] font-bold text-white disabled:opacity-50">
-          Message
-        </MessageButton>
-      ) : (
-        <Link href="/login" className="shrink-0 rounded-full bg-red px-4 py-2 text-[13px] font-bold text-white">
-          Message
-        </Link>
-      )}
+      {/* Opens the XOLDOUT channel (2026-11-12) instead of a direct message. */}
+      <Link href={appUser ? "/support" : "/login"} className="shrink-0 rounded-full bg-red px-4 py-2 text-[13px] font-bold text-white">
+        Open
+      </Link>
     </div>
   );
 }

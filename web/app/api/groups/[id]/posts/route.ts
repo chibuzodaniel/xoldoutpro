@@ -193,6 +193,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         body: n.body,
         url: n.url,
         icon: user.avatarUrl ?? undefined,
+        actorId: user.id,
         tag: n.important ? undefined : `fanbase-${id}`,
       });
 

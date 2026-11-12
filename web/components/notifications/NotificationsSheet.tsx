@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { PushStatusNotice } from "@/components/push/PushStatusNotice";
 
 type NotificationKind =
@@ -26,6 +27,7 @@ type NotificationRow = {
   id: string;
   kind: NotificationKind;
   title: string;
+  actorCountry?: string | null;
   body: string;
   url: string | null;
   readAt: string | null;
@@ -309,7 +311,10 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
                       <KindIcon kind={n.kind} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm ${titleTone}`}>{n.title}</p>
+                      <p className={`flex items-center gap-1 text-sm ${titleTone}`}>
+                        <span>{n.title}</span>
+                        <CountryFlag code={n.actorCountry} />
+                      </p>
                       <p className="text-xs text-ink-3">{n.body}</p>
                       <LivePill status={n.liveStatus} />
                     </div>
@@ -335,7 +340,10 @@ export function NotificationsSheet({ open, onClose, onRead }: Props) {
                       </span>
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className={`text-sm ${titleTone}`}>{n.title}</p>
+                      <p className={`flex items-center gap-1 text-sm ${titleTone}`}>
+                        <span>{n.title}</span>
+                        <CountryFlag code={n.actorCountry} />
+                      </p>
                       <p className="text-xs text-ink-3">
                         {n.body}
                         <span className="text-ink-2">

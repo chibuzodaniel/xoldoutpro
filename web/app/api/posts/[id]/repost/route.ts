@@ -37,6 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           body: `${user.displayName} reposted: "${target.body.slice(0, 80)}"`,
           url: "/socials",
           icon: user.avatarUrl ?? undefined,
+          actorId: user.id,
           tag: `repost-${target.id}`,
         });
       }

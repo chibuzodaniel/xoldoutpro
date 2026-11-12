@@ -223,7 +223,7 @@ export async function sendMessage(conversationId: string, senderId: string, mess
 
 // ─── Reading ────────────────────────────────────────────────────────────
 
-const PERSON = { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } as const;
+const PERSON = { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, countryCode: true } as const;
 
 export async function listConversations(userId: string, box: "inbox" | "requests") {
   const blocks = await db.userBlock.findMany({ where: { blockerId: userId }, select: { blockedId: true } });

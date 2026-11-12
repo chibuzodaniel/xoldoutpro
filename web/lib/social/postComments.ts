@@ -13,7 +13,7 @@ export const postCommentSelect = {
   likeCount: true,
   replyCount: true,
   parentId: true,
-  author: { select: { id: true, handle: true, displayName: true, avatarUrl: true } },
+  author: { select: { id: true, handle: true, displayName: true, avatarUrl: true, countryCode: true } },
 } as const;
 
 /** The viewer's own like/dislike on each of these comments. */

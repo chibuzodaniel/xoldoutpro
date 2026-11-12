@@ -236,7 +236,7 @@ export default function ProfilePage() {
           <Tile icon={I.billboard} title="Billboards" sub="Get on the Discover rotation" href="/billboards" />
           {appUser.isModerator && <Tile icon={I.shield} title="Moderation" sub="Review queue" href="/moderation" />}
           <Tile icon={I.download} title="Install app" sub="Add XOLDOUT to your phone" onClick={installGuide.open} />
-          <Tile icon={I.chat} title="Send feedback" sub="Report a bug or idea" onClick={() => setFeedbackOpen(true)} />
+          <Tile icon={I.chat} title="Send feedback" sub="XOLDOUT channel: issues and ideas" href="/support" />
         </div>
 
         <section className="mt-8 md:max-w-xl">

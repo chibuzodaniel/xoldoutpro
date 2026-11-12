@@ -40,6 +40,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             body: `${user.displayName} liked your post`,
             url: post.groupId ? `/groups/${post.groupId}` : `/socials`,
             icon: user.avatarUrl ?? undefined,
+            actorId: user.id,
             tag: `like-${id}`,
           });
         }

@@ -115,6 +115,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           body: `${user.displayName}: ${preview}`,
           url: `/groups/${id}?post=${post.id}`,
           icon: user.avatarUrl ?? undefined,
+          actorId: user.id,
           tag: important ? undefined : `fanbase-${id}`,
         },
       );

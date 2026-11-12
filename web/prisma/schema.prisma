@@ -34,6 +34,10 @@ model User {
   // { links, products, posts, library, location } booleans, see lib/profile/sections.ts.
   profileSections             Json                    @default("{}")
   profileLocation             String?
+  // Country (ISO, e.g. "NG") worked out from profileLocation, only while the
+  // user shows their location (2026-11-12): the flag next to their name
+  // everywhere. Kept in step by PATCH /api/me (lib/profile/countryFlag.ts).
+  countryCode                 String?
   // Defaults on for new signups (onboarding calls enablePush() once the
   // profile step completes, which is what actually requests the browser's
   // notification permission — this column alone is just the stored
@@ -231,6 +235,11 @@ model User {
   coinLedgerEntries        CoinLedgerEntry[]
   xgEarnings               XgEarning[]
   eventLineups             EventLineupEntry[]        @relation("EventLineups")
+  supportTeam              SupportTeamMember?        @relation("SupportTeam")
+  supportTickets           SupportTicket[]           @relation("SupportTicketsAuthored")
+  supportAssigned          SupportTicket[]           @relation("SupportTicketsAssigned")
+  supportReplies           SupportReply[]            @relation("SupportReplies")
+  notificationsCaused      Notification[]            @relation("NotificationActor")
 }
 
 model PayoutAccount {
@@ -1558,6 +1567,10 @@ model Notification {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation(fields: [userId], references: [id])
+  // Who caused it (2026-11-12) — for their flag in the list. Null on older
+  // notifications and system ones.
+  actorId   String?
+  actor     User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: SetNull)
   kind      NotificationKind
   title     String
   body      String
@@ -2730,4 +2743,48 @@ model DeletedContent {
   @@index([deletedAt])
   @@index([kind, deletedAt])
   @@index([targetId])
+}
+
+// XOLDOUT channel: complaints, issues and ideas (explicit ask, 2026-11-12).
+// Everyone can post; team members (added by a super admin) can be assigned,
+// reply and change status. Users see their own feedback in full and other
+// people's only once SOLVED (lib/support/tickets.ts).
+model SupportTeamMember {
+  userId    String   @id
+  user      User     @relation("SupportTeam", fields: [userId], references: [id])
+  addedById String
+  addedAt   DateTime @default(now())
+}
+
+model SupportTicket {
+  id         String    @id @default(cuid())
+  authorId   String
+  author     User      @relation("SupportTicketsAuthored", fields: [authorId], references: [id])
+  kind       String // ISSUE | COMPLAINT | IDEA
+  title      String
+  body       String
+  media      Json?
+  status     String    @default("OPEN") // OPEN | IN_PROGRESS | SOLVED
+  assigneeId String?
+  assignee   User?     @relation("SupportTicketsAssigned", fields: [assigneeId], references: [id])
+  solvedAt   DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  replies    SupportReply[]
+
+  @@index([status, updatedAt])
+  @@index([authorId, createdAt])
+  @@index([assigneeId, status])
+}
+
+model SupportReply {
+  id        String        @id @default(cuid())
+  ticketId  String
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User          @relation("SupportReplies", fields: [authorId], references: [id])
+  body      String
+  createdAt DateTime      @default(now())
+
+  @@index([ticketId, createdAt])
 }

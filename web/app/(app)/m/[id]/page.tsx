@@ -32,7 +32,7 @@ export default async function MerchDetailPage({ params }: { params: Promise<{ id
   const product = await db.product.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
+      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true } },
       merchItem: true,
       stockPolicy: true,
       // Sizes & colours, in the seller's order.

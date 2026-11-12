@@ -42,6 +42,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         body: `${user.displayName} liked ${product.title}`,
         url: `/${path}/${id}`,
         icon: user.avatarUrl ?? undefined,
+        actorId: user.id,
         tag: `product-like-${id}`,
       });
     }

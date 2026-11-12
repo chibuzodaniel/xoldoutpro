@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { notifyMentions } from "@/lib/notifications/mentions";
 
 const authorSelect = {
-  select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true },
+  select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true },
 } as const;
 
 // Attached product / event preview (Socials v2).

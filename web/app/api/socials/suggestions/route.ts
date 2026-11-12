@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
         },
         orderBy: { followers: { _count: "desc" } },
         take: 12,
-        select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, tags: true, _count: { select: { followers: true } } },
+        select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true, tags: true, _count: { select: { followers: true } } },
       }),
       viewer
         ? db.follow.findMany({
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
             take: 6,
             select: {
               follower: {
-                select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, tags: true, _count: { select: { followers: true } } },
+                select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true, tags: true, _count: { select: { followers: true } } },
               },
             },
           })
@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
         avatarUrl: u.avatarUrl,
         isVerified: u.isVerified,
         verificationBadges: u.verificationBadges,
+        countryCode: u.countryCode,
         role: u.tags[0] ?? null,
         followers: u._count.followers,
         followsYou: u.followsYou,

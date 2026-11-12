@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { sendPushToUsers } from "@/lib/push/send";
 import { runSubscriptionRenewals } from "@/lib/subscriptions/renewals";
 import { runMembershipRenewals } from "@/lib/communities/renewals";
+import { runSupportReminders } from "@/lib/support/tickets";
+import { backfillCountryCodes } from "@/lib/profile/backfillCountry";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -67,5 +69,20 @@ export async function GET(req: NextRequest) {
     memberships = { error: "failed" };
   }
 
-  return NextResponse.json({ reminded: unread.length, subscriptions, memberships });
+  // XOLDOUT channel reminders (2026-11-12): open, ignored and unpicked items.
+  let support: Awaited<ReturnType<typeof runSupportReminders>> | { error: string };
+  try {
+    support = await runSupportReminders();
+  } catch (err) {
+    console.error("support reminders failed", err);
+    support = { error: "failed" };
+  }
+
+  // Flags for locations saved before the flag existed (2026-11-12).
+  const flags = await backfillCountryCodes().catch((err) => {
+    console.error("country backfill failed", err);
+    return { error: "failed" };
+  });
+
+  return NextResponse.json({ reminded: unread.length, subscriptions, memberships, support, flags });
 }

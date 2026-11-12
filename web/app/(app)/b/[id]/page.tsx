@@ -34,7 +34,7 @@ export default async function BeatDetailPage({ params }: { params: Promise<{ id:
   const product = await db.product.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
+      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true } },
       beat: true,
       stockPolicy: true,
       // License tiers, in the producer's order.

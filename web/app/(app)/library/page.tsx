@@ -16,6 +16,7 @@ import { AddToCollectionSheet } from "@/components/library/AddToCollectionSheet"
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 
 type LibraryTrack = {
@@ -33,7 +34,7 @@ type LibraryEntitlement = {
   product: {
     id: string;
     title: string;
-    creator: { displayName: string; handle: string };
+    creator: { displayName: string; handle: string; countryCode?: string | null };
     release: { artworkLadder: unknown; tracks: LibraryTrack[] } | null;
     beat: { coverImageLadder: unknown; durationSec: number } | null;
     merchItem: { imageLadder: unknown } | null;
@@ -536,7 +537,10 @@ function LibraryPageInner() {
           className="block w-full text-left"
         >
           <p className="text-sm font-semibold line-clamp-1">{e.product.title}</p>
-          <p className="text-xs text-ink-3 line-clamp-1">{e.product.creator.displayName}</p>
+          <p className="flex items-center gap-1 text-xs text-ink-3">
+            <span className="line-clamp-1">{e.product.creator.displayName}</span>
+            <CountryFlag code={e.product.creator.countryCode} />
+          </p>
         </button>
       </div>
     );

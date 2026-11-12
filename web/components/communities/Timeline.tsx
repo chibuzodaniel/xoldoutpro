@@ -11,6 +11,7 @@ import { SongComments } from "@/components/player/SongComments";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { Linkified } from "@/components/ui/Linkified";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import {
   TIMELINE_KINDS,
   ADMIN_ONLY_KINDS,
@@ -34,7 +35,7 @@ type Post = {
   pinned: boolean;
   edited: boolean;
   createdAt: string;
-  author: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; isAdmin: boolean };
+  author: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; countryCode?: string | null; isAdmin: boolean };
   replyTo: { id: string; body: string; author: { displayName: string } } | null;
   likeCount: number;
   likedByMe: boolean;
@@ -294,6 +295,7 @@ function TimelineCard({
     <Link href={`/u/${p.author.handle}`} className="inline-flex items-center gap-1 font-semibold">
       {p.author.displayName}
       {p.author.isVerified && <VerifiedBadge className="h-3.5 w-3.5 shrink-0" badgeType={primaryBadgeType(p.author.verificationBadges)} />}
+      <CountryFlag code={p.author.countryCode} />
     </Link>
   );
 

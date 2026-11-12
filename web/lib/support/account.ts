@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 // The official XOLDOUT account (explicit ask, 2026-11-11): the owner's own
 // account, always verified, shown to every user with a one-tap "Message
 // XOLDOUT" so anyone can send a complaint straight to it.
-export const SUPPORT_ACCOUNT_EMAIL = "chibuzodaniel71@gmail.com";
+export const SUPPORT_ACCOUNT_EMAIL = "chibuzodaniel71@gmail.com"; // lower-case
 
 export type SupportAccount = { id: string; handle: string; displayName: string; avatarUrl: string | null };
 

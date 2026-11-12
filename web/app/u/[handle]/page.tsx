@@ -16,6 +16,7 @@ import { CatalogSubscriptionCard } from "@/components/subscriptions/CatalogSubsc
 import { readSections } from "@/lib/profile/sections";
 import { LINEUP_ROLE_LABEL } from "@/lib/event/lineupRules";
 import { ProfileMetaLine } from "@/components/profile/ProfileMetaLine";
+import { countryFromLocation } from "@/lib/profile/countryFlag";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 
 
@@ -43,11 +44,14 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
   // Profile sections (v2): what the owner chose to show visitors.
   const sections = readSections(user.profileSections);
+  // Keep the flag shown next to their name elsewhere in step (2026-11-12).
+  const shownCountry = sections.location ? (countryFromLocation(user.profileLocation)?.iso ?? null) : null;
+  if (shownCountry !== user.countryCode) void db.user.update({ where: { id: user.id }, data: { countryCode: shownCountry } }).catch(() => {});
   const [catalog, events, fansCount, salesAgg, featuredOn, subscriptionPlans, subscriberCount, publicPostCount, libraryItems] = await Promise.all([
     db.product.findMany({
       where: { creatorId: user.id, type: { in: ["RELEASE", "BEAT", "MERCH"] }, status: "PUBLISHED" },
       include: {
-        creator: { select: { handle: true, displayName: true } },
+        creator: { select: { handle: true, displayName: true, countryCode: true } },
         release: { select: { artworkLadder: true, releaseType: true } },
         beat: { select: { coverImageLadder: true } },
         merchItem: { select: { imageLadder: true } },

@@ -9,6 +9,7 @@ import { usePlayer } from "@/components/player/PlayerProvider";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { FollowButton } from "@/components/profile/FollowButton";
 import { ProductShareSheet } from "@/components/product/ProductShareSheet";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import type { FeedCardProduct } from "@/components/discover/FeedCard";
 
 // Charts rows (design/v2-prototype, 2026-11-09): big red rank, movement
@@ -102,6 +103,7 @@ export function ProductChartRow({
             <Link href={`/u/${p.creator.handle}`} className="flex items-center gap-1 text-[14px] text-ink-2">
               <span className="truncate">{p.creator.displayName}</span>
               {p.isVerified && <VerifiedBadge className="h-3.5 w-3.5 shrink-0" badgeType={primaryBadgeType(p.verificationBadges)} />}
+              <CountryFlag code={p.creator.countryCode} />
             </Link>
             <p className="truncate text-[12px] text-ink-3">
               {stats} · <span className="text-red-soft">{p.priceKobo === 0 ? "Free" : `${naira(p.priceKobo)}${p.payWhatYouWant ? "+" : ""}`}</span>
@@ -153,7 +155,7 @@ export function CreatorChartRow({
 }: {
   rank: number;
   movement: Movement;
-  creator: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; followers: number };
+  creator: { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified: boolean; verificationBadges: string[]; countryCode?: string | null; followers: number };
   stats: string;
 }) {
   return (
@@ -173,6 +175,7 @@ export function CreatorChartRow({
             <Link href={`/u/${c.handle}`} className="flex items-center gap-1 text-[16px] font-bold">
               <span className="truncate">{c.displayName}</span>
               {c.isVerified && <VerifiedBadge className="h-4 w-4 shrink-0" badgeType={primaryBadgeType(c.verificationBadges)} />}
+              <CountryFlag code={c.countryCode} />
             </Link>
             <p className="text-[13px] text-ink-2">{c.followers.toLocaleString("en-NG")} followers</p>
             <p className="truncate text-[12px] text-ink-3">{stats}</p>

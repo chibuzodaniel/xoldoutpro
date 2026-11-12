@@ -6,13 +6,14 @@ import { apiFetch } from "@/lib/api";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { Linkified } from "@/components/ui/Linkified";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 
 // YouTube-style song comments under the expanded player (explicit ask,
 // 2026-11-04). Loaded once when the Comments tab is shown for a song — no
 // polling (web/CLAUDE.md CPU budget). API: app/api/song-comments/*.
 
-type Author = { id: string; handle: string; displayName: string; avatarUrl: string | null };
+type Author = { id: string; handle: string; displayName: string; avatarUrl: string | null; countryCode?: string | null };
 type SongComment = {
   id: string;
   body: string;
@@ -221,6 +222,7 @@ function CommentRow({
             >
               @{comment.author.handle}
               {isCreator && " ♪"}
+              {comment.author.countryCode && <CountryFlag code={comment.author.countryCode} className="ml-1 text-[11px]" />}
             </Link>
             <span className="ml-1.5">· {timeAgo(comment.createdAt)}</span>
           </p>

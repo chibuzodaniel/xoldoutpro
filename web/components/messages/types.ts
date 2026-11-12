@@ -1,7 +1,7 @@
 // Shapes returned by /api/messages (lib/messages). Shared by the web
 // Messages pages and components.
 
-export type DmPerson = { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified?: boolean };
+export type DmPerson = { id: string; handle: string; displayName: string; avatarUrl: string | null; isVerified?: boolean; countryCode?: string | null };
 
 export type DmConversationRow = {
   id: string;

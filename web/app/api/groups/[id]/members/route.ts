@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const members = await db.membership.findMany({
       where: { groupId: id },
       orderBy: [{ role: "asc" }, { joinedAt: "asc" }],
-      include: { user: { select: { id: true, handle: true, displayName: true, avatarUrl: true } } },
+      include: { user: { select: { id: true, handle: true, displayName: true, avatarUrl: true, countryCode: true } } },
     });
     return NextResponse.json({ members });
   } catch (err) {

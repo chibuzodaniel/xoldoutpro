@@ -6,9 +6,10 @@ import { SendToChatButton } from "@/components/messages/SendToChatButton";
 import { ReportButton } from "@/components/trust/ReportButton";
 import { PublishedByYou } from "@/components/product/PublishedByYou";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { BackCircle } from "./BackCircle";
 
-type Person = { handle: string; displayName: string; isVerified?: boolean; verificationBadges?: string[] };
+type Person = { handle: string; displayName: string; isVerified?: boolean; verificationBadges?: string[]; countryCode?: string | null };
 
 /**
  * The shared top of every v2 product page — music, beats, merch, events
@@ -101,6 +102,7 @@ export function ProductHero({
           <Link href={`/u/${creator.handle}`} className="inline-flex items-center gap-1.5 font-medium text-ink">
             {creator.displayName}
             {creator.isVerified && <VerifiedBadge className="h-4 w-4 shrink-0" badgeType={primaryBadgeType(creator.verificationBadges)} />}
+            <CountryFlag code={creator.countryCode} />
           </Link>
           {credits.length > 0 && (
             <span className="text-ink-3">

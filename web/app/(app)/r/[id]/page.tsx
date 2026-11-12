@@ -36,7 +36,7 @@ export default async function ReleaseDetailPage({ params }: { params: Promise<{ 
   const product = await db.product.findUnique({
     where: { id },
     include: {
-      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true } },
+      creator: { select: { handle: true, displayName: true, avatarUrl: true, isVerified: true, verificationBadges: true, countryCode: true } },
       release: { include: { tracks: { orderBy: { order: "asc" } } } },
       stockPolicy: true,
       // Featured artists — accepted tags only; pending ones stay private to

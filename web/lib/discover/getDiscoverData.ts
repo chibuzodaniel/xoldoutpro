@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { getWeeklyTopCreators, type WeeklyTopCreator } from "@/lib/discover/weeklyTopCreators";
 
 export const discoverCardInclude = {
-  creator: { select: { handle: true, displayName: true } },
+  creator: { select: { handle: true, displayName: true, countryCode: true } },
   release: { select: { artworkLadder: true, releaseType: true } },
   beat: { select: { coverImageLadder: true } },
   merchItem: { select: { imageLadder: true } },

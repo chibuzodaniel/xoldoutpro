@@ -70,7 +70,7 @@ export function notifyLineupAdded(args: { eventId: string; title: string; organi
 export const lineupSelect = {
   where: { status: "ACCEPTED" },
   orderBy: { order: "asc" as const },
-  select: { role: true, user: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true } } },
+  select: { role: true, user: { select: { id: true, handle: true, displayName: true, avatarUrl: true, isVerified: true, countryCode: true } } },
 };
 
 /** The organiser's own view: everyone invited, with their answer. */

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { adminAuth } from "@/lib/firebase/admin";
 import { sendAccountDeletedEmail } from "@/lib/email";
 import { DISPLAY_COUNTRY_CODES } from "@/lib/currency";
+import { countryFromLocation } from "@/lib/profile/countryFlag";
 import { LINK_PLATFORMS, MAX_LINK_TITLE, MAX_PROFILE_LINKS } from "@/lib/profile/links";
 
 const SITE_URL = "https://www.xoldout.app";
@@ -68,6 +69,10 @@ export async function PATCH(req: NextRequest) {
     }
 
     const { profileSections, profileLocation, ...rest } = body;
+    // The flag by their name (2026-11-12): only while they show a location.
+    const nextSections = profileSections ? { ...readSections(user.profileSections), ...profileSections } : readSections(user.profileSections);
+    const nextLocation = profileLocation !== undefined ? profileLocation || null : user.profileLocation;
+    const countryCode = nextSections.location ? (countryFromLocation(nextLocation)?.iso ?? null) : null;
     const updated = await db.user.update({
       where: { id: user.id },
       data: {
@@ -75,6 +80,7 @@ export async function PATCH(req: NextRequest) {
         // Merged into what is saved, so a partial update keeps the other switches.
         ...(profileSections ? { profileSections: { ...readSections(user.profileSections), ...profileSections } } : {}),
         ...(profileLocation !== undefined ? { profileLocation: profileLocation || null } : {}),
+        ...(profileSections || profileLocation !== undefined ? { countryCode } : {}),
       },
     });
     return NextResponse.json({ user: updated });

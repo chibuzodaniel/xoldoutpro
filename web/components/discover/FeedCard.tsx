@@ -20,6 +20,7 @@ import { FeedCommentsSheet } from "@/components/discover/FeedCommentsSheet";
 import { FeedCardMenu } from "@/components/discover/FeedCardMenu";
 import { ProductShareSheet } from "@/components/product/ProductShareSheet";
 import { PlayProgressRing } from "@/components/player/PlayProgressRing";
+import { CountryFlag } from "@/components/profile/CountryFlag";
 import { useHiddenItems } from "@/lib/hiddenItems";
 
 // v2 Discover feed card (design/v2-prototype): full-width artwork with the
@@ -35,7 +36,7 @@ export type FeedCardProduct = {
   payWhatYouWant?: boolean;
   publishedAt: Date | string | null;
   creatorId?: string;
-  creator: { handle: string; displayName: string };
+  creator: { handle: string; displayName: string; countryCode?: string | null };
   release: { artworkLadder: unknown; releaseType: string } | null;
   beat: { coverImageLadder: unknown; genre?: string | null; bpm?: number | null } | null;
   merchItem: { imageLadder: unknown } | null;
@@ -286,6 +287,7 @@ export function FeedCard({
               <Link href={`/u/${p.creator.handle}`} className="flex min-w-0 items-center gap-1.5 pt-0.5 text-[14px] font-semibold text-ink-2">
                 <span className="truncate">{p.creator.displayName}</span>
                 {p.isVerified && <VerifiedBadge className="h-3.5 w-3.5 shrink-0" badgeType={primaryBadgeType(p.verificationBadges)} />}
+                <CountryFlag code={p.creator.countryCode} />
               </Link>
               <button
                 type="button"
@@ -435,6 +437,7 @@ export function FeedCard({
                   badgeType={primaryBadgeType(p.verificationBadges)}
                 />
               )}
+              <CountryFlag code={p.creator.countryCode} />
             </Link>
             <Link
               href={href}
