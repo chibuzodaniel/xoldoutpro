@@ -205,7 +205,11 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-4 md:px-6">
-        <ContactXoldout className="mt-4" />
+        {/* Preview first, then the XOLDOUT channel card (explicit ask, 2026-11-12). */}
+        <Link href={publicPath} className="mt-4 block rounded-full border border-line px-4 py-3 text-center text-[15px] font-bold md:max-w-xl">
+          Preview public profile
+        </Link>
+        <ContactXoldout className="mt-3" />
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           <Tile icon={I.wallet} title="Wallet" sub="Earnings and payouts" href="/wallet" />
           <Tile icon={I.insights} title="Insights" sub="Views, sales, growth" href="/analytics" />
@@ -256,9 +260,6 @@ export default function ProfilePage() {
               </Link>
             ))}
           </div>
-          <Link href={publicPath} className="mt-4 block rounded-full border border-line px-4 py-3.5 text-center text-[15px] font-bold">
-            Preview public profile
-          </Link>
         </section>
 
         <ProfileLinkList links={appUser.socialLinks} manageHref="/profile/links" />
