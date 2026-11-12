@@ -176,6 +176,7 @@ export function useToast() {
         toast.dismiss("leaving-xoldout");
         const id = toast(<LeaveContent site={site} onAnswer={answer} />, {
           toastId: "leaving-xoldout",
+          className: "xo-leave-toast",
           autoClose: 8000,
           closeOnClick: false,
           draggable: true,

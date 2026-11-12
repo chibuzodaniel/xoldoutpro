@@ -283,3 +283,22 @@ select {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* "Leaving XOLDOUT" pop-up (2026-11-12): the site's own card look — dark
+   charcoal with a red tint and border, rounded, red countdown bar. */
+.Toastify__toast-container .Toastify__toast.xo-leave-toast {
+  border-radius: 1rem;
+  border: 1px solid color-mix(in srgb, var(--red) 40%, transparent);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--red) 22%, #111) 0%, #0d0d0d 70%);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.6);
+  padding: 0.875rem 1rem 1rem;
+  color: #fff;
+}
+.Toastify__toast-container .xo-leave-toast .Toastify__close-button {
+  color: #fff;
+  opacity: 0.6;
+}
+.Toastify__toast-container .xo-leave-toast .Toastify__progress-bar {
+  background: var(--red);
+  height: 3px;
+}
