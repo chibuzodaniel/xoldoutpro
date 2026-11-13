@@ -27,6 +27,7 @@ import { ReportsQueuePanel } from "./ReportsQueuePanel";
 import { ProductsPanel } from "./ProductsPanel";
 import { EventCommissionRecompute } from "./EventCommissionRecompute";
 import { DeletedContentPanel } from "./DeletedContentPanel";
+import { CountryReminderPanel } from "./CountryReminderPanel";
 
 type NavItem = {
   id: string;
@@ -203,6 +204,7 @@ export function ModerationShell() {
           render: () => <SiteControlsPanel panelVisibility={panelVisibility} onVisibilityChange={setPanelVisibility} />,
         },
         { id: "moderators", label: "Manage moderators", icon: "🛡️", superOnly: true, render: () => <ManageModeratorsPanel /> },
+        { id: "countryReminder", label: "Country reminder", icon: "🌍", superOnly: true, render: () => <CountryReminderPanel /> },
       ],
     },
   ];
