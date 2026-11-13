@@ -18,7 +18,9 @@ import { Linkified } from "@/components/ui/Linkified";
 // replies and marks them solved. Everyone sees solved items and all of their
 // own; rules enforced by app/api/support/*. Loaded per tab — never polled.
 
-type Person = { id: string; handle: string; displayName: string; avatarUrl: string | null };
+type Person = { id: string; handle: string; displayName: string; avatarUrl: string | null; supportTeam?: { title: string | null } | null };
+/** The job title users see next to a team member (2026-11-13). */
+const jobTitle = (p: Person) => p.supportTeam?.title || "XOLDOUT Team";
 type Ticket = {
   id: string;
   kind: "ISSUE" | "COMPLAINT" | "IDEA";
@@ -244,7 +246,7 @@ function TicketCard({ t, onOpen }: { t: Ticket; onOpen: () => void }) {
         {t.author && <span>by @{t.author.handle}</span>}
         {t.assignee && (
           <span className="flex items-center gap-1">
-            {t.author && "·"} <Avatar p={t.assignee} size={16} /> {t.status === "SOLVED" ? "Solved by" : "With"} {t.assignee.displayName}
+            {t.author && "·"} <Avatar p={t.assignee} size={16} /> {t.status === "SOLVED" ? "Solved by" : "With"} {t.assignee.displayName} <span className="text-red-soft">· {jobTitle(t.assignee)}</span>
           </span>
         )}
         {t.replyCount > 0 && <span className="ml-auto">{t.replyCount} repl{t.replyCount === 1 ? "y" : "ies"}</span>}
@@ -336,6 +338,7 @@ function TicketSheet({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   <Avatar p={t.assignee} />
                   <span>
                     {t.status === "SOLVED" ? "Solved by" : "Assigned to"} <b>{t.assignee.displayName}</b> <span className="text-ink-3">@{t.assignee.handle}</span>
+                    <span className="block text-[12px] font-semibold text-red-soft">{jobTitle(t.assignee)}</span>
                   </span>
                 </>
               ) : (
@@ -376,7 +379,7 @@ function TicketSheet({ id, onClose, onChanged }: { id: string; onClose: () => vo
                       <option value="">Nobody</option>
                       {data.team.map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.displayName} (@{m.handle})
+                          {m.displayName} — {jobTitle(m)}
                         </option>
                       ))}
                     </select>
@@ -393,7 +396,8 @@ function TicketSheet({ id, onClose, onChanged }: { id: string; onClose: () => vo
                   <div key={r.id} className={`rounded-xl px-3 py-2 text-[14px] ${r.fromTeam ? "border border-red/25 bg-red/10" : "bg-white/5"}`}>
                     <p className="mb-0.5 text-[11px] text-ink-3">
                       {r.fromTeam ? "XOLDOUT · " : ""}
-                      {r.author.displayName} · {ago(r.createdAt)}
+                      {r.author.displayName}
+                      {r.fromTeam && <span className="font-semibold text-red-soft"> · {jobTitle(r.author)}</span>} · {ago(r.createdAt)}
                     </p>
                     <p className="whitespace-pre-wrap break-words">{r.body}</p>
                   </div>
@@ -524,13 +528,17 @@ function Composer({ open, onClose, onSent }: { open: boolean; onClose: () => voi
 
 function TeamPanel() {
   const toast = useToast();
-  const [members, setMembers] = useState<{ addedAt: string; user: Person }[] | null>(null);
+  const [members, setMembers] = useState<{ addedAt: string; title: string | null; user: Person }[] | null>(null);
+  const [titles, setTitles] = useState<Record<string, string>>({});
   const [query, setQuery] = useState("");
 
   const load = useCallback(() => {
     apiFetch("/api/support/team")
       .then((r) => (r.ok ? r.json() : { members: [] }))
-      .then((d) => setMembers(d.members));
+      .then((d) => {
+        setMembers(d.members);
+        setTitles(Object.fromEntries((d.members as { title: string | null; user: Person }[]).map((m) => [m.user.id, m.title ?? ""])));
+      });
   }, []);
   useEffect(() => {
     load();
@@ -543,6 +551,13 @@ function TeamPanel() {
     toast.success("Added to the team");
     load();
   }
+  async function saveTitle(p: Person) {
+    const res = await apiFetch("/api/support/team", { method: "PATCH", body: JSON.stringify({ userId: p.id, title: (titles[p.id] ?? "").trim() }) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) return toast.error(typeof d.error === "string" ? d.error : "Couldn't save the title");
+    toast.success("Title saved");
+    load();
+  }
   async function remove(p: Person) {
     if (!(await toast.confirm(`Remove @${p.handle} from the team? Their open items become unassigned.`, { confirmLabel: "Remove", destructive: true }))) return;
     const res = await apiFetch(`/api/support/team?userId=${encodeURIComponent(p.id)}`, { method: "DELETE" });
@@ -552,7 +567,7 @@ function TeamPanel() {
 
   return (
     <div className="mt-4 flex flex-col gap-3">
-      <p className="text-sm text-ink-3">Team members can be assigned issues and feedback, reply to senders and mark items solved. Super moderators are always on the team.</p>
+      <p className="text-sm text-ink-3">Team members can be assigned issues and feedback, reply to senders and mark items solved. Their job title is shown to users so they know who they&apos;re talking to. Super moderators are always on the team.</p>
       <UserHandleAutocomplete
         value={query}
         onChange={setQuery}
@@ -574,6 +589,20 @@ function TeamPanel() {
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-semibold">{m.user.displayName}</span>
               <span className="block text-xs text-ink-3">@{m.user.handle}</span>
+              <span className="mt-1.5 flex gap-1.5">
+                <input
+                  value={titles[m.user.id] ?? ""}
+                  onChange={(e) => setTitles((cur) => ({ ...cur, [m.user.id]: e.target.value.slice(0, 60) }))}
+                  placeholder="Job title (e.g. Support Lead)"
+                  aria-label={`Job title for ${m.user.displayName}`}
+                  className="min-w-0 flex-1 rounded-lg border border-line bg-bg px-2.5 py-1.5 text-xs outline-none focus:border-red"
+                />
+                {(titles[m.user.id] ?? "") !== (m.title ?? "") && (
+                  <button type="button" onClick={() => saveTitle(m.user)} className="rounded-lg bg-red px-2.5 text-xs font-semibold text-white">
+                    Save
+                  </button>
+                )}
+              </span>
             </span>
             <button type="button" onClick={() => remove(m.user)} className="text-xs text-ink-3">
               Remove
@@ -632,7 +661,7 @@ function ProgressPanel() {
                     <Avatar p={r.person} />
                     <span className="min-w-0">
                       <span className="block truncate font-semibold">{r.person.displayName}</span>
-                      <span className="block text-[11px] text-ink-3">{r.person.role}</span>
+                      <span className="block text-[11px] text-red-soft">{r.person.supportTeam?.title || r.person.role}</span>
                     </span>
                   </span>
                 </td>

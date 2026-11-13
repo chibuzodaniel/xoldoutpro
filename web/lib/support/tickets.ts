@@ -14,13 +14,22 @@ export const SUPPORT_STATUSES = ["OPEN", "IN_PROGRESS", "SOLVED"] as const;
 
 type Viewer = { id: string; email: string; isSuperModerator: boolean };
 
+/** The official account's job title, set the first time it's needed (2026-11-13). */
+export const OWNER_TITLE = "CTO · Head of Engineering";
+
 export async function supportRole(user: Viewer) {
-  const isSuper = user.isSuperModerator || user.email.toLowerCase() === SUPPORT_ACCOUNT_EMAIL;
-  const team = isSuper ? null : await db.supportTeamMember.findUnique({ where: { userId: user.id }, select: { userId: true } });
+  const isOwner = user.email.toLowerCase() === SUPPORT_ACCOUNT_EMAIL;
+  const isSuper = user.isSuperModerator || isOwner;
+  const team = await db.supportTeamMember.findUnique({ where: { userId: user.id }, select: { userId: true } });
+  // The project's head shows up on the team with their title.
+  if (isOwner && !team) {
+    await db.supportTeamMember.upsert({ where: { userId: user.id }, create: { userId: user.id, addedById: user.id, title: OWNER_TITLE }, update: {} });
+  }
   return { isSuper, isTeam: isSuper || Boolean(team) };
 }
 
-export const personSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true } } as const;
+// supportTeam.title: the job title users see next to a team member (2026-11-13).
+export const personSelect = { select: { id: true, handle: true, displayName: true, avatarUrl: true, supportTeam: { select: { title: true } } } } as const;
 
 export const ticketInclude = {
   author: personSelect,
@@ -39,8 +48,8 @@ type TicketRow = {
   createdAt: Date;
   updatedAt: Date;
   authorId: string;
-  author: { id: string; handle: string; displayName: string; avatarUrl: string | null };
-  assignee: { id: string; handle: string; displayName: string; avatarUrl: string | null } | null;
+  author: { id: string; handle: string; displayName: string; avatarUrl: string | null; supportTeam: { title: string | null } | null };
+  assignee: { id: string; handle: string; displayName: string; avatarUrl: string | null; supportTeam: { title: string | null } | null } | null;
   _count: { replies: number };
 };
 

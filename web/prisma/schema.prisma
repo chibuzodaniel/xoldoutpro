@@ -2754,6 +2754,8 @@ model SupportTeamMember {
   user      User     @relation("SupportTeam", fields: [userId], references: [id])
   addedById String
   addedAt   DateTime @default(now())
+  // Job title users see in the XOLDOUT channel, e.g. "CTO · Head of Engineering" (2026-11-13).
+  title     String?
 }
 
 model SupportTicket {
