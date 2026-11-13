@@ -271,21 +271,33 @@ select {
   color: #fff;
   opacity: 0.6;
 }
+/* The countdown: a thick red bar draining along the bottom over a faint track. */
+.Toastify__toast-container .Toastify__toast {
+  overflow: hidden;
+}
 .Toastify__toast-container .Toastify__progress-bar {
   background: var(--red);
-  height: 3px;
+  height: 4px;
+  border-radius: 0 2px 2px 0;
 }
-.Toastify__toast-container .Toastify__toast--error {
-  border-color: color-mix(in srgb, var(--red) 60%, transparent);
+.Toastify__toast-container .Toastify__progress-bar--wrp {
+  height: 4px;
+}
+.Toastify__toast-container .Toastify__progress-bar--bg {
+  background: rgba(255, 255, 255, 0.14);
+  opacity: 1;
+  height: 4px;
+}
+/* One XOLDOUT look for every toast; success / error differ only by the icon. */
+.Toastify__toast-container .Toastify__toast--error,
+.Toastify__toast-container .Toastify__toast--success {
+  color: #fff;
+}
+.Toastify__toast-container .Toastify__toast--error .Toastify__toast-icon {
   color: var(--red-soft);
 }
-.Toastify__toast-container .Toastify__toast--success {
-  border-color: color-mix(in srgb, var(--green) 45%, transparent);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--green) 16%, #111) 0%, #0d0d0d 70%);
+.Toastify__toast-container .Toastify__toast--success .Toastify__toast-icon {
   color: var(--green);
-}
-.Toastify__toast-container .Toastify__toast--success .Toastify__progress-bar {
-  background: var(--green);
 }
 
 /* The page dims behind any toast. Toasts that need an answer (confirm,

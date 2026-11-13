@@ -24,9 +24,12 @@ const ICONS = {
   ),
 };
 
+// A countdown bar shows when it will go (explicit ask, 2026-11-13), so nobody
+// feels they need to tap it; touching or hovering pauses it.
 const BASE_OPTIONS: ToastOptions = {
   autoClose: 4000,
-  hideProgressBar: true,
+  hideProgressBar: false,
+  pauseOnHover: true,
   closeButton: false,
 };
 
