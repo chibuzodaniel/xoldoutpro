@@ -12,6 +12,7 @@ import { ReportButton } from "@/components/trust/ReportButton";
 import { VerifiedBadge, primaryBadgeType } from "@/components/profile/VerifiedBadge";
 import { Linkified } from "@/components/ui/Linkified";
 import { CountryFlag } from "@/components/profile/CountryFlag";
+import { saveSnapshot, takeSnapshot } from "@/lib/backNav";
 import {
   TIMELINE_KINDS,
   ADMIN_ONLY_KINDS,
@@ -89,11 +90,27 @@ export function Timeline({ communityId }: { communityId: string }) {
     [communityId],
   );
 
+  // Back/forward: restore everything that was loaded (older posts too) instead
+  // of starting at page one, so the scroll position lands on the same post.
+  const snapKey = `timeline:${communityId}`;
   useEffect(() => {
     if (!appUser) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- first page when the tab opens
+    const snap = takeSnapshot<{ posts: Post[]; viewer: Viewer; nextBefore: string | null; pendingCount: number }>(snapKey);
+    if (snap) {
+      /* eslint-disable react-hooks/set-state-in-effect -- restoring the list you left */
+      setPosts(snap.posts);
+      setViewer(snap.viewer);
+      setNextBefore(snap.nextBefore);
+      setPendingCount(snap.pendingCount);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      return;
+    }
+     
     load();
-  }, [appUser, load]);
+  }, [appUser, load, snapKey]);
+  useEffect(() => {
+    if (posts && viewer) saveSnapshot(snapKey, { posts, viewer, nextBefore, pendingCount });
+  }, [snapKey, posts, viewer, nextBefore, pendingCount]);
 
   useEffect(() => {
     if (!showPending || !viewer?.isAdmin || pending) return;

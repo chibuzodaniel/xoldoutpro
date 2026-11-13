@@ -17,6 +17,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
 import { CountryFlag } from "@/components/profile/CountryFlag";
+import { setUrlParam } from "@/lib/backNav";
 import { downloadViaSignedLink } from "@/lib/downloadFile";
 
 type LibraryTrack = {
@@ -726,7 +727,10 @@ function LibraryPageInner() {
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              setUrlParam("tab", t.key);
+            }}
             className={`relative pb-3 text-[15px] font-semibold whitespace-nowrap border-b-2 -mb-px transition-colors duration-200 ${
               tab === t.key ? "text-white border-red" : "text-ink-3 border-transparent hover:text-ink-2"
             }`}

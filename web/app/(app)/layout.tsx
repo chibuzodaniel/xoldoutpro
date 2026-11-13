@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Suspense } from "react";
 import { LiveDock } from "@/components/live/LiveDock";
+import { withNext } from "@/lib/returnTo";
 import { BattleInviteRing } from "@/components/live/BattleInviteRing";
 
 // Open-browsing routes under (app) — viewable without an account. Everything
@@ -48,9 +49,11 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
       // visitor (isNewVisitor false — they've signed in this tab before,
       // or this isn't their tab's first pageview) still goes to /login,
       // unchanged.
-      router.replace(isNewVisitor ? "/signup" : "/login");
+      // Come back to this exact page afterwards (2026-11-13).
+      const here = window.location.pathname + window.location.search;
+      router.replace(withNext(isNewVisitor ? "/signup" : "/login", here));
     } else if (needsOnboarding) {
-      router.replace("/onboarding");
+      router.replace(withNext("/onboarding", window.location.pathname + window.location.search));
     }
   }, [loading, firebaseUser, needsOnboarding, router, isPublic, isSelfGated, isNewVisitor]);
 

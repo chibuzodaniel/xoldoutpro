@@ -15,6 +15,7 @@ import { MembershipCardSheet } from "@/components/communities/MembershipCardShee
 import { ReportSheet, COMMUNITY_REPORT_REASONS } from "@/components/trust/ReportSheet";
 import { planPriceLabel } from "@/lib/communities/constants";
 import { CountryFlag } from "@/components/profile/CountryFlag";
+import { setUrlParam } from "@/lib/backNav";
 import { Timeline } from "@/components/communities/Timeline";
 
 type Channel = {
@@ -71,6 +72,12 @@ export function CommunityPage({ id }: { id: string }) {
   const [missing, setMissing] = useState(false);
   // Timeline replaces channels (explicit ask, 2026-11-11).
   const [tab, setTab] = useState<"timeline" | "members" | "about">("timeline");
+  // Back lands on the tab you were on (2026-11-13).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read the address once on the client
+    if (t === "members" || t === "about") setTab(t);
+  }, []);
   const [members, setMembers] = useState<Member[] | null>(null);
   const [joinOpen, setJoinOpen] = useState(false);
   const [joinPlan, setJoinPlan] = useState<string | null>(null);
@@ -247,7 +254,10 @@ export function CommunityPage({ id }: { id: string }) {
               type="button"
               role="tab"
               aria-selected={tab === t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                setUrlParam("tab", t);
+              }}
               className={`-mb-px border-b-2 pb-2.5 text-[17px] font-semibold capitalize ${tab === t ? "border-red text-ink" : "border-transparent text-ink-3"}`}
             >
               {t}

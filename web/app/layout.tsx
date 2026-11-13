@@ -15,6 +15,7 @@ import { PushAutoEnroll } from "@/components/push/PushAutoEnroll";
 import { ScrollMemory } from "@/components/nav/ScrollMemory";
 import { Suspense } from "react";
 import { ExternalLinkGuard } from "@/components/nav/ExternalLinkGuard";
+import { ReturnToTracker } from "@/components/nav/ReturnToTracker";
 import { InAppMessageBanner } from "@/components/messages/InAppMessageBanner";
 
 export const metadata: Metadata = {
@@ -68,6 +69,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               <VisitTracker />
               {/* "You're leaving XOLDOUT" before any external link. */}
               <ExternalLinkGuard />
+              {/* Back to this page after signing in or up (2026-11-13). */}
+              <Suspense fallback={null}>
+                <ReturnToTracker />
+              </Suspense>
               <PushAutoEnroll />
               <InAppMessageBanner />
               <InstallGuideProvider>

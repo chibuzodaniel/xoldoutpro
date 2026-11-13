@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import Link from "next/link";
 import { ArtworkImage } from "@/components/ui/ArtworkImage";
 import { usePlayer, type PlayableTrack } from "@/components/player/PlayerProvider";
@@ -9,6 +9,7 @@ import { ProductCard, type ProductCardData } from "@/components/product/ProductC
 import { EventCard, type EventCardData } from "@/components/product/EventCard";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { PlayProgressRing } from "@/components/player/PlayProgressRing";
+import { setUrlParam } from "@/lib/backNav";
 import { ProductShareSheet } from "@/components/product/ProductShareSheet";
 
 // "On XOLDOUT" on a profile (design/v2-prototype, 2026-11-09): Music /
@@ -202,6 +203,12 @@ export function ProfileShowcase({
     { key: "merch", label: "Merch", count: merch.length },
   ];
   const [tab, setTab] = useState<Tab>(tabs.find((t) => t.count > 0)?.key ?? "music");
+  // Back lands on the tab you were on (2026-11-13).
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read the address once on the client
+    if (t === "music" || t === "events" || t === "merch") setTab(t);
+  }, []);
   if (tabs.every((t) => t.count === 0)) return null;
 
   return (
@@ -212,7 +219,10 @@ export function ProfileShowcase({
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              setUrlParam("tab", t.key);
+            }}
             className={`relative inline-flex shrink-0 items-center gap-2 rounded-full border px-5 py-2.5 text-[15px] font-semibold ${
               tab === t.key ? "border-white text-white" : "border-line text-ink-3"
             }`}

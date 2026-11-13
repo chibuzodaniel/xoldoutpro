@@ -13,6 +13,7 @@ import { FallbackImg } from "@/components/ui/FallbackImg";
 import { AppHeader } from "@/components/nav/AppHeader";
 import { LiveNowPanel } from "@/components/live/LiveNowPanel";
 import { BroadcastIcon } from "@/components/live/LiveIcons";
+import { setUrlParam } from "@/lib/backNav";
 import { PeopleToFollow } from "@/components/social/PeopleToFollow";
 
 type FollowedCreator = { id: string; handle: string; displayName: string; avatarUrl: string | null };
@@ -82,7 +83,10 @@ function SocialsPageInner() {
           <button
             key={t.key}
             type="button"
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              setUrlParam("tab", t.key);
+            }}
             className={`relative py-3 text-[16px] font-semibold whitespace-nowrap transition-colors duration-150 ${tab === t.key ? "text-white" : "text-ink-3 hover:text-ink-2"}`}
           >
             {t.label}

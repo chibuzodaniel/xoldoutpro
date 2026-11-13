@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { usePlayer } from "./PlayerProvider";
 import { VinylDisc } from "./VinylDisc";
 import { WaveformScrubber } from "./WaveformScrubber";
+import { useBackToClose } from "@/lib/backNav";
 import { SongComments } from "./SongComments";
 
 function formatTime(sec: number) {
@@ -155,6 +156,9 @@ export function ExpandedPlayer() {
   const [tab, setTab] = useState<"comments" | "lyrics">("comments");
   const [showQueue, setShowQueue] = useState(false);
   const [shareLabel, setShareLabel] = useState<"idle" | "copied">("idle");
+  // Back / swipe-back minimises the player instead of leaving the page (2026-11-13).
+  const minimise = useCallback(() => setExpanded(false), [setExpanded]);
+  useBackToClose(Boolean(expanded && current && owned), minimise);
 
   // The vinyl player is for people who bought the song (explicit ask,
   // 2026-11-11); a preview is just the play button where it was started.

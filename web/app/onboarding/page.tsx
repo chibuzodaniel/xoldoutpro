@@ -8,12 +8,19 @@ import { uploadImage } from "@/lib/uploadImage";
 import { enablePush } from "@/lib/push";
 import { ImageCropModal } from "@/components/upload/ImageCropModal";
 import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
+import { returnTo, withNext } from "@/lib/returnTo";
 import { useToast } from "@/components/ui/ToastProvider";
 
 const SUGGESTED_TAGS = ["Artist", "Producer", "Manager", "Label"];
 
 export default function OnboardingPage() {
   const router = useRouter();
+  // The page to finish on (lib/returnTo.ts), from ?next=.
+  const [nextParam, setNextParam] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read the URL once on the client
+    setNextParam(new URLSearchParams(window.location.search).get("next"));
+  }, []);
   const toast = useToast();
   const { firebaseUser, appUser, loading, refreshAppUser } = useAuth();
   const installGuide = useInstallGuide();
@@ -28,8 +35,8 @@ export default function OnboardingPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!loading && !firebaseUser) router.replace("/login");
-  }, [loading, firebaseUser, router]);
+    if (!loading && !firebaseUser) router.replace(withNext("/login", nextParam));
+  }, [loading, firebaseUser, router, nextParam]);
 
   useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect -- one-time hydration of the form once appUser loads async, not per-render derived state */
@@ -72,7 +79,7 @@ export default function OnboardingPage() {
       }
 
       await refreshAppUser();
-      router.push("/discover");
+      router.push(returnTo(nextParam));
       installGuide.open();
       // Best-effort — pushEnabled defaults to true for new signups, but that's
       // just the stored preference; this is what actually asks the browser

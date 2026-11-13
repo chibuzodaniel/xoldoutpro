@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useBackToClose } from "@/lib/backNav";
 
 // Merch photo gallery (explicit ask, 2026-11-11): the main photo crossfades
 // left-to-right through every photo like the Discover billboards; swipe,
@@ -101,6 +102,8 @@ export function MerchGallery({ images, title }: { images: string[]; title: strin
 function ImageViewer({ images, index, onIndex, onClose, title }: { images: string[]; index: number; onIndex: (i: number) => void; onClose: () => void; title: string }) {
   const [scale, setScale] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
+  // Back / swipe-back closes the viewer (2026-11-13).
+  useBackToClose(true, onClose);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ startDist: number; startScale: number; startX: number; startY: number; startPan: { x: number; y: number }; moved: boolean } | null>(null);
   const lastTap = useRef(0);

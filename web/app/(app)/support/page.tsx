@@ -9,6 +9,8 @@ import { BackHeader } from "@/components/ui/BackHeader";
 import { BottomSheet } from "@/components/ui/BottomSheet";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { UserHandleAutocomplete } from "@/components/ui/UserHandleAutocomplete";
+import { setUrlParam } from "@/lib/backNav";
+import { saveSnapshot, takeSnapshot } from "@/lib/backNav";
 import { Linkified } from "@/components/ui/Linkified";
 
 // The XOLDOUT channel (explicit ask, 2026-11-12): everyone can send an issue,
@@ -97,12 +99,26 @@ function SupportChannel() {
     [],
   );
 
+  // Back/forward: restore the list you left (including "Show more" pages).
   useEffect(() => {
     if (!appUser) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reload when the tab changes
+    const snap = takeSnapshot<{ tickets: Ticket[]; nextBefore: string | null; role: Role | null; counts: { open: number; assigned: number; ignored: number } }>(`support:${view}`);
+    if (snap) {
+      /* eslint-disable react-hooks/set-state-in-effect -- restoring the list you left */
+      setTickets(snap.tickets);
+      setNextBefore(snap.nextBefore);
+      setRole(snap.role);
+      setCounts(snap.counts);
+      /* eslint-enable react-hooks/set-state-in-effect */
+      return;
+    }
+     
     setTickets(null);
     load(view);
   }, [appUser, view, load]);
+  useEffect(() => {
+    if (tickets) saveSnapshot(`support:${view}`, { tickets, nextBefore, role, counts });
+  }, [view, tickets, nextBefore, role, counts]);
 
   // The team lands on what's open the first time.
   const firstRole = useRef(true);
@@ -157,7 +173,10 @@ function SupportChannel() {
             <button
               key={t.key}
               type="button"
-              onClick={() => setView(t.key)}
+              onClick={() => {
+                setView(t.key);
+                setUrlParam("view", t.key);
+              }}
               className={`-mb-px shrink-0 border-b-2 pb-2.5 text-[15px] font-semibold ${view === t.key ? "border-red text-ink" : "border-transparent text-ink-3"}`}
             >
               {t.label}

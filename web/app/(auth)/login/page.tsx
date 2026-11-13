@@ -10,6 +10,7 @@ import { GoogleLogo } from "@/components/ui/GoogleLogo";
 import { useToast } from "@/components/ui/ToastProvider";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { returnTo, withNext } from "@/lib/returnTo";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -25,7 +26,9 @@ function LoginForm() {
   const toast = useToast();
   // A gift claim link redirects here when signed out (?next=/gifts/claim/...)
   // so login lands the user back on the flow they came from, not /discover.
-  const next = useSearchParams().get("next") || "/discover";
+  const nextParam = useSearchParams().get("next");
+  // ?next= (members-only links), else the last page viewed (lib/returnTo.ts).
+  const next = returnTo(nextParam);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -216,7 +219,7 @@ function LoginForm() {
 
             <p className="mt-8 text-sm text-ink-3">
               New here?{" "}
-              <Link href="/signup" className="text-red-soft">
+              <Link href={withNext("/signup", next)} className="text-red-soft">
                 Create an account
               </Link>
             </p>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode, useRef } from "react";
+import { useBackToClose } from "@/lib/backNav";
 import { createPortal } from "react-dom";
 
 // Slide-up sheet used by the v2 screens (design/v2-prototype): dimmed
@@ -23,6 +24,9 @@ export function BottomSheet({
   height?: "auto" | "half";
 }) {
   const [shown, setShown] = useState(false);
+  // Back / swipe-back closes the sheet instead of leaving the page (2026-11-13).
+  const boxRef = useRef<HTMLDivElement>(null);
+  useBackToClose(open, onClose, boxRef);
 
   useEffect(() => {
     if (!open) return;
@@ -42,7 +46,7 @@ export function BottomSheet({
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[70]" role="dialog" aria-modal="true">
+    <div ref={boxRef} className="fixed inset-0 z-[70]" role="dialog" aria-modal="true">
       <button
         type="button"
         aria-label="Close"

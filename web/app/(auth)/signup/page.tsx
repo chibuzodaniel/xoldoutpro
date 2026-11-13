@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   createUserWithEmailAndPassword,
@@ -14,6 +14,7 @@ import { useInstallGuide } from "@/components/pwa/InstallGuideProvider";
 import { useToast } from "@/components/ui/ToastProvider";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
 import { PasswordInput } from "@/components/ui/PasswordInput";
+import { returnTo, withNext } from "@/lib/returnTo";
 import Link from "next/link";
 
 function CheckCircleIcon() {
@@ -57,6 +58,12 @@ function ChevronIcon({ open, className = "text-ink-3" }: { open: boolean; classN
 
 export default function SignupPage() {
   const router = useRouter();
+  // Where to land after onboarding (lib/returnTo.ts): ?next= or the last page viewed.
+  const [next, setNext] = useState("/discover");
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- read the URL once on the client
+    setNext(returnTo(new URLSearchParams(window.location.search).get("next")));
+  }, []);
   const toast = useToast();
   const installGuide = useInstallGuide();
   const [email, setEmail] = useState("");
@@ -88,7 +95,7 @@ export default function SignupPage() {
     try {
       const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password);
       if (email) await updateProfile(cred.user, { displayName: email.split("@")[0] });
-      router.push("/onboarding");
+      router.push(withNext("/onboarding", next));
     } catch (err) {
       toast.error(friendlyFirebaseError(err, "Sign-up failed"));
     } finally {
@@ -110,7 +117,7 @@ export default function SignupPage() {
         setDeletedHandle(deleted);
         return;
       }
-      router.push("/onboarding");
+      router.push(withNext("/onboarding", next));
     } catch (err) {
       toast.error(friendlyFirebaseError(err, "Google sign-in failed"));
     } finally {
@@ -155,7 +162,7 @@ export default function SignupPage() {
           <img src="/xoldout-logo-transparent.png" alt="XOLDOUT" className="h-6 w-auto" />
         </div>
         <Link
-          href="/login"
+          href={withNext("/login", next)}
           className="rounded-full border border-red px-3 py-1 text-xs font-semibold text-red-soft"
         >
           Log in
@@ -219,7 +226,7 @@ export default function SignupPage() {
 
         <p className="mt-4 text-xs text-ink-3">
           Already have an account?{" "}
-          <Link href="/login" className="text-red-soft font-semibold">
+          <Link href={withNext("/login", next)} className="text-red-soft font-semibold">
             Log in
           </Link>
         </p>
