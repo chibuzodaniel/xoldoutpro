@@ -18,6 +18,12 @@ const positions = new Map<string, number>();
 let restoring = false;
 let currentKey = "";
 let backNavTimer: ReturnType<typeof setTimeout> | undefined;
+// Where you were the moment you tapped something (2026-11-13). Opening a page
+// makes Next.js scroll the column to the top *before* the address changes, so
+// that jump used to be saved as this page's position — and back went to the
+// top. A tap that leads to a new page keeps this spot instead.
+let press: { key: string; top: number; at: number } | null = null;
+const PRESS_WINDOW_MS = 2000;
 const keyNow = () => window.location.pathname + window.location.search;
 
 export function ScrollMemory() {
@@ -34,8 +40,18 @@ export function ScrollMemory() {
       if (restoring || frame) return;
       frame = requestAnimationFrame(() => {
         frame = 0;
-        positions.set(keyNow(), el.scrollTop);
+        const key = keyNow();
+        // Right after a tap, a jump on the same page is the navigation's scroll-to-top: ignore it.
+        if (press && press.key === key && Date.now() - press.at < PRESS_WINDOW_MS && Math.abs(el.scrollTop - press.top) > 4) return;
+        positions.set(key, el.scrollTop);
       });
+    };
+    const onPress = () => {
+      press = { key: keyNow(), top: el.scrollTop, at: Date.now() };
+    };
+    // A finger scroll isn't a tap: forget the press once real scrolling starts.
+    const onMove = () => {
+      if (press && Date.now() - press.at > 150) press = null;
     };
     const onPop = () => {
       // Only a back/forward that changes the page restores (not closing a sheet).
@@ -49,16 +65,29 @@ export function ScrollMemory() {
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("popstate", onPop);
+    document.addEventListener("pointerdown", onPress, true);
+    document.addEventListener("keydown", onPress, true);
+    el.addEventListener("touchmove", onMove, { passive: true });
+    el.addEventListener("wheel", onMove, { passive: true });
     return () => {
       el.removeEventListener("scroll", onScroll);
       window.removeEventListener("popstate", onPop);
+      document.removeEventListener("pointerdown", onPress, true);
+      document.removeEventListener("keydown", onPress, true);
+      el.removeEventListener("touchmove", onMove);
+      el.removeEventListener("wheel", onMove);
       cancelAnimationFrame(frame);
     };
   }, []);
 
   // After a back/forward navigation renders, scroll to the saved spot.
   useEffect(() => {
+    const leaving = currentKey;
     currentKey = keyNow();
+    if (press && press.key === leaving && leaving !== currentKey && Date.now() - press.at < PRESS_WINDOW_MS) {
+      positions.set(leaving, press.top);
+      press = null;
+    }
     const el = document.getElementById("app-scroll");
     if (!el || !restoring) return;
     const target = positions.get(currentKey) ?? 0;
