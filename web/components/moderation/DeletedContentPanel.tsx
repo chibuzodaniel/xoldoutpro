@@ -9,6 +9,7 @@ const FILTERS: { value: DeletedFilter; label: string }[] = [
   { value: "ALL", label: "All" },
   { value: "POST", label: "Posts" },
   { value: "COMMENT", label: "Post comments" },
+  { value: "FEEDBACK", label: "XOLDOUT feedback" },
   { value: "SONG_COMMENT", label: "Song comments" },
   { value: "COMMUNITY", label: "Communities" },
   { value: "PLAYLIST", label: "Playlists" },
@@ -22,6 +23,7 @@ const FILTERS: { value: DeletedFilter; label: string }[] = [
 const KIND_LABEL: Record<string, string> = {
   POST: "Post",
   COMMENT: "Post comment",
+  FEEDBACK: "Feedback",
   SONG_COMMENT: "Song comment",
   COMMUNITY: "Community",
   PLAYLIST: "Playlist",
@@ -47,6 +49,7 @@ const COUNT_LABEL: Record<string, string> = {
   pollVote: "poll votes",
   postLike: "likes",
   comment: "comments",
+  supportReply: "replies",
   commentVote: "comment likes",
   report: "reports",
   songComment: "comments incl. replies",

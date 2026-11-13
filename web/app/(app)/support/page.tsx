@@ -224,6 +224,7 @@ function SupportChannel() {
           id={openId}
           onClose={() => setOpenId(null)}
           onChanged={(t) => setTickets((cur) => cur?.map((x) => (x.id === t.id ? t : x)) ?? cur)}
+          onDeleted={(gone) => setTickets((cur) => cur?.filter((x) => x.id !== gone) ?? cur)}
         />
       )}
     </div>
@@ -255,7 +256,7 @@ function TicketCard({ t, onOpen }: { t: Ticket; onOpen: () => void }) {
   );
 }
 
-function TicketSheet({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: (t: Ticket) => void }) {
+function TicketSheet({ id, onClose, onChanged, onDeleted }: { id: string; onClose: () => void; onChanged: (t: Ticket) => void; onDeleted: (id: string) => void }) {
   const toast = useToast();
   const myId = useAuth().appUser?.id;
   const [data, setData] = useState<{ ticket: Ticket; replies: { id: string; body: string; createdAt: string; author: Person; fromTeam: boolean }[]; role: Role; team: Person[] } | null>(null);
@@ -278,6 +279,23 @@ function TicketSheet({ id, onClose, onChanged }: { id: string; onClose: () => vo
       toast.success(ok);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't save");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!(await toast.confirm("Delete this from the XOLDOUT channel? It disappears for everyone, including the sender. You can restore it from Deleted content in the moderation dashboard.", { confirmLabel: "Delete", destructive: true }))) return;
+    setBusy(true);
+    try {
+      const res = await apiFetch(`/api/support/tickets/${id}`, { method: "DELETE" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(typeof d.error === "string" ? d.error : "Couldn't delete");
+      toast.success("Deleted");
+      onDeleted(id);
+      onClose();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't delete");
     } finally {
       setBusy(false);
     }
@@ -367,6 +385,11 @@ function TicketSheet({ id, onClose, onChanged }: { id: string; onClose: () => vo
                     </button>
                   ))}
                 </div>
+                {data.role.isSuper && (
+                  <button type="button" disabled={busy} onClick={remove} className="self-start text-[12px] font-semibold text-red-soft disabled:opacity-50">
+                    Delete from the channel
+                  </button>
+                )}
                 {data.role.isSuper && (
                   <label className="flex items-center gap-2 text-[13px] text-ink-2">
                     Assign to

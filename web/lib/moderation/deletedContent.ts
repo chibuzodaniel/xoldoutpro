@@ -8,7 +8,7 @@ import { db } from "@/lib/db";
 // what was there. The delete itself is unchanged, so nothing that reads
 // these tables (web or mobile) needs a "deleted" filter.
 
-export type DeletedKind = "POST" | "COMMENT" | "SONG_COMMENT" | "COMMUNITY" | "PLAYLIST" | "ADD_ON";
+export type DeletedKind = "POST" | "COMMENT" | "SONG_COMMENT" | "FEEDBACK" | "COMMUNITY" | "PLAYLIST" | "ADD_ON";
 export type DeletedByRole = "OWNER" | "COMMUNITY_ADMIN" | "CREATOR" | "MODERATOR";
 type Tx = Prisma.TransactionClient;
 
@@ -30,7 +30,9 @@ type Table =
   | "songCommentVote"
   | "collection"
   | "collectionItem"
-  | "productAddOn";
+  | "productAddOn"
+  | "supportTicket"
+  | "supportReply";
 
 type Row = Record<string, unknown>;
 type Snapshot = {
@@ -151,6 +153,27 @@ export async function archivePostComment(tx: Tx, commentId: string, actor: Archi
       tables: [
         { table: "comment", rows: json([comment, ...replies]) },
         { table: "commentVote", rows: json(votes) },
+      ],
+    },
+    actor,
+  });
+}
+
+/** An item in the XOLDOUT channel and its conversation (super admin delete, 2026-11-13). */
+export async function archiveSupportTicket(tx: Tx, ticketId: string, actor: ArchiveActor) {
+  const ticket = await tx.supportTicket.findUnique({ where: { id: ticketId } });
+  if (!ticket) return;
+  const replies = await tx.supportReply.findMany({ where: { ticketId } });
+  await save(tx, {
+    kind: "FEEDBACK",
+    targetId: ticketId,
+    ownerId: ticket.authorId,
+    title: ticket.title,
+    preview: clip(ticket.body),
+    snapshot: {
+      tables: [
+        { table: "supportTicket", rows: json([ticket]) },
+        { table: "supportReply", rows: json(replies) },
       ],
     },
     actor,
@@ -374,7 +397,7 @@ export type DeletedListItem = {
 
 const PRODUCT_KINDS = { RELEASE: "RELEASE", BEAT: "BEAT", MERCH: "MERCH" } as const;
 const PRODUCT_PATH: Record<string, string> = { RELEASE: "r", BEAT: "b", MERCH: "m" };
-export const DELETED_FILTERS = ["ALL", "POST", "COMMENT", "SONG_COMMENT", "COMMUNITY", "PLAYLIST", "ADD_ON", "RELEASE", "BEAT", "MERCH", "EVENT"] as const;
+export const DELETED_FILTERS = ["ALL", "POST", "COMMENT", "FEEDBACK", "SONG_COMMENT", "COMMUNITY", "PLAYLIST", "ADD_ON", "RELEASE", "BEAT", "MERCH", "EVENT"] as const;
 export type DeletedFilter = (typeof DELETED_FILTERS)[number];
 
 /**
@@ -386,7 +409,7 @@ export async function listDeleted(args: { filter: DeletedFilter; q: string; befo
   const take = args.take ?? 30;
   const q = args.q.trim().replace(/^@/, "");
   const before = args.before ?? undefined;
-  const wantArchive = args.filter === "ALL" || ["POST", "COMMENT", "SONG_COMMENT", "COMMUNITY", "PLAYLIST", "ADD_ON"].includes(args.filter);
+  const wantArchive = args.filter === "ALL" || ["POST", "COMMENT", "FEEDBACK", "SONG_COMMENT", "COMMUNITY", "PLAYLIST", "ADD_ON"].includes(args.filter);
   const wantProducts = args.filter === "ALL" || args.filter in PRODUCT_KINDS;
   const wantEvents = args.filter === "ALL" || args.filter === "EVENT";
 

@@ -4,6 +4,7 @@ import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { notifyUsersAfterResponse } from "@/lib/notifications/create";
 import { supportRole, ticketInclude, shapeTicket, personSelect, isIgnored, SUPPORT_STATUSES } from "@/lib/support/tickets";
+import { archiveSupportTicket } from "@/lib/moderation/deletedContent";
 
 // One item in the XOLDOUT channel. The sender and the team see it in full
 // with its replies; anyone else only once it's solved, without the sender or
@@ -97,6 +98,26 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   } catch (err) {
     if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     if (err instanceof z.ZodError) return NextResponse.json({ error: "Invalid change" }, { status: 400 });
+    throw err;
+  }
+}
+
+// Super admins remove an item from the channel (2026-11-13). It's kept in the
+// admin "Deleted content" archive (restorable), then removed with its replies.
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { user } = await requireUser(req);
+    const { id } = await params;
+    if (!(await supportRole(user)).isSuper) return NextResponse.json({ error: "Only a super admin can delete feedback" }, { status: 403 });
+    const exists = await db.supportTicket.findUnique({ where: { id }, select: { id: true } });
+    if (!exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    await db.$transaction(async (tx) => {
+      await archiveSupportTicket(tx, id, { userId: user.id, role: "MODERATOR" });
+      await tx.supportTicket.delete({ where: { id } });
+    });
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    if (err instanceof AuthError) return NextResponse.json({ error: err.message }, { status: err.status });
     throw err;
   }
 }
