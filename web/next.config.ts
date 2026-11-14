@@ -11,6 +11,12 @@ function r2Hostname(): string | undefined {
 }
 
 const nextConfig: NextConfig = {
+  // Reuse a page loaded in the last 30 s instead of refetching it (2026-11-14):
+  // back returns to the same content and spot (no loading flash resetting the
+  // scroll), and fewer server re-renders (web/CLAUDE.md CPU budget).
+  experimental: {
+    staleTimes: { dynamic: 30 },
+  },
   images: {
     remotePatterns: [
       ...(r2Hostname() ? [{ protocol: "https" as const, hostname: r2Hostname()! }] : []),

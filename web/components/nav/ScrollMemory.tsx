@@ -97,11 +97,12 @@ export function ScrollMemory() {
       restoring = false;
       cleanup();
     };
+    // Keep holding the spot for a few seconds (2026-11-14): if the page is
+    // swapped or shrinks and regrows (fresh data, a loading flash), put it
+    // back again — until the user scrolls or touches it themself.
     const tryRestore = () => {
       if (done) return;
-      el.scrollTop = target;
-      // Reached it (or the page can't get any taller): finished.
-      if (Math.abs(el.scrollTop - target) < 2) stop();
+      if (Math.abs(el.scrollTop - target) >= 2) el.scrollTop = target;
     };
     const userTook = () => stop();
     const observer = new ResizeObserver(tryRestore);
@@ -109,10 +110,16 @@ export function ScrollMemory() {
     if (el.firstElementChild) observer.observe(el.firstElementChild);
     el.addEventListener("wheel", userTook, { passive: true });
     el.addEventListener("touchstart", userTook, { passive: true });
-    const timer = setTimeout(stop, 4000);
+    window.addEventListener("keydown", userTook);
+    // Content inside the column can be replaced wholesale: watch for that too.
+    const mo = new MutationObserver(tryRestore);
+    mo.observe(el, { childList: true, subtree: false });
+    const timer = setTimeout(stop, 5000);
     function cleanup() {
       observer.disconnect();
+      mo.disconnect();
       clearTimeout(timer);
+      window.removeEventListener("keydown", userTook);
       el!.removeEventListener("wheel", userTook);
       el!.removeEventListener("touchstart", userTook);
     }
