@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { setBackNav } from "@/lib/backNav";
+import { setBackNav, debugOff } from "@/lib/backNav";
 
 // Back / swipe-back returns to where you were (explicit ask, 2026-11-11 and
 // 2026-11-13). The app scrolls inside its own column (#app-scroll,
@@ -95,7 +95,7 @@ export function ScrollMemory() {
   // Remember the position as the user scrolls (once per frame).
   useEffect(() => {
     const el = document.getElementById("app-scroll");
-    if (!el) return;
+    if (!el || debugOff("scroll")) return;
     currentKey = keyNow();
     let frame = 0;
     const onScroll = () => {
@@ -147,6 +147,7 @@ export function ScrollMemory() {
 
   // After a back/forward navigation renders, scroll to the saved spot.
   useEffect(() => {
+    if (debugOff("scroll")) return;
     const leaving = currentKey;
     currentKey = keyNow();
     if (leaving !== currentKey) lastSwitch = { to: currentKey, at: Date.now() };
