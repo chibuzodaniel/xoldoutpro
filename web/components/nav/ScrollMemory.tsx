@@ -46,20 +46,32 @@ function startRestore(el: HTMLElement) {
   restoringKey = key;
   const target = positions.get(key) ?? 0;
   let done = false;
-  const tryRestore = () => {
+  let frame = 0;
+  // At most one scroll write per frame, and never past the bottom of what's
+  // there yet (2026-11-15): writing an out-of-range position on every DOM
+  // change kept iOS WebKit busy re-scrolling a page that was still growing.
+  const apply = () => {
+    frame = 0;
     if (done || keyNow() !== key) return;
-    if (Math.abs(el.scrollTop - target) >= 2) el.scrollTop = target;
+    const want = Math.min(target, Math.max(0, el.scrollHeight - el.clientHeight));
+    if (Math.abs(el.scrollTop - want) >= 2) el.scrollTop = want;
+  };
+  const tryRestore = () => {
+    if (!done && !frame) frame = requestAnimationFrame(apply);
   };
   const observer = new ResizeObserver(tryRestore);
   observer.observe(el);
   if (el.firstElementChild) observer.observe(el.firstElementChild);
+  // The column's own children only: the page swapping in (not every change inside it).
   const mo = new MutationObserver(tryRestore);
-  mo.observe(el, { childList: true, subtree: true });
+  mo.observe(el, { childList: true });
+  const timer = setTimeout(() => stop(), 5000);
   const stop = () => {
     if (done) return;
     done = true;
     restoring = false;
     stopRestore = null;
+    cancelAnimationFrame(frame);
     observer.disconnect();
     mo.disconnect();
     clearTimeout(timer);
@@ -72,10 +84,8 @@ function startRestore(el: HTMLElement) {
   el.addEventListener("wheel", stop, { passive: true });
   el.addEventListener("touchstart", stop, { passive: true });
   window.addEventListener("keydown", stop);
-  const timer = setTimeout(stop, 5000);
   stopRestore = stop;
-  tryRestore();
-  requestAnimationFrame(tryRestore);
+  apply();
 }
 
 export function ScrollMemory() {
