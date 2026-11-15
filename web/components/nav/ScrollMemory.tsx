@@ -26,6 +26,58 @@ let press: { key: string; top: number; at: number } | null = null;
 const PRESS_WINDOW_MS = 2000;
 const keyNow = () => window.location.pathname + window.location.search;
 
+// Put the saved spot back for the current address and hold it for a few
+// seconds (2026-11-14): if the page is swapped or shrinks and regrows (fresh
+// data, a loading flash), put it back again — until the user scrolls or
+// touches it themself. Called from both the back event and the page change,
+// whichever comes first (2026-11-15): Next.js renders the previous page
+// *inside* its own popstate handler, so the page change can arrive before our
+// popstate listener runs — the old code then skipped the restore entirely and
+// left `restoring` stuck on, which also stopped positions being saved.
+let stopRestore: (() => void) | null = null;
+// The last page change: lets a late popstate tell a page change from a sheet closing.
+let lastSwitch = { to: "", at: 0 };
+let restoringKey = "";
+function startRestore(el: HTMLElement) {
+  const key = keyNow();
+  if (stopRestore && restoringKey === key) return;
+  stopRestore?.();
+  restoring = true;
+  restoringKey = key;
+  const target = positions.get(key) ?? 0;
+  let done = false;
+  const tryRestore = () => {
+    if (done || keyNow() !== key) return;
+    if (Math.abs(el.scrollTop - target) >= 2) el.scrollTop = target;
+  };
+  const observer = new ResizeObserver(tryRestore);
+  observer.observe(el);
+  if (el.firstElementChild) observer.observe(el.firstElementChild);
+  const mo = new MutationObserver(tryRestore);
+  mo.observe(el, { childList: true, subtree: true });
+  const stop = () => {
+    if (done) return;
+    done = true;
+    restoring = false;
+    stopRestore = null;
+    observer.disconnect();
+    mo.disconnect();
+    clearTimeout(timer);
+    window.removeEventListener("keydown", stop);
+    el.removeEventListener("wheel", stop);
+    el.removeEventListener("touchstart", stop);
+    // The settled spot is this page's position from here on.
+    if (keyNow() === key) positions.set(key, el.scrollTop);
+  };
+  el.addEventListener("wheel", stop, { passive: true });
+  el.addEventListener("touchstart", stop, { passive: true });
+  window.addEventListener("keydown", stop);
+  const timer = setTimeout(stop, 5000);
+  stopRestore = stop;
+  tryRestore();
+  requestAnimationFrame(tryRestore);
+}
+
 export function ScrollMemory() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -55,8 +107,11 @@ export function ScrollMemory() {
     };
     const onPop = () => {
       // Only a back/forward that changes the page restores (not closing a sheet).
-      if (keyNow() === currentKey) return;
-      restoring = true;
+      // The page may already have switched before this runs (see startRestore).
+      const key = keyNow();
+      const justSwitched = lastSwitch.to === key && Date.now() - lastSwitch.at < 1000;
+      if (key === currentKey && !justSwitched) return;
+      startRestore(el);
       // Repeat requests are answered from the saved copy for a moment, so the
       // page comes back as it was (lib/api.ts).
       setBackNav(true);
@@ -84,49 +139,15 @@ export function ScrollMemory() {
   useEffect(() => {
     const leaving = currentKey;
     currentKey = keyNow();
+    if (leaving !== currentKey) lastSwitch = { to: currentKey, at: Date.now() };
     if (press && press.key === leaving && leaving !== currentKey && Date.now() - press.at < PRESS_WINDOW_MS) {
       positions.set(leaving, press.top);
       press = null;
     }
     const el = document.getElementById("app-scroll");
-    if (!el || !restoring) return;
-    const target = positions.get(currentKey) ?? 0;
-    let done = false;
-    const stop = () => {
-      done = true;
-      restoring = false;
-      cleanup();
-    };
-    // Keep holding the spot for a few seconds (2026-11-14): if the page is
-    // swapped or shrinks and regrows (fresh data, a loading flash), put it
-    // back again — until the user scrolls or touches it themself.
-    const tryRestore = () => {
-      if (done) return;
-      if (Math.abs(el.scrollTop - target) >= 2) el.scrollTop = target;
-    };
-    const userTook = () => stop();
-    const observer = new ResizeObserver(tryRestore);
-    observer.observe(el);
-    if (el.firstElementChild) observer.observe(el.firstElementChild);
-    el.addEventListener("wheel", userTook, { passive: true });
-    el.addEventListener("touchstart", userTook, { passive: true });
-    window.addEventListener("keydown", userTook);
-    // Content inside the column can be replaced wholesale: watch for that too.
-    const mo = new MutationObserver(tryRestore);
-    mo.observe(el, { childList: true, subtree: false });
-    const timer = setTimeout(stop, 5000);
-    function cleanup() {
-      observer.disconnect();
-      mo.disconnect();
-      clearTimeout(timer);
-      window.removeEventListener("keydown", userTook);
-      el!.removeEventListener("wheel", userTook);
-      el!.removeEventListener("touchstart", userTook);
-    }
-    requestAnimationFrame(tryRestore);
-    return () => {
-      if (!done) cleanup();
-    };
+    if (!el) return;
+    // A back/forward whose popstate already ran: restore now the page is here.
+    if (restoring && restoringKey !== currentKey) startRestore(el);
   }, [pathname, searchParams]);
 
   return null;
