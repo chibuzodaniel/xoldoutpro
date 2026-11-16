@@ -103,3 +103,27 @@
 }
 
 .xj .field.tall{max-height:170px}
+/* Fit on one screen on phones and short windows (explicit ask, 2026-11-16): tighter spacing, same look. */
+@media (max-width:600px), (max-height:860px){
+  .xj{padding:12px 16px 16px;align-items:center}
+  .xj .brand{padding:0 4px 12px}
+  .xj .logo{font-size:20px}
+  .xj .tagline{font-size:23px;margin:0 4px 14px}
+  .xj .card{padding:14px;border-radius:24px}
+  .xj .tabs{margin-bottom:12px}
+  .xj .tabs button{padding:9px 0;font-size:14px}
+  .xj .google{padding:11px;font-size:15px}
+  .xj .or{margin:10px 0}
+  .xj .field{margin-bottom:8px}
+  .xj .box input{padding:19px 44px 6px 14px;font-size:16px}
+  .xj .box label{top:14px;left:14px;font-size:15px}
+  .xj .box input:focus + label,.xj .box input:not(:placeholder-shown) + label{top:6px;font-size:11px}
+  .xj .strength{padding-top:6px}
+  .xj .hint{font-size:11.5px;padding-top:3px}
+  .xj .row{margin:-2px 4px 8px}
+  .xj .cta{padding:13px;font-size:16px;margin-top:4px}
+  .xj .legal{margin-top:10px;font-size:11.5px}
+  .xj .banner{padding:9px 12px;margin-bottom:10px;font-size:13px}
+  .xj .done{padding:14px 6px 6px}
+  .xj .install{margin-top:12px!important}
+}

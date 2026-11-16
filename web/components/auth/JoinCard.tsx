@@ -310,7 +310,7 @@ export function JoinCard({ initialMode }: { initialMode: Mode }) {
         </section>
 
         {/* The install steps lived on the old sign-up page (explicit ask); kept as one quiet link. */}
-        <p className="legal" style={{ marginTop: 22 }}>
+        <p className="legal install" style={{ marginTop: 22 }}>
           <button
             type="button"
             onClick={() => (installGuide.canInstall ? installGuide.promptInstall() : installGuide.open())}

@@ -406,3 +406,22 @@
 
 /* The header's Sign in button keeps its size on phones (the mock-up's full-width rule was meant for the hero CTAs). */
 @media (max-width:620px){.xl .nav .btn{width:auto}}
+/* Sign-in dialog fits on one screen on phones and short windows (explicit ask, 2026-11-16). */
+@media (max-width:620px), (max-height:860px){
+  .xl .auth-card{padding:20px 18px calc(16px + env(safe-area-inset-bottom))}
+  .xl .auth-card .logo{font-size:18px;margin-bottom:8px}
+  .xl .auth-card h2{font-size:25px}
+  .xl .auth-sub{margin:4px 0 12px;font-size:14.5px}
+  .xl .seg{margin-bottom:12px}
+  .xl .seg button{padding:8px 10px;font-size:14px}
+  .xl .alert{padding:9px 12px;margin-bottom:10px;font-size:14px}
+  .xl .auth-card .btn-block{min-height:46px;padding:10px 18px}
+  .xl .auth-card .or{margin:10px 0;font-size:13px}
+  .xl .auth-card .field{margin-bottom:9px}
+  .xl .auth-card .field label{font-size:13px;margin-bottom:3px}
+  .xl .auth-card .field input{height:46px;border-radius:14px;font-size:16px}
+  .xl .auth-card .field-hint,.xl .auth-card .field-err{font-size:12.5px;margin-top:3px}
+  .xl .auth-card .row-between{margin:-4px 0 8px}
+  .xl .auth-card .legal{margin-top:8px;font-size:12px}
+  .xl .auth-x{top:10px;right:10px;width:36px;height:36px}
+}
