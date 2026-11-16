@@ -1,5 +1,5 @@
 import { firebaseAuth } from "@/lib/firebase/client";
-import { isBackNav, debugOff } from "@/lib/backNav";
+import { isBackNav } from "@/lib/backNav";
 
 // Short-lived copy of recent GET answers (2026-11-13: back returns to exactly
 // where you were). Used ONLY right after back/forward (lib/backNav.ts), so a
@@ -21,7 +21,7 @@ function remember(key: string, entry: Saved) {
 export async function apiFetch(input: string, init: RequestInit = {}) {
   const user = firebaseAuth?.currentUser;
   const method = (init.method ?? "GET").toUpperCase();
-  const cacheable = method === "GET" && !init.body && input.startsWith("/api/") && !debugOff("cache");
+  const cacheable = method === "GET" && !init.body && input.startsWith("/api/");
   const key = `${user?.uid ?? "anon"} ${input}`;
 
   if (cacheable && isBackNav()) {

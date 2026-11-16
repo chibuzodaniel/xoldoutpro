@@ -14,25 +14,6 @@ import { useRouter } from "next/navigation";
 // 3. useBackToClose: an open sheet/overlay adds a history step, so back
 //    closes it instead of leaving the page.
 
-// Temporary on-device switches for tracking down the iPhone crash on
-// Socials → profile → swipe back (2026-11-15). Open any page with
-// ?xodebug=scroll,cache,sheets to turn those pieces off on this device
-// (?xodebug=off turns everything back on). Kept in this browser only.
-let debugFlags: Set<string> | null = null;
-export function debugOff(name: "scroll" | "cache" | "sheets"): boolean {
-  if (typeof window === "undefined") return false;
-  if (!debugFlags) {
-    try {
-      const fromUrl = new URLSearchParams(window.location.search).get("xodebug");
-      if (fromUrl != null) localStorage.setItem("xo-debug", fromUrl === "off" ? "" : fromUrl);
-      debugFlags = new Set((localStorage.getItem("xo-debug") ?? "").split(",").map((s) => s.trim()).filter(Boolean));
-    } catch {
-      debugFlags = new Set();
-    }
-  }
-  return debugFlags.has(name);
-}
-
 let backNav = false;
 export const isBackNav = () => backNav;
 export const setBackNav = (v: boolean) => {
@@ -65,7 +46,7 @@ export function useBackToClose(open: boolean, onClose: () => void, container?: {
   }, [onClose]);
 
   useEffect(() => {
-    if (!open || typeof window === "undefined" || debugOff("sheets")) return;
+    if (!open || typeof window === "undefined") return;
     const id = ++overlaySeq;
     const href = window.location.href;
     window.history.pushState({ ...(window.history.state ?? {}), [OVERLAY_KEY]: id }, "", href);
