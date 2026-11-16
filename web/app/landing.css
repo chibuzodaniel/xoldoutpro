@@ -404,3 +404,5 @@
 }
 .xl .art .chips{margin:0}
 
+/* The header's Sign in button keeps its size on phones (the mock-up's full-width rule was meant for the hero CTAs). */
+@media (max-width:620px){.xl .nav .btn{width:auto}}
