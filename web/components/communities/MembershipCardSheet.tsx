@@ -8,7 +8,7 @@ import { BottomSheet } from "@/components/ui/BottomSheet";
 import { FallbackImg } from "@/components/ui/FallbackImg";
 import { useToast } from "@/components/ui/ToastProvider";
 
-type Card = {
+export type MemberCard = {
   cardCode: string;
   community: { id: string; name: string; logoUrl: string | null };
   member: { displayName: string; avatarUrl: string | null };
@@ -30,7 +30,7 @@ const STATE = {
   suspended: { label: "SUSPENDED", cls: "border-red-soft text-red-soft" },
 } as const;
 
-function CardFace({ card, qr }: { card: Card; qr: string | null }) {
+export function CardFace({ card, qr }: { card: MemberCard; qr: string | null }) {
   const s = STATE[card.state];
   return (
     <div className="relative overflow-hidden rounded-[24px] border border-white/15 bg-gradient-to-br from-[#2a2a2a] via-[#111] to-black p-5 text-white shadow-2xl">
@@ -77,7 +77,7 @@ function CardFace({ card, qr }: { card: Card; qr: string | null }) {
 // screenshot can't outlive the membership.
 export function MembershipCardSheet({ open, onClose, communityId }: { open: boolean; onClose: () => void; communityId: string }) {
   const toast = useToast();
-  const [card, setCard] = useState<Card | null>(null);
+  const [card, setCard] = useState<MemberCard | null>(null);
   const [qr, setQr] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [full, setFull] = useState(false);

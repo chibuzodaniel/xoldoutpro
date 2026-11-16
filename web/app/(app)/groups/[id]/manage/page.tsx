@@ -40,7 +40,7 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
   const [loaded, setLoaded] = useState(false);
   const [isOwner, setIsOwner] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [details, setDetails] = useState({ name: "", handle: "", category: "", location: "", description: "", rules: "", isPrivate: true });
+  const [details, setDetails] = useState({ name: "", handle: "", category: "", location: "", description: "", rules: "", isPrivate: true, joinHeadline: "", joinBenefits: "" });
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [plans, setPlans] = useState<PlanDraft[]>([]);
@@ -65,6 +65,8 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
       description: c.description ?? "",
       rules: c.rules ?? "",
       isPrivate: c.isPrivate,
+      joinHeadline: c.joinHeadline ?? "",
+      joinBenefits: (c.joinBenefits ?? []).join("\n"),
     });
     setBannerUrl(c.bannerUrl);
     setInviteCode(c.inviteCode);
@@ -118,6 +120,8 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
         location: details.location.trim() || null,
         description: details.description,
         rules: details.rules.trim() || null,
+        joinHeadline: details.joinHeadline.trim() || null,
+        joinBenefits: details.joinBenefits.split("\n").map((b) => b.trim()).filter(Boolean).slice(0, 12),
         visibility: details.isPrivate ? "REQUEST_TO_JOIN" : "OPEN",
       },
       "Details saved",
@@ -258,6 +262,14 @@ export default function ManageCommunityPage({ params }: { params: Promise<{ id: 
             <textarea className={`${input} min-h-24`} value={details.description} maxLength={1000} onChange={(e) => setDetails({ ...details, description: e.target.value })} />
             <label className={label}>Community rules</label>
             <textarea className={`${input} min-h-24`} value={details.rules} maxLength={3000} onChange={(e) => setDetails({ ...details, rules: e.target.value })} />
+            {/* The public join page (/join/[id], 2026-11-16): what people see before they pay. */}
+            <label className={label}>Join page headline</label>
+            <input className={input} value={details.joinHeadline} maxLength={80} placeholder={`e.g. Join the ${details.name || "club"}`} onChange={(e) => setDetails({ ...details, joinHeadline: e.target.value })} />
+            <label className={label}>Membership benefits (one per line)</label>
+            <textarea className={`${input} min-h-28`} value={details.joinBenefits} placeholder={"Exclusive recording sessions\nCommunity workshops\nMember-only events"} onChange={(e) => setDetails({ ...details, joinBenefits: e.target.value })} />
+            <p className="text-xs text-ink-3">
+              Your join page: <span className="font-semibold text-ink-2">xoldout.app/join/{details.handle || id}</span>. Anyone can buy a membership there without an account and create one after paying.
+            </p>
             <label className="flex items-center justify-between gap-3 rounded-2xl border border-line p-4">
               <span>
                 <span className="block font-semibold">Private community</span>

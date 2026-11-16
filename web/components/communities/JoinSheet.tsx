@@ -68,7 +68,8 @@ export function JoinSheet({
   const recurringPaid = Boolean(selected && selected.priceKobo > 0 && selected.cycle !== "ONE_TIME");
 
   async function submit() {
-    if (!appUser) return router.push("/login");
+    // Signed out: the join page has the guest checkout (2026-11-16).
+    if (!appUser) return router.push(`/join/${community.id}`);
     setBusy(true);
     try {
       const paying = Boolean(selected && selected.priceKobo > 0 && !needsApproval);

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireFirebaseUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { generateUniqueHandle } from "@/lib/handle";
+import { markClaimed } from "@/lib/communities/guestJoin";
 import { sendWelcomeEmail } from "@/lib/email";
 
 const SITE_URL = "https://www.xoldout.app";
@@ -55,6 +56,8 @@ export async function POST(req: NextRequest) {
           referredByAmbassadorId: referredByAmbassador?.isAmbassador ? referredByAmbassador.id : null,
         },
       });
+      // Guest memberships bought with this email are now on this account (2026-11-16).
+      await markClaimed(adopted.id).catch(() => {});
       void sendWelcomeEmail({ to: adopted.email, profileUrl: `${SITE_URL}/onboarding` }).catch((err) => console.error("welcome email failed", err));
       return NextResponse.json({ user: adopted, needsOnboarding: true });
     }

@@ -1,21 +1,12 @@
-import { randomInt } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/session";
 import { db } from "@/lib/db";
 import { membershipState } from "@/lib/communities/constants";
+import { ensureCardCode } from "@/lib/communities/card";
 
 // The signed-in member's membership card (v2, design/v2-prototype). The QR
 // holds cardCode only — whoever scans it is shown what the server says about
 // that membership right now, so a screenshot can't outlive the membership.
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-function makeCode(name: string) {
-  const prefix = (name.replace(/[^A-Za-z]/g, "").slice(0, 3) || "XOL").toUpperCase();
-  let rest = "";
-  for (let i = 0; i < 7; i++) rest += ALPHABET[randomInt(ALPHABET.length)];
-  return `${prefix}-${rest}`;
-}
-
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { user } = await requireUser(req);
@@ -26,15 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     if (!membership) return NextResponse.json({ error: "You're not a member" }, { status: 404 });
 
-    let cardCode = membership.cardCode;
-    for (let attempt = 0; !cardCode && attempt < 5; attempt++) {
-      const code = makeCode(membership.group.name);
-      const set = await db.membership
-        .updateMany({ where: { groupId: id, userId: user.id, cardCode: null }, data: { cardCode: code } })
-        .catch(() => ({ count: 0 })); // unique clash: try another code
-      if (set.count > 0) cardCode = code;
-      else cardCode = (await db.membership.findUnique({ where: { groupId_userId: { groupId: id, userId: user.id } }, select: { cardCode: true } }))?.cardCode ?? null;
-    }
+    const cardCode = membership.cardCode ?? (await ensureCardCode(id, user.id, membership.group.name));
     if (!cardCode) return NextResponse.json({ error: "Couldn't make your card. Try again." }, { status: 500 });
 
     const plan = membership.planId ? await db.membershipPlan.findUnique({ where: { id: membership.planId }, select: { name: true, priceKobo: true, cycle: true } }) : null;

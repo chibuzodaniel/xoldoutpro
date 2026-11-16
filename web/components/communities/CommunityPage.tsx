@@ -124,6 +124,12 @@ export function CommunityPage({ id }: { id: string }) {
   const paid = plans.filter((p) => p.priceKobo > 0);
   const fromKobo = paid.length ? Math.min(...paid.map((p) => p.priceKobo)) : null;
   const myPlan = m?.planId ? plans.find((p) => p.id === m.planId) : null;
+  // Joining for the first time goes to the community's join page (/join/[id], 2026-11-16):
+  // plans, benefits and checkout. Renewals and approved applications keep the sheet.
+  const startJoin = () => {
+    if (!m && plans.length > 0) return router.push(`/join/${id}${invite ? `?invite=${encodeURIComponent(invite)}` : ""}`);
+    setJoinOpen(true);
+  };
   const pending = viewer.joinRequest?.status === "PENDING";
   const approvedPlanId = viewer.joinRequest?.status === "APPROVED" ? viewer.joinRequest.planId : null;
 
@@ -192,7 +198,8 @@ export function CommunityPage({ id }: { id: string }) {
       type="button"
       onClick={() => {
         setJoinPlan(approvedPlanId ?? m?.planId ?? null);
-        setJoinOpen(true);
+        if (approvedPlanId) setJoinOpen(true);
+        else startJoin();
       }}
       className="w-full rounded-full bg-red px-5 py-3.5 text-[16px] font-bold text-white"
     >
@@ -274,7 +281,7 @@ export function CommunityPage({ id }: { id: string }) {
             <div className="py-8 text-center">
               <p className="text-sm text-ink-3">{pending ? "Your request to join is pending." : "Join to see the Timeline and take part."}</p>
               {!pending && (
-                <button type="button" onClick={() => setJoinOpen(true)} className="mt-3 rounded-full bg-red px-5 py-2.5 text-sm font-bold text-white">
+                <button type="button" onClick={startJoin} className="mt-3 rounded-full bg-red px-5 py-2.5 text-sm font-bold text-white">
                   Join community
                 </button>
               )}
