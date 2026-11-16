@@ -127,3 +127,21 @@
   .xj .done{padding:14px 6px 6px}
   .xj .install{margin-top:12px!important}
 }
+/* Very short screens (iPhone SE and similar). */
+@media (max-height:700px){
+  .xj{padding:8px 14px 10px}
+  .xj .brand{padding:0 4px 6px}
+  .xj .tagline{font-size:19px;margin:0 4px 10px}
+  .xj .card{padding:12px}
+  .xj .tabs{margin-bottom:10px}
+  .xj .google{padding:9px}
+  .xj .or{margin:8px 0;font-size:12px}
+  .xj .field{margin-bottom:6px}
+  .xj .box input{padding:17px 44px 5px 14px}
+  .xj .box label{top:12px}
+  .xj .box input:focus + label,.xj .box input:not(:placeholder-shown) + label{top:4px}
+  .xj .strength{padding-top:5px}
+  .xj .cta{padding:11px}
+  .xj .legal{margin-top:8px}
+  .xj .install{margin-top:8px!important}
+}

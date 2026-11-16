@@ -425,3 +425,16 @@
   .xl .auth-card .legal{margin-top:8px;font-size:12px}
   .xl .auth-x{top:10px;right:10px;width:36px;height:36px}
 }
+/* Very short screens (iPhone SE and similar): drop the dialog's small logo and subtitle. */
+@media (max-height:700px){
+  .xl .auth-card{padding-top:14px}
+  .xl .auth-card .logo,.xl .auth-sub{display:none}
+  .xl .auth-card h2{font-size:23px;margin-bottom:10px;padding-right:44px}
+  .xl .seg{margin-bottom:10px}
+  .xl .auth-card .btn-block{min-height:42px}
+  .xl .auth-card .or{margin:8px 0}
+  .xl .auth-card .field{margin-bottom:7px}
+  .xl .auth-card .field label{margin-bottom:2px}
+  .xl .auth-card .field input{height:42px}
+  .xl .auth-card .legal{margin-top:6px}
+}
