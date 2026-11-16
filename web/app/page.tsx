@@ -12,7 +12,7 @@ import { AuthButton, ChartPills, EarnExplorer, LandingAuthProvider, PhonePreview
 // build, no server work per visit (web/CLAUDE.md CPU budget). Styles are in
 // app/landing.css, all scoped under .xl so nothing leaks into the app.
 
-const fraunces = Fraunces({ subsets: ["latin"], weight: ["500", "700", "900"], axes: ["opsz"], variable: "--font-fraunces", display: "swap" });
+const fraunces = Fraunces({ subsets: ["latin"], axes: ["opsz"], variable: "--font-fraunces", display: "swap" });
 const instrument = Instrument_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700"], variable: "--font-instrument", display: "swap" });
 
 export const dynamic = "force-static";
