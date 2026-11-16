@@ -13,6 +13,8 @@ const AUTH_PAGES = /^\/(login|signup|onboarding|reset-password|recoveraccount)(\
 export function safePath(p: string | null | undefined): string | null {
   if (!p || !p.startsWith("/") || p.startsWith("//") || p.startsWith("/\\")) return null;
   if (AUTH_PAGES.test(p)) return null;
+  // The landing page (2026-11-16) is never the place to return to: after signing in you go into the app.
+  if (p === "/" || p.startsWith("/?") || p.startsWith("/#")) return null;
   return p;
 }
 

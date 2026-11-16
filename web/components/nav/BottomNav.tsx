@@ -50,7 +50,8 @@ const ITEMS: { href: string; label: string; icon: keyof typeof ICONS; isFab: boo
 // alongside the mini player) but only makes sense on the app-shell surfaces
 // it was designed for — hide it on auth/onboarding and public profile pages,
 // which have never had it and aren't part of the five-tab navigation model.
-const NO_NAV_EXACT = new Set(["/login", "/signup", "/onboarding", "/unsubscribe"]);
+// "/" is the landing page (2026-11-16): it has its own header and footer.
+const NO_NAV_EXACT = new Set(["/", "/login", "/signup", "/onboarding", "/unsubscribe"]);
 
 function hasBottomNav(pathname: string) {
   if (NO_NAV_EXACT.has(pathname)) return false;
