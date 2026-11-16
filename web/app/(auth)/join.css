@@ -129,7 +129,7 @@
 }
 /* Very short screens (iPhone SE and similar). */
 @media (max-height:700px){
-  .xj{padding:8px 14px 10px}
+  .xj{padding:6px 14px 0}
   .xj .brand{padding:0 4px 6px}
   .xj .tagline{font-size:19px;margin:0 4px 10px}
   .xj .card{padding:12px}
@@ -143,5 +143,5 @@
   .xj .strength{padding-top:5px}
   .xj .cta{padding:11px}
   .xj .legal{margin-top:8px}
-  .xj .install{margin-top:8px!important}
+  .xj .install{margin-top:4px!important}
 }
