@@ -517,6 +517,9 @@ model FanbaseGroup {
   // Suspended by XOLDOUT moderators (v2 part 3): hidden from the directory,
   // no joining, posting or renewals; members keep their rows.
   suspendedAt DateTime?
+  // Its join page (/join/[id], 2026-11-16): headline and benefits above the plans.
+  joinHeadline String?
+  joinBenefits String[]          @default([])
   reports     Report[]           @relation("ReportsOnCommunity")
   channels    CommunityChannel[]
   plans       MembershipPlan[]
@@ -563,6 +566,29 @@ model MembershipPlan {
   createdAt        DateTime     @default(now())
 
   @@index([groupId])
+}
+
+// A membership bought without an account (guest checkout, 2026-11-16). The
+// buyer row is a pending guest placeholder (User.pendingGuestAt) or, if the
+// email already has an account, that account, so the Membership itself is a
+// normal row from the moment payment succeeds. The token is the secure claim
+// link (success page and email) for creating the account afterwards;
+// claimedAt is set once, so a membership can't be claimed twice.
+model GuestMembershipClaim {
+  token      String    @id
+  userId     String
+  groupId    String
+  planId     String
+  name       String
+  email      String
+  phone      String?
+  paymentRef String?   @unique
+  emailedAt  DateTime?
+  claimedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@index([email])
 }
 
 enum MembershipRole {

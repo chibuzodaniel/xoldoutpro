@@ -31,6 +31,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         category: true,
         location: true,
         rules: true,
+        joinHeadline: true,
+        joinBenefits: true,
         inviteCode: true,
         isFeatured: true,
         suspendedAt: true,
@@ -129,6 +131,9 @@ const patchSchema = z.object({
   category: z.enum(COMMUNITY_CATEGORIES).nullable().optional(),
   location: z.string().trim().max(80).nullable().optional(),
   rules: z.string().trim().max(3000).nullable().optional(),
+  // The join page (/join/[id], 2026-11-16).
+  joinHeadline: z.string().trim().max(80).nullable().optional(),
+  joinBenefits: z.array(z.string().trim().min(1).max(120)).max(12).optional(),
   visibility: z.enum(["OPEN", "REQUEST_TO_JOIN"]).optional(),
   // Client uploaded the original via the "avatar" presign kind; this makes the wide banner.
   bannerKey: z.string().optional(),

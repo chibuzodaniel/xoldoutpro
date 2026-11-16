@@ -657,3 +657,49 @@ export async function sendSubscriptionRenewalEmail(input: {
   `;
   return sendEmail({ to: input.to, subject: `Your ${input.artistName} subscription ends ${input.endsOn}`, html: shell(body) });
 }
+
+// Guest membership checkout (2026-11-16): sent once the membership is paid
+// (or joined, for a free plan). The button is the secure claim link: it opens
+// the membership card and lets the buyer create their XOLDOUT account with
+// this email, which links the membership to it. hasAccount: the email already
+// had an account, so the membership is on it already; they just sign in.
+export async function sendGuestMembershipEmail(input: {
+  to: string;
+  buyerName: string;
+  communityName: string;
+  planName: string;
+  membershipId: string;
+  expiresAt: Date | null;
+  claimUrl: string;
+  hasAccount: boolean;
+}): Promise<boolean> {
+  const firstName = input.buyerName.trim().split(" ")[0] || "there";
+  const until = input.expiresAt ? input.expiresAt.toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" }) : "No expiry";
+  const row = (k: string, v: string) =>
+    `<tr><td style="padding:6px 0;color:${C.body};font-size:13px;">${k}</td><td style="padding:6px 0;color:${C.white};font-size:13px;font-weight:700;text-align:right;">${escapeHtml(v)}</td></tr>`;
+  const body = `
+    <tr><td style="padding:48px 40px 8px;text-align:center;">
+      ${iconCircle("X", C.red)}
+      <div style="color:${C.white};font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:20px;">Welcome to ${escapeHtml(input.communityName)}</div>
+      <div style="color:${C.body};font-size:14px;line-height:22px;max-width:420px;margin:0 auto 20px;text-align:left;">
+        <p style="margin:0 0 16px;">Hi ${escapeHtml(firstName)},</p>
+        <p style="margin:0 0 16px;">Your membership is active and your digital membership card is ready.</p>
+        <p style="margin:0;">${
+          input.hasAccount
+            ? "This email already has a XOLDOUT account, so the membership is on it. Sign in to see your card and the community."
+            : "Create your XOLDOUT account with this email to keep your card in the app and get into the community. Your membership links to it automatically."
+        }</p>
+      </div>
+      <table role="presentation" style="max-width:420px;width:100%;margin:0 auto 28px;border-top:1px solid #2a2a2f;border-bottom:1px solid #2a2a2f;">
+        ${row("Plan", input.planName)}
+        ${row("Membership ID", input.membershipId)}
+        ${row("Valid until", until)}
+      </table>
+    </td></tr>
+    <tr><td style="padding:0 40px 24px;text-align:center;">${button(input.claimUrl, input.hasAccount ? "View my membership" : "Create my account")}</td></tr>
+    <tr><td style="padding:0 40px 40px;text-align:center;color:${C.body};font-size:12px;line-height:18px;">
+      This link is just for you. Keep it private; you can use it any time to claim your membership.
+    </td></tr>
+  `;
+  return sendEmail({ to: input.to, subject: `Your ${input.communityName} membership`, html: shell(body) });
+}

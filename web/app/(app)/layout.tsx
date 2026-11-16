@@ -51,6 +51,10 @@ export default function AppShellLayout({ children }: { children: React.ReactNode
       // unchanged.
       // Come back to this exact page afterwards (2026-11-13).
       const here = window.location.pathname + window.location.search;
+      // A community link: its join page, where anyone can buy a membership
+      // without an account first (2026-11-16), not the sign-up page.
+      const community = window.location.pathname.match(/^\/groups\/([^/]+)\/?$/)?.[1];
+      if (community && community !== "requests") return router.replace(`/join/${community}${window.location.search}`);
       router.replace(withNext(isNewVisitor ? "/signup" : "/login", here));
     } else if (needsOnboarding) {
       router.replace(withNext("/onboarding", window.location.pathname + window.location.search));

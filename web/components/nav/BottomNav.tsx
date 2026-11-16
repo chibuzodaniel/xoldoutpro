@@ -57,6 +57,8 @@ function hasBottomNav(pathname: string) {
   if (NO_NAV_EXACT.has(pathname)) return false;
   if (pathname.startsWith("/u/")) return false;
   if (pathname.startsWith("/legal/")) return false;
+  // Community join pages (2026-11-16): a checkout, often for people without an account.
+  if (pathname.startsWith("/join/")) return false;
   // A Live's viewer/broadcast screens are full-bleed video with their own
   // chat bar at the bottom — the list, coins, and Go Live setup pages keep it.
   if (/^\/live\/(?!coins(\/|$)|new$)[^/]+(\/broadcast)?$/.test(pathname)) return false;

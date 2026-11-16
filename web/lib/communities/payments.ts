@@ -158,6 +158,13 @@ export async function finalizeMembershipPayment(
   });
   if (!result) return { alreadyProcessed: false, activated: false };
 
+  // A guest checkout (lib/communities/guestJoin.ts): make the card and email the claim link.
+  const paid = await db.payment.findUnique({ where: { id: payment.id }, select: { processorRef: true } });
+  if (paid?.processorRef.startsWith("gmem-")) {
+    const { afterGuestMembershipPaid } = await import("@/lib/communities/guestJoin");
+    await afterGuestMembershipPaid(paid.processorRef).catch((err) => console.error("guest membership follow-up failed", err));
+  }
+
   const member = await db.user.findUnique({ where: { id: userId }, select: { displayName: true, avatarUrl: true } });
   await Promise.all([
     notifyUsers([result.ownerId], {
