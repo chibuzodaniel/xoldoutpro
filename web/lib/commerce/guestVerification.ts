@@ -35,7 +35,7 @@ function hashCode(rowId: string, code: string) {
   return createHash("sha256").update(`${rowId}:${code}`).digest("hex");
 }
 
-export async function sendGuestCode(args: { email: string; name: string; ip: string | null }) {
+export async function sendGuestCode(args: { email: string; name: string; ip: string | null; purpose?: "purchase" | "signup" }) {
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
   const [recentForEmail, recentForIp] = await Promise.all([
     db.guestEmailVerification.findMany({
@@ -58,7 +58,7 @@ export async function sendGuestCode(args: { email: string; name: string; ip: str
   });
   await db.guestEmailVerification.update({ where: { id: row.id }, data: { codeHash: hashCode(row.id, code) } });
 
-  const sent = await sendGuestVerificationCodeEmail({ to: args.email, buyerName: args.name, code, minutes: CODE_TTL_MINUTES });
+  const sent = await sendGuestVerificationCodeEmail({ to: args.email, buyerName: args.name, code, minutes: CODE_TTL_MINUTES, purpose: args.purpose });
   if (!sent) throw new GuestVerificationError("We couldn't send the code. Check the email address and try again.", 502);
 }
 

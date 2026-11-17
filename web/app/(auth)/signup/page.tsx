@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import {
-  createUserWithEmailAndPassword,
-  signInWithPopup,
-  updateProfile,
-} from "firebase/auth";
+import { signInWithCustomToken, signInWithPopup } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
 import { GoogleLogo } from "@/components/ui/GoogleLogo";
@@ -70,6 +66,13 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [deletedHandle, setDeletedHandle] = useState<string | null>(null);
+  // Email code (explicit ask, 2026-11-17: "every email should be verified
+  // using a code"): the address the code went to, and what was typed. The
+  // account is created on the server only after the code checks out
+  // (lib/auth/signupWithCode.ts).
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const codeSent = codeFor !== null && codeFor === email.trim().toLowerCase();
   // Explicit ask: this page shouldn't need scrolling at all — collapsed by
   // default so the install steps (the single biggest chunk of content
   // below the fold) don't force it, expandable for anyone who actually
@@ -88,16 +91,48 @@ export default function SignupPage() {
     else installGuide.open();
   }
 
+  async function post(path: string, body: object) {
+    const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(
+        data.error === "email_taken" ? "An account with this email already exists. Log in instead." : typeof data.error === "string" ? data.error : "Sign-up failed",
+      );
+    }
+    return data;
+  }
+
+  async function sendCode() {
+    const addr = email.trim().toLowerCase();
+    if (password.length < 8 || !/[A-Za-z]/.test(password) || !/d/.test(password)) {
+      return toast.error("Use a password of at least 8 characters, with a letter and a number.");
+    }
+    setBusy(true);
+    try {
+      await post("/api/auth/signup/code", { name: addr.split("@")[0], email: addr });
+      setCode("");
+      setCodeFor(addr);
+      toast.success(`We sent a 6-digit code to ${addr}. Check your inbox and spam folder.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Couldn't send the code");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleEmailSignup(e: React.FormEvent) {
     e.preventDefault();
     if (!firebaseAuth) return toast.error("Firebase isn't configured yet. See .env.local.example.");
+    if (!codeSent) return sendCode();
+    if (!/^d{6}$/.test(code)) return toast.error("Enter the 6-digit code from the email.");
     setBusy(true);
     try {
-      const cred = await createUserWithEmailAndPassword(firebaseAuth, email, password);
-      if (email) await updateProfile(cred.user, { displayName: email.split("@")[0] });
+      const addr = email.trim().toLowerCase();
+      const d = await post("/api/auth/signup", { name: addr.split("@")[0], email: addr, password, code });
+      await signInWithCustomToken(firebaseAuth, d.customToken);
       router.push(withNext("/onboarding", next));
     } catch (err) {
-      toast.error(friendlyFirebaseError(err, "Sign-up failed"));
+      toast.error(err instanceof Error && !("code" in err) ? err.message : friendlyFirebaseError(err, "Sign-up failed"));
     } finally {
       setBusy(false);
     }
@@ -189,18 +224,35 @@ export default function SignupPage() {
           />
           <PasswordInput
             required
-            minLength={6}
-            placeholder="Password"
+            minLength={8}
+            placeholder="Password (8+ characters, a letter and a number)"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="rounded-lg border border-line bg-surface px-3 py-2 text-sm outline-none transition-colors duration-150 focus:border-red"
           />
+          {codeSent && (
+            <>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                placeholder="6-digit code from your email"
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/D/g, "").slice(0, 6))}
+                className="rounded-lg border border-line bg-surface px-3 py-2 text-sm tracking-[0.3em] outline-none transition-colors duration-150 focus:border-red"
+              />
+              <button type="button" onClick={sendCode} disabled={busy} className="self-end text-[11px] font-semibold text-ink-3 disabled:opacity-50">
+                Send a new code
+              </button>
+            </>
+          )}
           <button
             type="submit"
             disabled={busy}
             className="mt-0.5 rounded-full bg-red px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
           >
-            Sign up for free
+            {codeSent ? "Verify and sign up" : "Sign up for free"}
           </button>
         </form>
 
