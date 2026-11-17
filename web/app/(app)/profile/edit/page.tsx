@@ -17,6 +17,7 @@ import { useToast } from "@/components/ui/ToastProvider";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { PushStatusNotice } from "@/components/push/PushStatusNotice";
 import { BottomSheet } from "@/components/ui/BottomSheet";
+import { safePath } from "@/lib/returnTo";
 
 
 const PLAN_LABEL: Record<NonNullable<AppUser["creatorPlan"]>, string> = {
@@ -94,7 +95,8 @@ export default function EditProfilePage() {
       }
       await refreshAppUser();
       toast.success("Profile saved.");
-      router.push("/profile");
+      // ?next= (e.g. a new member sent here from their community welcome, 2026-11-17) goes back there.
+      router.push(safePath(new URLSearchParams(window.location.search).get("next")) ?? "/profile");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Something went wrong");
     } finally {
