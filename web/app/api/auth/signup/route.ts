@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createAccountWithCode, SignupError } from "@/lib/auth/signupWithCode";
 
 const bodySchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  name: z.string().trim().min(1).max(80),
   email: z.string().trim().toLowerCase().email(),
   password: z.string().min(1).max(128),
   code: z.string().trim().regex(/^\d{6}$/),

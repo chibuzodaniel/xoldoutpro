@@ -3,7 +3,7 @@ import { z } from "zod";
 import { sendSignupCode, SignupError } from "@/lib/auth/signupWithCode";
 
 const bodySchema = z.object({
-  name: z.string().trim().min(2).max(80),
+  name: z.string().trim().min(1).max(80),
   email: z.string().trim().toLowerCase().email(),
 });
 
