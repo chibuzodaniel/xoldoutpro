@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import QRCode from "qrcode";
 import { signInWithCustomToken } from "firebase/auth";
 import { firebaseAuth } from "@/lib/firebase/client";
@@ -40,7 +40,6 @@ export default function JoinWelcomePage() {
 function Welcome() {
   const { id } = useParams<{ id: string }>();
   const sp = useSearchParams();
-  const router = useRouter();
   const { appUser } = useAuth();
   const [token, setToken] = useState<string | null>(null);
   const [view, setView] = useState<View | null>(null);
@@ -51,6 +50,8 @@ function Welcome() {
   const [show, setShow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Account just created: the profile prompt (explicit ask, 2026-11-17).
+  const [joinedGroupId, setJoinedGroupId] = useState<string | null>(null);
 
   // The claim token: from the link, or saved in this browser at checkout.
   useEffect(() => {
@@ -111,7 +112,8 @@ function Welcome() {
       if (!res.ok) throw new Error(typeof d.error === "string" ? d.error : "Couldn't create your account");
       if (!firebaseAuth) throw new Error("Sign-in isn't available right now. Sign in with your email and new password.");
       await signInWithCustomToken(firebaseAuth, d.customToken);
-      router.push(`/groups/${d.groupId}`);
+      setJoinedGroupId(d.groupId);
+      setBusy(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create your account");
       setBusy(false);
@@ -171,7 +173,25 @@ function Welcome() {
             </div>
           )}
 
-          {view.account === "needs_account" && !appUser ? (
+          {joinedGroupId ? (
+            <div className="mt-7 rounded-3xl border border-red/40 bg-red/10 p-5">
+              <p className="text-[12px] font-bold uppercase tracking-[0.16em] text-red-soft">Your account is ready</p>
+              <h2 className="mt-1.5 text-[20px] font-bold leading-snug">Set up your profile to get community updates</h2>
+              <p className="mt-2 text-[14.5px] text-ink-2">
+                Add your photo, a username and a short bio so members know who you are, and turn on notifications so you hear about sessions, workshops and events
+                in {view.community.name} as they&apos;re announced.
+              </p>
+              <Link
+                href={`/profile/edit?next=${encodeURIComponent(`/groups/${joinedGroupId}`)}`}
+                className="mt-4 block w-full rounded-full bg-red px-5 py-4 text-center text-[16px] font-bold text-white"
+              >
+                Edit my profile
+              </Link>
+              <Link href={`/groups/${joinedGroupId}`} className="mt-3 block text-center text-[14px] font-semibold text-ink-3">
+                Later, take me to the community
+              </Link>
+            </div>
+          ) : view.account === "needs_account" && !appUser ? (
             <form onSubmit={createAccount} noValidate className="mt-7 rounded-3xl border border-line bg-surface p-5">
               <h2 className="text-[19px] font-bold">Create your XOLDOUT account</h2>
               <p className="mt-1 text-[14px] text-ink-3">Keep your card in the app and get into the community. Your membership links to it automatically.</p>
