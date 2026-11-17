@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth";
+import { signInWithCustomToken, signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { firebaseAuth, googleProvider } from "@/lib/firebase/client";
 import { checkAccountDeletedAfterSignIn } from "@/lib/auth/postSignIn";
 import { friendlyFirebaseError } from "@/lib/auth/firebaseError";
@@ -18,11 +18,13 @@ export type AuthFailure = {
   message: string;
   /** "email_taken" offers "Sign in instead"; "deleted" carries the handle to recover. */
   code?: "email_taken" | "bad_credentials" | "cancelled" | "deleted";
-  field?: { name: "email" | "password"; message: string };
+  field?: { name: "email" | "password" | "code"; message: string };
   deletedHandle?: string;
 };
 export type AuthSuccess = { ok: true; name: string | null; go: () => void };
 export type AuthResult = AuthSuccess | AuthFailure;
+
+export const CODE_RE = /^d{6}$/;
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
@@ -51,6 +53,9 @@ export const rules = {
   },
   password(v: string) {
     return v ? "" : "Enter your password.";
+  },
+  code(v: string) {
+    return CODE_RE.test(v.trim()) ? "" : "Enter the 6-digit code from the email.";
   },
 };
 
@@ -99,14 +104,36 @@ export function useAuthFlow(next: string) {
     return handle ? { ok: false, code: "deleted", deletedHandle: handle, message: "You deleted this account. It can still be recovered." } : null;
   }
 
-  async function signUp(name: string, email: string, password: string): Promise<AuthResult> {
-    if (!firebaseAuth) return NOT_CONFIGURED;
+  // Email sign-up is two steps (2026-11-17, "every email should be verified
+  // using a code"): sendSignupCode emails a 6-digit code, then signUp sends it
+  // with the details and the server creates the account (already verified,
+  // lib/auth/signupWithCode.ts) and returns a token to sign in with.
+  async function post(path: string, body: object): Promise<{ ok: true; data: Record<string, unknown> } | AuthFailure> {
     try {
-      const cred = await createUserWithEmailAndPassword(firebaseAuth, email.trim(), password);
-      await updateProfile(cred.user, { displayName: name.trim() || email.split("@")[0] }).catch(() => {});
+      const res = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) return { ok: true, data };
+      if (data.error === "email_taken") return failure({ code: "auth/email-already-in-use", message: "" } as unknown as Error, "");
+      return { ok: false, message: typeof data.error === "string" ? data.error : "Something went wrong. Please try again." };
+    } catch {
+      return { ok: false, message: "Can’t reach XOLDOUT right now. Check your connection and try again." };
+    }
+  }
+
+  async function sendSignupCode(name: string, email: string): Promise<{ ok: true } | AuthFailure> {
+    const r = await post("/api/auth/signup/code", { name: name.trim(), email: email.trim() });
+    return r.ok ? { ok: true } : r;
+  }
+
+  async function signUp(name: string, email: string, password: string, code: string): Promise<AuthResult> {
+    if (!firebaseAuth) return NOT_CONFIGURED;
+    const r = await post("/api/auth/signup", { name: name.trim(), email: email.trim(), password, code: code.trim() });
+    if (!r.ok) return /code|tries/i.test(r.message) && !r.code ? { ...r, field: { name: "code", message: r.message } } : r;
+    try {
+      await signInWithCustomToken(firebaseAuth, String(r.data.customToken));
       return { ok: true, name: name.trim() || null, go: () => router.push(afterSignup) };
     } catch (err) {
-      return failure(err, "We couldn’t create your account. Please try again.");
+      return failure(err, "Your account is ready, but we couldn’t sign you in. Sign in with your email and password.");
     }
   }
 
@@ -148,5 +175,5 @@ export function useAuthFlow(next: string) {
     }
   }
 
-  return { signUp, signIn, google, sendReset };
+  return { sendSignupCode, signUp, signIn, google, sendReset };
 }

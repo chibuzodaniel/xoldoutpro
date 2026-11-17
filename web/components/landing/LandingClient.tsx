@@ -199,6 +199,10 @@ function AuthDialog({
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [deleted, setDeleted] = useState<string | null>(null);
+  // Sign-up email code (2026-11-17): the address it went to, and what was typed.
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const codeSent = mode === "signup" && codeFor !== null && codeFor === email.trim().toLowerCase();
   const setErr = (k: string) => (msg: string) => setErrors((e) => ({ ...e, [k]: msg }));
 
   // Open/close the native dialog with the mode.
@@ -226,6 +230,7 @@ function AuthDialog({
     setBusy(null);
     if (r.code === "deleted" && r.deletedHandle) return setDeleted(r.deletedHandle);
     if (r.field) setErr(r.field.name)(r.field.message);
+    if (r.field?.name === "code") return;
     setAlert({
       kind: "error",
       text: r.message,
@@ -247,9 +252,20 @@ function AuthDialog({
     if (busy || !mode) return;
     setAlert(null);
     if (mode === "signup") {
-      if (!validate([["name", name, rules.name], ["email", email, rules.email], ["password", password, rules.newPassword]])) return;
+      const base: [string, string, (v: string) => string][] = [["name", name, rules.name], ["email", email, rules.email], ["password", password, rules.newPassword]];
+      if (!validate(codeSent ? [...base, ["code", code, rules.code]] : base)) return;
       setBusy("form");
-      const r = await flow.signUp(name, email, password);
+      if (!codeSent) {
+        const sent = await flow.sendSignupCode(name, email);
+        if (!sent.ok) return fail(sent);
+        setBusy(null);
+        setCode("");
+        setCodeFor(email.trim().toLowerCase());
+        setAlert({ kind: "info", text: `We sent a 6-digit code to ${email.trim()}. Check your inbox and spam folder.` });
+        requestAnimationFrame(() => ref.current?.querySelector<HTMLInputElement>("#xl-code")?.focus());
+        return;
+      }
+      const r = await flow.signUp(name, email, password, code);
       if (!r.ok) return fail(r);
       setAlert({ kind: "success", text: "You’re in. Taking you to Xoldout…" });
       setTimeout(r.go, 700);
@@ -281,7 +297,7 @@ function AuthDialog({
 
   const m = mode ?? "signup";
   const choices = m === "signup" || m === "signin";
-  const submitLabel = { signup: ["Create account", "Creating account…"], signin: ["Sign in", "Signing in…"], forgot: ["Send reset link", "Sending link…"] }[m];
+  const submitLabel = { signup: codeSent ? ["Verify and create account", "Creating account…"] : ["Send code", "Sending code…"], signin: ["Sign in", "Signing in…"], forgot: ["Send reset link", "Sending link…"] }[m];
 
   return (
     <dialog
@@ -368,6 +384,27 @@ function AuthDialog({
                     placeholder={m === "signup" ? "Create a password" : "Your password"}
                     hint={m === "signup" ? "At least 8 characters, with a letter and a number." : undefined}
                   />
+                )}
+                {codeSent && (
+                  <>
+                    <Field
+                      id="xl-code"
+                      label="6-digit code from your email"
+                      type="text"
+                      value={code}
+                      onChange={(v) => setCode(v.replace(/D/g, "").slice(0, 6))}
+                      rule={rules.code}
+                      error={errors.code ?? ""}
+                      setError={setErr("code")}
+                      autoComplete="one-time-code"
+                      placeholder="123456"
+                    />
+                    <div className="row-between">
+                      <button className="linkbtn" type="button" disabled={Boolean(busy)} onClick={() => setCodeFor(null)}>
+                        Send a new code
+                      </button>
+                    </div>
+                  </>
                 )}
                 {m === "signin" && (
                   <div className="row-between">

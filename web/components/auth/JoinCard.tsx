@@ -13,7 +13,7 @@ import "@/app/(auth)/join.css";
 // Styles: app/(auth)/join.css, scoped under .xj.
 
 type Mode = "signup" | "signin";
-type FieldName = "name" | "email" | "pass";
+type FieldName = "name" | "email" | "pass" | "code";
 
 function score(p: string) {
   let s = 0;
@@ -45,14 +45,19 @@ export function JoinCard({ initialMode }: { initialMode: Mode }) {
   const [busy, setBusy] = useState<null | "form" | "google">(null);
   const [done, setDone] = useState<{ title: string; go: () => void } | null>(null);
   const [deleted, setDeleted] = useState<string | null>(null);
+  // Sign-up email code (2026-11-17): the address it went to, and what was typed.
+  const [codeFor, setCodeFor] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+  const codeRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const emailRef = useRef<HTMLInputElement>(null);
   const passRef = useRef<HTMLInputElement>(null);
-  const focusField = (f: FieldName) => (f === "name" ? nameRef : f === "email" ? emailRef : passRef).current?.focus();
+  const focusField = (f: FieldName) => (f === "name" ? nameRef : f === "email" ? emailRef : f === "code" ? codeRef : passRef).current?.focus();
 
   const up = mode === "signup";
-  const ruleFor = (f: FieldName) => (f === "name" ? rules.name : f === "email" ? rules.email : up ? rules.newPassword : rules.password);
-  const values: Record<FieldName, string> = { name, email, pass };
+  const ruleFor = (f: FieldName) => (f === "name" ? rules.name : f === "email" ? rules.email : f === "code" ? rules.code : up ? rules.newPassword : rules.password);
+  const values: Record<FieldName, string> = { name, email, pass, code };
+  const codeSent = up && codeFor !== null && codeFor === email.trim().toLowerCase();
 
   function check(f: FieldName, v = values[f]) {
     const msg = ruleFor(f)(v);
@@ -78,7 +83,8 @@ export function JoinCard({ initialMode }: { initialMode: Mode }) {
   function fail(r: AuthFailure) {
     setBusy(null);
     if (r.code === "deleted" && r.deletedHandle) return setDeleted(r.deletedHandle);
-    if (r.field) setErrors((e) => ({ ...e, [r.field!.name === "password" ? "pass" : "email"]: r.field!.message }));
+    if (r.field) setErrors((e) => ({ ...e, [r.field!.name === "password" ? "pass" : r.field!.name]: r.field!.message }));
+    if (r.field?.name === "code") return;
     setBanner({
       kind: "err",
       text: r.code === "email_taken" ? "That email already has an account." : r.message,
@@ -98,11 +104,25 @@ export function JoinCard({ initialMode }: { initialMode: Mode }) {
     const fields: FieldName[] = up ? ["name", "email", "pass"] : ["email", "pass"];
     const bad = fields.filter((f) => !check(f));
     if (bad.length) return focusField(bad[0]);
+    if (up && !codeSent) return sendCode();
+    if (up && !check("code")) return focusField("code");
     setBusy("form");
-    const r = up ? await flow.signUp(name, email, pass) : await flow.signIn(email, pass);
+    const r = up ? await flow.signUp(name, email, pass, code) : await flow.signIn(email, pass);
     if (!r.ok) return fail(r);
     setBusy(null);
     finish(r.name ?? (up ? name : null), up, r.go);
+  }
+
+  async function sendCode() {
+    setBusy("form");
+    const r = await flow.sendSignupCode(name, email);
+    if (!r.ok) return fail(r);
+    setBusy(null);
+    setCode("");
+    setErrors((e) => ({ ...e, code: "" }));
+    setCodeFor(email.trim().toLowerCase());
+    setBanner({ kind: "info", text: `We sent a 6-digit code to ${email.trim()}. Check your inbox and spam folder.` });
+    requestAnimationFrame(() => codeRef.current?.focus());
   }
 
   async function google() {
@@ -286,6 +306,35 @@ export function JoinCard({ initialMode }: { initialMode: Mode }) {
                   <div className="msg">{errors.pass}</div>
                 </div>
 
+                {codeSent && (
+                  <div className={fieldClass("code")}>
+                    <div className="box">
+                      <input
+                        ref={codeRef}
+                        id="xj-code"
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        placeholder=" "
+                        value={code}
+                        onChange={(e) => {
+                          const v = e.target.value.replace(/D/g, "").slice(0, 6);
+                          setCode(v);
+                          if (errors.code) check("code", v);
+                        }}
+                      />
+                      <label htmlFor="xj-code">6-digit code from your email</label>
+                    </div>
+                    <div className="msg">{errors.code}</div>
+                    <div className="row">
+                      <a role="button" tabIndex={0} onClick={() => !busy && sendCode()} onKeyDown={(e) => e.key === "Enter" && !busy && sendCode()}>
+                        Send a new code
+                      </a>
+                    </div>
+                  </div>
+                )}
+
                 {!up && (
                   <div className="row">
                     <a role="button" tabIndex={0} onClick={forgot} onKeyDown={(e) => e.key === "Enter" && forgot()}>
@@ -296,7 +345,7 @@ export function JoinCard({ initialMode }: { initialMode: Mode }) {
 
                 <button className={`cta ${busy === "form" ? "loading" : ""}`} type="submit" disabled={Boolean(busy)}>
                   <span className="spin" />
-                  <span>{up ? "Create account" : "Sign in"}</span>
+                  <span>{up ? (codeSent ? "Verify and create account" : "Send code") : "Sign in"}</span>
                 </button>
               </form>
 
